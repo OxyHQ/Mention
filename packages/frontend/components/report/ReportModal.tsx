@@ -1,14 +1,23 @@
 import type React from 'react';
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { Divider } from '@oxy.so/bloom/divider';
 import { Field } from '@oxy.so/bloom/field';
-import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { REPORT_CATEGORIES } from '@/services/reportService';
+
+import {
+  Checkbox as LCheckbox,
+  Divider as LDivider,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ReportModalProps {
   visible: boolean;
@@ -49,26 +58,35 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
   return (
     <View className="bg-background rounded-t-3xl" style={{ maxHeight: '90%' }}>
       {/* Header */}
-      <View className="flex-row items-center px-4 py-3" style={{ minHeight: 56 }}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          onPress={handleCancel}
-          className="p-2 z-10"
-          activeOpacity={0.7}
-        >
-          <RiCloseLine width={20} height={20} fill={theme.colors.text} />
-        </TouchableOpacity>
-        <Text
-          className="text-foreground text-lg font-bold absolute left-0 right-0 text-center"
-          style={{ pointerEvents: 'none' }}
-        >
-          Report Post
-        </Text>
-        <View style={{ width: 36, marginLeft: 'auto' }} />
-      </View>
-      <Divider />
-
+      {toElement(
+        HStack(
+          Embed(
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+              onPress={handleCancel}
+              className="p-2 z-10"
+              activeOpacity={0.7}
+            >
+              {toElement(Icon(RiCloseLine).size('md').foreground('foreground'))}
+            </TouchableOpacity>,
+          ),
+          Embed(
+            <Text
+              className="text-foreground text-lg font-bold absolute left-0 right-0 text-center"
+              style={{ pointerEvents: 'none' }}
+            >
+              Report Post
+            </Text>,
+          ),
+          Embed(<View style={{ width: 36, marginLeft: 'auto' }} />),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'md')
+          .frame({ minHeight: '56' })
+          .align('center'),
+      )}
+      {toElement(LDivider())}
       {/* Content */}
       <ScrollView className="px-4 pt-4 pb-2">
         <Text className="text-muted-foreground text-[15px] mb-4" style={{ lineHeight: 20 }}>
@@ -76,32 +94,36 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
         </Text>
 
         {/* Categories */}
-        <View className="gap-2 mb-6">
-          {REPORT_CATEGORIES.map((category) => {
-            const isSelected = selectedCategories.includes(category.id);
-            return (
-              // The selected tint is `bg-primary/10`, never
-              // `theme.colors.primary + '20'`: the token is an
-              // `rgb(...)` string, so a hex-alpha suffix makes a
-              // malformed colour react-native-web reads as fully
-              // opaque primary — a solid card behind the label.
-              <View
-                key={category.id}
-                className={`py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
-                style={{
-                  borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-                  borderWidth: 1.5,
-                }}
-              >
-                <Checkbox
-                  label={category.label}
-                  checked={isSelected}
-                  onCheckedChange={() => toggleCategory(category.id)}
-                />
-              </View>
-            );
-          })}
-        </View>
+        {toElement(
+          VStack(
+            Embed(
+              REPORT_CATEGORIES.map((category) => {
+                const isSelected = selectedCategories.includes(category.id);
+                return (
+                  // The selected tint is `bg-primary/10`, never
+                  // `theme.colors.primary + '20'`: the token is an
+                  // `rgb(...)` string, so a hex-alpha suffix makes a
+                  // malformed colour react-native-web reads as fully
+                  // opaque primary — a solid card behind the label.
+                  <View
+                    key={category.id}
+                    className={`py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
+                    style={{
+                      borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                      borderWidth: 1.5,
+                    }}
+                  >
+                    {toElement(
+                      LCheckbox([isSelected, () => toggleCategory(category.id)], category.label),
+                    )}
+                  </View>
+                );
+              }),
+            ),
+          )
+            .spacing('sm')
+            .margin('bottom', '2xl'),
+        )}
 
         {/* Details Input */}
         <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
@@ -117,9 +139,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
           />
         </Field>
       </ScrollView>
-
       {/* Action Buttons */}
-      <Divider />
+      {toElement(LDivider())}
       <View className="flex-row gap-3 px-4 py-4 pb-5">
         <TouchableOpacity
           className="flex-1 items-center justify-center rounded-xl border border-border bg-card"
@@ -128,7 +149,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
           onPress={handleCancel}
           activeOpacity={0.7}
         >
-          <Text className="text-foreground text-base font-semibold">Cancel</Text>
+          {toElement(
+            RawText('Cancel')
+              .foreground('foreground')
+              .font('16')
+              .leading('normal')
+              .weight('semibold'),
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity

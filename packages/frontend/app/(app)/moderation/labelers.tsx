@@ -6,10 +6,8 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
-import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
 import { toast } from '@oxy.so/bloom/toast';
@@ -18,6 +16,19 @@ import { labelerService, type LabelDefinition } from '@/services/labelerService'
 import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  Search as LSearch,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 /** How long typing settles before it becomes a new query key. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -53,75 +64,98 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
       onPress={() => router.push(`/moderation/labelers/${id}`)}
       activeOpacity={0.7}
     >
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="flex-1 flex-row items-center gap-2 flex-wrap">
-          <Text className="text-base font-bold text-foreground" numberOfLines={1}>
-            {labeler.name}
-          </Text>
-          {labeler.isOfficial && (
-            <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
-              <RiShieldCheckLine width={10} height={10} fill="#fff" />
-              <Text className="text-white text-[10px] font-bold">
-                {t('labelers.official', { defaultValue: 'Official' })}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.subscribeBtn,
-            labeler.isSubscribed
-              ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
-              : { backgroundColor: theme.colors.primary },
-          ]}
-          onPress={() => onSubscribeToggle(id, !!labeler.isSubscribed)}
-          disabled={subscribing}
-          activeOpacity={0.7}
-        >
-          {subscribing ? (
-            <Loading
-              className="text-primary"
-              variant="inline"
-              size="sm"
-              style={{ flex: undefined }}
-            />
-          ) : (
-            <Text
-              className={cn(
-                'text-[13px] font-semibold',
-                labeler.isSubscribed ? 'text-foreground' : 'text-white',
-              )}
+      {toElement(
+        HStack(
+          HStack(
+            RawText(labeler.name)
+              .font('16')
+              .leading('normal')
+              .weight('bold')
+              .foreground('foreground')
+              .lines(1),
+            Embed(
+              labeler.isOfficial && (
+                <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
+                  {toElement(Icon(RiShieldCheckLine).size('10').foreground(appColors.color.hexfff))}
+                  {toElement(
+                    RawText(t('labelers.official', { defaultValue: 'Official' }))
+                      .foreground('white')
+                      .font('2xs')
+                      .weight('bold'),
+                  )}
+                </View>
+              ),
+            ),
+          )
+            .flex('1')
+            .align('center')
+            .spacing('sm')
+            .wrap(),
+          Embed(
+            <TouchableOpacity
+              style={[
+                styles.subscribeBtn,
+                labeler.isSubscribed
+                  ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
+                  : { backgroundColor: theme.colors.primary },
+              ]}
+              onPress={() => onSubscribeToggle(id, !!labeler.isSubscribed)}
+              disabled={subscribing}
+              activeOpacity={0.7}
             >
-              {labeler.isSubscribed
-                ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
-                : t('labelers.subscribe', { defaultValue: 'Subscribe' })}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {!!labeler.description && (
-        <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
-          {labeler.description}
-        </Text>
+              {subscribing ? (
+                <Loading
+                  className="text-primary"
+                  variant="inline"
+                  size="sm"
+                  style={{ flex: undefined }}
+                />
+              ) : (
+                <Text
+                  className={cn(
+                    'text-[13px] font-semibold',
+                    labeler.isSubscribed ? 'text-foreground' : 'text-white',
+                  )}
+                >
+                  {labeler.isSubscribed
+                    ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
+                    : t('labelers.subscribe', { defaultValue: 'Subscribe' })}
+                </Text>
+              )}
+            </TouchableOpacity>,
+          ),
+        )
+          .align('start')
+          .justify('between')
+          .spacing('md'),
       )}
-
-      <View className="flex-row items-center gap-1.5">
-        <Text className="text-[13px] text-muted-foreground">
-          {t('labelers.subscriberCount', {
-            count: labeler.subscriberCount,
-            defaultValue: '{{count}} subscribers',
-          })}
-        </Text>
-        <Text className="text-[13px] text-muted-foreground">{'\u00B7'}</Text>
-        <Text className="text-[13px] text-muted-foreground">
-          {t('labelers.labelCount', {
-            count: labelCount,
-            defaultValue: '{{count}} labels',
-          })}
-        </Text>
-      </View>
+      {!!labeler.description &&
+        toElement(
+          RawText(labeler.description).font('14').leading('20px').foreground('muted').lines(2),
+        )}
+      {toElement(
+        HStack(
+          RawText(
+            t('labelers.subscriberCount', {
+              count: labeler.subscriberCount,
+              defaultValue: '{{count}} subscribers',
+            }),
+          )
+            .font('sm')
+            .foreground('muted'),
+          RawText('·').font('sm').foreground('muted'),
+          RawText(
+            t('labelers.labelCount', {
+              count: labelCount,
+              defaultValue: '{{count}} labels',
+            }),
+          )
+            .font('sm')
+            .foreground('muted'),
+        )
+          .align('center')
+          .spacing('6'),
+      )}
     </TouchableOpacity>
   );
 });
@@ -232,12 +266,11 @@ const LabelersScreen: React.FC = () => {
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={t('labelers.title', { defaultValue: 'Content Labels' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+      header={toElement(
+        Header(t('labelers.title', { defaultValue: 'Content Labels' }))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      )}
     >
       <ScreenScrollView
         refreshControl={
@@ -250,14 +283,16 @@ const LabelersScreen: React.FC = () => {
           />
         }
       >
-        <View className="mx-4 mt-2 mb-1">
-          <Search
-            label={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' })}
-            value={search}
-            onChangeText={setSearch}
-            onClearText={() => setSearch('')}
-          />
-        </View>
+        {toElement(
+          VStack(
+            LSearch([search, setSearch])
+              .label(t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' }))
+              .onClearText(() => setSearch('')),
+          )
+            .margin('horizontal', 'lg')
+            .margin('top', 'sm')
+            .margin('bottom', 'xs'),
+        )}
 
         {isLoading ? (
           <ListSkeleton />

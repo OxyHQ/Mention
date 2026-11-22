@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import type { TFunction } from 'i18next';
 import type {
   CommunityNoteRating,
@@ -10,12 +8,22 @@ import type {
   CommunityNoteSummary,
   HydratedPostSummary,
 } from '@mention/shared-types';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { CommunityNoteCard } from './CommunityNoteCard';
 import { useCommunityNoteSheets, type CommunityNoteWriteHandlers } from './useCommunityNoteSheets';
+
+import {
+  Embed,
+  Header,
+  RawText,
+  ScrollView,
+  TabItem,
+  Tabs as LTabs,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** A note together with the post it is about. */
 export interface CommunityNoteEntry {
@@ -111,13 +119,13 @@ export function CommunityNotesScreen({
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={t('communityNotes.hub.title', { defaultValue: 'Community notes' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          accessory={
-            <Tabs value={tab} onValueChange={(id) => setTab(id as TabId)} variant="underline">
-              {[
+      header={toElement(
+        Header(t('communityNotes.hub.title', { defaultValue: 'Community notes' }))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .accessory(
+            LTabs(
+              [tab, (id) => setTab(id as TabId)],
+              [
                 {
                   id: 'rate',
                   label: t('communityNotes.hub.tabRate', { defaultValue: 'Rate notes' }),
@@ -130,47 +138,66 @@ export function CommunityNotesScreen({
                   id: 'notes',
                   label: t('communityNotes.hub.tabNotes', { defaultValue: 'Your notes' }),
                 },
-              ].map((tab: { id: string; label: string; count?: number }) => (
-                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-              ))}
-            </Tabs>
-          }
-        />
-      }
+              ].map((tab: { id: string; label: string; count?: number }) =>
+                TabItem(tab.id, tab.label).count(tab.count),
+              ),
+            ).style('underline'),
+          )
+          .inPage(),
+      )}
     >
-      <ScreenScrollView contentContainerClassName="gap-6 pb-10 pt-4">
-        <Text className="text-foreground px-4 text-[15px] leading-5">{intro}</Text>
-        {entries.length === 0 ? (
-          <EmptyState title={empty} sticker="communityNotes" />
-        ) : (
-          entries.map(({ post, note }) => (
-            <View key={note.id} className="border-border gap-3 border-b pb-6">
-              <View className="px-4">
-                <PostItem post={post} isNested openPostEngagement={openPostEngagement} />
-              </View>
-              <View className="px-4">
-                <CommunityNoteCard
-                  note={note}
-                  variant="rate"
-                  onRate={
-                    tab === 'notes' || !sheets.canRate
-                      ? undefined
-                      : (rating) =>
-                          sheets.openRateReasons(note, rating, (done) =>
-                            setLocalRatings((current) => ({ ...current, [note.id]: done })),
-                          )
-                  }
-                />
-                {tab === 'notes' ? (
-                  <Text className="text-muted-foreground mt-2 text-[13px]">
-                    {statusLabel(note.status, t)}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          ))
-        )}
-      </ScreenScrollView>
+      {toElement(
+        ScrollView(
+          RawText(intro)
+            .padding('horizontal', 'lg')
+            .foreground('foreground')
+            .font('md')
+            .leading('20px'),
+          Embed(
+            entries.length === 0 ? (
+              <EmptyState title={empty} sticker="communityNotes" />
+            ) : (
+              entries.map(({ post, note }) =>
+                toElement(
+                  VStack(
+                    VStack(
+                      Embed(
+                        <PostItem post={post} isNested openPostEngagement={openPostEngagement} />,
+                      ),
+                    ).padding('horizontal', 'lg'),
+                    VStack(
+                      Embed(
+                        <CommunityNoteCard
+                          note={note}
+                          variant="rate"
+                          onRate={
+                            tab === 'notes' || !sheets.canRate
+                              ? undefined
+                              : (rating) =>
+                                  sheets.openRateReasons(note, rating, (done) =>
+                                    setLocalRatings((current) => ({ ...current, [note.id]: done })),
+                                  )
+                          }
+                        />,
+                      ),
+                      tab === 'notes'
+                        ? RawText(statusLabel(note.status, t))
+                            .foreground('muted')
+                            .margin('top', 'sm')
+                            .font('sm')
+                        : null,
+                    ).padding('horizontal', 'lg'),
+                  )
+                    .padding('bottom', '2xl')
+                    .border('border', 'thin', 'bottom')
+                    .spacing('md'),
+                  note.id,
+                ),
+              )
+            ),
+          ),
+        ).contentView((v) => v.padding('bottom', '4xl').padding('top', 'lg').spacing('2xl')),
+      )}
     </Screen>
   );
 }

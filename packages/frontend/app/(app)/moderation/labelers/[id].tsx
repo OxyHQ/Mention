@@ -1,9 +1,7 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
-import { Divider } from '@oxy.so/bloom/divider';
 import { Loading } from '@oxy.so/bloom/loading';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
@@ -16,6 +14,20 @@ import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, type Severity, type LabelActionType } from '@/components/LabelBadge';
 import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
+
+import {
+  Divider as LDivider,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  ScrollView,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 type LabelAction = LabelActionType;
 
@@ -82,38 +94,43 @@ const ActionChips = React.memo(
 
     if (!isSubscribed) return null;
 
-    return (
-      <View className="flex-row gap-1.5 mt-1 flex-wrap">
-        {ACTION_OPTIONS_CONFIG.map(({ value, labelKey }) => {
-          const isActive = currentAction === value;
-          return (
-            <TouchableOpacity
-              key={value}
-              // The active fill is `bg-primary/10`, NOT `${theme.colors.primary}18`:
-              // that token resolves to `rgb(0 98 157)`, so the hex-alpha suffix is a
-              // malformed colour react-native-web reads as fully opaque — the chip
-              // painted solid primary under its own `text-primary` label, so the
-              // selected action was the one word you could not read.
-              className={cn(isActive && 'bg-primary/10')}
-              style={[
-                styles.actionChip,
-                { borderColor: isActive ? theme.colors.primary : theme.colors.border },
-              ]}
-              onPress={() => onActionChange(labelSlug, value)}
-              activeOpacity={0.7}
-            >
-              <Text
-                className={cn(
-                  'text-xs font-semibold',
-                  isActive ? 'text-primary' : 'text-muted-foreground',
-                )}
+    return toElement(
+      HStack(
+        Embed(
+          ACTION_OPTIONS_CONFIG.map(({ value, labelKey }) => {
+            const isActive = currentAction === value;
+            return (
+              <TouchableOpacity
+                key={value}
+                // The active fill is `bg-primary/10`, NOT `${theme.colors.primary}18`:
+                // that token resolves to `rgb(0 98 157)`, so the hex-alpha suffix is a
+                // malformed colour react-native-web reads as fully opaque — the chip
+                // painted solid primary under its own `text-primary` label, so the
+                // selected action was the one word you could not read.
+                className={cn(isActive && 'bg-primary/10')}
+                style={[
+                  styles.actionChip,
+                  { borderColor: isActive ? theme.colors.primary : theme.colors.border },
+                ]}
+                onPress={() => onActionChange(labelSlug, value)}
+                activeOpacity={0.7}
               >
-                {t(labelKey)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+                <Text
+                  className={cn(
+                    'text-xs font-semibold',
+                    isActive ? 'text-primary' : 'text-muted-foreground',
+                  )}
+                >
+                  {t(labelKey)}
+                </Text>
+              </TouchableOpacity>
+            );
+          }),
+        ),
+      )
+        .spacing('6')
+        .margin('top', 'xs')
+        .wrap(),
     );
   },
 );
@@ -248,16 +265,13 @@ const LabelerDetailScreen: React.FC = () => {
   if (loading) {
     return (
       <Screen
-        header={
-          <PageHeader
-            title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('labelers.detailTitle', { defaultValue: 'Labeler' }))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
-        <ScreenScrollView>
-          <DetailSkeleton />
-        </ScreenScrollView>
+        {toElement(ScrollView(Embed(<DetailSkeleton />)))}
       </Screen>
     );
   }
@@ -265,18 +279,19 @@ const LabelerDetailScreen: React.FC = () => {
   if (!labeler) {
     return (
       <Screen
-        header={
-          <PageHeader
-            title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('labelers.detailTitle', { defaultValue: 'Labeler' }))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
-        <ScreenScrollView contentContainerClassName="flex-1 justify-center items-center">
-          <Text className="text-[15px] text-muted-foreground">
-            {t('labelers.notFound', { defaultValue: 'Labeler not found.' })}
-          </Text>
-        </ScreenScrollView>
+        {toElement(
+          ScrollView(
+            RawText(t('labelers.notFound', { defaultValue: 'Labeler not found.' }))
+              .font('md')
+              .foreground('muted'),
+          ).contentView((v) => v.flex('1').justify('center').align('center')),
+        )}
       </Screen>
     );
   }
@@ -284,147 +299,211 @@ const LabelerDetailScreen: React.FC = () => {
   const body = (
     <>
       {/* Hero card */}
-      <View className="rounded-2xl p-4 gap-3 bg-muted">
-        <View className="flex-row items-center gap-2 flex-wrap">
-          <Text className="text-xl font-bold text-foreground">{labeler.name}</Text>
-          {labeler.isOfficial && (
-            <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
-              <RiShieldCheckLine width={10} height={10} fill="#fff" />
-              <Text className="text-white text-[10px] font-bold">
-                {t('labelers.official', { defaultValue: 'Official' })}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {!!labeler.description && (
-          <Text className="text-[15px] leading-[22px] text-muted-foreground">
-            {labeler.description}
-          </Text>
-        )}
-
-        <View className="flex-row flex-wrap gap-3">
-          <View className="flex-row items-center gap-1">
-            <RiGroupLine width={14} height={14} fill={theme.colors.textSecondary} />
-            <Text className="text-[13px] text-muted-foreground">
-              {labeler.subscriberCount} {t('labelers.subscribers', { defaultValue: 'subscribers' })}
-            </Text>
-          </View>
-
-          {!!creatorName && (
-            <View className="flex-row items-center gap-1">
-              <RiUserLine width={14} height={14} fill={theme.colors.textSecondary} />
-              <Text className="text-[13px] text-muted-foreground">
-                {t('labelers.by', { defaultValue: 'by' })} {creatorName}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.subscribeBtn,
-            labeler.isSubscribed
-              ? { borderColor: theme.colors.border, backgroundColor: 'transparent', borderWidth: 1 }
-              : { backgroundColor: theme.colors.primary },
-          ]}
-          onPress={handleSubscribeToggle}
-          disabled={subscribing}
-          activeOpacity={0.7}
-        >
-          {subscribing ? (
-            <Loading
-              className="text-primary"
-              variant="inline"
-              size="sm"
-              style={{ flex: undefined }}
-            />
-          ) : (
-            <Text
-              className={cn(
-                'text-[15px] font-semibold',
-                labeler.isSubscribed ? 'text-foreground' : 'text-white',
-              )}
+      {toElement(
+        VStack(
+          HStack(
+            RawText(labeler.name)
+              .font('xl')
+              .leading('28px')
+              .weight('bold')
+              .foreground('foreground'),
+            Embed(
+              labeler.isOfficial && (
+                <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
+                  {toElement(Icon(RiShieldCheckLine).size('10').foreground(appColors.color.hexfff))}
+                  {toElement(
+                    RawText(t('labelers.official', { defaultValue: 'Official' }))
+                      .foreground('white')
+                      .font('2xs')
+                      .weight('bold'),
+                  )}
+                </View>
+              ),
+            ),
+          )
+            .align('center')
+            .spacing('sm')
+            .wrap(),
+          labeler.description
+            ? RawText(labeler.description).font('md').leading('22px').foreground('muted')
+            : null,
+          HStack(
+            HStack(
+              Icon(RiGroupLine).size('14').foreground('muted'),
+              RawText(
+                labeler.subscriberCount,
+                ' ',
+                t('labelers.subscribers', { defaultValue: 'subscribers' }),
+              )
+                .font('sm')
+                .foreground('muted'),
+            )
+              .align('center')
+              .spacing('xs'),
+            creatorName
+              ? HStack(
+                  Icon(RiUserLine).size('14').foreground('muted'),
+                  RawText(t('labelers.by', { defaultValue: 'by' }), ' ', creatorName)
+                    .font('sm')
+                    .foreground('muted'),
+                )
+                  .align('center')
+                  .spacing('xs')
+              : null,
+          )
+            .wrap()
+            .spacing('md'),
+          Embed(
+            <TouchableOpacity
+              style={[
+                styles.subscribeBtn,
+                labeler.isSubscribed
+                  ? {
+                      borderColor: theme.colors.border,
+                      backgroundColor: 'transparent',
+                      borderWidth: 1,
+                    }
+                  : { backgroundColor: theme.colors.primary },
+              ]}
+              onPress={handleSubscribeToggle}
+              disabled={subscribing}
+              activeOpacity={0.7}
             >
-              {labeler.isSubscribed
-                ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
-                : t('labelers.subscribe', { defaultValue: 'Subscribe' })}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+              {subscribing ? (
+                <Loading
+                  className="text-primary"
+                  variant="inline"
+                  size="sm"
+                  style={{ flex: undefined }}
+                />
+              ) : (
+                <Text
+                  className={cn(
+                    'text-[15px] font-semibold',
+                    labeler.isSubscribed ? 'text-foreground' : 'text-white',
+                  )}
+                >
+                  {labeler.isSubscribed
+                    ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
+                    : t('labelers.subscribe', { defaultValue: 'Subscribe' })}
+                </Text>
+              )}
+            </TouchableOpacity>,
+          ),
+        )
+          .padding('all', 'lg')
+          .background('mutedFill')
+          .corner('lg')
+          .spacing('md'),
+      )}
 
       {/* Label definitions section */}
       {(labeler.labelDefinitions?.length ?? 0) > 0 && (
         <>
-          <Text className="text-[13px] font-semibold uppercase tracking-wide mt-4 mb-1 px-1 text-muted-foreground">
-            {t('labelers.labelDefinitions', { defaultValue: 'Label Definitions' })}
-          </Text>
+          {toElement(
+            RawText(t('labelers.labelDefinitions', { defaultValue: 'Label Definitions' }))
+              .padding('horizontal', 'xs')
+              .font('sm')
+              .weight('semibold')
+              .textCase('uppercase')
+              .tracking('wide')
+              .margin('top', 'lg')
+              .margin('bottom', 'xs')
+              .foreground('muted'),
+          )}
 
-          <View className="rounded-2xl p-4 gap-3 bg-muted">
-            {(labeler.labelDefinitions ?? []).map((ld, index) => {
-              const severity: Severity = ld.severity ?? 'low';
-              const currentAction: LabelAction =
-                labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';
+          {toElement(
+            VStack(
+              Embed(
+                (labeler.labelDefinitions ?? []).map((ld, index) => {
+                  const severity: Severity = ld.severity ?? 'low';
+                  const currentAction: LabelAction =
+                    labelActions[ld.slug] ?? ld.defaultAction ?? 'warn';
 
-              return (
-                <React.Fragment key={ld.slug}>
-                  {index > 0 && <Divider spacing={12} />}
-                  <View className="gap-1.5">
-                    <View className="flex-row items-center justify-between gap-2">
-                      <Text className="text-[15px] font-semibold flex-1 text-foreground">
-                        {ld.name}
-                      </Text>
-                      <View className="flex-row gap-1.5 items-center">
-                        <SeverityBadge severity={severity} />
-                        {/* Same defect as the action chip above: an interpolated
-                            hex alpha on the `rgb(...)` primary token painted this
-                            badge solid primary under its own `text-primary`
-                            label. Tint and hairline both come from classes. */}
-                        {ld.defaultAction && (
-                          <View className="bg-primary/10 border-primary/25" style={styles.badge}>
-                            <Text className="text-[11px] font-semibold text-primary">
-                              {ld.defaultAction}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    <Text className="text-xs font-mono text-muted-foreground" numberOfLines={1}>
-                      {ld.slug}
-                    </Text>
-
-                    {!!ld.description && (
-                      <Text className="text-[13px] leading-[18px] text-muted-foreground">
-                        {ld.description}
-                      </Text>
-                    )}
-
-                    <ActionChips
-                      labelSlug={ld.slug}
-                      labelerId={labelerId}
-                      currentAction={currentAction}
-                      isSubscribed={!!labeler.isSubscribed}
-                      onActionChange={handleActionChange}
-                    />
-                  </View>
-                </React.Fragment>
-              );
-            })}
-          </View>
+                  return (
+                    <React.Fragment key={ld.slug}>
+                      {index > 0 && toElement(LDivider().spacing('md'))}
+                      {toElement(
+                        VStack(
+                          HStack(
+                            RawText(ld.name)
+                              .font('md')
+                              .weight('semibold')
+                              .flex('1')
+                              .foreground('foreground'),
+                            HStack(
+                              Embed(<SeverityBadge severity={severity} />),
+                              /* Same defect as the action chip above: an interpolated
+                                            hex alpha on the `rgb(...)` primary token painted this
+                                            badge solid primary under its own `text-primary`
+                                            label. Tint and hairline both come from classes. */ Embed(
+                                ld.defaultAction && (
+                                  <View
+                                    className="bg-primary/10 border-primary/25"
+                                    style={styles.badge}
+                                  >
+                                    {toElement(
+                                      RawText(ld.defaultAction)
+                                        .font('11')
+                                        .weight('semibold')
+                                        .foreground('primary'),
+                                    )}
+                                  </View>
+                                ),
+                              ),
+                            )
+                              .spacing('6')
+                              .align('center'),
+                          )
+                            .align('center')
+                            .justify('between')
+                            .spacing('sm'),
+                          Embed(
+                            <Text
+                              className="text-xs font-mono text-muted-foreground"
+                              numberOfLines={1}
+                            >
+                              {ld.slug}
+                            </Text>,
+                          ),
+                          ld.description
+                            ? RawText(ld.description).font('sm').leading('18px').foreground('muted')
+                            : null,
+                          Embed(
+                            <ActionChips
+                              labelSlug={ld.slug}
+                              labelerId={labelerId}
+                              currentAction={currentAction}
+                              isSubscribed={!!labeler.isSubscribed}
+                              onActionChange={handleActionChange}
+                            />,
+                          ),
+                        ).spacing('6'),
+                      )}
+                    </React.Fragment>
+                  );
+                }),
+              ),
+            )
+              .padding('all', 'lg')
+              .background('mutedFill')
+              .corner('lg')
+              .spacing('md'),
+          )}
         </>
       )}
 
-      <View className="h-10" />
+      {toElement(VStack().frame({ height: '4xl' }))}
     </>
   );
 
   return (
     <Screen
-      header={
-        <PageHeader title={labeler.name} backLabel={t('common.back', { defaultValue: 'Back' })} />
-      }
+      header={toElement(
+        Header(labeler.name)
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      )}
     >
       <ScreenScrollView
         contentContainerStyle={styles.scrollContent}

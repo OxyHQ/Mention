@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
-import { Checkbox } from '@oxy.so/bloom/checkbox';
 import type { CommunityNoteRating } from '@mention/shared-types';
 import {
   COMMUNITY_NOTE_HELPFUL_REASONS,
   COMMUNITY_NOTE_NOT_HELPFUL_REASONS,
 } from '@mention/shared-types/communityNotes';
 import { NoteSheetHeader } from './NoteSheetHeader';
+
+import {
+  Button as LButton,
+  Checkbox as LCheckbox,
+  Embed,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface RateNoteSheetProps {
   rating: CommunityNoteRating;
@@ -33,56 +40,70 @@ export function RateNoteSheet({ rating, onSubmit, onClose }: RateNoteSheetProps)
       defaultValue: REASON_DEFAULTS[reason] ?? reason,
     });
 
-  return (
-    <View className="bg-background pb-6">
-      <NoteSheetHeader onClose={onClose} />
-      <View className="gap-5 px-5">
-        <Text className="text-foreground text-[24px] font-bold">
-          {helpful
+  return toElement(
+    VStack(
+      Embed(<NoteSheetHeader onClose={onClose} />),
+      VStack(
+        RawText(
+          helpful
             ? t('communityNotes.rate.helpfulTitle', {
                 defaultValue: 'Why is the community note helpful?',
               })
             : t('communityNotes.rate.notHelpfulTitle', {
                 defaultValue: 'Why is the community note not helpful?',
-              })}
-        </Text>
-        <View className="border-border overflow-hidden rounded-2xl border">
-          {reasons.map((reason, index) => {
-            const checked = selected.includes(reason);
-            return (
-              <View
-                key={reason}
-                className={index > 0 ? 'border-border border-t px-4 py-3.5' : 'px-4 py-3.5'}
-              >
-                <Checkbox
-                  label={labelFor(reason)}
-                  checked={checked}
-                  onCheckedChange={(next) =>
-                    setSelected((current) =>
-                      next ? [...current, reason] : current.filter((r) => r !== reason),
-                    )
-                  }
-                />
-              </View>
-            );
-          })}
-        </View>
-        <Button
-          appearance="solid"
-          tone="accent"
-          size="lg"
-          disabled={selected.length === 0}
-          onPress={() => onSubmit(selected)}
-        >
-          {t('communityNotes.rate.submit', { defaultValue: 'Rate' })}
-        </Button>
-        <Text className="text-muted-foreground text-center text-[13px]">
-          {t('communityNotes.rate.final', {
+              }),
+        )
+          .foreground('foreground')
+          .font('24')
+          .weight('bold'),
+        VStack(
+          Embed(
+            reasons.map((reason, index) => {
+              const checked = selected.includes(reason);
+              return toElement(
+                VStack(
+                  LCheckbox(
+                    [
+                      checked,
+                      (next) =>
+                        setSelected((current) =>
+                          next ? [...current, reason] : current.filter((r) => r !== reason),
+                        ),
+                    ],
+                    labelFor(reason),
+                  ),
+                )
+                  .padding('horizontal', 'lg')
+                  .padding('vertical', '14')
+                  .when(index > 0, (v) => v.border('border', 'thin', 'top')),
+                reason,
+              );
+            }),
+          ),
+        )
+          .border('border', 'thin')
+          .clipped()
+          .corner('lg'),
+        LButton(LText(t('communityNotes.rate.submit', { defaultValue: 'Rate' })))
+          .style('solid')
+          .tint('accent')
+          .size('lg')
+          .disabled(selected.length === 0)
+          .onPress(() => onSubmit(selected)),
+        RawText(
+          t('communityNotes.rate.final', {
             defaultValue: "You won't be able to change or delete your rating.",
-          })}
-        </Text>
-      </View>
-    </View>
+          }),
+        )
+          .foreground('muted')
+          .textAlign('center')
+          .font('sm'),
+      )
+        .padding('horizontal', 'xl')
+        .spacing('xl'),
+    )
+      .padding('bottom', '2xl')
+      .background('background'),
   );
 }
 
