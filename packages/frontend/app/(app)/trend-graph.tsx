@@ -220,22 +220,28 @@ function Branch({ entry }: { entry: TrendTreeNode }) {
         authors={entry.node.authorCount}
         emphasis
       />
-      {entry.children.length > 0 ? (
-        // The trunk: one continuous rule down the left of everything merged into
-        // the term above. This is what makes the block read as a tree at a
-        // glance rather than as an indent.
-        <View style={[styles.trunk, classStyles.trunk, { borderColor: colors.border }]}>
-          {entry.children.map((child) => (
-            <TermRow
-              key={child.node.term}
-              term={child.node.term}
-              label={child.node.displayName ?? child.node.term}
-              volume={child.node.volume}
-              authors={child.node.authorCount}
-            />
-          ))}
-        </View>
-      ) : null}
+      {entry.children.length > 0
+        ? // The trunk: one continuous rule down the left of everything merged into
+          // the term above. This is what makes the block read as a tree at a
+          // glance rather than as an indent.
+          toElement(
+            VStack(
+              entry.children.map((child) =>
+                Embed(
+                  <TermRow
+                    term={child.node.term}
+                    label={child.node.displayName ?? child.node.term}
+                    volume={child.node.volume}
+                    authors={child.node.authorCount}
+                  />,
+                ).id(child.node.term),
+              ),
+            )
+              .margin('left', 'xs')
+              .padding('left', 'md')
+              .border('border', 'thin', 'left'),
+          )
+        : null}
       <RelatedLine entry={entry} />
     </View>
   );
@@ -403,7 +409,6 @@ const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 90071992547
 const classStyles = {
   retry: { borderRadius: PILL_RADIUS, paddingHorizontal: 16, paddingVertical: 8 },
   branch: { paddingVertical: 4 },
-  trunk: { marginLeft: 4, paddingLeft: 12 },
   relatedTrunk: { marginLeft: 4, paddingBottom: 4, paddingLeft: 12 },
   termRow: {
     flexDirection: 'row',
@@ -419,9 +424,8 @@ const styles = StyleSheet.create({
   // Hairline separators, the same weight `TrendItemRow` uses — the app draws
   // lists with rules, not with cards.
   branchBorder: { borderBottomWidth: 0.5 },
-  // The trunk a branch hangs from. Solid for merged terms, dashed for the ones
-  // that were related and not merged, which is the distinction the screen exists
-  // to show.
-  trunk: { borderLeftWidth: 1 },
+  // The trunk a branch hangs from is solid for merged terms (its rule is the
+  // chain in `Branch`), dashed for the ones that were related and not merged,
+  // which is the distinction the screen exists to show.
   dashedTrunk: { borderLeftWidth: 1, borderStyle: 'dashed' },
 });

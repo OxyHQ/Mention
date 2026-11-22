@@ -51,7 +51,6 @@ import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { SEO } from '@/components/SEO';
-import { VirtualList } from '@oxy.so/bloom/list';
 import {
   ProfileCard,
   ProfileCardSkeletonList,
@@ -90,6 +89,7 @@ import {
   TabItem,
   Tabs as LTabs,
   VStack,
+  VirtualList as LVirtualList,
   toElement,
 } from '@oxy.so/bloom-language';
 
@@ -1602,14 +1602,15 @@ function SearchIndex() {
   const showIdleIntro =
     isIdle && searchHistory.length === 0 && visibleTrends.length === 0 && trendsFetched;
 
-  const renderListHeader = () =>
-    showIdleIntro ? (
-      <EmptyState
-        title={t('search.startSearching', 'Search Mention')}
-        subtitle={t('search.startDescription', 'Find people, posts, hashtags, and more')}
-        sticker="searchIdle"
-      />
-    ) : null;
+  const listHeader = showIdleIntro
+    ? Embed(
+        <EmptyState
+          title={t('search.startSearching', 'Search Mention')}
+          subtitle={t('search.startDescription', 'Find people, posts, hashtags, and more')}
+          sticker="searchIdle"
+        />,
+      )
+    : null;
 
   return (
     <>
@@ -1678,31 +1679,23 @@ function SearchIndex() {
                     lifecycle to get wrong. */}
           {toElement(
             VStack(
-              Embed(
-                <VirtualList
-                  screen={{}}
-                  data={rows}
-                  keyExtractor={keyExtractor}
-                  getItemType={getItemType}
-                  renderItem={renderRow}
-                  keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="on-drag"
-                  scrollbar="never"
-                  onEndReached={handleEndReached}
-                  onEndReachedThreshold={0.5}
-                  ListHeaderComponent={renderListHeader()}
-                  ListFooterComponent={
-                    isFetchingNextPage
-                      ? toElement(
-                          VStack(Embed(<ListSkeleton count={2} />))
-                            .padding('vertical', 'lg')
-                            .align('center')
-                            .justify('center'),
-                        )
-                      : null
-                  }
-                />,
-              ),
+              LVirtualList(rows, renderRow)
+                .screen()
+                .itemKey(keyExtractor)
+                .itemType(getItemType)
+                .keyboardTaps('handled')
+                .scrollDismissesKeyboard('immediately')
+                .scrollbar('never')
+                .onEndReached(handleEndReached, 0.5)
+                .headerContent(listHeader)
+                .footerContent(
+                  isFetchingNextPage
+                    ? VStack(Embed(<ListSkeleton count={2} />))
+                        .padding('vertical', 'lg')
+                        .align('center')
+                        .justify('center')
+                    : null,
+                ),
             )
               .frame({ minHeight: 'none' })
               .flex('1'),

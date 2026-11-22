@@ -3,12 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Platform, type TextStyle } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@oxy.so/bloom/dropdown-menu';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
@@ -39,6 +33,8 @@ import {
   Group as LGroup,
   Header,
   Icon,
+  Item,
+  Menu,
   Text as LText,
   VStack,
   toElement,
@@ -199,25 +195,21 @@ export default screen(function TrendScreen() {
           .label(t('widgetMenu.share', { defaultValue: 'Compartir' }))
           .onPress(shareTopic),
       )}
-      {trendActions ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild label={t('trend.topic.more', { defaultValue: 'Más' })}>
-            {toElement(
+      {trendActions
+        ? toElement(
+            Menu(
               LButton(Icon(RiMoreFill))
                 .shape('circle')
                 .label(t('trend.topic.more', { defaultValue: 'Más' })),
-            )}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent label={heading}>
-            <DropdownMenuItem onPress={trendActions.onNotInterested}>
-              {t('widgetMenu.notInterested', { defaultValue: 'No me interesa' })}
-            </DropdownMenuItem>
-            <DropdownMenuItem onPress={trendActions.onShare}>
-              {t('widgetMenu.share', { defaultValue: 'Compartir' })}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
+              Item(t('widgetMenu.notInterested', { defaultValue: 'No me interesa' })).onPress(
+                trendActions.onNotInterested,
+              ),
+              Item(t('widgetMenu.share', { defaultValue: 'Compartir' })).onPress(
+                trendActions.onShare,
+              ),
+            ).label(heading),
+          )
+        : null}
     </Button.Group>
   );
 
