@@ -311,7 +311,7 @@ export const composeStyles = StyleSheet.create({
   threadContainer: {
     position: 'relative',
   },
-  // The connector's COLOUR is not here: it is the `bg-primary/20` className on
+  // The connector's COLOUR is not here: it is `tokenAlpha(primary, 0.2)` beside
   // every connector <View>. `theme.colors.primary` resolves to `rgb(0 98 157)`,
   // so the `${primary}30` this used to interpolate was a malformed colour
   // string that react-native-web read back as FULLY OPAQUE — a solid primary bar
