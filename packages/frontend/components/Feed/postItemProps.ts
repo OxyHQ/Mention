@@ -2,9 +2,7 @@ import type { FeedPostSlice } from '@mention/shared-types/feed';
 import type { HydratedPost, PostUser } from '@mention/shared-types/post';
 import type { OpenPostPanel } from '@/components/Post/postEngagementContext';
 
-// The props of a post row and the rule for when a row must redraw, shared by
-// the JSX row (`PostItem`) and the Bloom-language row (`LanguagePostItem`) so
-// the two compare, and therefore re-render, alike.
+// The props of a post row and the rule for when a row must redraw.
 
 export interface PostItemProps {
   post: HydratedPost;
@@ -26,8 +24,8 @@ export interface PostItemProps {
   attachedBelow?: boolean;
   /**
    * Drops the bottom separator alone (padding stays): a reply-branch row, whose
-   * branch draws its own. The JSX row receives this as `style`; the language row
-   * takes no raw style, so the feed says it by name as well.
+   * branch draws its own. The row takes no raw style, so the feed says it by
+   * name.
    */
   hideSeparator?: boolean;
   /**
@@ -102,6 +100,7 @@ export const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemP
   prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
   prevProps.replyBranch === nextProps.replyBranch &&
   prevProps.attachedBelow === nextProps.attachedBelow &&
+  prevProps.hideSeparator === nextProps.hideSeparator &&
   prevProps.isPostDetail === nextProps.isPostDetail &&
   prevProps.threadPosition?.index === nextProps.threadPosition?.index &&
   prevProps.threadPosition?.total === nextProps.threadPosition?.total &&

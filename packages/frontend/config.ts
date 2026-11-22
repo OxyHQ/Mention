@@ -101,10 +101,3 @@ export const MENTION_PLUS_UI_PREVIEW =
   typeof __DEV__ !== 'undefined' &&
   __DEV__ &&
   process.env.EXPO_PUBLIC_MENTION_PLUS_UI_PREVIEW === 'true';
-
-/**
- * Which post row the app draws: the JSX row (`PostItem`, the default) or the
- * same row written in the Bloom language (`LanguagePostItem`). Build-time, so
- * one source tree builds either for an A/B measurement.
- */
-export const USE_LANGUAGE_ROW = process.env.EXPO_PUBLIC_BLOOM_LANGUAGE_ROW === '1';

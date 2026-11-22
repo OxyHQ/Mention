@@ -116,9 +116,5 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
 // so the Babel config stays Expo's default and Noxcturnal and the React Compiler
 // still apply. It hoists static language chains, marks `view()` bodies
 // `"use memo"` and checks chains against the language spec. An optimisation
-// only: the runtime renders the same tree without it. BLOOM_LANGUAGE_COMPILER=1
-// turns it on while the language row is behind its own build switch.
-module.exports =
-  process.env.BLOOM_LANGUAGE_COMPILER === '1'
-    ? require('@oxy.so/bloom-language-compiler/metro').withBloomLanguage(config)
-    : config;
+// only: the runtime renders the same tree without it.
+module.exports = require('@oxy.so/bloom-language-compiler/metro').withBloomLanguage(config);

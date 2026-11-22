@@ -1,9 +1,8 @@
-import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { PostVisibility } from '@mention/shared-types';
 import type { HydratedPost } from '@mention/shared-types';
 
-import { PostMenuContent } from '../PostMenuContent';
+import { usePostMenuGroups, type PostMenuContentProps } from '../postMenuGroups';
 
 /**
  * The rows of a post's ⋯ menu: which are offered to whom. The menu is built
@@ -85,11 +84,16 @@ function post(id: string, viewerState: Partial<HydratedPost['viewerState']> = {}
   } as HydratedPost;
 }
 
+/** The menu's rows as the row's ⋯ menu builds them when it opens (a submenu is its own menu). */
 function rows(viewPost: HydratedPost) {
-  let renderer!: TestRenderer.ReactTestRenderer;
+  let groups: ReturnType<typeof usePostMenuGroups> = [];
+  function Probe(props: PostMenuContentProps) {
+    groups = usePostMenuGroups(props);
+    return null;
+  }
   act(() => {
-    renderer = TestRenderer.create(
-      <PostMenuContent
+    TestRenderer.create(
+      <Probe
         post={viewPost}
         isPostDetail={false}
         onOpenArticle={jest.fn()}
@@ -97,9 +101,11 @@ function rows(viewPost: HydratedPost) {
       />,
     );
   });
-  return renderer.root
-    .findAll((node) => node.type === Text && node.props.accessibilityRole === 'menuitem')
-    .map((node) => ({ label: String(node.props.children), onPress: node.props.onPress }));
+  return groups
+    .flat()
+    .flatMap((entry) =>
+      'submenu' in entry ? [] : [{ label: entry.label, onPress: entry.onPress }],
+    );
 }
 
 const labels = (viewPost: HydratedPost) => rows(viewPost).map((row) => row.label);
@@ -116,7 +122,7 @@ beforeEach(() => {
   mockAuth = { user: { id: 'viewer-1' }, isAuthenticated: true, canUsePrivateApi: true };
 });
 
-describe('PostMenuContent', () => {
+describe('the post ⋯ menu', () => {
   it.each([false, true])(
     'honors the server insight permission over ownership (allowed: %s)',
     (allowed) => {

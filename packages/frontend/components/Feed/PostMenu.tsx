@@ -1,6 +1,6 @@
 /**
- * A post's ⋯ menu in the Bloom language: the same groups as the JSX row's
- * `PostMenuContent` (`postMenuGroups`), as TAGGED rows. Each row names its
+ * A post's ⋯ menu in the Bloom language: the menu's groups (`postMenuGroups`),
+ * as TAGGED rows. Each row names its
  * action; the menu's `PostMenuActions` resolve the chosen one where the menu is
  * placed (the panel's router, the screen's Back). So the rows are plain data a
  * closed menu builds without a hook of its own, from the app's bound services,
@@ -38,7 +38,7 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { presentSheet } from '@/utils/sheet';
 import { usePublisherLanes } from '@/hooks/usePublisherLanes';
 import { useRouter } from '@/lib/navigation/router';
-import { postMenuGroups, usePostMenuGroups, type PostMenuContentProps } from './PostMenuContent';
+import { postMenuGroups, usePostMenuGroups, type PostMenuContentProps } from './postMenuGroups';
 import { moderatedCommunity, type PostMenuServices } from './postMenuServices';
 import { changePostSetting, movePostToLane, NO_LANE, sourceLabel } from './PostMenuSubmenus';
 import { currentPost } from './postInteractions';

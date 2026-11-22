@@ -1,14 +1,3 @@
-import { Fragment } from 'react';
-import { useTranslation } from 'react-i18next';
-import {
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from '@oxy.so/bloom/dropdown-menu';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import type { HydratedPost } from '@mention/shared-types';
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
@@ -33,9 +22,9 @@ export interface PostMenuContentProps {
 /**
  * The groups of a post's ⋯ menu, from the post as the store holds it NOW
  * (falling back to the copy the row rendered), the services, and whether the
- * viewer moderates its community. A plain function: the JSX row's menu calls it
- * while open (`usePostMenuGroups`), the language row describes its rows with it
- * from the app's bound services, and resolves a chosen row with it again.
+ * viewer moderates its community. A plain function: the row describes its menu's
+ * rows with it from the app's bound services, and resolves a chosen row with
+ * it again (`usePostMenuGroups` where a hook builds them).
  */
 export function postMenuGroups(
   { post: rowPost, isPostDetail, source, onOpenArticle, onInsights }: PostMenuContentProps,
@@ -98,8 +87,7 @@ export function postMenuGroups(
 
 /**
  * The groups of a post's ⋯ menu where it is placed. Called only while the menu
- * is OPEN (the JSX row's `PostMenuContent`) or when a row is chosen (the
- * language row's actions), so the services it reads are resolved once per
+ * is open or when a row is chosen, so the services it reads are resolved once per
  * open, not once per row of a feed (issue #1103). Who moderates the post's
  * community is the account graph's answer (an active member, the rule the
  * server enforces).
@@ -110,42 +98,4 @@ export function usePostMenuGroups(props: PostMenuContentProps): PostMenuEntry[][
     moderatedCommunity(currentPost(props.post), services),
   );
   return postMenuGroups(props, services, moderatesCommunity);
-}
-
-/** The rows of a post's ⋯ menu, as Bloom's `DropdownMenu` content. */
-export function PostMenuContent(props: PostMenuContentProps) {
-  const { t } = useTranslation();
-  const groups = usePostMenuGroups(props);
-  return (
-    <DropdownMenuContent label={t('postActions.title', { defaultValue: 'Post options' })}>
-      {groups.map((group, index) => (
-        <Fragment key={group[0].label}>
-          {index > 0 ? <DropdownMenuSeparator /> : null}
-          <DropdownMenuGroup>
-            {group.map((entry) =>
-              'submenu' in entry ? (
-                <DropdownMenuSub key={entry.label}>
-                  <DropdownMenuSubTrigger leading={entry.icon}>
-                    {entry.label}
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent label={entry.label}>
-                    {entry.submenu}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ) : (
-                <DropdownMenuItem
-                  key={entry.label}
-                  leading={entry.icon}
-                  variant={entry.color ? 'destructive' : 'default'}
-                  onPress={entry.onPress}
-                >
-                  {entry.label}
-                </DropdownMenuItem>
-              ),
-            )}
-          </DropdownMenuGroup>
-        </Fragment>
-      ))}
-    </DropdownMenuContent>
-  );
 }

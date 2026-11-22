@@ -1,9 +1,11 @@
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
-import React, { useCallback, useMemo, useState, lazy, Suspense, Fragment } from 'react';
-import { StyleSheet, View, Pressable, type GestureResponderEvent } from 'react-native';
+import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react';
+import { View, Text as RNText, TouchableOpacity, type GestureResponderEvent } from 'react-native';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
+import type { TFunction } from 'i18next';
+import type { AccessibilityActionEvent } from 'react-native';
 import type {
   PostAttachmentDescriptor,
   PostAttachmentBundle,
@@ -11,12 +13,56 @@ import type {
   PostEngagementSummary,
   ClarityDocument,
   PostRoomContent,
+  PostUser,
 } from '@mention/shared-types/post';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import type { HydratedAuthor } from '@mention/shared-types';
 import { toReaderText } from '@mention/shared-types/textEntities';
+import {
+  Action,
+  ActionBar,
+  ActionGroup,
+  Embed,
+  HStack,
+  Icon,
+  Menu,
+  Spacer,
+  Text,
+  VStack,
+  defineTokens,
+  toElement,
+  view,
+  type Child,
+  type IconComponent,
+} from '@oxy.so/bloom-language';
+import { tokens } from '@oxy.so/bloom/styles';
+import { toast } from '@oxy.so/bloom/toast';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
+import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
+import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
+import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
+import { RiTranslate2 } from '@oxy.so/bloom/icons/RiTranslate2';
+import { BookmarkFillIcon } from '@oxy.so/bloom/icons/BookmarkFillIcon';
+import { BookmarkIcon } from '@oxy.so/bloom/icons/BookmarkIcon';
+import { ReplyIcon } from '@oxy.so/bloom/icons/ReplyIcon';
+import { LikeFillIcon } from '@oxy.so/bloom/icons/LikeFillIcon';
+import { LikeIcon } from '@oxy.so/bloom/icons/LikeIcon';
+import { RepostIcon } from '@oxy.so/bloom/icons/RepostIcon';
+import { ShareIcon } from '@oxy.so/bloom/icons/ShareIcon';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
+import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
+import { useTranslation } from 'react-i18next';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+
 import { usePostSelector } from '../../stores/postsStore';
-import PostHeader from '../Post/PostHeader';
 import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/postContextRowLayout';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
@@ -26,20 +72,22 @@ import PostCommunityRow from '../Post/PostCommunityRow';
 import ContentWarning from '../Post/ContentWarning';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
-import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
-import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
-import { Text as BloomText } from '@oxy.so/bloom/typography';
-import { useTranslation } from 'react-i18next';
+import UserName from '../UserName';
+import { AccountBadge } from '@/components/AccountBadge';
+import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
+import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
-import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
-import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { describePostMenu, PostMenuActions } from './PostMenu';
+import type { PostMenuContentProps } from './postMenuGroups';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
+import { useTimeAgo } from '@/hooks/useTimeAgo';
+import { useVoteStyle } from '@/hooks/useVoteStyle';
 import { presentSheet } from '@/utils/sheet';
 import { openPostInsights } from '@/components/Post/postEngagementContext';
 import { postLinkCards } from '@/utils/postLinkCards';
@@ -49,15 +97,14 @@ import {
   THREAD_LINE_Z_INDEX,
 } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
-import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
 import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
 import { ThreadHoverOverlay } from './ThreadHoverOverlay';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
-import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
+import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import {
   isPrivateMention,
@@ -65,55 +112,289 @@ import {
   reportableReplyPermission,
 } from '@/utils/postReplies';
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
-import { postItemPropsEqual, type PostItemProps } from './postItemProps';
-import { USE_LANGUAGE_ROW } from '@/config';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { postItemPropsEqual, type PostItemProps } from './postItemProps';
 
-import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed as LEmbed,
+  HStack as LHStack,
+  RawText,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
-// Lazy load modals/sheets only when the user opens them.
-// The menu's rows pull in the whole action service graph (mute, report, lanes,
-// lists…), and a reader opens the menu of almost no row: load it on first open.
-const PostMenuContent = lazy(() =>
-  import('./PostMenuContent').then((m) => ({ default: m.PostMenuContent })),
-);
+/**
+ * The post row, in the Bloom language: every row of the app (feed, detail,
+ * nested quote). The controller half is every hook, handler and derived value
+ * a row needs; the tree is the row, its header and its actions as language
+ * nodes, drawn by `@oxy.so/bloom-language`.
+ *
+ * Embedded as JSX: the avatar (live badge, cluster), the name, the
+ * account badge, the lane chip, the community and crosspost rows, the content
+ * warning, the title, the body text, the correction notice, the location, the
+ * unavailable card, the attachments, the community note, the detail stats, the
+ * ⋯ menu, the edited and private-mention markers, the hover overlay, the
+ * thread lines, every `Link` and hover card, and the article modal.
+ */
+
+// Lazy: none of these is drawn until a reader opens it.
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 const EngagementList = lazy(() => import('@/components/Post/EngagementList'));
 const CollaboratorsList = lazy(() => import('@/components/Post/CollaboratorsList'));
 
-/** Stable identity for the "no link previews" case (see `documents` below). */
 const EMPTY_LINK_PREVIEWS: ClarityDocument[] = [];
-
-/** Stable identity for a post whose content failed to hydrate (see `content` below). */
 const EMPTY_CONTENT: PostContent = {};
 
-/** Vertical inset of the nested (quote) card — see `styles.nestedPostContainer`. */
-const NESTED_CARD_PADDING = 12;
+/**
+ * The row's measurements that Bloom's scales have no rung for, named once.
+ * Everything else in the tree is a Bloom token.
+ */
+const row = defineTokens({
+  space: {
+    /** Where the body column starts: padding + avatar slot + gap (64). */
+    gutter: POST_ITEM_SPACING.AVATAR_OFFSET,
+    /** One context row ("Reposted by", "Pinned", "Replying to"). */
+    contextRow: POST_CONTEXT_ROW_HEIGHT,
+    /** Between a context row's glyph and its text. */
+    contextIconGap: 3,
+    /** The ⋯ menu's glass base: the upstream glass trigger's pill. */
+    menuBaseWidth: 56,
+    menuBaseHeight: 32,
+  },
+  iconSize: { context: 13, indicator: 14, menu: 18 },
+  /** The identity line's leading (`leading-tight` in the class vocabulary). */
+  leading: { tight: 1.25 },
+});
 
-const PostItemContent: React.FC<PostItemProps> = ({
+/**
+ * The ⋯ on its glass base, the lens menu's trigger: a 56×32 pill with the glyph centred. The menu
+ * grows out of that base, as the upstream app's glass trigger does.
+ */
+const MENU_GLYPH = HStack(Icon(RiMoreFill).size(row.iconSize.menu).foreground('muted'))
+  .frame({ width: row.space.menuBaseWidth, height: row.space.menuBaseHeight })
+  .align('center')
+  .justify('center');
+
+const NAME_STYLE = { container: { flexShrink: 1, minWidth: 0 } } as const;
+const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
+const INDICATOR_STYLE = { flexShrink: 0, alignSelf: 'center' } as const;
+
+// The two vote arrows are adjacent halves of ONE pill, so neither hit region
+// may grow toward the other or it swallows the other's taps.
+const UPVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 5, right: 0 };
+const DOWNVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 0, right: 5 };
+
+/** A link inside the row stops the click there, or the row would navigate too. */
+function stopAtLink(event: { stopPropagation(): void }): void {
+  event.stopPropagation();
+}
+
+/** A context row's glyph, hung in the avatar gutter so the text lines up with the name. */
+function contextIcon(icon: IconComponent) {
+  return Icon(icon)
+    .size(row.iconSize.context)
+    .foreground('muted')
+    .padding('leading', '-lg')
+    .padding('trailing', row.space.contextIconGap);
+}
+
+function contextText(...runs: (string | undefined)[]) {
+  return Text(...runs)
+    .font('sm')
+    .weight('semibold')
+    .foreground('muted')
+    .lines(1);
+}
+
+/** Keeps the avatar and ⋯ menu level with the name row below `count` context rows. */
+function contextOffset(count: number): Child[] {
+  return Array.from({ length: count }, (_, i) =>
+    Spacer().frame({ height: row.space.contextRow }).id(i),
+  );
+}
+
+/** The relative time. Its own view: the clock re-renders the label, not the row. */
+const TimeLabel = view(function TimeLabel(props: {
+  date: string | undefined;
+  href: Href | null;
+  onPressTime: () => void;
+}) {
+  const label = useTimeAgo(props.date);
+  if (!label) return null;
+  const text = Text('·', ' ', label)
+    .font('md')
+    .leading(row.leading.tight)
+    .foreground('muted')
+    .noWrap()
+    .shrink('never');
+  const { href, onPressTime } = props;
+  if (!href) return text;
+  return Embed((render) => (
+    <Link
+      href={href}
+      push
+      asChild
+      onPress={(event) => {
+        stopAtLink(event);
+        onPressTime();
+      }}
+    >
+      {render(text)}
+    </Link>
+  ));
+});
+
+/**
+ * The ⋯ button and its menu, presented natively on each platform (the lens
+ * menu on Android). Its own view: opening the menu re-renders the button, not
+ * the row; the menu's rows are built only while it is open (`PostMenu`).
+ */
+/**
+ * The ⋯ menu: its rows are tagged data, described from the app's bound
+ * services (no hook of the menu's own), and `PostMenuActions` resolves a chosen
+ * one where the menu is placed. Before the services are bound, the trigger
+ * alone.
+ */
+const PostMenuButton = view(function PostMenuButton({
+  label,
+  ...menu
+}: PostMenuContentProps & { label: string }) {
+  const services = usePostInteractions().menuServices();
+  const rows = services ? describePostMenu(menu, services) : [];
+  // The 32-tall base is centred on the 24-tall identity line it sits beside.
+  return Menu(MENU_GLYPH, ...rows)
+    .actions(PostMenuActions(menu))
+    .label(label)
+    .offset({ y: '-xs' });
+});
+
+interface PostActionsProps {
+  t: TFunction;
+  replies: number;
+  boosts: number;
+  likes: number;
+  downvotes: number;
+  saves: number;
+  isLiked: boolean;
+  isDownvoted: boolean;
+  isBoosted: boolean;
+  isSaved: boolean;
+  onReply: (() => void) | undefined;
+  onBoost: () => void;
+  onLike: () => boolean;
+  onDownvote: () => void;
+  onSave: () => void;
+  onShare: () => void;
+  onSendInAllo: () => void;
+  onTranslate: (() => void) | undefined;
+  onTranslateLongPress: (() => void) | undefined;
+  isTranslated: boolean;
+  isTranslating: boolean;
+  onInsightsPress: (() => void) | undefined;
+}
+
+/**
+ * `PostActions` (the post presentation) in the language: Bloom's engagement
+ * bar, one action per glyph. Its own view, compared prop by prop, so a row
+ * re-render that leaves the bar's inputs alone does not redraw it.
+ */
+const PostActions = view(function PostActions(props: PostActionsProps) {
+  const voteStyle = useVoteStyle();
+  const { t } = props;
+  const { onTranslate, onTranslateLongPress, onDownvote } = props;
+  return ActionBar(
+    voteStyle === 'pill'
+      ? ActionGroup(
+          Action(RiArrowUpSLine, t('postActions.upvote'), {
+            rollCount: true,
+            hitSlop: UPVOTE_HIT_SLOP,
+          })
+            .count(props.likes - props.downvotes)
+            .active(props.isLiked)
+            .onPress(props.onLike),
+          Action(RiArrowDownSLine, t('postActions.downvote'), { hitSlop: DOWNVOTE_HIT_SLOP })
+            .active(props.isDownvoted)
+            .tint('error')
+            .onPress(onDownvote),
+        )
+      : Action(LikeIcon, t('videos.like'), {
+          activeIcon: LikeFillIcon,
+          pop: true,
+          rollCount: true,
+        })
+          .count(props.likes)
+          .active(props.isLiked)
+          .tint('error')
+          .onPress(props.onLike),
+    props.onReply
+      ? Action(ReplyIcon, t('common.reply')).count(props.replies).onPress(props.onReply)
+      : null,
+    Action(RepostIcon, t('post.repostOptions'))
+      .count(props.boosts)
+      .active(props.isBoosted)
+      .tint('success')
+      .onPress(props.onBoost),
+    Action(RiSendPlaneLine, t('videos.sendInAllo')).onPress(props.onSendInAllo),
+    Action(ShareIcon, t('videos.share')).onPress(props.onShare),
+  )
+    .trailing(
+      Action(BookmarkIcon, t('postActions.save'), { activeIcon: BookmarkFillIcon })
+        .count(props.saves)
+        .active(props.isSaved)
+        .onPress(props.onSave),
+      onTranslate
+        ? Action(
+            RiTranslate2,
+            t('compose.languages.overwriteConfirm'),
+            // The icon's second job (reading the post in another language) hangs
+            // off a long press, which no screen reader performs, so the
+            // accessibility action carries the same call.
+            onTranslateLongPress
+              ? {
+                  busy: props.isTranslating,
+                  accessibilityActions: [
+                    { name: 'translateTo', label: t('postActions.readInAnotherLanguage') },
+                  ],
+                  onAccessibilityAction: (event: AccessibilityActionEvent) => {
+                    if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
+                  },
+                }
+              : { busy: props.isTranslating },
+          )
+            .active(props.isTranslated)
+            .onPress(onTranslate)
+            .onLongPress(onTranslateLongPress)
+        : null,
+      props.onInsightsPress
+        ? Action(RiBarChartBoxLine, t('postActions.insights')).onPress(props.onInsightsPress)
+        : null,
+    )
+    .countFormat(formatCompactNumber)
+    .size('md');
+});
+
+/**
+ * The row's controller: its hooks, handlers and derived values, and its
+ * header's. A hook of its own so the React Compiler compiles it: a component
+ * that also builds a
+ * language tree would not compile, because the compiler must assume each
+ * chain call may change what it is handed.
+ */
+function usePostRowModel({
   post,
   isNested = false,
-  showPinned = false,
-  style,
   onReply,
-  nestingDepth = 0,
-  isThreadParent = false,
-  isThreadChild = false,
-  isThreadLastChild = false,
-  replyBranch = false,
-  attachedBelow = false,
   repostedBy,
   repostPlacement,
   socialContext,
   isPostDetail: isPostDetailProp = false,
-  threadPosition,
   feedDescriptor,
   sliceKey,
   threadOpenId,
   isThread = false,
   onOpen,
   openPostEngagement = null,
-}) => {
+}: PostItemProps) {
   const { t } = useTranslation();
   const router = useRouter();
   // Every command this row can issue — engagement, share, the ⋯ menu, sources,
@@ -668,22 +949,276 @@ const PostItemContent: React.FC<PostItemProps> = ({
     ],
   );
 
+  // ── PostHeader's derived values, unchanged ──────────────────────
+  const headerAuthorsSource = bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined;
+  const boostedBy = repostPlacement === 'headOnly' ? undefined : reposter;
+  const headerAuthors = useMemo(
+    () =>
+      (headerAuthorsSource ?? []).map((a: HydratedAuthor) => {
+        const handle = getNormalizedUserHandle(a) ?? '';
+        const isPerson = a.kind === undefined || a.kind === 'personal';
+        const wholeName = a.name?.displayName?.trim();
+        const firstName = isPerson
+          ? a.name?.first?.trim() || wholeName?.split(/\s+/)?.[0] || (handle ? `@${handle}` : '')
+          : wholeName || (handle ? `@${handle}` : '');
+        return { firstName, handle, href: profileHrefForUser(a) };
+      }),
+    [headerAuthorsSource],
+  );
+  const bylineNamesWriter = useMemo(
+    () => (headerAuthorsSource ?? []).some((a) => a.role === 'writer'),
+    [headerAuthorsSource],
+  );
+  const clusterMembers = useMemo<PostUser[]>(() => {
+    const members: PostUser[] = [...(headerAuthorsSource ?? [])];
+    if (!boostedBy) return members;
+    const boosterIndex = members.findIndex((member) => member.id === boostedBy.id);
+    if (boosterIndex > 0) {
+      const [lead] = members.splice(boosterIndex, 1);
+      members.unshift(lead);
+    } else if (boosterIndex < 0 && members.length === 1) {
+      members.push(boostedBy);
+    }
+    return members;
+  }, [headerAuthorsSource, boostedBy]);
+  const collabAvatars = useMemo<AvatarGroupItem[]>(
+    () =>
+      clusterMembers.length > 1
+        ? clusterMembers.map((member) => ({
+            id: member.id,
+            uri: member.avatar,
+            kind: member.kind,
+            character: member.character,
+            color: member.color,
+            displayName: displayNameOrHandle(
+              member.name?.displayName,
+              getNormalizedUserHandle(member) ?? '',
+            ),
+            username: member.username,
+          }))
+        : [],
+    [clusterMembers],
+  );
+
+  return {
+    t,
+    isArticleModalVisible,
+    isContentWarningOpen,
+    toggleContentWarning,
+    viewPost,
+    viewPostId,
+    knownIdentities,
+    author,
+    reposter,
+    metadata,
+    content,
+    documents,
+    isSensitiveContent,
+    spoilerText,
+    isContentGated,
+    corrections,
+    isOwner,
+    isLiked,
+    isDownvoted,
+    isBoosted,
+    isSaved,
+    articleContent,
+    hasArticle,
+    homiioCase,
+    vibbrEvent,
+    podcastContent,
+    jobContent,
+    pollData,
+    pollId,
+    location,
+    hasValidLocation,
+    mediaItems,
+    nestedPost,
+    boostUnavailable,
+    quoteUnavailable,
+    shouldRenderMediaBlock,
+    attachmentDescriptors,
+    avatarSource,
+    avatarVariant,
+    isDetailMain,
+    isTappable,
+    isThreadUnit,
+    hoverOwner,
+    openPostHref,
+    recordOpen,
+    goToPost,
+    authorHandle,
+    authorHref,
+    prefetchAuthorProfile,
+    goToAuthorProfile,
+    reposterHandle,
+    reposterHref,
+    communityHandle,
+    communityHref,
+    handleLike,
+    handleDownvote,
+    handleSave,
+    handleBoost,
+    handleShare,
+    handleSendInAllo,
+    handleReply,
+    openLanguagePicker,
+    titleLinkUrl,
+    openTitleLink,
+    openArticleSheet,
+    closeArticleSheet,
+    handleInsightsPress,
+    openLikesList,
+    openBoostsList,
+    openQuotesList,
+    isCollab,
+    openCollaboratorsList,
+    roomId,
+    handleRoomPress,
+    communityNote,
+    openCommunityNoteAbout,
+    articleProp,
+    eventProp,
+    roomProp,
+    linkCards,
+    engagementSummary,
+    actionsEngagement,
+    headerAuthors,
+    bylineNamesWriter,
+    collabAvatars,
+    languageDisplayText,
+    isTranslating,
+    isTranslated,
+    canTranslate,
+    toggleReaderTranslation,
+  };
+}
+
+/**
+ * The row: `PostItem` + `PostHeader` + `PostActions` as language nodes. Named,
+ * so the component carries the name.
+ */
+function PostRow(props: PostItemProps): Child {
+  const {
+    isNested = false,
+    showPinned = false,
+    nestingDepth = 0,
+    isThreadParent = false,
+    isThreadChild = false,
+    isThreadLastChild = false,
+    replyBranch = false,
+    attachedBelow = false,
+    hideSeparator = false,
+    repostPlacement,
+    socialContext,
+    threadPosition,
+    feedDescriptor,
+    sliceKey,
+  } = props;
+  const {
+    t,
+    isArticleModalVisible,
+    isContentWarningOpen,
+    toggleContentWarning,
+    viewPost,
+    viewPostId,
+    knownIdentities,
+    author,
+    reposter,
+    metadata,
+    content,
+    documents,
+    isSensitiveContent,
+    spoilerText,
+    isContentGated,
+    corrections,
+    isOwner,
+    isLiked,
+    isDownvoted,
+    isBoosted,
+    isSaved,
+    articleContent,
+    hasArticle,
+    homiioCase,
+    vibbrEvent,
+    podcastContent,
+    jobContent,
+    pollData,
+    pollId,
+    location,
+    hasValidLocation,
+    mediaItems,
+    nestedPost,
+    boostUnavailable,
+    quoteUnavailable,
+    shouldRenderMediaBlock,
+    attachmentDescriptors,
+    avatarSource,
+    avatarVariant,
+    isDetailMain,
+    isTappable,
+    isThreadUnit,
+    hoverOwner,
+    openPostHref,
+    recordOpen,
+    goToPost,
+    authorHandle,
+    authorHref,
+    prefetchAuthorProfile,
+    goToAuthorProfile,
+    reposterHandle,
+    reposterHref,
+    communityHandle,
+    communityHref,
+    handleLike,
+    handleDownvote,
+    handleSave,
+    handleBoost,
+    handleShare,
+    handleSendInAllo,
+    handleReply,
+    openLanguagePicker,
+    titleLinkUrl,
+    openTitleLink,
+    openArticleSheet,
+    closeArticleSheet,
+    handleInsightsPress,
+    openLikesList,
+    openBoostsList,
+    openQuotesList,
+    isCollab,
+    openCollaboratorsList,
+    roomId,
+    handleRoomPress,
+    communityNote,
+    openCommunityNoteAbout,
+    articleProp,
+    eventProp,
+    roomProp,
+    linkCards,
+    engagementSummary,
+    actionsEngagement,
+    headerAuthors,
+    bylineNamesWriter,
+    collabAvatars,
+    languageDisplayText,
+    isTranslating,
+    isTranslated,
+    canTranslate,
+    toggleReaderTranslation,
+  } = usePostRowModel(props);
+
   if (!viewPost || !author) {
     return null;
   }
 
-  // Canonical post-item layout tokens (single source of truth: POST_ITEM_SPACING in styles/shared.ts).
-  // HPAD/VPAD/SECTION_GAP = 12, AVATAR_SIZE = 40, AVATAR_GAP = 12, AVATAR_OFFSET = 64.
-  const { HPAD, VPAD, SECTION_GAP, AVATAR_OFFSET } = POST_ITEM_SPACING;
-  const contentLeftOffset = isNested || isDetailMain ? HPAD : AVATAR_OFFSET;
+  // HPAD/VPAD/SECTION_GAP are `md` (12) and HEADER_CONTENT_GAP is `xs` (4);
+  // the body column starts at the gutter (64) on a feed row.
+  const { HPAD, VPAD } = POST_ITEM_SPACING;
+  const contentInset = isNested || isDetailMain ? 'md' : row.space.gutter;
 
-  // Focused content and actions share the full-width inset.
   const fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt ?? '') : '';
 
-  // Keep text posts on the normal section rhythm, but let no-text posts hug
-  // their first external content block using the same small gap PostHeader uses
-  // between the identity row and inline body text. Subsequent external blocks
-  // still use the normal section gap.
   const hasBelowHeaderBlocks = Boolean(
     (hasValidLocation && location) ||
       shouldRenderMediaBlock ||
@@ -691,10 +1226,9 @@ const PostItemContent: React.FC<PostItemProps> = ({
       quoteUnavailable ||
       !isNested,
   );
-  const headerToBlocksGap = content.text || content.title ? SECTION_GAP : HEADER_CONTENT_GAP;
+  // Text posts keep the section rhythm; a post with no text hugs its first block.
+  const headerToBlocksGap = content.text || content.title ? 'md' : 'xs';
 
-  // Read off the POST, never passed in — see `resolveReplyContextRow` for the
-  // rule and why it lives there rather than in each caller.
   const replyContextRow = resolveReplyContextRow({
     post: viewPost,
     isNested,
@@ -715,85 +1249,31 @@ const PostItemContent: React.FC<PostItemProps> = ({
     ? `${postAuthor}: ${postTextSummary}`
     : `Post by ${postAuthor}`;
 
-  // The lane chip, in the identity line right after the time.
-  //
-  // The lane rides on `viewPost.lane` — the DTO — and is deliberately NOT a
-  // prop on this component. `PostItem`'s `React.memo` comparator enumerates
-  // every prop, so lane data arriving as one and missed there would leave a
-  // recycled FlashList row showing the PREVIOUS row's lane; reading it off the
-  // post makes that class of bug unreachable. (The comparator still compares
-  // `lane.id` explicitly, so the row re-renders when the lane changes without
-  // relying on `metadata.updatedAt` moving with it.)
-  //
-  // Suppressed on the two header shapes whose identity line is already saying
-  // something more important about who published the post: a boost (the line
-  // belongs to the reposter's reason) and a collaborative byline (the line is
-  // already a list of authors). The third suppression — a row inside the lane's
-  // own tab — lives in the chip, which is where the feed descriptor is known.
-  // A lane belongs to its publisher, and the publisher is the post's author —
-  // a channel account included — so the chip always links to the author's own
-  // lane tab.
-  const laneSlot =
-    viewPost.lane && !viewPost.boost && !isCollab ? (
-      <PostLaneChip
-        lane={viewPost.lane}
-        authorHandle={authorHandle || ''}
-        feedDescriptor={feedDescriptor}
-      />
-    ) : null;
-
-  // Thread line positioning: center on avatar, use shared style constants from composeLayout
-  const THREAD_LINE_LEFT = HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2;
-  const THREAD_LINE_W = THREAD_LINE_WIDTH;
-
-  // Bluesky-style context rows (Reposted by / Pinned / Replying to), rendered as
-  // the first children of PostHeader's content column so the text aligns with the
-  // display name (no more pl-[60px] — same column as the name). Each row is a
-  // consistent POST_CONTEXT_ROW_HEIGHT tall; the avatar stays top-aligned (the
-  // column grows down). The icon keeps `-ml-4` to poke left into the avatar
-  // gutter; repost is the outermost reason, then pinned, then reply.
-  const contextRows: React.ReactNode[] = [];
+  // ── Context rows (Reposted by / liked by / Pinned / community / crosspost / Replying to)
+  const contextRows: Child[] = [];
   if (reposter && repostPlacement !== 'shownAbove') {
-    const repostedBy = toElement(
-      RawText(
-        t('post.repostedBy', { defaultValue: 'Reposted by' }),
-        ' ',
-        displayNameOrHandle(reposter.name?.displayName, reposterHandle ? `@${reposterHandle}` : ''),
-      )
-        .foreground('muted')
-        .font('sm')
-        .weight('semibold')
-        .lines(1),
+    const repostedByText = contextText(
+      t('post.repostedBy', { defaultValue: 'Reposted by' }),
+      ' ',
+      displayNameOrHandle(reposter.name?.displayName, reposterHandle ? `@${reposterHandle}` : ''),
     );
-    contextRows.push(
-      <ProfileHoverCard key="reposted" username={reposterHandle}>
-        <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-          {toElement(
-            VStack(
-              Embed(
-                <RiRepeat2Line
-                  width={13}
-                  height={13}
-                  fill="currentColor"
-                  className="text-muted-foreground"
-                />,
-              ),
-            )
-              .margin('left', '-lg')
-              .margin('right', '3'),
-          )}
-          {reposterHref ? (
-            // A link to the BOOSTER's profile. The click stops here:
-            // the row beneath it opens the ORIGINAL post, and must
-            // not navigate a second time.
-            <Link href={reposterHref} push asChild onPress={(event) => event.stopPropagation()}>
-              {repostedBy}
+    const repostRow = HStack(
+      contextIcon(RiRepeat2Line),
+      reposterHref
+        ? Embed((render) => (
+            // A link to the BOOSTER's profile; the row beneath opens the original.
+            <Link href={reposterHref} push asChild onPress={stopAtLink}>
+              {render(repostedByText)}
             </Link>
-          ) : (
-            repostedBy
-          )}
-        </View>
-      </ProfileHoverCard>,
+          ))
+        : repostedByText,
+    )
+      .align('center')
+      .frame({ height: row.space.contextRow });
+    contextRows.push(
+      Embed((render) => (
+        <ProfileHoverCard username={reposterHandle}>{render(repostRow)}</ProfileHoverCard>
+      )).id('reposted'),
     );
   }
   if (
@@ -836,382 +1316,382 @@ const PostItemContent: React.FC<PostItemProps> = ({
             });
     if (names.length > 0)
       contextRows.push(
-        <Pressable
-          key="social-reason"
-          className="flex-row items-center"
-          style={{ height: POST_CONTEXT_ROW_HEIGHT }}
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          onPress={(event) => {
+        HStack(
+          contextIcon(isBoostSocialContext ? RiRepeat2Line : RiHeartFill),
+          contextText(label).shrink('normal'),
+        )
+          .align('center')
+          .frame({ height: row.space.contextRow })
+          .role('button')
+          .label(label)
+          .onPress((event) => {
             event.stopPropagation();
             if (isBoostSocialContext) openBoostsList();
             else openLikesList();
-          }}
-        >
-          {toElement(
-            VStack(
-              Embed(
-                isBoostSocialContext ? (
-                  <RiRepeat2Line
-                    width={13}
-                    height={13}
-                    fill="currentColor"
-                    className="text-muted-foreground"
-                  />
-                ) : (
-                  <RiHeartFill
-                    width={13}
-                    height={13}
-                    fill="currentColor"
-                    className="text-muted-foreground"
-                  />
-                ),
-              ),
-            )
-              .margin('left', '-lg')
-              .margin('right', '3'),
-          )}
-          {toElement(
-            RawText(label)
-              .foreground('muted')
-              .font('sm')
-              .weight('semibold')
-              .shrink('normal')
-              .lines(1),
-          )}
-        </Pressable>,
+          })
+          .id('social-reason'),
       );
   }
   if (showPinned) {
     contextRows.push(
-      <View
-        key="pinned"
-        className="flex-row items-center"
-        style={{ height: POST_CONTEXT_ROW_HEIGHT }}
-      >
-        {toElement(
-          VStack(
-            Embed(
-              <RiPushpinLine
-                width={13}
-                height={13}
-                fill="currentColor"
-                className="text-muted-foreground"
-              />,
-            ),
-          )
-            .margin('left', '-lg')
-            .margin('right', '3'),
-        )}
-        {toElement(
-          RawText(t('post.pinned', { defaultValue: 'Pinned' }))
-            .foreground('muted')
-            .font('sm')
-            .weight('semibold')
-            .lines(1),
-        )}
-      </View>,
+      HStack(contextIcon(RiPushpinLine), contextText(t('post.pinned', { defaultValue: 'Pinned' })))
+        .align('center')
+        .frame({ height: row.space.contextRow })
+        .id('pinned'),
     );
   }
-  // `Instagram · Threads` — one piece of writing published to two networks,
-  // rendered once. The provenance rides on `viewPost.crosspost` (the DTO) for
-  // the same reason the lane does: a FlashList row that is recycled must not be
-  // able to keep the previous row's provenance, and reading it off the post
-  // makes that unreachable.
-  //
-  // Last of the context rows on purpose. "Reposted by", "Pinned" and "Replying
-  // to" all say something about how this post came to be in front of the
-  // reader; this says something about the post itself, and the ordering keeps
-  // the more urgent context nearest the name.
-  // Where a federated post was written — "in !technology@lemmy.world". A reply
-  // belongs to its thread's community, so only a post that starts one says it.
+  // A reply belongs to its thread's community, so only a post that starts one says it.
   if (communityHandle && !viewPost.replyContext) {
     contextRows.push(
-      <PostCommunityRow key="community" handle={communityHandle} href={communityHref} />,
+      Embed(<PostCommunityRow handle={communityHandle} href={communityHref} />).id('community'),
     );
   }
   if (viewPost.crosspost) {
-    contextRows.push(<PostCrosspostRow key="crosspost" crosspost={viewPost.crosspost} />);
+    contextRows.push(Embed(<PostCrosspostRow crosspost={viewPost.crosspost} />).id('crosspost'));
   }
   if (replyContextRow) {
-    // Named when the parent author resolved; otherwise the row still states
-    // that this is a reply — the alternative (rendering nothing) is what made
-    // a context-free reply read as an ordinary top-level post.
-    const replyRow = (
-      <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-        {toElement(
-          VStack(
-            Embed(
-              <RiCornerDownRightLine
-                width={13}
-                height={13}
-                fill="currentColor"
-                className="text-muted-foreground"
-              />,
-            ),
-          )
-            .margin('left', '-lg')
-            .margin('right', '3'),
-        )}
-        {toElement(
-          RawText(
-            replyContextRow.label
-              ? `${t('post.replyingTo', { defaultValue: 'Replying to' })} @${replyContextRow.label}`
-              : t('post.replyingToUnknown', { defaultValue: 'Replying to a post' }),
-          )
-            .foreground('muted')
-            .font('sm')
-            .weight('semibold')
-            .lines(1),
-        )}
-      </View>
-    );
-    // The hover card previews a real handle. Without one there is nobody to
-    // fetch, so the row renders as plain text instead of a dead target.
-    contextRows.push(
-      replyContextRow.authorHandle ? (
-        <ProfileHoverCard key="reply" username={replyContextRow.authorHandle}>
-          {replyRow}
-        </ProfileHoverCard>
-      ) : (
-        <Fragment key="reply">{replyRow}</Fragment>
+    const replyRow = HStack(
+      contextIcon(RiCornerDownRightLine),
+      contextText(
+        replyContextRow.label
+          ? `${t('post.replyingTo', { defaultValue: 'Replying to' })} @${replyContextRow.label}`
+          : t('post.replyingToUnknown', { defaultValue: 'Replying to a post' }),
       ),
+    )
+      .align('center')
+      .frame({ height: row.space.contextRow });
+    const replyHandle = replyContextRow.authorHandle;
+    contextRows.push(
+      (replyHandle
+        ? Embed((render) => (
+            <ProfileHoverCard username={replyHandle}>{render(replyRow)}</ProfileHoverCard>
+          ))
+        : replyRow
+      ).id('reply'),
     );
   }
 
-  // PostHeader offsets the avatar down by the context rows' total height to keep
-  // it aligned with the name row. Mirror that exact offset here so the thread
-  // line tracks the offset avatar instead of leaving a gap above it.
-  const headerTopOffset = contextRows.length * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
+  // The avatar and the ⋯ menu stand level with the name row, below the context rows.
+  const contextCount = contextRows.length;
+  const headerTopOffset = contextCount * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
 
+  // ── PostHeader ──────────────────────────────────────────────────
+  const user = {
+    displayName: author.name?.displayName,
+    handle: authorHandle || '',
+    verified: author.verified,
+    isFederated: author.isFederated,
+    kind: author.kind,
+    character: author.character,
+    color: author.color,
+    instance: author.instance,
+  };
+  const compact = isNested;
+  const detail = isDetailMain;
+  const avatarSize = isNested ? 20 : POST_AVATAR_SIZE;
+  const isCollabByline = headerAuthors.length > 1;
+  const hasDisplayName = !isCollabByline && !!user.displayName?.trim();
+  const onPressCollaborators = isCollab ? openCollaboratorsList : undefined;
+
+  const avatar =
+    collabAvatars.length > 1
+      ? Embed(
+          <ProfileHoverCard username={isCollabByline ? undefined : user.handle}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={
+                isCollabByline
+                  ? t('collab.viewCollaborators', { defaultValue: 'View collaborators' })
+                  : displayNameOrHandle(user.displayName, user.handle ? `@${user.handle}` : '')
+              }
+              disabled={isCollabByline ? !onPressCollaborators : false}
+              onPress={isCollabByline ? onPressCollaborators : goToAuthorProfile}
+            >
+              <AccountAvatarGroup
+                layout="cluster"
+                items={collabAvatars}
+                size={avatarSize}
+                variant={avatarVariant}
+                max={20}
+              />
+            </TouchableOpacity>
+          </ProfileHoverCard>,
+        )
+      : Embed(
+          <ProfileHoverCard username={user.handle}>
+            <LiveAvatar
+              account={user}
+              userId={author.id || undefined}
+              source={avatarSource}
+              variant={avatarVariant}
+              size={avatarSize}
+              onPress={goToAuthorProfile}
+            />
+          </ProfileHoverCard>,
+        );
+
+  const menuButton = PostMenuButton({
+    label: t('postActions.title', { defaultValue: 'Post options' }),
+    post: viewPost,
+    isPostDetail: isDetailMain,
+    source: feedDescriptor,
+    onOpenArticle: openArticleSheet,
+    onInsights: handleInsightsPress,
+  });
+
+  const identityName = Embed(
+    <UserName
+      name={hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined}
+      verified={user.verified}
+      href={authorHref}
+      onPress={prefetchAuthorProfile}
+      asHeading={isDetailMain}
+      style={NAME_STYLE}
+    />,
+  );
+  const identityHandle =
+    hasDisplayName && user.handle
+      ? Text(`${detail ? '' : ' '}@${user.handle}`)
+          .font('md')
+          .leading(row.leading.tight)
+          .foreground('muted')
+          .shrink('first')
+          .frame({ minWidth: 'none' })
+          .lines(1)
+      : null;
+  const identityBadge = Embed(
+    <AccountBadge
+      isFederated={user.isFederated}
+      kind={user.kind}
+      size={13}
+      containerClassName="self-center ml-1"
+    />,
+  );
+
+  const identity = isCollabByline
+    ? Embed(
+        LtoElement(
+          LHStack(
+            LEmbed(
+              <RNText
+                className="text-foreground text-[15px] font-semibold leading-tight"
+                style={SHRINK_STYLE}
+                numberOfLines={2}
+              >
+                {headerAuthors.map((a, i) => {
+                  const isLast = i === headerAuthors.length - 1;
+                  const separator =
+                    i === 0
+                      ? ''
+                      : isLast
+                        ? bylineNamesWriter
+                          ? t('collab.by', { defaultValue: ' by ' })
+                          : t('collab.and', { defaultValue: ' and ' })
+                        : ', ';
+                  return (
+                    <React.Fragment key={`${a.handle || 'author'}-${i}`}>
+                      {separator}
+                      {a.href ? (
+                        <Link
+                          href={a.href}
+                          push
+                          onPress={stopAtLink}
+                          accessibilityLabel={a.firstName}
+                        >
+                          {a.firstName}
+                        </Link>
+                      ) : (
+                        LtoElement(RawText(a.firstName))
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </RNText>,
+            ),
+          )
+            .frame({ minWidth: 'none' })
+            .align('end')
+            .shrink('normal'),
+        ),
+      )
+    : // The whole identity line is one hover target.
+      Embed((render) => (
+        <ProfileHoverCard username={user.handle} style={SHRINK_STYLE}>
+          {render(
+            detail
+              ? VStack(HStack(identityName, identityBadge).align('center'), identityHandle)
+                  .align('start')
+                  .frame({ minWidth: 'none' })
+              : HStack(identityName, identityHandle, identityBadge)
+                  .align('end')
+                  .shrink('normal')
+                  .frame({ minWidth: 'none' }),
+          )}
+        </ProfileHoverCard>
+      ));
+
+  const indicator = (icon: IconComponent, label: string, message: string, testID?: string) =>
+    Embed((render) => (
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        hitSlop={tokens.hitSlop.md}
+        style={INDICATOR_STYLE}
+        onPress={() => toast(message)}
+        testID={testID}
+      >
+        {render(Icon(icon).size(row.iconSize.indicator).foreground('muted'))}
+      </TouchableOpacity>
+    ));
+
+  const identityLine = HStack(
+    compact ? avatar : null,
+    identity,
+    detail
+      ? null
+      : TimeLabel({ date: metadata.createdAt, href: openPostHref, onPressTime: recordOpen }),
+    metadata.isEdited
+      ? indicator(
+          RiPencilLine,
+          t('post.editedIndicator', { defaultValue: 'Edited' }),
+          t('post.editedToast', { defaultValue: 'This post was edited' }),
+        )
+      : null,
+    isPrivateMention(viewPost)
+      ? indicator(
+          RiLockLine,
+          t('privateMentions.badge', { defaultValue: 'Private mention' }),
+          t('privateMentions.onlyMentioned', {
+            defaultValue: 'Only visible to the people mentioned',
+          }),
+          'post-private-mention-badge',
+        )
+      : null,
+    // The lane chip, after the time; not on a boost or a collaborative byline.
+    viewPost.lane && !viewPost.boost && !isCollab
+      ? Embed(
+          <PostLaneChip
+            lane={viewPost.lane}
+            authorHandle={authorHandle || ''}
+            feedDescriptor={feedDescriptor}
+          />,
+        )
+      : null,
+    viewPost.boost && !isNested
+      ? Icon(RiRepeat2Line)
+          .size(row.iconSize.indicator)
+          .foreground('muted')
+          .role('image')
+          .label('Reposted')
+      : null,
+    compact ? Spacer() : null,
+    compact ? menuButton : null,
+  )
+    .align(compact ? 'center' : 'end')
+    .spacing('sm');
+
+  // ── The post body ───────────────────────────────────────────────
   const hasPostBody = Boolean(
     spoilerText ||
       (!isContentGated &&
         (content.title || content.text || threadPosition || (corrections && viewPostId))),
   );
-  const postBody = (
-    <>
-      {spoilerText ? (
-        <ContentWarning
-          text={spoilerText}
-          revealed={isContentWarningOpen}
-          onToggle={toggleContentWarning}
-        />
-      ) : null}
-      {content.title && !isContentGated ? (
-        <BloomText
-          variant="headline-semibold"
-          accessibilityRole={titleLinkUrl ? 'link' : undefined}
-          onPress={titleLinkUrl ? openTitleLink : undefined}
-        >
-          {content.title}
-        </BloomText>
-      ) : null}
-      {(content.text || threadPosition) && !isContentGated ? (
-        <PostContentText
-          content={content}
-          postId={viewPostId}
-          detail={isDetailMain}
-          previewChars={isDetailMain ? Infinity : undefined}
-          overrideText={languageDisplayText}
-          linkCards={linkCards}
-          trailingContent={
-            threadPosition && !isNested
-              ? toElement(
-                  RawText(
-                    ' ',
-                    RawText(` ${threadPosition.index}/${threadPosition.total} `)
-                      .background('surface')
-                      .corner('infinite')
-                      .foreground('muted')
-                      .font('11')
-                      .label(
-                        t('post.threadPosition', {
-                          defaultValue: 'Post {{index}} of {{total}} in thread',
-                          index: threadPosition.index,
-                          total: threadPosition.total,
-                        }),
-                      ),
-                  ),
-                )
-              : undefined
-          }
-        />
-      ) : null}
-      {corrections && viewPostId && !isContentGated ? (
-        <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
-      ) : null}
-    </>
-  );
-
-  return (
-    <>
-      <Pressable
-        className="group border-border"
-        style={[
-          !isNested && styles.postContainer,
-          !isNested && {
-            paddingTop: VPAD,
-            paddingBottom: VPAD,
-          },
-          isNested && styles.nestedPostContainer,
-          // Thread spacing adjustments
-          isThreadParent && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
-          isThreadChild &&
-            !isThreadLastChild &&
-            !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
-          attachedBelow && !isNested && { paddingBottom: 0, borderBottomWidth: 0 },
-          isThreadChild && !isNested && { paddingTop: 4 },
-          style,
-        ]}
-        accessibilityLabel={postAccessibilityLabel}
-        // The row is one element type on every route (see `isTappable`), so
-        // "is this a link" has to be carried by the props instead. A
-        // non-tappable row must also leave the tab order: RNW gives every
-        // `Pressable` `tabIndex=0`, and the focused detail post would
-        // otherwise become a second `[aria-label][tabindex="0"]` match.
-        focusable={isTappable}
-        {...(isTappable ? { onPress: goToPost } : {})}
-        {...(isThreadUnit
-          ? {
-              onHoverIn: () => {
-                if (sliceKey) enterThreadHover(sliceKey, hoverOwner);
-              },
-              onHoverOut: () => {
-                if (sliceKey) leaveThreadHover(hoverOwner, sliceKey);
-              },
-            }
-          : {})}
-      >
-        {isThreadUnit && sliceKey ? (
-          <ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} visible={isTappable} />
-        ) : isTappable ? (
-          <SubtleHover />
-        ) : null}
-        {/* Thread line above avatar — connects from previous post's bottom.
-                    Ends `headerTopOffset` below the top, leaving the same small gap
-                    before the avatar as the below-avatar line has (tracking the
-                    context-row offset that pushes the avatar down). */}
-        {isThreadChild && !isNested && (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: THREAD_LINE_LEFT,
-              width: THREAD_LINE_W,
-              height: headerTopOffset + 4,
-              borderRadius: THREAD_LINE_BORDER_RADIUS,
-              zIndex: THREAD_LINE_Z_INDEX,
-            }}
-            className="bg-border"
-          />
-        )}
-        {/* Thread line below avatar — connects to next post's top. Shifted
-                    down by headerTopOffset so it starts at the offset avatar's bottom. */}
-        {isThreadParent && !isNested && !isDetailMain && (
-          <View
-            style={{
-              position: 'absolute',
-              top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
-              left: THREAD_LINE_LEFT,
-              width: THREAD_LINE_W,
-              bottom: 0,
-              borderRadius: THREAD_LINE_BORDER_RADIUS,
-              zIndex: THREAD_LINE_Z_INDEX,
-            }}
-            className="bg-border"
-          />
-        )}
-        {replyBranch && !isNested && (
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
-              top: 0,
-              width: REPLY_BRANCH_INDENT - POST_AVATAR_SIZE / 2 - 3,
-              height: VPAD + headerTopOffset + POST_AVATAR_SIZE / 2,
-              borderLeftWidth: THREAD_LINE_W,
-              borderBottomWidth: THREAD_LINE_W,
-              borderBottomLeftRadius: 8,
-            }}
-            className="border-border"
-          />
-        )}
-        <View style={{ gap: headerToBlocksGap }}>
-          <PostHeader
-            user={{
-              displayName: author.name?.displayName,
-              handle: authorHandle || '',
-              verified: author.verified,
-              isFederated: author.isFederated,
-              kind: author.kind,
-              character: author.character,
-              color: author.color,
-              instance: author.instance,
-            }}
-            authors={bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined}
-            // `repostedBy` is the only boost that put THIS post in
-            // front of the reader. `viewPost.boost` is the other
-            // boost shape — the row IS the boost, so its author and
-            // its actor are the same account and there is nothing to
-            // pair or reorder; passing it would be a no-op wearing
-            // the clothes of a rule.
-            boostedBy={repostPlacement === 'headOnly' ? undefined : reposter}
-            date={metadata.createdAt}
-            isEdited={metadata.isEdited}
-            isPrivateMention={isPrivateMention(viewPost)}
-            showBoost={Boolean(viewPost.boost) && !isNested}
-            showReply={false}
-            laneSlot={laneSlot}
-            contextTop={contextRows.length > 0 ? contextRows : undefined}
-            detail={isDetailMain}
-            compact={isNested}
-            avatarSize={isNested ? 20 : undefined}
-            avatarSource={avatarSource}
-            avatarVariant={avatarVariant}
-            authorUserId={author.id || undefined}
-            userHref={authorHref}
-            postHref={openPostHref}
-            onPressTime={recordOpen}
-            nameAsHeading={isDetailMain}
-            onPressAvatar={goToAuthorProfile}
-            onPressName={prefetchAuthorProfile}
-            onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
-            linkAuthors
-            menu={
-              viewPost ? (
-                <Suspense fallback={null}>
-                  <PostMenuContent
-                    post={viewPost}
-                    isPostDetail={isDetailMain}
-                    source={feedDescriptor}
-                    onOpenArticle={openArticleSheet}
-                    onInsights={handleInsightsPress}
-                  />
-                </Suspense>
-              ) : undefined
-            }
-            paddingHorizontal={HPAD}
+  const postBody: Child[] = [
+    spoilerText
+      ? Embed(
+          <ContentWarning
+            text={spoilerText}
+            revealed={isContentWarningOpen}
+            onToggle={toggleContentWarning}
+          />,
+        )
+      : null,
+    content.title && !isContentGated
+      ? Embed(
+          <BloomText
+            variant="headline-semibold"
+            accessibilityRole={titleLinkUrl ? 'link' : undefined}
+            onPress={titleLinkUrl ? openTitleLink : undefined}
           >
-            {isDetailMain ? null : postBody}
-          </PostHeader>
-          {isDetailMain && hasPostBody && (
-            <View style={{ paddingHorizontal: HPAD, gap: HEADER_CONTENT_GAP }}>{postBody}</View>
-          )}
+            {content.title}
+          </BloomText>,
+        )
+      : null,
+    (content.text || threadPosition) && !isContentGated
+      ? Embed(
+          <PostContentText
+            content={content}
+            postId={viewPostId}
+            detail={isDetailMain}
+            previewChars={isDetailMain ? Infinity : undefined}
+            overrideText={languageDisplayText}
+            linkCards={linkCards}
+            trailingContent={
+              threadPosition && !isNested
+                ? LtoElement(
+                    RawText(
+                      ' ',
+                      RawText(` ${threadPosition.index}/${threadPosition.total} `)
+                        .background('surface')
+                        .corner('infinite')
+                        .foreground('muted')
+                        .font('11')
+                        .label(
+                          t('post.threadPosition', {
+                            defaultValue: 'Post {{index}} of {{total}} in thread',
+                            index: threadPosition.index,
+                            total: threadPosition.total,
+                          }),
+                        ),
+                    ),
+                  )
+                : undefined
+            }
+          />,
+        )
+      : null,
+    corrections && viewPostId && !isContentGated
+      ? Embed(<PostCorrectionNotice postId={viewPostId} count={corrections.count} />)
+      : null,
+  ];
 
-          {hasBelowHeaderBlocks && !isContentGated && (
-            <View style={{ gap: SECTION_GAP }}>
-              {hasValidLocation && location && (
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <PostLocation location={location} paddingHorizontal={0} />
-                </View>
-              )}
+  const hasContext = contextCount > 0;
+  const avatarColumn = hasContext
+    ? VStack(contextOffset(contextCount), avatar).spacing('xs')
+    : avatar;
+  const menuColumn = hasContext
+    ? VStack(contextOffset(contextCount), menuButton).spacing('xs')
+    : menuButton;
+  // The avatar's 12px gap is the content column's leading padding: one view fewer than a wrapper.
+  const contentStack = VStack(
+    hasContext ? contextRows : null,
+    identityLine,
+    detail ? null : VStack(...postBody),
+  );
+  const contentColumn = (compact ? contentStack : contentStack.padding('leading', 'md'))
+    .grow()
+    .frame({ minWidth: 'none' })
+    .spacing('xs');
+  const header = HStack(compact ? null : avatarColumn, contentColumn, compact ? null : menuColumn)
+    .align('start')
+    .justify('between')
+    .padding('horizontal', 'md');
 
-              {(boostUnavailable || quoteUnavailable) && !isContentGated && (
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  {toElement(
-                    VStack(
+  // ── Below the header ────────────────────────────────────────────
+  const inset = (child: Child) =>
+    VStack(child).padding('leading', contentInset).padding('trailing', 'md');
+
+  const blocks =
+    hasBelowHeaderBlocks && !isContentGated
+      ? VStack(
+          hasValidLocation && location
+            ? inset(Embed(<PostLocation location={location} paddingHorizontal={0} />))
+            : null,
+          boostUnavailable || quoteUnavailable
+            ? inset(
+                Embed(
+                  LtoElement(
+                    LVStack(
                       RawText(
                         quoteUnavailable
                           ? t('post.quoteUnavailable', {
@@ -1228,18 +1708,19 @@ const PostItemContent: React.FC<PostItemProps> = ({
                       .padding('vertical', 'md')
                       .border('border', 'thin')
                       .corner('lg'),
-                  )}
-                </View>
-              )}
-
-              {shouldRenderMediaBlock && !isContentGated && (
+                  ),
+                ),
+              )
+            : null,
+          shouldRenderMediaBlock
+            ? Embed(
                 <PostAttachmentsRow
                   sensitive={isSensitiveContent && !spoilerText}
                   media={mediaItems}
                   attachments={attachmentDescriptors}
                   nestedPost={nestedPost ?? null}
                   renderNestedPost={renderNestedPost}
-                  leftOffset={contentLeftOffset}
+                  leftOffset={isNested || isDetailMain ? HPAD : POST_ITEM_SPACING.AVATAR_OFFSET}
                   pollData={pollData}
                   pollId={pollId ? String(pollId) : undefined}
                   nestingDepth={nestingDepth}
@@ -1256,51 +1737,48 @@ const PostItemContent: React.FC<PostItemProps> = ({
                   location={location}
                   text={content.text}
                   documents={documents}
-                  // Only a quote card hands a width down. The card has no
-                  // horizontal inset (see `nestedPostContainer`), so the row
-                  // spans exactly that width, edge to edge like a feed row.
-                />
-              )}
-
-              {communityNote?.status === 'shown' && !isNested && !isContentGated && (
-                // Below everything the author posted, above the actions: the
-                // note is context ABOUT the post, never part of it.
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <CommunityNoteCard note={communityNote} onPressAbout={openCommunityNoteAbout} />
-                </View>
-              )}
-
-              {!isNested && (
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <PostActions
-                    t={t}
-                    engagement={actionsEngagement}
-                    isLiked={isLiked}
-                    isDownvoted={isDownvoted}
-                    isBoosted={isBoosted}
-                    isSaved={isSaved}
-                    // Derived from the POST — the server's own verdict —
-                    // so an affordance that would be refused is absent
-                    // rather than present and refused.
-                    onReply={postAcceptsReplies(viewPost) ? handleReply : undefined}
-                    onBoost={handleBoost}
-                    onLike={handleLike}
-                    onDownvote={handleDownvote}
-                    onSave={handleSave}
-                    onShare={handleShare}
-                    onSendInAllo={handleSendInAllo}
-                    postId={viewPostId}
-                    onTranslate={canTranslate ? toggleReaderTranslation : undefined}
-                    onTranslateLongPress={openLanguagePicker}
-                    isTranslated={isTranslated}
-                    isTranslating={isTranslating}
-                    onInsightsPress={isOwner && isDetailMain ? handleInsightsPress : undefined}
-                  />
-                </View>
-              )}
-
-              {/* Detail metadata stays below the unchanged action bar. */}
-              {isDetailMain && (
+                />,
+              )
+            : null,
+          // Context ABOUT the post, never part of it: below the author's content, above the actions.
+          communityNote?.status === 'shown' && !isNested
+            ? inset(
+                Embed(
+                  <CommunityNoteCard note={communityNote} onPressAbout={openCommunityNoteAbout} />,
+                ),
+              )
+            : null,
+          isNested
+            ? null
+            : inset(
+                PostActions({
+                  t,
+                  replies: actionsEngagement.replies,
+                  boosts: actionsEngagement.boosts,
+                  likes: actionsEngagement.likes,
+                  downvotes: actionsEngagement.downvotes,
+                  saves: actionsEngagement.saves,
+                  isLiked,
+                  isDownvoted,
+                  isBoosted,
+                  isSaved,
+                  // Derived from the POST, so an affordance that would be refused is absent.
+                  onReply: postAcceptsReplies(viewPost) ? handleReply : undefined,
+                  onBoost: handleBoost,
+                  onLike: handleLike,
+                  onDownvote: handleDownvote,
+                  onSave: handleSave,
+                  onShare: handleShare,
+                  onSendInAllo: handleSendInAllo,
+                  onTranslate: canTranslate ? toggleReaderTranslation : undefined,
+                  onTranslateLongPress: openLanguagePicker,
+                  isTranslated,
+                  isTranslating,
+                  onInsightsPress: isOwner && isDetailMain ? handleInsightsPress : undefined,
+                }),
+              ),
+          isDetailMain
+            ? Embed(
                 <PostDetailStats
                   timestampLabel={fullTimestamp}
                   likes={engagementSummary?.likes}
@@ -1313,65 +1791,146 @@ const PostItemContent: React.FC<PostItemProps> = ({
                   onLikesPress={openLikesList}
                   onBoostsPress={openBoostsList}
                   onQuotesPress={openQuotesList}
-                />
-              )}
-            </View>
-          )}
-        </View>
-      </Pressable>
-      {articleContent ? (
-        <Suspense fallback={null}>
-          <PostArticleModal
-            visible={isArticleModalVisible}
-            onClose={closeArticleSheet}
-            articleId={articleContent.articleId}
-            title={articleContent.title}
-            body={articleContent.body}
-          />
-        </Suspense>
-      ) : null}
-    </>
+                />,
+              )
+            : null,
+        ).spacing('md')
+      : null;
+
+  // ── Thread lines: decoration measured from the avatar, drawn as before ──
+  const THREAD_LINE_LEFT = HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2;
+  const threadChildLine =
+    isThreadChild && !isNested
+      ? Embed(
+          // Above the avatar, from the previous post's bottom to just above the offset avatar.
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: THREAD_LINE_LEFT,
+              width: THREAD_LINE_WIDTH,
+              height: headerTopOffset + 4,
+              borderRadius: THREAD_LINE_BORDER_RADIUS,
+              zIndex: THREAD_LINE_Z_INDEX,
+            }}
+            className="bg-border"
+          />,
+        )
+      : null;
+  const threadParentLine =
+    isThreadParent && !isNested && !isDetailMain
+      ? Embed(
+          // Below the avatar, to the next post's top.
+          <View
+            style={{
+              position: 'absolute',
+              top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
+              left: THREAD_LINE_LEFT,
+              width: THREAD_LINE_WIDTH,
+              bottom: 0,
+              borderRadius: THREAD_LINE_BORDER_RADIUS,
+              zIndex: THREAD_LINE_Z_INDEX,
+            }}
+            className="bg-border"
+          />,
+        )
+      : null;
+  const replyBranchElbow =
+    replyBranch && !isNested
+      ? Embed(
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
+              top: 0,
+              width: REPLY_BRANCH_INDENT - POST_AVATAR_SIZE / 2 - 3,
+              height: VPAD + headerTopOffset + POST_AVATAR_SIZE / 2,
+              borderLeftWidth: THREAD_LINE_WIDTH,
+              borderBottomWidth: THREAD_LINE_WIDTH,
+              borderBottomLeftRadius: 8,
+            }}
+            className="border-border"
+          />,
+        )
+      : null;
+
+  // ── The row ─────────────────────────────────────────────────────
+  // A thread row or one with something attached below closes onto it: no
+  // bottom padding and no separator. A reply-branch row drops the separator.
+  const closedBelow = isThreadParent || (isThreadChild && !isThreadLastChild) || attachedBelow;
+  let rowView = VStack(
+    isThreadUnit && sliceKey
+      ? Embed(<ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} visible={isTappable} />)
+      : isTappable
+        ? Embed(<SubtleHover />)
+        : null,
+    threadChildLine,
+    threadParentLine,
+    replyBranchElbow,
+    VStack(
+      header,
+      isDetailMain && hasPostBody
+        ? VStack(...postBody)
+            .padding('horizontal', 'md')
+            .spacing('xs')
+        : null,
+      blocks,
+    ).spacing(headerToBlocksGap),
   );
-};
+  if (isNested) {
+    rowView = rowView.padding('vertical', 'md').border('border', 'hairline').corner('lg');
+  } else {
+    rowView = rowView
+      .padding('top', isThreadChild ? 'xs' : 'md')
+      .padding('bottom', closedBelow ? 'none' : 'md');
+    if (!closedBelow && !hideSeparator) rowView = rowView.border('border', 'hairline', 'bottom');
+  }
+  rowView = rowView
+    .hoverGroup()
+    .label(postAccessibilityLabel)
+    // The row is one element type on every route; only the handler comes and goes.
+    .onPress(isTappable ? goToPost : undefined);
+  if (isThreadUnit) {
+    rowView = rowView.onHover(
+      () => {
+        if (sliceKey) enterThreadHover(sliceKey, hoverOwner);
+      },
+      () => {
+        if (sliceKey) leaveThreadHover(hoverOwner, sliceKey);
+      },
+    );
+  }
 
-const styles = StyleSheet.create({
-  postContainer: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  nestedPostContainer: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    // Vertical inset only: the header and body blocks carry their own HPAD,
-    // with the compact avatar inline beside the name. The attachments
-    // carousel runs to both edges of the card, which clips it at its border.
-    // A horizontal padding here shifted the row off the text column and
-    // stopped the carousel short of both sides.
-    paddingVertical: NESTED_CARD_PADDING,
-    overflow: 'hidden',
-    // No top margin: the nested card's spacing from the outer header/content is
-    // owned by the parent content column's flex `gap` (see PostItem render).
-  },
-});
+  return [
+    rowView,
+    articleContent
+      ? Embed(
+          <Suspense fallback={null}>
+            <PostArticleModal
+              visible={isArticleModalVisible}
+              onClose={closeArticleSheet}
+              articleId={articleContent.articleId}
+              title={articleContent.title}
+              body={articleContent.body}
+            />
+          </Suspense>,
+        )
+      : null,
+  ];
+}
 
-const MemoPostItem = React.memo(PostItemContent, postItemPropsEqual);
+const PostRowView = view(PostRow);
 
-// Quotes already have their data and use the same loaded post component. Keep
-// this renderer stable: no deferred empty card, import cycle or per-row hook.
-const renderNestedPost: NestedPostRenderer = (post, nestingDepth, openPostEngagement) => (
-  <MemoPostItem
-    post={post}
-    isNested
-    nestingDepth={nestingDepth}
-    openPostEngagement={openPostEngagement}
-  />
+function PostItemContent(props: PostItemProps) {
+  return toElement(PostRowView(props));
+}
+
+const PostItem = React.memo(PostItemContent, postItemPropsEqual);
+
+// Quotes render through the same row.
+const renderNestedPost: NestedPostRenderer = (nested, depth, openPostEngagement) => (
+  <PostItem post={nested} isNested nestingDepth={depth} openPostEngagement={openPostEngagement} />
 );
 
-// One switch for the whole app: every post row (feed, detail, nested quote) is
-// the JSX row unless the build sets EXPO_PUBLIC_BLOOM_LANGUAGE_ROW=1. The
-// language row is required only when chosen, so the JSX row's build and tests
-// never evaluate it.
-const PostRowComponent: typeof MemoPostItem = USE_LANGUAGE_ROW
-  ? (require('./LanguagePostItem') as typeof import('./LanguagePostItem')).default
-  : MemoPostItem;
-
-export default PostRowComponent;
+export default PostItem;

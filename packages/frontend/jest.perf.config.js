@@ -30,12 +30,12 @@ module.exports = {
   ...base,
   transform: {
     ...preset.transform,
-    // BLOOM_LANGUAGE_COMPILER=1 runs the Bloom language compiler in front of
-    // Babel, as metro.config.js does for the app (`@oxy.so/bloom-language-compiler/jest`).
-    '\\.[jt]sx?$':
-      process.env.BLOOM_LANGUAGE_COMPILER === '1'
-        ? [require.resolve('@oxy.so/bloom-language-compiler/jest'), { upstream: harnessBabel }]
-        : harnessBabel,
+    // The Bloom language compiler in front of Babel, as metro.config.js runs it
+    // for the app (`@oxy.so/bloom-language-compiler/jest`).
+    '\\.[jt]sx?$': [
+      require.resolve('@oxy.so/bloom-language-compiler/jest'),
+      { upstream: harnessBabel },
+    ],
   },
   rootDir: '.',
   testMatch: ['<rootDir>/**/__perf__/**/*.perf.tsx'],

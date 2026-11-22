@@ -54,10 +54,8 @@ import { savePostSettings } from './postSettings';
  * once per press, against the post as the store holds it at that moment — so a
  * menu can no longer act on a stale captured copy either.
  *
- * This module is reached only through `PostMenuContent`, which `PostItem`
- * loads lazily on the first ⋯ press, so its static imports (the submenus
- * included) stay out of the feed chunk. The sheets below are lazy as well: each
- * is mounted from an `onPress` through `presentSheet`, wrapped in `<Suspense>`,
+ * This module is reached only through the ⋯ menu's rows (`postMenuGroups`).
+ * The sheets below are lazy: each is mounted from an `onPress` through `presentSheet`, wrapped in `<Suspense>`,
  * and only the actions a reader picks should cost their service graphs.
  */
 const ReportModal = lazy(() =>
