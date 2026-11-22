@@ -19,6 +19,8 @@ import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import PostHeader from '../PostHeader';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The edited marker in the identity line.
@@ -46,6 +48,7 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToa
 // survive into the rendered tree verbatim — the marker is found as the host
 // element the header rendered, not by a re-encoding of it.
 jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
   RiChat3Fill: 'RiChat3Fill',
   RiLockLine: 'RiLockLine',
   RiMoreFill: 'RiMoreFill',
@@ -57,6 +60,7 @@ jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 
@@ -83,6 +87,7 @@ jest.mock('react-i18next', () => {
 });
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string | null } | null | undefined) =>
     user?.username?.trim().replace(/^@+/, '') || null,
 }));
@@ -93,7 +98,9 @@ function render(props: Partial<HeaderProps> = {}): TestRenderer.ReactTestRendere
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      <PostHeader user={{ displayName: 'Ana Torres', handle: 'ana' }} {...props} />,
+      <BloomThemeProvider fonts={false}>
+        {<PostHeader user={{ displayName: 'Ana Torres', handle: 'ana' }} {...props} />}
+      </BloomThemeProvider>,
     );
   });
   return renderer;

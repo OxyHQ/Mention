@@ -13,9 +13,12 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   ).avatarCharacterInColor,
   useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
 }));
-import TestRenderer, { act } from 'react-test-renderer';
+import { StyleSheet } from 'react-native';
+import TestRenderer, { act, type ReactTestRendererJSON } from 'react-test-renderer';
 
 import PostHeader from '../PostHeader';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The header's root is ONE node, and it carries both jobs.
@@ -35,12 +38,17 @@ import PostHeader from '../PostHeader';
  * the nested pair this test exists to forbid.
  */
 
-jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
+  RiChat3Fill: 'RiChat3Fill',
+  RiMoreFill: 'RiMoreFill',
+}));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: () => undefined }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
@@ -49,6 +57,7 @@ jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) =>
 // `@oxy.so/core` ships ESM and is not transformed in this suite; the header only
 // reaches it for the handle, and this is its rule for a local account.
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string }) => user?.username ?? null,
 }));
 
@@ -56,19 +65,28 @@ it('renders one root node carrying both the padding and the row layout', () => {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <PostHeader
-        user={{ displayName: 'Nate Isern', handle: 'nate' }}
-        date="2026-08-01T10:00:00.000Z"
-        paddingHorizontal={12}
-      />,
+      <BloomThemeProvider fonts={false}>
+        {
+          <PostHeader
+            user={{ displayName: 'Nate Isern', handle: 'nate' }}
+            date="2026-08-01T10:00:00.000Z"
+            paddingHorizontal={12}
+          />
+        }
+      </BloomThemeProvider>,
     );
   });
   if (!renderer) throw new Error('render produced no tree');
-  const root = renderer.toJSON();
-  if (root === null || Array.isArray(root)) throw new Error('expected a single root');
+  // The header is the theme provider's one child.
+  const provider = renderer.toJSON() as ReactTestRendererJSON;
+  const root = provider.children?.[0];
+  if (!root || typeof root === 'string' || provider.children?.length !== 1)
+    throw new Error('expected a single root');
 
-  expect(root.props.style).toEqual({ paddingHorizontal: 12 });
-  expect(root.props.className).toContain('flex-row');
+  expect(StyleSheet.flatten(root.props.style)).toMatchObject({
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+  });
 
   // The avatar and the content column are the root's OWN children — there is
   // no single-child View between them and the padding.
@@ -84,20 +102,36 @@ it('stacks the focused handle below the name and omits the relative timestamp', 
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <PostHeader
-        detail
-        user={{ displayName: 'Nate Isern', handle: 'nate' }}
-        date="2026-08-01T10:00:00.000Z"
-      />,
+      <BloomThemeProvider fonts={false}>
+        {
+          <PostHeader
+            detail
+            user={{ displayName: 'Nate Isern', handle: 'nate' }}
+            date="2026-08-01T10:00:00.000Z"
+          />
+        }
+      </BloomThemeProvider>,
     );
   });
   if (!renderer) throw new Error('render produced no tree');
   const json = JSON.stringify(renderer.toJSON());
   expect(json).toContain('@nate');
   expect(json).not.toContain('·');
-  const column = renderer.root.findAll((node) => node.props.className === 'items-start')[0];
+  const styleOf = (node: { props: { style?: unknown } }) =>
+    StyleSheet.flatten(node.props.style as never) ?? {};
+  const column = renderer.root.findAll(
+    (node) =>
+      typeof node.type === 'string' &&
+      styleOf(node).alignItems === 'flex-start' &&
+      styleOf(node).flexDirection !== 'row',
+  )[0];
   expect(column).toBeDefined();
-  const nameRow = column.findAll((node) => node.props.className === 'flex-row items-center')[0];
+  const nameRow = column.findAll(
+    (node) =>
+      typeof node.type === 'string' &&
+      styleOf(node).flexDirection === 'row' &&
+      styleOf(node).alignItems === 'center',
+  )[0];
   expect(nameRow.findAll((node) => node.props.name === 'Nate Isern').length).toBeGreaterThan(0);
   expect(nameRow.findAll((node) => node.children.includes('@nate'))).toHaveLength(0);
   act(() => renderer?.unmount());

@@ -17,6 +17,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 
 import PostHeader from '../PostHeader';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * A post header's relative time follows the clock, not the row's first render.
@@ -40,12 +41,17 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToa
 // Host element names rather than components, so the props the header computed
 // survive into the rendered tree verbatim — the marker is found as the host
 // element the header rendered, not by a re-encoding of it.
-jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
+  RiChat3Fill: 'RiChat3Fill',
+  RiMoreFill: 'RiMoreFill',
+}));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 
@@ -72,6 +78,7 @@ jest.mock('react-i18next', () => {
 });
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string | null } | null | undefined) =>
     user?.username?.trim().replace(/^@+/, '') || null,
 }));
@@ -87,7 +94,12 @@ function timeLabel(renderer: TestRenderer.ReactTestRenderer): string {
 }
 
 function header(date: string | undefined) {
-  return <PostHeader user={{ displayName: 'QA', handle: 'qatest0925' }} date={date} />;
+  // Under Bloom's theme, as the app draws it: the header's language text paints from it.
+  return (
+    <BloomThemeProvider fonts={false}>
+      <PostHeader user={{ displayName: 'QA', handle: 'qatest0925' }} date={date} />
+    </BloomThemeProvider>
+  );
 }
 
 describe('PostHeader relative time (#1140 item 23)', () => {
