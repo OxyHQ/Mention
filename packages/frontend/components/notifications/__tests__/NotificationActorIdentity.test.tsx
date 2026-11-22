@@ -69,19 +69,28 @@ jest.mock('@oxy.so/bloom/avatar', () => {
 });
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
   RiCheckboxCircleFill: () => null,
   RiCloseCircleLine: () => null,
 }));
-jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({
+  ...jest.requireActual('@oxy.so/bloom/subtle-hover'),
+  SubtleHover: () => null,
+}));
 // The row paints the surface it landed on. Bloom's `styles` subpath ships
 // untranspiled ESM, so it is stubbed here like every other Bloom subpath in
 // this file; the colour only has to be a colour.
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => '#ffffff' }));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  ...jest.requireActual('@oxy.so/bloom/styles'),
+  useSurfaceFill: () => '#ffffff',
+}));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#666', primary: '#000', border: '#eee' } }),
 }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user?: { username?: string | null } | null): string | null => {
     const username = (user?.username ?? '').trim().replace(/^@/, '');
     return username.length > 0 ? username : null;
@@ -128,6 +137,8 @@ import { NotificationItem } from '../NotificationItem';
 import { useUserById } from '@/hooks/useCachedUser';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
+// Rows draw language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 const PRIMARY_ID = 'actor-primary';
 const SECONDARY_ID = 'actor-secondary';
@@ -174,18 +185,20 @@ function renderRow(item: GroupedNotification = groupedLike()) {
   });
   act(() => {
     mounted = TestRenderer.create(
-      <QueryClientProvider client={queryClient as QueryClient}>
-        <NotificationItem
-          item={item}
-          onMarkAsRead={jest.fn()}
-          onDelete={jest.fn()}
-          captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
-          isCurrentIntent={() => true}
-          ownNotificationSurface={async (_intent, present) =>
-            present(new AbortController().signal, () => {})
-          }
-        />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={queryClient as QueryClient}>
+          <NotificationItem
+            item={item}
+            onMarkAsRead={jest.fn()}
+            onDelete={jest.fn()}
+            captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+            isCurrentIntent={() => true}
+            ownNotificationSurface={async (_intent, present) =>
+              present(new AbortController().signal, () => {})
+            }
+          />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   if (!mounted) throw new Error('the row did not render');
@@ -283,36 +296,40 @@ describe('the actor whose profile the row resolves', () => {
     const actual = groupedLike();
     act(() => {
       renderer.update(
-        <QueryClientProvider client={queryClient as QueryClient}>
-          <NotificationItem
-            item={actual}
-            onMarkAsRead={jest.fn()}
-            onDelete={jest.fn()}
-            captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
-            isCurrentIntent={() => true}
-            ownNotificationSurface={async (_intent, present) =>
-              present(new AbortController().signal, () => {})
-            }
-          />
-        </QueryClientProvider>,
+        <BloomThemeProvider fonts={false}>
+          <QueryClientProvider client={queryClient as QueryClient}>
+            <NotificationItem
+              item={actual}
+              onMarkAsRead={jest.fn()}
+              onDelete={jest.fn()}
+              captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+              isCurrentIntent={() => true}
+              ownNotificationSurface={async (_intent, present) =>
+                present(new AbortController().signal, () => {})
+              }
+            />
+          </QueryClientProvider>
+        </BloomThemeProvider>,
       );
     });
     expect(asked().at(-1)).toBe(PRIMARY_ID);
 
     act(() => {
       renderer.update(
-        <QueryClientProvider client={queryClient as QueryClient}>
-          <NotificationItem
-            item={system}
-            onMarkAsRead={jest.fn()}
-            onDelete={jest.fn()}
-            captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
-            isCurrentIntent={() => true}
-            ownNotificationSurface={async (_intent, present) =>
-              present(new AbortController().signal, () => {})
-            }
-          />
-        </QueryClientProvider>,
+        <BloomThemeProvider fonts={false}>
+          <QueryClientProvider client={queryClient as QueryClient}>
+            <NotificationItem
+              item={system}
+              onMarkAsRead={jest.fn()}
+              onDelete={jest.fn()}
+              captureIntent={() => ({ viewerId: 'viewer-1', epoch: 1 })}
+              isCurrentIntent={() => true}
+              ownNotificationSurface={async (_intent, present) =>
+                present(new AbortController().signal, () => {})
+              }
+            />
+          </QueryClientProvider>
+        </BloomThemeProvider>,
       );
     });
     expect(asked().at(-1)).toBeUndefined();

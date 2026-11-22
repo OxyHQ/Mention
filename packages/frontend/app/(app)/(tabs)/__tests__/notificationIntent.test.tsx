@@ -119,6 +119,7 @@ jest.mock('@oxy.so/bloom/tabs', () => ({
   TabsTrigger: () => null,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { border: '', primary: '', textSecondary: '' } }),
 }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
@@ -140,6 +141,8 @@ jest.mock('@/utils/alerts', () => ({
   confirmDialog: (...args: unknown[]) => mockConfirm(...args),
 }));
 import NotificationsScreen from '../notifications';
+// Rows draw language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 function notification(id: string, read = false) {
   return {
@@ -192,9 +195,11 @@ let client: QueryClient;
 let renderer: TestRenderer.ReactTestRenderer | undefined;
 function ui() {
   return (
-    <QueryClientProvider client={client}>
-      <NotificationsScreen />
-    </QueryClientProvider>
+    <BloomThemeProvider fonts={false}>
+      <QueryClientProvider client={client}>
+        <NotificationsScreen />
+      </QueryClientProvider>
+    </BloomThemeProvider>
   );
 }
 beforeEach(() => {

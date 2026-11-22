@@ -26,6 +26,8 @@ import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { TRawNotification } from '@/types/validation';
 import type { OwnNotificationSurface } from '@/hooks/useOwnedNotificationSurfaces';
 import { NotificationItem } from '../NotificationItem';
+// Rows draw language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The collaboration-invite notification row.
@@ -140,19 +142,22 @@ jest.mock('@oxy.so/bloom/button', () => {
 });
 
 jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
   RiCheckboxCircleFill: () => null,
   RiCloseCircleLine: () => null,
 }));
-jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
-// The row paints the surface it landed on. Bloom's `styles` subpath ships
-// untranspiled ESM, so it is stubbed here like every other Bloom subpath in
-// this file; the colour only has to be a colour.
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({
+  ...jest.requireActual('@oxy.so/bloom/subtle-hover'),
+  SubtleHover: () => null,
+}));
+// The row paints the surface it landed on; the colour only has to be a colour.
 jest.mock('@oxy.so/bloom/styles', () => ({
+  ...jest.requireActual('@oxy.so/bloom/styles'),
   useSurfaceFill: () => '#ffffff',
-  tokens: { hitSlop: { md: 8 } },
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       primary: '#1d4ed8',
@@ -174,6 +179,7 @@ jest.mock('@oxy.so/services', () => ({
 }));
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user?: { username?: string | null } | null): string | null => {
     const username = (user?.username ?? '').trim().replace(/^@/, '');
     return username.length > 0 ? username : null;
@@ -340,16 +346,18 @@ async function renderRow(
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={queryClient}>
-        <NotificationItem
-          item={options?.item ?? collabInviteItem()}
-          onMarkAsRead={options?.onMarkAsRead ?? jest.fn()}
-          onDelete={options?.onDelete ?? jest.fn()}
-          captureIntent={options?.captureIntent ?? (() => ({ viewerId: 'viewer-1', epoch: 1 }))}
-          isCurrentIntent={options?.isCurrentIntent ?? (() => true)}
-          ownNotificationSurface={options?.ownNotificationSurface ?? ownSurface}
-        />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={queryClient}>
+          <NotificationItem
+            item={options?.item ?? collabInviteItem()}
+            onMarkAsRead={options?.onMarkAsRead ?? jest.fn()}
+            onDelete={options?.onDelete ?? jest.fn()}
+            captureIntent={options?.captureIntent ?? (() => ({ viewerId: 'viewer-1', epoch: 1 }))}
+            isCurrentIntent={options?.isCurrentIntent ?? (() => true)}
+            ownNotificationSurface={options?.ownNotificationSurface ?? ownSurface}
+          />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   mountedRenderers.push(renderer);
@@ -458,11 +466,15 @@ describe('NotificationItem — collaboration invite', () => {
     const stopPropagation = jest.fn();
     act(() => expand?.props.onPress({ stopPropagation }));
     expect(stopPropagation).toHaveBeenCalledTimes(1);
-    const profile = renderer.root.findAll(
-      (node) =>
-        node.props.className === 'flex-row items-center gap-2' &&
-        typeof node.props.onPress === 'function',
-    )[0];
+    // The first expanded actor's own row: the last press that holds its name.
+    const profile = renderer.root
+      .findAll(
+        (node) =>
+          typeof node.props.onPress === 'function' &&
+          node.findAllByType(Text).some((text) => text.props.children === 'Owner'),
+      )
+      .at(-1);
+    if (!profile) throw new Error('no expanded actor row');
     expect(profile).toBeDefined();
     act(() => profile.props.onPress({ stopPropagation }));
     expect(mockPush).toHaveBeenCalledTimes(1);
