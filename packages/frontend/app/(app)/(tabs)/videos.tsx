@@ -11,12 +11,13 @@ import {
   Pressable,
   FlatList,
   Platform,
+  type ViewStyle,
   type TextStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
 import Animated from 'react-native-reanimated';
-import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { BloomColorScope, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import {
   Screen,
   ScreenPager,
@@ -230,6 +231,8 @@ const GRADIENT_COLORS = [
 ] as const;
 const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
 const LIKE_ACTIVE_COLOR = '#FF3040';
+/** The spinners over a video: Tailwind's `text-white`. */
+const ON_VIDEO_COLOR = '#FFFFFF';
 
 const appColors = defineTokens({
   color: { LIKE_ACTIVE_COLOR, white: 'white', hexFFFFFF: '#FFFFFF' },
@@ -353,22 +356,25 @@ const ReelPoster = memo<{
   posterFailed: boolean;
   onPosterError: () => void;
   theme: ReturnType<typeof useTheme>;
-}>(({ posterUrl, posterFailed, onPosterError, theme }) => (
-  <View style={styles.posterLayer} className="bg-muted" pointerEvents="none">
-    {posterUrl && !posterFailed ? (
-      <Image
-        source={{ uri: posterUrl }}
-        style={styles.poster}
-        contentFit="cover"
-        cachePolicy="memory-disk"
-        priority="high"
-        onError={onPosterError}
-      />
-    ) : (
-      <RiVideoLine size="3xl" fill={theme.colors.textSecondary} />
-    )}
-  </View>
-));
+}>(({ posterUrl, posterFailed, onPosterError, theme }) => {
+  const colors = useColorTokens();
+  return (
+    <View style={[styles.posterLayer, { backgroundColor: colors.muted }]} pointerEvents="none">
+      {posterUrl && !posterFailed ? (
+        <Image
+          source={{ uri: posterUrl }}
+          style={styles.poster}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          priority="high"
+          onError={onPosterError}
+        />
+      ) : (
+        <RiVideoLine size="3xl" fill={theme.colors.textSecondary} />
+      )}
+    </View>
+  );
+});
 
 ReelPoster.displayName = 'ReelPoster';
 
@@ -629,7 +635,7 @@ const ReelSurface: React.FC<
       {showBufferSpinner && (
         <View style={styles.bufferSpinner} pointerEvents="none">
           <View style={styles.bufferSpinnerInner}>
-            <SpinnerIcon size={32} className="text-white" />
+            <SpinnerIcon size={32} color={ON_VIDEO_COLOR} />
           </View>
         </View>
       )}
@@ -830,8 +836,10 @@ const VideoItem = memo<VideoItemProps>(
 
     return (
       <Animated.View
-        className="web:h-full"
-        style={[styles.videoContainer, Platform.OS === 'web' ? null : { height: windowHeight }]}
+        style={[
+          styles.videoContainer,
+          Platform.OS === 'web' ? classStyles.webFullHeight : { height: windowHeight },
+        ]}
       >
         {canRenderPlayer ? (
           <ActiveVideoSurface
@@ -1075,12 +1083,8 @@ function VideoStatus({
 function VideoLoadingMore() {
   const bottomInset = useVideoContentBottomInset();
   return (
-    <View
-      className="absolute left-0 right-0 items-center"
-      style={{ bottom: bottomInset + 24 }}
-      pointerEvents="none"
-    >
-      <SpinnerIcon size={24} className="text-white" />
+    <View style={[classStyles.loadingMore, { bottom: bottomInset + 24 }]} pointerEvents="none">
+      <SpinnerIcon size={24} color={ON_VIDEO_COLOR} />
     </View>
   );
 }
@@ -1868,7 +1872,7 @@ export default function VideosScreen() {
           }
         >
           <View
-            className="w-full native:flex-1"
+            style={classStyles.reel}
             onLayout={
               Platform.OS === 'web'
                 ? undefined
@@ -1992,6 +1996,20 @@ const TEXT_SHADOW_MEDIUM: Pick<
   textShadowOffset: { width: 0, height: 1 },
   textShadowRadius: 2,
 };
+
+// What the reel's views drew with classes, as plain styles: these views stay React
+// Native (the reel is measured on device, so its structure stays as it is).
+const classStyles = {
+  // `web:h-full`
+  webFullHeight: { height: '100%' },
+  // `absolute left-0 right-0 items-center`
+  loadingMore: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  // `w-full native:flex-1`
+  reel:
+    Platform.OS === 'web'
+      ? { width: '100%' }
+      : { width: '100%', flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+} satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({
   list: {

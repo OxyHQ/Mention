@@ -1,6 +1,6 @@
 import type React from 'react';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, SkeletonGroup, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Placeholder for the initial live-rooms load. The SDK `RoomCard` renders TWO
@@ -81,9 +81,9 @@ const RoomRowSkeleton: React.FC = () =>
       .spacing('md'),
   );
 
-export const RoomsListSkeleton: React.FC = () => (
-  <Skeleton.Region className="w-full mt-4">
-    {toElement(
+export const RoomsListSkeleton: React.FC = () =>
+  toElement(
+    SkeletonGroup(
       VStack(
         Embed(
           Array.from({ length: FEATURED_PLACEHOLDERS }).map((_, index) => (
@@ -91,9 +91,12 @@ export const RoomsListSkeleton: React.FC = () => (
           )),
         ),
       ).padding('horizontal', 'lg'),
-    )}
-    {Array.from({ length: ROW_PLACEHOLDERS }).map((_, index) => (
-      <RoomRowSkeleton key={`row-${index}`} />
-    ))}
-  </Skeleton.Region>
-);
+      Embed(
+        Array.from({ length: ROW_PLACEHOLDERS }).map((_, index) => (
+          <RoomRowSkeleton key={`row-${index}`} />
+        )),
+      ),
+    )
+      .frame({ width: 'full' })
+      .margin('top', 'lg'),
+  );

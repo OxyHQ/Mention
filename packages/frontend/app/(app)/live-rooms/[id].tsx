@@ -1,7 +1,6 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
-import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import { View } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
@@ -9,7 +8,6 @@ import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
-import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
@@ -61,9 +59,23 @@ import {
   RawText,
   ScrollView,
   Text as LText,
+  type TextRun,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+
+const liveColors = defineTokens({ color: { LIVE_INDICATOR_COLOR } });
+
+// The stats card lays its two figures out in a row: Bloom's Card takes no axis in the
+// language, so it stays a Card element with that layout as its style.
+const statsCardStyle: ViewStyle = {
+  marginHorizontal: 16,
+  marginTop: 24,
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 16,
+};
 
 /** The participant pile stays glanceable; the overflow collapses into Bloom's "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
@@ -146,15 +158,13 @@ const HostInfo = ({
   );
 };
 
-const SectionHeading = ({ children }: { children: React.ReactNode }) =>
-  toElement(
-    LText(children)
-      .foreground('foreground')
-      .font('16')
-      .leading('24px')
-      .weight('semibold')
-      .margin('bottom', 'md'),
-  );
+const sectionHeading = (...runs: TextRun[]) =>
+  LText(...runs)
+    .foreground('foreground')
+    .font('16')
+    .leading('24px')
+    .weight('semibold')
+    .margin('bottom', 'md');
 
 const RoomDetailScreen = () => {
   const router = useRouter();
@@ -363,69 +373,39 @@ const RoomDetailScreen = () => {
             <PageFooter>
               {toElement(
                 HStack(
-                  Embed(
-                    isLive && (
-                      <Button
-                        className="flex-1"
-                        leadingIcon={RiBroadcastLine}
-                        onPress={() => joinLiveRoom(id)}
-                        disabled={actionLoading}
-                      >
-                        Join Live
-                      </Button>
-                    ),
-                  ),
-                  Embed(
-                    isHost && isScheduled && (
-                      <Button
-                        className="flex-1"
-                        leadingIcon={RiPlayFill}
-                        onPress={handleStartRoom}
-                        loading={actionLoading}
-                      >
-                        Start Room
-                      </Button>
-                    ),
-                  ),
-                  Embed(
-                    !isHost && isScheduled && (
-                      <Button
-                        className="flex-1"
-                        appearance="subtle"
-                        tone="neutral"
-                        leadingIcon={RiTimeLine}
-                        disabled
-                      >
-                        Room not started yet
-                      </Button>
-                    ),
-                  ),
-                  Embed(
-                    isHost && isLive && (
-                      <Button
-                        className="flex-1"
-                        tone="danger"
-                        leadingIcon={RiStopFill}
-                        onPress={handleEndRoom}
-                        loading={actionLoading}
-                      >
-                        End Room
-                      </Button>
-                    ),
-                  ),
-                  Embed(
-                    isEnded && (
-                      <Button
-                        className="flex-1"
-                        appearance="subtle"
-                        tone="neutral"
-                        leadingIcon={RiCheckboxCircleLine}
-                        disabled
-                      >
-                        This room has ended
-                      </Button>
-                    ),
-                  ),
+                  isLive
+                    ? LButton(Icon(RiBroadcastLine), LText('Join Live'))
+                        .flex('1')
+                        .onPress(() => joinLiveRoom(id))
+                        .disabled(actionLoading)
+                    : null,
+                  isHost && isScheduled
+                    ? LButton(Icon(RiPlayFill), LText('Start Room'))
+                        .flex('1')
+                        .onPress(handleStartRoom)
+                        .loading(actionLoading)
+                    : null,
+                  !isHost && isScheduled
+                    ? LButton(Icon(RiTimeLine), LText('Room not started yet'))
+                        .style('subtle')
+                        .tint('neutral')
+                        .flex('1')
+                        .disabled()
+                    : null,
+                  isHost && isLive
+                    ? LButton(Icon(RiStopFill), LText('End Room'))
+                        .tint('danger')
+                        .flex('1')
+                        .onPress(handleEndRoom)
+                        .loading(actionLoading)
+                    : null,
+                  isEnded
+                    ? LButton(Icon(RiCheckboxCircleLine), LText('This room has ended'))
+                        .style('subtle')
+                        .tint('neutral')
+                        .flex('1')
+                        .disabled()
+                    : null,
                 ).spacing('sm'),
               )}
             </PageFooter>
@@ -454,28 +434,25 @@ const RoomDetailScreen = () => {
                   {/* Status */}
                   {toElement(
                     VStack(
-                      Embed(
-                        isLive && (
-                          <View
-                            className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full"
-                            style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
-                          >
-                            {toElement(
-                              VStack()
-                                .frame({ width: 'sm', height: 'sm' })
-                                .background('white')
-                                .corner('infinite'),
-                            )}
-                            {toElement(
-                              RawText('LIVE')
-                                .font('xs')
-                                .leading('16px')
-                                .weight('bold')
-                                .foreground('white'),
-                            )}
-                          </View>
-                        ),
-                      ),
+                      isLive
+                        ? HStack(
+                            VStack()
+                              .frame({ width: 'sm', height: 'sm' })
+                              .background('white')
+                              .corner('infinite'),
+                            RawText('LIVE')
+                              .font('xs')
+                              .leading('16px')
+                              .weight('bold')
+                              .foreground('white'),
+                          )
+                            .padding('horizontal', 'md')
+                            .padding('vertical', '6')
+                            .background(liveColors.color.LIVE_INDICATOR_COLOR)
+                            .corner('infinite')
+                            .align('center')
+                            .spacing('6')
+                        : null,
                       Embed(
                         isScheduled &&
                           toElement(
@@ -556,7 +533,7 @@ const RoomDetailScreen = () => {
                   {/* Host */}
                   {toElement(
                     VStack(
-                      Embed(<SectionHeading>Host</SectionHeading>),
+                      sectionHeading('Host'),
                       Embed(<HostInfo hostId={room.host} oxyServices={oxyServices} />),
                     )
                       .padding('horizontal', 'lg')
@@ -566,7 +543,7 @@ const RoomDetailScreen = () => {
                   {/* Participants */}
                   {toElement(
                     VStack(
-                      Embed(<SectionHeading>Participants ({participants.length})</SectionHeading>),
+                      sectionHeading('Participants (', participants.length, ')'),
                       Embed(
                         participantItems.length > 0 ? (
                           <AvatarGroup
@@ -597,7 +574,7 @@ const RoomDetailScreen = () => {
                   {speakerItems.length > 0 &&
                     toElement(
                       VStack(
-                        Embed(<SectionHeading>Speakers</SectionHeading>),
+                        sectionHeading('Speakers'),
                         Embed(
                           <AvatarGroup
                             items={speakerItems}
@@ -617,11 +594,7 @@ const RoomDetailScreen = () => {
 
                   {/* Stats */}
                   {room.stats && (
-                    <Card
-                      radius="radius-12"
-                      className="mx-4 mt-6 flex-row items-center p-4"
-                      appearance="outline"
-                    >
+                    <Card radius="radius-12" style={statsCardStyle} appearance="outline">
                       {toElement(
                         VStack(
                           LText(room.stats.peakListeners || 0)

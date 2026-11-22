@@ -24,7 +24,6 @@ interface RoomCardProps {
   variant?: 'default' | 'compact';
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
-  className?: string;
 }
 
 /**
@@ -36,7 +35,6 @@ const RoomCard = memo(function RoomCard({
   variant = 'default',
   onPress,
   style,
-  className,
 }: RoomCardProps) {
   const theme = useTheme();
   const live = room.status === 'live';
@@ -49,7 +47,6 @@ const RoomCard = memo(function RoomCard({
       radius="radius-16"
       onPress={onPress}
       accessibilityLabel={`${room.title}, ${room.status}`}
-      className={className}
       style={[{ padding: compact ? 12 : 16 }, style]}
       appearance="outline"
     >
