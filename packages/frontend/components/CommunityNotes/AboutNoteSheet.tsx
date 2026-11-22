@@ -1,4 +1,4 @@
-import { ScrollView } from 'react-native';
+import { ScrollView, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
@@ -9,6 +9,10 @@ import { NoteTipList } from './NoteTipList';
 import { CommunityNoteCard } from './CommunityNoteCard';
 
 import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
+// The scroll's classes as plain objects (inline, as the classes were).
+const FILL_STYLE: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' };
+const CONTENT_STYLE: ViewStyle = { gap: 24, paddingInline: 20, paddingBottom: 24 };
 
 interface AboutNoteSheetProps {
   note: CommunityNoteSummary;
@@ -29,7 +33,7 @@ export function AboutNoteSheet({ note, onRate, onClose }: AboutNoteSheetProps) {
         />,
       ),
       Embed(
-        <ScrollView className="flex-1" contentContainerClassName="gap-6 px-5 pb-6">
+        <ScrollView style={FILL_STYLE} contentContainerStyle={CONTENT_STYLE}>
           <CommunityNoteCard note={note} variant="rate" onRate={onRate} />
           <NoteTipList
             tips={[

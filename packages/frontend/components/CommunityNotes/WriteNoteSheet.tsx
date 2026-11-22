@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import type { HydratedPostSummary } from '@mention/shared-types';
@@ -15,6 +15,10 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+// The scroll's classes as plain objects (inline, as the classes were).
+const FILL_STYLE: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' };
+const CONTENT_STYLE: ViewStyle = { gap: 16, paddingInline: 16, paddingBottom: 16 };
 
 /** The longest note CrowdSource accepts. */
 const COMMUNITY_NOTE_MAX_LENGTH = 500;
@@ -54,8 +58,8 @@ export function WriteNoteSheet({ post, onSubmit, onClose }: WriteNoteSheetProps)
       ),
       Embed(
         <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-4 px-4 pb-4"
+          style={FILL_STYLE}
+          contentContainerStyle={CONTENT_STYLE}
           keyboardShouldPersistTaps="handled"
         >
           {toElement(
