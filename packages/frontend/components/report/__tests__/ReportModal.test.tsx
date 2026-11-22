@@ -15,10 +15,6 @@ jest.mock('react-i18next', () => ({
     t: (key: string, options?: { defaultValue: string }) => options?.defaultValue ?? key,
   }),
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: {} }),
-}));
 jest.mock('@oxy.so/bloom/divider', () => ({
   ...jest.requireActual('@oxy.so/bloom/divider'),
   Divider: () => null,
