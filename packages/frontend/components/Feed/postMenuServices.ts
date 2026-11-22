@@ -5,7 +5,9 @@
  * does not load the menu itself (`postMenuActions`, its submenus and sheets).
  */
 import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -28,10 +30,32 @@ export interface PostMenuServices extends PostMenuDeps {
   communitiesPreview: boolean;
 }
 
+/**
+ * The menu's translations, looked up once per locale. Every feed row's ⋯ has
+ * its rows ready before it is pressed (the lens opens them natively), so each
+ * row described its whole menu as it mounted: some twenty `t()` lookups a row.
+ * The labels are the same for every row in a locale, so the menu reads them
+ * through this: the first row looks each one up, the rest reuse it. A new `t`
+ * (the language changed) starts afresh.
+ */
+export function menuTranslations(t: TFunction): TFunction {
+  const cache = new Map<string, string>();
+  return ((key: string, options?: unknown) => {
+    const id = options === undefined ? key : `${key}\u0000${JSON.stringify(options)}`;
+    let label = cache.get(id);
+    if (label === undefined) {
+      label = String(options === undefined ? t(key) : t(key, options as never));
+      cache.set(id, label);
+    }
+    return label;
+  }) as TFunction;
+}
+
 /** The services where the menu is placed: called only while it is open, or when a row is chosen. */
 export function usePostMenuServices(): PostMenuServices {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t: translate } = useTranslation();
+  const t = useMemo(() => menuTranslations(translate), [translate]);
   const { user, canUsePrivateApi } = useAuth();
   const router = useRouter();
   const back = useScreenBack();
