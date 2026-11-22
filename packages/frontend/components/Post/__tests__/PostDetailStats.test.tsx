@@ -3,6 +3,8 @@ import TestRenderer, { act } from 'react-test-renderer';
 import type { HydratedPostSummary, ReplyPermission } from '@mention/shared-types';
 import PostDetailStats from '@/components/Post/PostDetailStats';
 import { reportableReplyPermission } from '@/utils/postReplies';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The pair that has to stay distinguishable under a focused post: a post whose
@@ -25,10 +27,15 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
 
-jest.mock('@oxy.so/bloom/icons', () => ({ RiGlobalLine: () => null, RiLockLine: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
+  RiGlobalLine: () => null,
+  RiLockLine: () => null,
+}));
 
 jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -74,14 +81,18 @@ function render(post: HydratedPostSummary) {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <PostDetailStats
-        timestampLabel={TIMESTAMP}
-        likes={0}
-        boosts={0}
-        quotes={0}
-        saves={0}
-        replyPermission={reportableReplyPermission(post)}
-      />,
+      <BloomThemeProvider fonts={false}>
+        {
+          <PostDetailStats
+            timestampLabel={TIMESTAMP}
+            likes={0}
+            boosts={0}
+            quotes={0}
+            saves={0}
+            replyPermission={reportableReplyPermission(post)}
+          />
+        }
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('PostDetailStats failed to render');

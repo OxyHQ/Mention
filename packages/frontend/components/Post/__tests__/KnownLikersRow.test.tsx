@@ -14,9 +14,11 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   useAvatarRendererCapabilities: () => ({ sharedLiveRendering: true }),
 }));
 import { Text } from 'react-native';
-import TestRenderer, { act } from 'react-test-renderer';
+import TestRenderer, { act, type ReactTestRendererJSON } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';
 import { KnownLikersRow } from '../KnownLikersRow';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * Coverage for the post-detail social-proof row.
@@ -57,6 +59,7 @@ jest.mock('@oxy.so/bloom/avatar-group', () => ({
 }));
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ? user.username : null,
 }));
@@ -65,11 +68,20 @@ function liker(id: string, displayName: string | undefined, username: string): P
   return { id, username, name: displayName ? { displayName } : {}, avatar: `file-${id}` };
 }
 
+/** What the row drew: the hosts inside the theme provider's own root view. */
+function drawn(renderer: TestRenderer.ReactTestRenderer) {
+  return (renderer.toJSON() as ReactTestRendererJSON).children;
+}
+
 function render(state: { likers: PostUser[]; total: number; isPending: boolean }) {
   mockUseKnownLikers.mockReturnValue(state);
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<KnownLikersRow postId="post-1" onPress={jest.fn()} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <KnownLikersRow postId="post-1" onPress={jest.fn()} />
+      </BloomThemeProvider>,
+    );
   });
   return renderer;
 }
@@ -89,12 +101,12 @@ beforeEach(() => {
 describe('KnownLikersRow — height is never reserved before there is something to say', () => {
   it('renders nothing while the first fetch is in flight', () => {
     const renderer = render({ likers: [liker('a', 'Ana', 'ana')], total: 4, isPending: true });
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 
   it('renders nothing when the viewer follows none of the likers', () => {
     const renderer = render({ likers: [], total: 0, isPending: false });
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
   });
 });
 

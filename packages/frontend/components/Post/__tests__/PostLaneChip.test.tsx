@@ -4,6 +4,8 @@ import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import type { LaneSummary } from '@mention/shared-types';
 
 import PostLaneChip from '../PostLaneChip';
+// The subject draws language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The chip sits inside the post's own press target and names a lane that may or
@@ -31,7 +33,9 @@ const laneOf = (displayMode: LaneSummary['displayMode']): LaneSummary => ({
 function render(element: React.ReactElement) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }
@@ -93,9 +97,13 @@ describe('PostLaneChip', () => {
   });
 
   it('suppresses itself inside the lane’s own tab', () => {
-    const renderer = render(
-      <PostLaneChip lane={laneOf('tab')} authorHandle="nate" feedDescriptor="lane|lane-1" />,
-    );
+    // Drawn bare: a chip that draws nothing reads no theme.
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <PostLaneChip lane={laneOf('tab')} authorHandle="nate" feedDescriptor="lane|lane-1" />,
+      );
+    });
     expect(renderer.toJSON()).toBeNull();
   });
 

@@ -2,6 +2,7 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import PostCommunityRow from '../PostCommunityRow';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The row says where a federated post was written — "in !technology@lemmy.world"
@@ -39,12 +40,15 @@ function text(node: TestRenderer.ReactTestInstance | string): string {
 it('names the community and links to its profile, without opening the post', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
+    // Under Bloom's theme, as the app draws it: the row's language text paints from it.
     renderer = TestRenderer.create(
-      <PostCommunityRow
-        handle="technology@lemmy.world"
-        href="/@technology@lemmy.world"
-        iconColor="#888"
-      />,
+      <BloomThemeProvider fonts={false}>
+        <PostCommunityRow
+          handle="technology@lemmy.world"
+          href="/@technology@lemmy.world"
+          iconColor="#888"
+        />
+      </BloomThemeProvider>,
     );
   });
 

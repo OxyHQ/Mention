@@ -2,6 +2,8 @@ import TestRenderer, { act } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';
 
 import CollaboratorsList from '../CollaboratorsList';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The panel behind a multi-author post's avatar cluster.
@@ -24,10 +26,16 @@ jest.mock('@oxy.so/bloom/page-header', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
-jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  ...jest.requireActual('@oxy.so/bloom/icons'),
+  RiCloseLine: () => null,
+}));
 jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('@oxy.so/core', () => ({ getNormalizedUserHandle: () => 'nate' }));
+jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
+  getNormalizedUserHandle: () => 'nate',
+}));
 
 // Resolves against the real `en.json` and ignores `defaultValue`, so a deleted
 // key renders its raw name and fails rather than silently falling back.
@@ -42,7 +50,11 @@ const authors: PostUser[] = [
 
 function renderList(title?: string) {
   act(() => {
-    TestRenderer.create(<CollaboratorsList authors={authors} onClose={jest.fn()} title={title} />);
+    TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <CollaboratorsList authors={authors} onClose={jest.fn()} title={title} />
+      </BloomThemeProvider>,
+    );
   });
   return mockHeaderTitles[mockHeaderTitles.length - 1];
 }

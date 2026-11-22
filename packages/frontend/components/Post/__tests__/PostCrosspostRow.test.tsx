@@ -3,6 +3,8 @@ import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import type { CrosspostProvenance } from '@mention/shared-types';
 
 import PostCrosspostRow from '../PostCrosspostRow';
+// The subject draws language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The row names one piece of writing that was published to two networks, on the
@@ -32,7 +34,9 @@ const PROVENANCE: CrosspostProvenance = {
 function render(element: React.ReactElement) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }
@@ -122,9 +126,13 @@ describe('PostCrosspostRow', () => {
     ['a single variant', { variants: [PROVENANCE.variants[0]] }],
     ['no variants', { variants: [] }],
   ])('renders nothing for %s', (_label, crosspost) => {
-    const renderer = render(
-      <PostCrosspostRow crosspost={crosspost as CrosspostProvenance} iconColor="#888" />,
-    );
+    // Drawn bare: a row that draws nothing reads no theme.
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <PostCrosspostRow crosspost={crosspost as CrosspostProvenance} iconColor="#888" />,
+      );
+    });
 
     expect(renderer.toJSON()).toBeNull();
   });
