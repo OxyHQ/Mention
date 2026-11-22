@@ -5,6 +5,12 @@ import type { CommunityNoteSummary } from '@mention/shared-types';
 import { CommunityNoteCard } from '../CommunityNoteCard';
 import { RateNoteSheet } from '../RateNoteSheet';
 import { WriteNoteSheet } from '../WriteNoteSheet';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 /**
  * The community-note surfaces a reader touches: the note under a post, the
@@ -21,6 +27,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { text: '#000', textSecondary: '#666' } }),
 }));
 jest.mock('@oxy.so/bloom/icons', () => new Proxy({}, { get: () => () => null }));
@@ -68,8 +75,18 @@ jest.mock('@oxy.so/bloom/textarea', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   const R = jest.requireActual<typeof import('react')>('react');
   return {
-    Textarea: (props: { value: string; onChangeText: (v: string) => void }) =>
-      R.createElement(RN.TextInput, { testID: 'note-text', ...props }),
+    Textarea: (props: {
+      value: string;
+      onValueChange?: (v: string) => void;
+      onChangeText?: (v: string) => void;
+    }) =>
+      // Bloom's input takes its change as `onValueChange` (as the language hands it) or
+      // `onChangeText`; the stand-in answers either through the TextInput's own prop.
+      R.createElement(RN.TextInput, {
+        ...props,
+        testID: 'note-text',
+        onChangeText: props.onValueChange ?? props.onChangeText,
+      }),
   };
 });
 jest.mock('@oxy.so/bloom/text-field', () => {
@@ -78,8 +95,18 @@ jest.mock('@oxy.so/bloom/text-field', () => {
   return {
     TextField: ({ children }: { children?: React.ReactNode }) =>
       R.createElement(RN.View, null, children),
-    TextFieldInput: (props: { value: string; onChangeText: (v: string) => void }) =>
-      R.createElement(RN.TextInput, { testID: 'note-source', ...props }),
+    TextFieldInput: (props: {
+      value: string;
+      onValueChange?: (v: string) => void;
+      onChangeText?: (v: string) => void;
+    }) =>
+      // Bloom's input takes its change as `onValueChange` (as the language hands it) or
+      // `onChangeText`; the stand-in answers either through the TextInput's own prop.
+      R.createElement(RN.TextInput, {
+        ...props,
+        testID: 'note-source',
+        onChangeText: props.onValueChange ?? props.onChangeText,
+      }),
     TextFieldHint: ({ children }: { children?: React.ReactNode }) =>
       R.createElement(RN.Text, null, children),
   };
@@ -114,7 +141,7 @@ const lastButton = (tree: TestRenderer.ReactTestRenderer) => {
 function render(element: React.ReactElement) {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(element);
+    tree = TestRenderer.create(themed(element));
   });
   return tree;
 }
