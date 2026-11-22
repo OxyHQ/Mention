@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import ComposeThreadItem, { type ComposeThreadItemStyles } from '../ComposeThreadItem';
 import type { ThreadItem } from '@/hooks/useThreadManager';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The vertical line between avatars belongs to THREAD mode.
@@ -155,47 +156,51 @@ const noop = () => {};
 function renderItem(postingMode: 'thread' | 'beast') {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
+    // Under Bloom's theme: the row's hairline and its dimming are the language's,
+    // which paints them from the theme.
     tree = TestRenderer.create(
-      <ComposeThreadItem
-        item={item}
-        variantTexts={[]}
-        isFocused
-        isPosting={false}
-        postingMode={postingMode}
-        publishAs={null}
-        onMentionValueChange={noop}
-        onFocus={noop}
-        onRemove={noop}
-        onMediaPress={noop}
-        onPollPress={noop}
-        onLocationPress={noop}
-        onGifPress={noop}
-        onEmojiPress={noop}
-        onSourcesPress={noop}
-        onArticlePress={noop}
-        onEventPress={noop}
-        onRoomPress={noop}
-        onPollTitleChange={noop}
-        onPollOptionChange={noop}
-        onPollOptionAdd={noop}
-        onPollOptionRemove={noop}
-        onPollRemove={noop}
-        onLocationRemove={noop}
-        onMediaRemove={noop}
-        onMediaMove={noop}
-        onMediaAltPress={noop}
-        onArticleRemove={noop}
-        onEventRemove={noop}
-        onRoomRemove={noop}
-        onReplyPermissionChange={noop}
-        onQuotesDisabledChange={noop}
-        onSensitiveToggle={noop}
-        onPodcastPress={noop}
-        onPodcastRemove={noop}
-        getFileDownloadUrl={(id: string) => id}
-        textInputRef={noop}
-        styles={styles}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <ComposeThreadItem
+          item={item}
+          variantTexts={[]}
+          isFocused
+          isPosting={false}
+          postingMode={postingMode}
+          publishAs={null}
+          onMentionValueChange={noop}
+          onFocus={noop}
+          onRemove={noop}
+          onMediaPress={noop}
+          onPollPress={noop}
+          onLocationPress={noop}
+          onGifPress={noop}
+          onEmojiPress={noop}
+          onSourcesPress={noop}
+          onArticlePress={noop}
+          onEventPress={noop}
+          onRoomPress={noop}
+          onPollTitleChange={noop}
+          onPollOptionChange={noop}
+          onPollOptionAdd={noop}
+          onPollOptionRemove={noop}
+          onPollRemove={noop}
+          onLocationRemove={noop}
+          onMediaRemove={noop}
+          onMediaMove={noop}
+          onMediaAltPress={noop}
+          onArticleRemove={noop}
+          onEventRemove={noop}
+          onRoomRemove={noop}
+          onReplyPermissionChange={noop}
+          onQuotesDisabledChange={noop}
+          onSensitiveToggle={noop}
+          onPodcastPress={noop}
+          onPodcastRemove={noop}
+          getFileDownloadUrl={(id: string) => id}
+          textInputRef={noop}
+          styles={styles}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('ComposeThreadItem failed to render');
