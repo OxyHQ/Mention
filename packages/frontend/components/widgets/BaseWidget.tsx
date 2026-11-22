@@ -2,6 +2,11 @@ import type { ReactNode } from 'react';
 import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import type { ViewStyle } from 'react-native';
+
+// The widget's Card spaces its parts with a gap, which Bloom's Card takes as a style
+// (the language's Card has no spacing); this draws its classes, `gap-2 mb-4`.
+const widgetCard: ViewStyle = { gap: 8, marginBottom: 16 };
 
 type BaseWidgetProps = {
   title?: string;
@@ -17,7 +22,7 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
     // height, so a rail whose widgets have all hidden themselves would still
     // reserve the spacing between them. Owning the margin here lets the
     // column collapse to nothing when every widget renders null.
-    <Card appearance="plain" className="gap-2 mb-4" radius="radius-0">
+    <Card appearance="plain" style={widgetCard} radius="radius-0">
       {title &&
         toElement(
           HStack(

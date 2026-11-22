@@ -1,6 +1,6 @@
 import { Button } from '@oxy.so/bloom/button';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -16,6 +16,7 @@ import { RiFlagLine } from '@oxy.so/bloom/icons/RiFlagLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import type { FeedType } from '@mention/shared-types';
@@ -44,6 +45,15 @@ import {
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
+// The heading stays Bloom's Text with a style: its 28pt size is no step of Bloom's
+// type scale, and the language's Text takes only those.
+const headingStyle: TextStyle = {
+  fontSize: 28,
+  lineHeight: 32,
+  fontWeight: '700',
+  marginBottom: 8,
+};
+
 /** How the topic's posts are ordered. `top` is the default, as on the mock. */
 type TopicSort = 'top' | 'latest';
 
@@ -52,6 +62,7 @@ export default screen(function TrendScreen() {
   // resolved from it, never carried alongside it.
   const { name } = useLocalSearchParams<{ name: string }>();
   const { t } = useTranslation();
+  const colors = useColorTokens();
   const locale = useBloomLocale();
 
   const term = name || '';
@@ -222,9 +233,7 @@ export default screen(function TrendScreen() {
             .textCase('uppercase')
             .tracking('wide')
             .margin('bottom', 'xs'),
-          Embed(
-            <Text className="text-[28px] leading-8 font-bold mb-2 text-foreground">{heading}</Text>,
-          ),
+          Embed(<Text style={[headingStyle, { color: colors.foreground }]}>{heading}</Text>),
           updatedLabel
             ? LText(updatedLabel)
                 .font('xs')
@@ -266,7 +275,7 @@ export default screen(function TrendScreen() {
           .padding('horizontal', 'lg')
           .padding('bottom', 'sm'),
       ),
-    [heading, summary, categoryLabel, updatedLabel, statsLabel, term, sort, t],
+    [heading, summary, categoryLabel, updatedLabel, statsLabel, term, sort, t, colors.foreground],
   );
 
   return LGroup(

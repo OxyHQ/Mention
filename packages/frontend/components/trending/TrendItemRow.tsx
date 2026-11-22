@@ -1,10 +1,10 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, type ViewStyle } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -124,6 +124,7 @@ export const TrendItemRow = memo(function TrendItemRow({
   ordinal,
 }: TrendItemRowProps) {
   const theme = useTheme();
+  const colors = useColorTokens();
   const { t } = useTranslation();
   const isLarge = size === 'large';
   const series = trend.series && trend.series.length >= MIN_POLYLINE_POINTS ? trend.series : null;
@@ -149,8 +150,12 @@ export const TrendItemRow = memo(function TrendItemRow({
 
   return (
     <TouchableOpacity
-      className={`web:cursor-pointer flex-row items-center justify-between ${isLarge ? 'py-3' : 'py-1.5'} ${showBorder ? 'border-border' : ''}`}
-      style={showBorder && styles.itemBorder}
+      style={[
+        classStyles.row,
+        isLarge ? classStyles.rowLarge : classStyles.rowCompact,
+        showBorder && styles.itemBorder,
+        showBorder && { borderColor: colors.border },
+      ]}
       onPress={() => onPress(trend)}
       activeOpacity={0.7}
     >
@@ -161,46 +166,46 @@ export const TrendItemRow = memo(function TrendItemRow({
       */}
       {toElement(
         HStack(
-          Embed(
-            ordinal !== undefined ? (
-              <Text
-                className={`text-muted-foreground mr-2 font-semibold ${isLarge ? 'text-[15px]' : 'text-[13px]'}`}
-                style={styles.ordinal}
-              >
-                {ordinal}
-              </Text>
-            ) : null,
-          ),
+          ordinal !== undefined
+            ? RawText(ordinal)
+                .foreground('muted')
+                .margin('right', 'sm')
+                .weight('semibold')
+                .font(isLarge ? 'md' : 'sm')
+                // Tabular figures keep the numerals in a column: without them "10" is
+                // wider than "1" and every row below the tenth shifts sideways.
+                .monospacedDigit()
+            : null,
           VStack(
             HStack(
               RawText(getTrendLabel(trend, t))
                 .foreground('muted')
                 .font(isLarge ? 'sm' : 'xs'),
-              Embed(
-                badge ? (
-                  <View
-                    className={`ml-2 rounded-full px-1.5 py-0.5 ${
-                      badge.tone === 'hot'
-                        ? 'bg-destructive/10'
-                        : badge.tone === 'new'
-                          ? 'bg-primary/10'
-                          : 'bg-muted'
-                    }`}
-                  >
-                    <Text
-                      className={`text-[11px] font-semibold ${
+              badge
+                ? VStack(
+                    RawText(badge.text)
+                      .font('11')
+                      .weight('semibold')
+                      .foreground(
                         badge.tone === 'hot'
-                          ? 'text-destructive'
+                          ? 'destructive'
                           : badge.tone === 'new'
-                            ? 'text-primary'
-                            : 'text-muted-foreground'
-                      }`}
-                    >
-                      {badge.text}
-                    </Text>
-                  </View>
-                ) : null,
-              ),
+                            ? 'primary'
+                            : 'muted',
+                      ),
+                  )
+                    .padding('horizontal', '6')
+                    .padding('vertical', '2xs')
+                    .background(
+                      badge.tone === 'hot'
+                        ? 'destructive/10'
+                        : badge.tone === 'new'
+                          ? 'primary/10'
+                          : 'mutedFill',
+                    )
+                    .corner('infinite')
+                    .margin('left', 'sm')
+                : null,
             )
               .align('center')
               .margin('bottom', '2xs'),
@@ -285,10 +290,15 @@ export const TrendItemRow = memo(function TrendItemRow({
  * below it moves when they arrive (#1216 measured 76px for five rows).
  */
 export function TrendItemRowSkeleton({ showBorder = false }: { showBorder?: boolean }) {
+  const colors = useColorTokens();
   return (
     <View
-      className={`flex-row items-center justify-between py-1.5 ${showBorder ? 'border-border' : ''}`}
-      style={showBorder ? styles.itemBorder : undefined}
+      style={[
+        classStyles.row,
+        classStyles.rowCompact,
+        showBorder && styles.itemBorder,
+        showBorder && { borderColor: colors.border },
+      ]}
     >
       {toElement(
         VStack(
@@ -307,7 +317,12 @@ export function TrendItemRowSkeleton({ showBorder = false }: { showBorder?: bool
 
 const styles = StyleSheet.create({
   itemBorder: { borderBottomWidth: 0.5 },
-  // Tabular figures keep the numerals in a column: without them "10" is wider
-  // than "1" and every row below the tenth shifts sideways.
-  ordinal: { fontVariant: ['tabular-nums'] },
 });
+
+// The row stays React Native's TouchableOpacity (the language has no node for its
+// fading press; it is a pointer on the web already); this draws its classes.
+const classStyles = {
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rowLarge: { paddingVertical: 12 },
+  rowCompact: { paddingVertical: 6 },
+} satisfies Record<string, ViewStyle>;

@@ -1,5 +1,5 @@
 import { tokens } from '@oxy.so/bloom/styles';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
   DropdownMenu,
@@ -13,6 +13,10 @@ import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
 import { Icon, toElement } from '@oxy.so/bloom-language';
+
+// The trigger stays React Native's TouchableOpacity, the DropdownMenu trigger's own
+// child (asChild); this draws its classes, `p-1` (it is a pointer on the web already).
+const triggerStyle: ViewStyle = { padding: 4 };
 
 const ICON_SIZE = 20;
 
@@ -41,7 +45,7 @@ export function WidgetItemMenu({ label, onNotInterested, onShare }: WidgetItemMe
     <DropdownMenu>
       <DropdownMenuTrigger asChild label={label}>
         <TouchableOpacity
-          className="p-1 web:cursor-pointer"
+          style={triggerStyle}
           hitSlop={tokens.hitSlop.lg}
           accessibilityLabel="More options"
           accessibilityRole="button"
