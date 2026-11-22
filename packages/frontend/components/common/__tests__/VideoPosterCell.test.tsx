@@ -1,8 +1,11 @@
 import type React from 'react';
+import { StyleSheet, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Image } from 'expo-image';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import VideoPosterCell from '../VideoPosterCell';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The metadata row is the only place in the app where a play count and a
@@ -12,7 +15,9 @@ import VideoPosterCell from '../VideoPosterCell';
 async function render(props: React.ComponentProps<typeof VideoPosterCell>) {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(<VideoPosterCell {...props} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{<VideoPosterCell {...props} />}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }
@@ -31,10 +36,14 @@ function hostNodes(renderer: TestRenderer.ReactTestRenderer, type: 'Text' | 'Vie
   return renderer.root.findAll((node) => String(node.type) === type, { deep: true });
 }
 
-/** The strings the cell paints as labels. */
+/** The strings the cell paints as labels: its metadata texts, under their shadow. */
 function labels(renderer: TestRenderer.ReactTestRenderer): string[] {
   return hostNodes(renderer, 'Text')
-    .filter((node) => typeof (node.props as { className?: unknown }).className === 'string')
+    .filter(
+      (node) =>
+        StyleSheet.flatten((node.props as { style?: StyleProp<TextStyle> }).style)
+          ?.textShadowColor !== undefined,
+    )
     .flatMap((node) => node.children.filter((child): child is string => typeof child === 'string'));
 }
 
@@ -146,8 +155,11 @@ describe('VideoPosterCell metadata row', () => {
 
   it("keeps the metadata row out of the grid cell's tap target", async () => {
     const renderer = await render({ ...BASE, views: 12, durationSec: 5 });
+    // The language writes hit testing as the style's `pointerEvents`.
     const row = hostNodes(renderer, 'View').find(
-      (node) => (node.props as { pointerEvents?: string }).pointerEvents === 'none',
+      (node) =>
+        StyleSheet.flatten((node.props as { style?: StyleProp<ViewStyle> }).style)
+          ?.pointerEvents === 'none',
     );
     // Both grids wrap this cell in a TouchableOpacity, so an overlay that
     // accepted touches would eat the tap along the bottom strip.
@@ -183,7 +195,11 @@ describe('VideoPosterCell poster fallback', () => {
     expect(renderer.root.findAllByType(Image)).toHaveLength(0);
 
     await act(async () => {
-      renderer.update(<VideoPosterCell {...BASE} posterUri="https://cdn.example/other.jpg" />);
+      renderer.update(
+        <BloomThemeProvider fonts={false}>
+          {<VideoPosterCell {...BASE} posterUri="https://cdn.example/other.jpg" />}
+        </BloomThemeProvider>,
+      );
     });
 
     expect(renderer.root.findAllByType(Image)).toHaveLength(1);

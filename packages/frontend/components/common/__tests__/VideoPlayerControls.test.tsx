@@ -1,6 +1,8 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { PlayButton } from '@oxy.so/bloom/media-controls';
 import VideoPlayer from '../VideoPlayer';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 type Listener = (payload: { isPlaying: boolean }) => void;
 const mockListeners = new Map<string, Set<Listener>>();
@@ -40,6 +42,8 @@ jest.mock('expo', () => {
     }, [player, event]);
   };
   return {
+    // Expo's own exports stay (Bloom's native views require them).
+    ...jest.requireActual('expo'),
     useEventListener,
     useEvent: (player: typeof mockPlayer, event: string, initial: { isPlaying: boolean }) => {
       const [state, setState] = React.useState(initial);
@@ -48,7 +52,9 @@ jest.mock('expo', () => {
     },
   };
 });
-jest.mock('@oxy.so/bloom/styles', () => ({ tokens: { hitSlop: { md: 8 } } }));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  ...jest.requireActual('@oxy.so/bloom/styles'),
+}));
 jest.mock('@oxy.so/bloom/media-controls', () => ({ PlayButton: () => null }));
 jest.mock('@oxy.so/bloom/media-flight', () => ({ MediaFlightHost: () => null }));
 jest.mock('@oxy.so/bloom/video-playback', () => ({
@@ -118,11 +124,19 @@ it('builds a player only for a surface that owns its video', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      <VideoPlayer src={SOURCE} player={mockPlayer as never} onPress={jest.fn()} />,
+      <BloomThemeProvider fonts={false}>
+        {<VideoPlayer src={SOURCE} player={mockPlayer as never} onPress={jest.fn()} />}
+      </BloomThemeProvider>,
     );
   });
   expect(mockUseVideoPlayer).not.toHaveBeenCalled();
-  act(() => renderer.update(<VideoPlayer src={SOURCE} onPress={jest.fn()} />));
+  act(() =>
+    renderer.update(
+      <BloomThemeProvider fonts={false}>
+        {<VideoPlayer src={SOURCE} onPress={jest.fn()} />}
+      </BloomThemeProvider>,
+    ),
+  );
   expect(mockUseVideoPlayer).toHaveBeenCalled();
   act(() => renderer.unmount());
 });
@@ -175,10 +189,14 @@ it.each(['preview', 'gif'] as const)(
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <VideoPlayer
-          src={SOURCE}
-          {...(mode === 'preview' ? { onPress: jest.fn() } : { gif: true })}
-        />,
+        <BloomThemeProvider fonts={false}>
+          {
+            <VideoPlayer
+              src={SOURCE}
+              {...(mode === 'preview' ? { onPress: jest.fn() } : { gif: true })}
+            />
+          }
+        </BloomThemeProvider>,
       );
     });
     try {
@@ -199,7 +217,9 @@ it.each(['preview', 'gif'] as const)(
   (mode) => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<VideoPlayer src={SOURCE} />);
+      renderer = TestRenderer.create(
+        <BloomThemeProvider fonts={false}>{<VideoPlayer src={SOURCE} />}</BloomThemeProvider>,
+      );
     });
     try {
       const baselineTimers = jest.getTimerCount();
@@ -230,10 +250,14 @@ it.each(['preview', 'gif'] as const)(
       expect(jest.getTimerCount()).toBe(baselineTimers + 1);
       act(() =>
         renderer.update(
-          <VideoPlayer
-            src={SOURCE}
-            {...(mode === 'preview' ? { onPress: jest.fn() } : { gif: true })}
-          />,
+          <BloomThemeProvider fonts={false}>
+            {
+              <VideoPlayer
+                src={SOURCE}
+                {...(mode === 'preview' ? { onPress: jest.fn() } : { gif: true })}
+              />
+            }
+          </BloomThemeProvider>,
         ),
       );
       expect(jest.getTimerCount()).toBe(baselineTimers);
@@ -246,7 +270,9 @@ it.each(['preview', 'gif'] as const)(
 it('pausing cancels the hide timer and resuming schedules only one', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<VideoPlayer src={SOURCE} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{<VideoPlayer src={SOURCE} />}</BloomThemeProvider>,
+    );
   });
   try {
     const baselineTimers = jest.getTimerCount();
@@ -269,7 +295,9 @@ it('pausing cancels the hide timer and resuming schedules only one', () => {
 it('an external pause preserves the already scheduled controls deadline', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<VideoPlayer src={SOURCE} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{<VideoPlayer src={SOURCE} />}</BloomThemeProvider>,
+    );
   });
   try {
     const baselineTimers = jest.getTimerCount();
@@ -288,7 +316,9 @@ it('an external pause preserves the already scheduled controls deadline', () => 
 it('clears a pending hide timer on unmount', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<VideoPlayer src={SOURCE} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{<VideoPlayer src={SOURCE} />}</BloomThemeProvider>,
+    );
   });
   const baselineTimers = jest.getTimerCount();
   emitPlaying(true);
@@ -303,16 +333,24 @@ it.each(['preview', 'gif'] as const)(
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <VideoPlayer
-          src={SOURCE}
-          {...(mode === 'preview' ? { onPress: jest.fn() } : { gif: true })}
-        />,
+        <BloomThemeProvider fonts={false}>
+          {
+            <VideoPlayer
+              src={SOURCE}
+              {...(mode === 'preview' ? { onPress: jest.fn() } : { gif: true })}
+            />
+          }
+        </BloomThemeProvider>,
       );
     });
     try {
       emitPlaying(true);
       act(() => jest.advanceTimersByTime(2500));
-      act(() => renderer.update(<VideoPlayer src={SOURCE} />));
+      act(() =>
+        renderer.update(
+          <BloomThemeProvider fonts={false}>{<VideoPlayer src={SOURCE} />}</BloomThemeProvider>,
+        ),
+      );
       expect(renderer.root.findAllByType(PlayButton)).toHaveLength(1);
       act(() => jest.advanceTimersByTime(500));
       expect(renderer.root.findAllByType(PlayButton)).toHaveLength(1);
