@@ -220,9 +220,20 @@ this patch is keyed to it.
 On Android, a playing LottieAnimationView asks for a redraw on every vsync, so a
 looping sticker redraws at the panel's rate (120 Hz on a Pixel 8a) although its
 animation has 30 or 60 frames a second. Measured on Mention's empty Notifications
-page (the frog sticker), the page rendered about 130 frames a second at rest. The
-patch turns on Lottie's own `setUseCompositionFrameRate(true)` for every view the
-module creates, so a view redraws only when the animation's frame changes. Bloom's
-web Sticker already plays at the animation's own frame rate (`docs/sticker.mdx`).
-Remove this patch if lottie-react-native exposes the setting as a prop (then set
-it from Bloom's native Sticker player) or makes it the default.
+page (the frog sticker), the page rendered a frame on every vsync at rest, and a
+screen recording shows the picture changing only on every other one.
+
+Lottie's own `setUseCompositionFrameRate(true)` is not enough on its own:
+lottie-android 6.7.1 rounds the frame it draws, but its animator decides whether to
+notify by comparing the unrounded frame (`LottieValueAnimator.checkNotifyUpdate`),
+so it still asks for a redraw on every vsync. The patch makes every view the module
+creates a `CompositionRateLottieView`: it turns the setting on and, while the
+animation plays, redraws itself when the rounded frame changes and ignores its
+drawable's own requests (it cannot drop only some of them: the drawable asks again
+only after it has been drawn, so a dropped request froze the sticker). A sticker
+redraws only when its animation's frame changes; paused or stopped, it redraws as
+before. Bloom's web Sticker already plays at the
+animation's own frame rate (`docs/sticker.mdx`).
+Remove this patch once lottie-android notifies only when the rounded frame changes
+and lottie-react-native exposes the setting as a prop (then set it from Bloom's
+native Sticker player) or makes it the default.

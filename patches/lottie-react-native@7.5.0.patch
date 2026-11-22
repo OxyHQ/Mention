@@ -1,13 +1,108 @@
+diff --git a/android/src/main/java/com/airbnb/android/react/lottie/CompositionRateLottieView.kt b/android/src/main/java/com/airbnb/android/react/lottie/CompositionRateLottieView.kt
+new file mode 100644
+index 0000000..2ef95b7
+--- /dev/null
++++ b/android/src/main/java/com/airbnb/android/react/lottie/CompositionRateLottieView.kt
+@@ -0,0 +1,33 @@
++package com.airbnb.android.react.lottie
++
++import android.content.Context
++import android.graphics.Canvas
++import android.graphics.drawable.Drawable
++import com.airbnb.lottie.LottieAnimationView
++
++/**
++ * A Lottie view that redraws at its animation's own frame rate, not on every vsync of a 120 Hz
++ * panel. Lottie's setUseCompositionFrameRate rounds the frame it draws to the composition's
++ * frames, but lottie-android 6.7.1 still asks for a redraw on every vsync: its animator compares
++ * the unrounded frame when it decides whether to notify. While the animation plays, this view
++ * redraws when the rounded frame changes and ignores its drawable's own requests. It cannot drop
++ * only some of them: the drawable asks again only after it has been drawn.
++ */
++internal class CompositionRateLottieView(context: Context) : LottieAnimationView(context) {
++    private var drawnFrame = -1
++
++    init {
++        setUseCompositionFrameRate(true)
++        addAnimatorUpdateListener { if (frame != drawnFrame) invalidate() }
++    }
++
++    override fun invalidateDrawable(dr: Drawable) {
++        if (dr === drawable && isAnimating) return
++        super.invalidateDrawable(dr)
++    }
++
++    override fun onDraw(canvas: Canvas) {
++        drawnFrame = frame
++        super.onDraw(canvas)
++    }
++}
 diff --git a/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt b/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
-index 310ecc57c62111fa8129da33fba4f1c42f6bed2c..6ba3f93a1667e0ac76066e2bcb986087ed2ae819 100644
+index 310ecc5..7691843 100644
 --- a/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
 +++ b/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
-@@ -26,6 +26,8 @@ internal object LottieAnimationViewManagerImpl {
+@@ -24,7 +24,7 @@ internal object LottieAnimationViewManagerImpl {
+ 
+     @JvmStatic
      fun createViewInstance(context: ThemedReactContext): LottieAnimationView {
-         return LottieAnimationView(context).apply {
+-        return LottieAnimationView(context).apply {
++        return CompositionRateLottieView(context).apply {
              scaleType = ImageView.ScaleType.CENTER_INSIDE
-+            // Redraw at the animation's own frame rate, not on every vsync of a 120 Hz panel.
-+            setUseCompositionFrameRate(true)
          }
      }
- 
+diff --git a/out.patch b/out.patch
+new file mode 100644
+index 0000000..8add222
+--- /dev/null
++++ b/out.patch
+@@ -0,0 +1,50 @@
++diff --git a/android/src/main/java/com/airbnb/android/react/lottie/CompositionRateLottieView.kt b/android/src/main/java/com/airbnb/android/react/lottie/CompositionRateLottieView.kt
++new file mode 100644
++index 0000000..2fca981
++--- /dev/null
+++++ b/android/src/main/java/com/airbnb/android/react/lottie/CompositionRateLottieView.kt
++@@ -0,0 +1,31 @@
+++package com.airbnb.android.react.lottie
+++
+++import android.content.Context
+++import android.graphics.Canvas
+++import android.graphics.drawable.Drawable
+++import com.airbnb.lottie.LottieAnimationView
+++
+++/**
+++ * A Lottie view that redraws at its animation's own frame rate, not on every vsync of a 120 Hz
+++ * panel. Lottie's setUseCompositionFrameRate rounds the frame it draws to the composition's
+++ * frames, but lottie-android 6.7.1 still asks for a redraw on every vsync: its animator compares
+++ * the unrounded frame when it decides whether to notify. A redraw asked for while playing, for
+++ * the frame already drawn, is dropped here.
+++ */
+++internal class CompositionRateLottieView(context: Context) : LottieAnimationView(context) {
+++    private var drawnFrame = -1
+++
+++    init {
+++        setUseCompositionFrameRate(true)
+++    }
+++
+++    override fun invalidateDrawable(dr: Drawable) {
+++        if (dr === drawable && isAnimating && frame == drawnFrame) return
+++        super.invalidateDrawable(dr)
+++    }
+++
+++    override fun onDraw(canvas: Canvas) {
+++        drawnFrame = frame
+++        super.onDraw(canvas)
+++    }
+++}
++diff --git a/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt b/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
++index 310ecc5..7691843 100644
++--- a/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
+++++ b/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt
++@@ -24,7 +24,7 @@ internal object LottieAnimationViewManagerImpl {
++ 
++     @JvmStatic
++     fun createViewInstance(context: ThemedReactContext): LottieAnimationView {
++-        return LottieAnimationView(context).apply {
+++        return CompositionRateLottieView(context).apply {
++             scaleType = ImageView.ScaleType.CENTER_INSIDE
++         }
++     }
