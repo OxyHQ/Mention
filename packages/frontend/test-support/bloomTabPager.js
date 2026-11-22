@@ -26,4 +26,9 @@ const pager = {
   leaveTab: () => {},
   selectDestination: () => {},
 };
-module.exports = { useTabPager: () => pager, TabPagerBottomBar: named('TabPagerBottomBar') };
+module.exports = {
+  useTabPager: () => pager,
+  // Outside a pager a page's content signal does nothing.
+  useTabPageContentPainted: () => {},
+  TabPagerBottomBar: named('TabPagerBottomBar'),
+};
