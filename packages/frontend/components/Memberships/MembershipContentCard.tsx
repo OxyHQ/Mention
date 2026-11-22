@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Text, Linking } from 'react-native';
+import { Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import type { MembershipContent, MembershipBenefit } from '@mention/shared-types';
@@ -63,11 +63,7 @@ export function MembershipContentCard({
               .weight('semibold')
               .foreground('foreground')
           : null,
-        Embed(
-          <Text selectable className="text-foreground">
-            {content.body}
-          </Text>,
-        ),
+        RawText(content.body).selectable().foreground('foreground'),
         content.poll
           ? VStack(
               Embed(
