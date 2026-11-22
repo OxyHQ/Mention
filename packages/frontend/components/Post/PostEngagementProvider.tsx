@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { ReplyDraft } from '@/components/Post/replyDraft';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
@@ -18,6 +18,14 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
   const generation = usePostEngagementPanels((state) => state.generation);
   const hostId = useAppShellPanel().id;
   const route = usePathname();
+  // The actions read the route when they run. As a dependency it gave them a
+  // new identity on every navigation, and every mounted feed row holds `open`
+  // (its memo compares it), so every row of every mounted feed re-rendered on
+  // each tab switch, post open and Back.
+  const routeRef = useRef(route);
+  useLayoutEffect(() => {
+    routeRef.current = route;
+  }, [route]);
   const router = useRouter();
   const handleOpen = useCallback(
     (postId: string, kind: PostPanelKind, options?: PostPanelOptions) => {
@@ -29,14 +37,14 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
         {
           postId,
           kind,
-          route,
+          route: routeRef.current,
           navigate: (href) => router.push(href),
         },
         options?.inlineOnly,
       );
       return true;
     },
-    [viewer, generation, hostId, route, router],
+    [viewer, generation, hostId, router],
   );
   const publishReplies = useCallback(
     (postId: string) => {
@@ -47,24 +55,24 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
         state.generation === generation &&
         panel?.destination.kind === 'replies' &&
         panel.destination.postId === postId &&
-        panel.destination.route === route
+        panel.destination.route === routeRef.current
         ? panel.replyDraft
         : undefined;
     },
-    [handleOpen, viewer, generation, hostId, route],
+    [handleOpen, viewer, generation, hostId],
   );
   const closeReplies = useCallback(
     (owner: ReplyDraft) => {
       const state = usePostEngagementPanels.getState();
       const panel = hostId ? state.panels[hostId] : undefined;
       if (hostId && panel?.destination.kind === 'replies' && panel.replyDraft === owner) {
-        state.close(viewer, generation, hostId, route);
+        state.close(viewer, generation, hostId, routeRef.current);
         // The route keeps its inline slot when a feed has no active video.
         // There is no geometric exit to await; drop this exact payload now.
         state.completeClose(viewer, generation, hostId, panel.destination);
       }
     },
-    [viewer, generation, hostId, route],
+    [viewer, generation, hostId],
   );
   const actions = useMemo(
     () => ({ open: handleOpen, publishReplies, closeReplies }),

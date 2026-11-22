@@ -13,11 +13,13 @@ let mockViewer = 'a';
 let mockRoute = '/p/post-1';
 let mockHostId: string | undefined = 'deck-2';
 const mockPush = jest.fn();
+// One router for the app's life, as expo-router's is.
+const mockRouter = { push: mockPush };
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: { id: mockViewer } }) }));
 jest.mock('@oxy.so/bloom/app-shell', () => ({ useAppShellPanel: () => ({ id: mockHostId }) }));
 jest.mock('@/lib/navigation/router', () => ({
   usePathname: () => mockRoute,
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => mockRouter,
   useFocusEffect: (effect: () => undefined | (() => void)) => {
     const { useEffect } = jest.requireActual<typeof React>('react');
     useEffect(effect, [effect]);
@@ -63,6 +65,32 @@ it('opens in the originating column and preserves that columns navigation callba
     isOpen: false,
     destination: { postId: 'post-1' },
   });
+});
+
+it('keeps its actions across a navigation, and opens for the route it runs on', async () => {
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  const tree = () => (
+    <PostEngagementProvider>
+      <Trigger />
+    </PostEngagementProvider>
+  );
+  await act(async () => {
+    renderer = TestRenderer.create(tree());
+  });
+  const before = open;
+  mockRoute = '/notifications';
+  await act(async () => {
+    renderer?.update(tree());
+  });
+  // Every mounted feed row holds this action: a new one re-renders them all.
+  expect(open).toBe(before);
+  await act(async () => {
+    open?.('post-2', 'likes');
+  });
+  expect(usePostEngagementPanels.getState().panels['deck-2']?.destination.route).toBe(
+    '/notifications',
+  );
+  await act(async () => renderer?.unmount());
 });
 
 it('keeps an open panel across ordinary rerenders and closes it when the post route changes', async () => {
