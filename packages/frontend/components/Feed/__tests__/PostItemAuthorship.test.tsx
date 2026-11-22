@@ -1,45 +1,67 @@
 import type React from 'react';
+import { StyleSheet } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost, PostUser } from '@mention/shared-types';
 
 import PostItem from '../PostItem';
 import type { NestedPostRenderer } from '../../Post/Attachments/PostAttachmentNested';
+// The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
- * `PostItem` decides two things about authorship that only it can see, and both
- * are invisible from `PostHeader`'s own tests:
+ * `PostItem` decides two things about authorship that only it can see:
  *
  *  1. WHICH HEADING the author dialog opens with. A signed channel post reaches
  *     the same panel as a collaboration, and only the byline roles distinguish
  *     them — `writer` exists on no other byline, so it, not the account kind, is
  *     what picks "Published by" over "Collaborators".
- *  2. THAT THE BOOSTER REACHES THE HEADER AT ALL. `PostHeader` pairs and
- *     reorders the avatar cluster from `boostedBy`; the prop sat declared and
- *     unpassed, so every one of those rules was dead code in the app while
- *     passing its own unit tests. This pins the wire, and pins that the id in it
- *     is the one `HydratedAuthor.id` is compared against — the two coming from
- *     different id spaces is the failure that reorders nothing, silently.
+ *  2. THAT THE BOOSTER REACHES THE AVATAR CLUSTER AT ALL. The row pairs and
+ *     reorders the cluster from the booster; the wire once sat declared and
+ *     unpassed, so every one of those rules was dead code in the app. This pins
+ *     the wire, and pins that the id in it is the one `HydratedAuthor.id` is
+ *     compared against — the two coming from different id spaces is the failure
+ *     that reorders nothing, silently.
  */
 
-interface CapturedHeaderProps {
-  children?: React.ReactNode;
-  contextTop?: React.ReactNode;
-  boostedBy?: PostUser;
-  authors?: HydratedAuthor[];
-  onPressCollaborators?: () => void;
+// The row's ⋯ menu reads the publisher's lanes from the services session, and
+// the vote style from the persisted thread preferences: neither is the
+// subject here, so the lanes are none and the storage is Jest's.
+jest.mock('@/hooks/usePublisherLanes', () => ({
+  usePublisherLanes: () => ({ lanes: [], isLoading: false }),
+}));
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
+jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
+// The services session is not the subject: a signed-out viewer.
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useAuth: () => ({ user: null, isAuthenticated: false, oxyServices: {} }),
+  upsertCachedUser: jest.fn(),
+  upsertCachedUsers: jest.fn(),
+}));
+
+/**
+ * The row draws its avatar column itself: one author is a `LiveAvatar`, a
+ * collaborative byline (or an author beside the booster) one
+ * `AccountAvatarGroup` cluster. These stand-ins record what each is handed.
+ */
+interface CapturedCluster {
+  items: { id: string }[];
 }
-const mockHeaderProps: CapturedHeaderProps[] = [];
-jest.mock('../../Post/PostHeader', () => ({
-  __esModule: true,
-  default: (props: CapturedHeaderProps) => {
-    mockHeaderProps.push(props);
-    return (
-      <>
-        {props.contextTop}
-        {props.children}
-      </>
-    );
+const mockClusters: CapturedCluster[] = [];
+const mockAvatars: { userId?: string }[] = [];
+jest.mock('@/components/ui/AccountAvatarGroup', () => ({
+  AccountAvatarGroup: (props: CapturedCluster) => {
+    mockClusters.push(props);
+    return null;
+  },
+}));
+jest.mock('@/components/ui/LiveAvatar', () => ({
+  LiveAvatar: (props: { userId?: string }) => {
+    mockAvatars.push(props);
+    return null;
   },
 }));
 
@@ -73,7 +95,8 @@ jest.mock('@/utils/sheet', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  Link: 'Link',
+  // The row links its context lines; a link draws the element it wraps.
+  Link: ({ children }: { children?: React.ReactNode }) => children,
   useRouter: () => ({ push: jest.fn() }),
   usePathname: () => '/',
 }));
@@ -86,9 +109,13 @@ jest.mock('@/stores/threadHoverStore', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
-jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
+jest.mock('@oxy.so/bloom/hooks', () => ({
+  ...jest.requireActual('@oxy.so/bloom/hooks'),
+  useImagePreload: () => undefined,
+}));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));
@@ -145,6 +172,7 @@ jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: () => undef
 jest.mock('@/utils/feedTelemetry', () => ({ reportFeedInteraction: () => undefined }));
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
@@ -233,15 +261,29 @@ function postWith(authors: HydratedAuthor[]): HydratedPost {
   };
 }
 
-function render(element: React.ReactElement) {
+function render(element: React.ReactElement): TestRenderer.ReactTestRenderer {
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    TestRenderer.create(element);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>,
+    );
   });
+  if (!renderer) throw new Error('Post render did not complete');
+  return renderer;
 }
 
-/** The props of the header this render produced. */
-function lastHeader(): CapturedHeaderProps {
-  return mockHeaderProps[mockHeaderProps.length - 1];
+/** The avatar cluster this render produced: its members' ids, lead first. */
+function lastCluster(): string[] | undefined {
+  return mockClusters[mockClusters.length - 1]?.items.map((item) => item.id);
+}
+
+/** The cluster's press, which opens the author dialog (a collaborative byline only). */
+function collaboratorsControl(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAll(
+    (node) =>
+      node.props.accessibilityLabel === 'View collaborators' &&
+      typeof node.props.onPress === 'function',
+  )[0];
 }
 
 /**
@@ -249,9 +291,12 @@ function lastHeader(): CapturedHeaderProps {
  * read rather than rendered: the panel is `lazy()`, so resolving it would only
  * re-assert the prop through another mock.
  */
-function openAuthorDialog(): { label: string; panelTitle?: string } {
+function openAuthorDialog(renderer: TestRenderer.ReactTestRenderer): {
+  label: string;
+  panelTitle?: string;
+} {
   act(() => {
-    lastHeader().onPressCollaborators?.();
+    collaboratorsControl(renderer).props.onPress();
   });
   const dialog = mockDialogs[mockDialogs.length - 1];
   return {
@@ -262,59 +307,66 @@ function openAuthorDialog(): { label: string; panelTitle?: string } {
 
 describe('PostItem author dialog heading', () => {
   beforeEach(() => {
-    mockHeaderProps.length = 0;
+    mockClusters.length = 0;
+    mockAvatars.length = 0;
     mockDialogs.length = 0;
   });
 
   it('says "Published by" when the byline names a writer — nobody co-authored anything', () => {
-    render(<PostItem post={postWith([channel, writer])} />);
-    expect(openAuthorDialog()).toEqual({ label: 'Published by', panelTitle: 'Published by' });
+    const renderer = render(<PostItem post={postWith([channel, writer])} />);
+    expect(openAuthorDialog(renderer)).toEqual({
+      label: 'Published by',
+      panelTitle: 'Published by',
+    });
   });
 
   it('says "Collaborators" for a genuine collaboration', () => {
-    render(<PostItem post={postWith([owner, collaborator])} />);
-    expect(openAuthorDialog()).toEqual({ label: 'Collaborators', panelTitle: 'Collaborators' });
+    const renderer = render(<PostItem post={postWith([owner, collaborator])} />);
+    expect(openAuthorDialog(renderer)).toEqual({
+      label: 'Collaborators',
+      panelTitle: 'Collaborators',
+    });
   });
 
   it('does not open at all for a solo post', () => {
-    render(<PostItem post={postWith([owner])} />);
-    expect(lastHeader().onPressCollaborators).toBeUndefined();
+    const renderer = render(<PostItem post={postWith([owner])} />);
+    expect(collaboratorsControl(renderer)).toBeUndefined();
   });
 });
 
 describe('PostItem boost wiring', () => {
   beforeEach(() => {
-    mockHeaderProps.length = 0;
+    mockClusters.length = 0;
+    mockAvatars.length = 0;
     mockDialogs.length = 0;
   });
 
-  it('hands the header the BOOSTER, in the id space the authors carry', () => {
+  it('leads the cluster with the BOOSTER, in the id space the authors carry', () => {
     // `feedRows` unwraps a boost into (original post, `repostedBy` = the boost
     // actor), and both that actor and every `authors[]` entry are the canonical
-    // Oxy `PostUser` keyed by Oxy user id — so the header's `id` comparison
-    // finds a match when there is one.
+    // Oxy `PostUser` keyed by Oxy user id — so the row's `id` comparison finds
+    // a match when there is one, and moves the booster to the lead.
     render(<PostItem post={postWith([channel, writer])} repostedBy={writer} />);
-    expect(lastHeader().boostedBy?.id).toBe(writer.id);
-    expect(lastHeader().authors?.map((author) => author.id)).toContain(lastHeader().boostedBy?.id);
+    expect(lastCluster()).toEqual([writer.id, channel.id]);
   });
 
-  it('hands over an outside booster too — the header decides what to do with them', () => {
+  it('draws an outside booster beside a solo author', () => {
     render(<PostItem post={postWith([owner])} repostedBy={boosterUser} />);
-    expect(lastHeader().boostedBy?.id).toBe(boosterUser.id);
-    expect(lastHeader().authors?.map((author) => author.id)).not.toContain(boosterUser.id);
+    expect(lastCluster()).toEqual([owner.id, boosterUser.id]);
   });
 
-  it('leaves it unset when no boost surfaced the row', () => {
+  it('leaves the byline in its order when no boost surfaced the row', () => {
     render(<PostItem post={postWith([channel, writer])} />);
-    expect(lastHeader().boostedBy).toBeUndefined();
+    expect(lastCluster()).toEqual([channel.id, writer.id]);
   });
 });
 
 it('renders a hydrated quote in the same commit as its parent, without an empty suspense frame', () => {
-  mockHeaderProps.length = 0;
+  mockAvatars.length = 0;
   const quote = { ...postWith([writer]), id: 'quoted-post' };
   render(<PostItem post={{ ...postWith([owner]), quotedPost: quote }} />);
-  expect(mockHeaderProps.map((header) => header.authors?.[0]?.id)).toEqual([owner.id, writer.id]);
+  // One commit drew both rows' avatars: the parent's author, then the quote's.
+  expect(mockAvatars.map((avatar) => avatar.userId)).toEqual([owner.id, writer.id]);
 });
 
 it.each([false, true])(
@@ -328,18 +380,30 @@ it.each([false, true])(
     };
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
-      renderer = TestRenderer.create(<PostItem post={parent} isPostDetail={isPostDetail} />);
+      renderer = TestRenderer.create(
+        <BloomThemeProvider fonts={false}>
+          {<PostItem post={parent} isPostDetail={isPostDetail} />}
+        </BloomThemeProvider>,
+      );
     });
     if (!renderer) throw new Error('Post render did not complete');
     const tree = renderer;
     const text = () => JSON.stringify(tree.toJSON());
     expect(text()).not.toContain('Quoted original');
     act(() =>
-      tree.update(<PostItem post={{ ...parent, quotedPost: quote }} isPostDetail={isPostDetail} />),
+      tree.update(
+        <BloomThemeProvider fonts={false}>
+          {<PostItem post={{ ...parent, quotedPost: quote }} isPostDetail={isPostDetail} />}
+        </BloomThemeProvider>,
+      ),
     );
     expect(text()).toContain('Quoted original');
     act(() =>
-      tree.update(<PostItem post={{ ...parent, quotedPost: null }} isPostDetail={isPostDetail} />),
+      tree.update(
+        <BloomThemeProvider fonts={false}>
+          {<PostItem post={{ ...parent, quotedPost: null }} isPostDetail={isPostDetail} />}
+        </BloomThemeProvider>,
+      ),
     );
     expect(text()).not.toContain('Quoted original');
     act(() => tree.unmount());
@@ -350,24 +414,50 @@ it('aligns focused actions with the full-width text and keeps them before metada
   let feed: TestRenderer.ReactTestRenderer | undefined;
   let detail: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    feed = TestRenderer.create(<PostItem post={postWith([owner])} />);
-    detail = TestRenderer.create(<PostItem post={postWith([owner])} isPostDetail />);
+    feed = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={postWith([owner])} />}
+      </BloomThemeProvider>,
+    );
+    detail = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={postWith([owner])} isPostDetail />}
+      </BloomThemeProvider>,
+    );
   });
   if (!feed || !detail) throw new Error('Post render did not complete');
   const host = (tree: TestRenderer.ReactTestRenderer, name: string) =>
     tree.root.findAll((node) => typeof node.type === 'string' && node.type === name)[0];
-  const feedActions = host(feed, 'PostActions');
-  const detailActions = host(detail, 'PostActions');
-  expect(feedActions.parent?.props.style).toEqual({ paddingLeft: 64, paddingRight: 12 });
-  const bodyInset = host(detail, 'PostContentText').parent?.props.style.paddingHorizontal;
-  expect(detailActions.parent?.props.style).toEqual({
-    paddingLeft: bodyInset,
-    paddingRight: bodyInset,
+  /** The host view a node is drawn in: its nearest host ancestor. */
+  const hostAround = (node: TestRenderer.ReactTestInstance | undefined) => {
+    let current = node?.parent ?? null;
+    while (current && typeof current.type !== 'string') current = current.parent;
+    return current;
+  };
+  /** The action bar's inset: the host view around the row's actions view. */
+  const actionsInset = (tree: TestRenderer.ReactTestRenderer) =>
+    StyleSheet.flatten(
+      hostAround(
+        tree.root.findAll(
+          (node) => typeof node.props === 'object' && 'onInsightsPress' in node.props,
+        )[0],
+      )?.props.style,
+    );
+  // The feed row's actions start at the body column (64) and end 12pt in; the
+  // focused post's span the row, inset as its full-width body is.
+  expect(actionsInset(feed)).toEqual({ paddingStart: 64, paddingEnd: 12 });
+  const body = StyleSheet.flatten(host(detail, 'PostContentText').parent?.props.style);
+  expect(body).toMatchObject({ paddingStart: 12, paddingEnd: 12 });
+  expect(actionsInset(detail)).toEqual({
+    paddingStart: body.paddingStart,
+    paddingEnd: body.paddingEnd,
   });
-  const rendered = JSON.stringify(detail.toJSON());
-  expect(rendered.indexOf('PostActions')).toBeLessThan(rendered.indexOf('PostDetailStats'));
-  expect(host(detail, 'PostContentText').parent?.props.style.paddingHorizontal).toBe(12);
-  expect(lastHeader().children).toBeNull();
+  // In document order: the actions, then the post's metadata.
+  const order = detail.root.findAll(() => true);
+  const actionsView = detail.root.findAll(
+    (node) => typeof node.props === 'object' && 'onInsightsPress' in node.props,
+  )[0];
+  expect(order.indexOf(actionsView)).toBeLessThan(order.indexOf(host(detail, 'PostDetailStats')));
   act(() => {
     feed?.unmount();
     detail?.unmount();
@@ -384,7 +474,11 @@ it('shows only the supplied social reason, updates recycled rows and opens the l
   };
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<PostItem post={parent} socialContext={socialContext} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={parent} socialContext={socialContext} />}
+      </BloomThemeProvider>,
+    );
   });
   if (!renderer) throw new Error('Post render did not complete');
   const tree = renderer;
@@ -404,12 +498,23 @@ it('shows only the supplied social reason, updates recycled rows and opens the l
   });
   act(() =>
     tree.update(
-      <PostItem post={parent} socialContext={{ ...socialContext, actors: [writer], total: 1 }} />,
+      <BloomThemeProvider fonts={false}>
+        {
+          <PostItem
+            post={parent}
+            socialContext={{ ...socialContext, actors: [writer], total: 1 }}
+          />
+        }
+      </BloomThemeProvider>,
     ),
   );
   expect(JSON.stringify(tree.toJSON())).toContain('Liked by Nate Isern');
   expect(JSON.stringify(tree.toJSON())).not.toContain('2 others');
-  act(() => tree.update(<PostItem post={parent} />));
+  act(() =>
+    tree.update(
+      <BloomThemeProvider fonts={false}>{<PostItem post={parent} />}</BloomThemeProvider>,
+    ),
+  );
   expect(JSON.stringify(tree.toJSON())).not.toContain('Liked by');
   act(() => tree.unmount());
 });
@@ -423,7 +528,11 @@ it('does not infer likes from counts or apply another post’s social context', 
   ]) {
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
-      renderer = TestRenderer.create(<PostItem post={parent} socialContext={context} />);
+      renderer = TestRenderer.create(
+        <BloomThemeProvider fonts={false}>
+          {<PostItem post={parent} socialContext={context} />}
+        </BloomThemeProvider>,
+      );
     });
     if (!renderer) throw new Error('Post render did not complete');
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Liked by');
@@ -439,7 +548,9 @@ it('keeps quote commentary with a generic unavailable subject, then replaces the
   };
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<PostItem post={parent} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{<PostItem post={parent} />}</BloomThemeProvider>,
+    );
   });
   if (!renderer) throw new Error('Post render did not complete');
   const tree = renderer;
@@ -447,13 +558,17 @@ it('keeps quote commentary with a generic unavailable subject, then replaces the
   expect(JSON.stringify(tree.toJSON())).toContain('This quoted post is unavailable');
   act(() =>
     tree.update(
-      <PostItem
-        post={{
-          ...parent,
-          quotedPostUnavailable: undefined,
-          quotedPost: { ...postWith([writer]), id: 'original' },
-        }}
-      />,
+      <BloomThemeProvider fonts={false}>
+        {
+          <PostItem
+            post={{
+              ...parent,
+              quotedPostUnavailable: undefined,
+              quotedPost: { ...postWith([writer]), id: 'original' },
+            }}
+          />
+        }
+      </BloomThemeProvider>,
     ),
   );
   expect(JSON.stringify(tree.toJSON())).not.toContain('This quoted post is unavailable');
@@ -465,7 +580,11 @@ it('opens repost evidence as reposts and does not repeat the same structural boo
   const context = { type: 'boostedBy' as const, postId: parent.id, actors: [writer], total: 1 };
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<PostItem post={parent} socialContext={context} />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={parent} socialContext={context} />}
+      </BloomThemeProvider>,
+    );
   });
   if (!renderer) throw new Error('Post render did not complete');
   const tree = renderer;
@@ -482,7 +601,13 @@ it('opens repost evidence as reposts and does not repeat the same structural boo
     postId: parent.id,
     type: 'boosts',
   });
-  act(() => tree.update(<PostItem post={parent} repostedBy={writer} socialContext={context} />));
+  act(() =>
+    tree.update(
+      <BloomThemeProvider fonts={false}>
+        {<PostItem post={parent} repostedBy={writer} socialContext={context} />}
+      </BloomThemeProvider>,
+    ),
+  );
   expect(
     tree.root.findAll(
       (node) =>
@@ -508,17 +633,22 @@ it.each([
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       renderer = TestRenderer.create(
-        <PostItem
-          post={post}
-          isPostDetail={detail}
-          isNested={nested}
-          openPostEngagement={openPanel}
-        />,
+        <BloomThemeProvider fonts={false}>
+          {
+            <PostItem
+              post={post}
+              isPostDetail={detail}
+              isNested={nested}
+              openPostEngagement={openPanel}
+            />
+          }
+        </BloomThemeProvider>,
       );
     });
     if (!renderer) throw new Error('Post did not render');
+    // The row's actions view, by the prop the Insights action rides on.
     const action = renderer.root.findAll(
-      (node) => typeof node.type === 'string' && String(node.type) === 'PostActions',
+      (node) => typeof node.props === 'object' && 'onInsightsPress' in node.props,
     )[0]?.props.onInsightsPress;
     if (enabled) {
       expect(action).toEqual(expect.any(Function));

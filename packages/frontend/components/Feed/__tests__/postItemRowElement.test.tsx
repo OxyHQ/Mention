@@ -73,7 +73,6 @@ jest.mock('@oxy.so/bloom/hooks', () => ({
 }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 
-
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
