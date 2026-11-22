@@ -1,7 +1,15 @@
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  type ViewStyle,
+} from 'react-native';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -49,6 +57,7 @@ const GRAPH_STALE_TIME_MS = 5 * 60_000;
 
 export default function TrendGraphScreen() {
   const { t } = useTranslation();
+  const colors = useColorTokens();
 
   const [language, setLanguage] = useState<string | null>(null);
   const [region, setRegion] = useState<string | null>(null);
@@ -130,7 +139,7 @@ export default function TrendGraphScreen() {
                       <TouchableOpacity
                         accessibilityRole="button"
                         onPress={() => void refetch()}
-                        className="rounded-full bg-primary px-4 py-2 web:cursor-pointer"
+                        style={[classStyles.retry, { backgroundColor: colors.primary }]}
                       >
                         {toElement(
                           LText(t('trendGraph.retry'))
@@ -201,8 +210,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * two lines per term.
  */
 function Branch({ entry }: { entry: TrendTreeNode }) {
+  const colors = useColorTokens();
   return (
-    <View className="border-border py-1" style={styles.branchBorder}>
+    <View style={[styles.branchBorder, classStyles.branch, { borderColor: colors.border }]}>
       <TermRow
         term={entry.node.term}
         label={entry.node.displayName ?? entry.node.term}
@@ -214,7 +224,7 @@ function Branch({ entry }: { entry: TrendTreeNode }) {
         // The trunk: one continuous rule down the left of everything merged into
         // the term above. This is what makes the block read as a tree at a
         // glance rather than as an indent.
-        <View className="ml-1 border-border pl-3" style={styles.trunk}>
+        <View style={[styles.trunk, classStyles.trunk, { borderColor: colors.border }]}>
           {entry.children.map((child) => (
             <TermRow
               key={child.node.term}
@@ -245,6 +255,7 @@ const RELATED_SHOWN = 3;
  */
 function RelatedLine({ entry }: { entry: TrendTreeNode }) {
   const { t } = useTranslation();
+  const colors = useColorTokens();
 
   const names = useMemo(() => {
     const seen = new Set<string>();
@@ -265,7 +276,7 @@ function RelatedLine({ entry }: { entry: TrendTreeNode }) {
   const rest = names.length - shown.length;
 
   return (
-    <View className="ml-1 border-border pb-1 pl-3" style={styles.dashedTrunk}>
+    <View style={[styles.dashedTrunk, classStyles.relatedTrunk, { borderColor: colors.border }]}>
       {toElement(
         LText(
           t('trendGraph.related', {
@@ -310,7 +321,7 @@ function TermRow({
       accessibilityRole="button"
       activeOpacity={0.7}
       onPress={() => navigateToTerm(term, 'graph')}
-      className="web:cursor-pointer flex-row items-baseline justify-between py-1.5"
+      style={classStyles.termRow}
     >
       {toElement(
         LText(label)
@@ -349,13 +360,14 @@ function FilterRow({
   onSelect: (value: string | null) => void;
   allLabel: string;
 }) {
+  const colors = useColorTokens();
   if (values.length === 0) return null;
 
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerClassName="gap-2 px-4 pb-3"
+      contentContainerStyle={classStyles.filters}
     >
       {[null, ...values].map((value) => {
         const isActive = value === selected;
@@ -365,7 +377,10 @@ function FilterRow({
             accessibilityRole="button"
             activeOpacity={0.7}
             onPress={() => onSelect(value)}
-            className={`web:cursor-pointer rounded-full px-3 py-1.5 ${isActive ? 'bg-primary' : 'bg-muted'}`}
+            style={[
+              classStyles.filter,
+              { backgroundColor: isActive ? colors.primary : colors.muted },
+            ]}
           >
             {toElement(
               LText(value ?? allLabel)
@@ -380,6 +395,25 @@ function FilterRow({
     </ScrollView>
   );
 }
+
+// The buttons, rows and filters stay React Native's TouchableOpacity (the language has
+// no node for its fading press; it is a pointer on the web already), and the tree's
+// rules stay views over the hairline styles below; these draw what their classes drew.
+const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+const classStyles = {
+  retry: { borderRadius: PILL_RADIUS, paddingHorizontal: 16, paddingVertical: 8 },
+  branch: { paddingVertical: 4 },
+  trunk: { marginLeft: 4, paddingLeft: 12 },
+  relatedTrunk: { marginLeft: 4, paddingBottom: 4, paddingLeft: 12 },
+  termRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  filters: { gap: 8, paddingInline: 16, paddingBottom: 12 },
+  filter: { borderRadius: PILL_RADIUS, paddingHorizontal: 12, paddingVertical: 6 },
+} satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({
   // Hairline separators, the same weight `TrendItemRow` uses — the app draws

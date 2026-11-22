@@ -1,6 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { Fragment, useCallback, useEffect, useMemo } from 'react';
-import { Text, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { useScreenReselectHandler } from '@oxy.so/bloom/screen';
 import { VirtualList } from '@oxy.so/bloom/list';
@@ -16,10 +16,17 @@ import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
-import { FONT_SIZES } from '@/styles/typography';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 
-import { Embed, HStack, Icon, ScrollView, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  ScrollView,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Explore › Trending (route `/explore/trending`).
@@ -225,16 +232,7 @@ export default function ExploreTrendingScreen() {
     (row: TrendRow) =>
       row.kind === 'header'
         ? toElement(
-            VStack(
-              Embed(
-                <Text
-                  className="text-muted-foreground font-medium"
-                  style={{ fontSize: FONT_SIZES.sm }}
-                >
-                  {row.section.title}
-                </Text>,
-              ),
-            )
+            VStack(RawText(row.section.title).foreground('muted').weight('medium').font('xs'))
               .padding('horizontal', 'lg')
               .padding('vertical', 'sm')
               .background('surface'),
@@ -269,23 +267,10 @@ export default function ExploreTrendingScreen() {
     () =>
       toElement(
         VStack(
-          Embed(
-            summary ? (
-              <Text
-                className="text-muted-foreground"
-                style={{ fontSize: FONT_SIZES.sm, lineHeight: 18 }}
-              >
-                {summary}
-              </Text>
-            ) : null,
-          ),
+          summary ? RawText(summary).foreground('muted').font('xs').leading('18px') : null,
           HStack(
             Icon(RiNodeTree).size('14').foreground('primary'),
-            Embed(
-              <Text className="text-primary" style={{ fontSize: FONT_SIZES.sm }}>
-                {t('trendGraph.openLink')}
-              </Text>,
-            ),
+            RawText(t('trendGraph.openLink')).foreground('primary').font('xs'),
           )
             .align('center')
             .spacing('xs')

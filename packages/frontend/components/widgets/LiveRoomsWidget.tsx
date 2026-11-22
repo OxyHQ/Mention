@@ -1,7 +1,7 @@
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 
 import { BaseWidget } from './BaseWidget';
 import { WidgetItemMenu, type WidgetItemMenuActions } from './WidgetItemMenu';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import type { Room } from '@/lib/syraApi';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useUserById } from '@/hooks/useCachedUser';
@@ -20,7 +20,21 @@ import { WEB_BASE_URL } from '@/config';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 
-import { Embed, HStack, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  Text as LText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+
+const liveColors = defineTokens({ color: { LIVE_INDICATOR_COLOR } });
+
+// A room row stays React Native's TouchableOpacity (the language has no node for its
+// fading press; it is a pointer on the web already); this draws its classes.
+const roomRow: ViewStyle = { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 };
 
 const MAX_ROOMS_DISPLAYED = 3;
 const LIVE_ROOMS_ROUTE = '/live-rooms';
@@ -44,7 +58,7 @@ const RoomRow = React.memo(function RoomRow({
   onPress: () => void;
   getMenuActions: (room: Room) => WidgetItemMenuActions;
 }) {
-  const theme = useTheme();
+  const colors = useColorTokens();
   const hostProfile = useUserById(room.host);
   const hostName = hostProfile?.username
     ? `@${hostProfile.username}`
@@ -53,18 +67,16 @@ const RoomRow = React.memo(function RoomRow({
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center py-1.5 web:cursor-pointer ${!isLast ? 'border-b-[0.5px] border-border' : ''}`}
+      style={[roomRow, !isLast && { borderBottomWidth: 0.5, borderColor: colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       {toElement(
         HStack(
-          Embed(
-            <View
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
-            />,
-          ),
+          VStack()
+            .frame({ width: '6', height: '6' })
+            .background(liveColors.color.LIVE_INDICATOR_COLOR)
+            .corner('infinite'),
           VStack(
             LText(room.title).font('body-2').weight('bold').lines(1),
             HStack(

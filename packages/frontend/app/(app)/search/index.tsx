@@ -6,8 +6,10 @@ import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
+  Platform,
   View,
   TouchableOpacity,
+  type ViewStyle,
   type TextInputSelectionChangeEvent,
   type TextInputInstance,
 } from 'react-native';
@@ -23,7 +25,7 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import {
   searchService,
   captureSearchHistoryEpoch,
@@ -457,10 +459,43 @@ function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardDa
   return starterPackId(pack) ? starterPackCardData(pack) : null;
 }
 
+// Rows, chips and buttons stay React Native's TouchableOpacity (the language has no
+// node for its fading press), and the refresh track a view hidden from assistive
+// technology; these draw what their classes drew.
+const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+const searchTouchables = {
+  row: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  profileRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  retry: {
+    alignSelf: 'flex-start',
+    borderRadius: PILL_RADIUS,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  chip: { borderRadius: PILL_RADIUS, paddingHorizontal: 12, paddingVertical: 6 },
+  refreshTrack: { height: 2, width: '100%', overflow: 'hidden' },
+} satisfies Record<string, ViewStyle>;
+
 function SearchIndex() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = useTheme();
+  const colors = useColorTokens();
   // The box is autofocused; leaving by a result or a tab must not carry the
   // keyboard onto the next screen.
   useDismissKeyboardOnBlur();
@@ -1183,7 +1218,7 @@ function SearchIndex() {
         case 'recent':
           return (
             <TouchableOpacity
-              className="w-full flex-row items-center justify-between px-3 py-3 border-b border-border"
+              style={[searchTouchables.row, { borderColor: colors.border }]}
               onPress={() => handleRecentPress(item.term)}
               accessibilityRole="button"
             >
@@ -1242,7 +1277,7 @@ function SearchIndex() {
               Embed(
                 <TouchableOpacity
                   onPress={() => void fetchTrends()}
-                  className="self-start rounded-full bg-muted px-4 py-2"
+                  style={[searchTouchables.retry, { backgroundColor: colors.muted }]}
                   accessibilityRole="button"
                 >
                   {toElement(
@@ -1278,7 +1313,7 @@ function SearchIndex() {
                     <TouchableOpacity
                       key={operator.operator}
                       onPress={() => handleOperatorPress(operator.insert)}
-                      className="rounded-full bg-muted px-3 py-1.5"
+                      style={[searchTouchables.chip, { backgroundColor: colors.muted }]}
                       accessibilityRole="button"
                       accessibilityLabel={t(
                         `search.operator.${operator.labelKey}`,
@@ -1325,7 +1360,7 @@ function SearchIndex() {
                     <TouchableOpacity
                       key={value}
                       onPress={() => handleOperatorValuePress(item.token, value)}
-                      className="rounded-full bg-muted px-3 py-1.5"
+                      style={[searchTouchables.chip, { backgroundColor: colors.muted }]}
                       accessibilityRole="button"
                     >
                       {toElement(
@@ -1352,7 +1387,7 @@ function SearchIndex() {
         case 'goToProfile':
           return (
             <TouchableOpacity
-              className="w-full flex-row items-center gap-3 px-3 py-3 border-b border-border"
+              style={[searchTouchables.profileRow, { borderColor: colors.border }]}
               onPress={() => handleGoToProfile(item.handle)}
               accessibilityRole="button"
             >
@@ -1474,7 +1509,7 @@ function SearchIndex() {
         case 'hashtag':
           return (
             <TouchableOpacity
-              className="w-full flex-row items-center justify-between px-3 py-3 border-b border-border"
+              style={[searchTouchables.row, { borderColor: colors.border }]}
               onPress={() => handleOpenHashtag(item.hashtag.tag)}
               accessibilityRole="button"
             >
@@ -1538,7 +1573,8 @@ function SearchIndex() {
       }
     },
     [
-      theme,
+      colors.border,
+      colors.muted,
       t,
       activeTab,
       handleRecentPress,
@@ -1588,7 +1624,9 @@ function SearchIndex() {
               .inPage(),
           )}
         >
-          <StickySection testID="search-sticky-tabs" className="border-b border-border">
+          {/* Its old `border-b border-border` classes never reached the section (Bloom's
+              StickySection drew no className): no border, as it always looked. */}
+          <StickySection testID="search-sticky-tabs">
             {toElement(
               VStack(
                 Embed(
@@ -1622,7 +1660,7 @@ function SearchIndex() {
                     It sits in the layout (a fixed-height track that is empty
                     when idle) rather than overlaying the list, so results
                     never shift by a pixel when it appears. */}
-            <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
+            <View style={searchTouchables.refreshTrack} accessibilityElementsHidden>
               {refreshing
                 ? toElement(
                     VStack()
