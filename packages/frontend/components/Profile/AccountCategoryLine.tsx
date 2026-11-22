@@ -43,12 +43,8 @@ export const AccountCategoryLine = memo(function AccountCategoryLine({
   const primary = primaryAccountCategoryId(accountCategories);
   if (primary === null) return null;
 
+  const line = RawText(categoryLabel(primary)).foreground('muted').font('sm').lines(1);
   return toElement(
-    RawText(categoryLabel(primary))
-      .foreground('muted')
-      .font('sm')
-      .when(align === 'center', (v) => v.textAlign('center').margin('top', 'xs'))
-      .when(!(align === 'center'), (v) => v.margin('bottom', 'md'))
-      .lines(1),
+    align === 'center' ? line.textAlign('center').margin('top', 'xs') : line.margin('bottom', 'md'),
   );
 });

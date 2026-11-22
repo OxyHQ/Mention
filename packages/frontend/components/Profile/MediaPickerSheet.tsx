@@ -1,7 +1,14 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  TextInput,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
@@ -9,7 +16,6 @@ import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import {
@@ -22,7 +28,17 @@ import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCata
 import { createLogger } from '@oxy.so/core/logger';
 import { formatDuration } from '@/utils/formatDuration';
 import { SongPreviewButton } from './SongPreviewButton';
-import { Embed, HStack, Icon, RawText, Row, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  type IconComponent,
+  RawText,
+  Row,
+  SpinnerIcon,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('MediaPickerSheet');
 
@@ -32,6 +48,41 @@ const PREVIEW_WINDOW_SEC = 30;
 const START_STEP_SEC = 5;
 
 type MediaTab = 'song' | 'podcast';
+
+/** Rounded only on the web: the app's `rounded-md` reads `--radius`, which native never had. */
+function artworkPlaceholder(icon: IconComponent, fill: 'mutedFill' | 'background') {
+  return VStack(Icon(icon).size('md').foreground('muted'))
+    .frame({ width: '4xl', height: '4xl' })
+    .background(fill)
+    .when('web', (v) => v.corner('14'))
+    .align('center')
+    .justify('center');
+}
+
+/**
+ * The start offset, 15pt semibold. Its digits are of one width on the web only: NativeWind wrote
+ * `tabular-nums` as a web style, and a variant cannot change the digits, so the platform picks.
+ */
+function startOffsetLabel(time: string) {
+  const label = RawText(time).foreground('foreground').font('md').weight('semibold');
+  return Platform.OS === 'web' ? label.monospacedDigit() : label;
+}
+
+/** A start-offset step: its glyph on a 32pt disc, faded and inert at the window's edge. */
+function startStepButton(glyph: string, atEdge: boolean) {
+  return VStack(
+    RawText(glyph).foreground('foreground').font('18').leading('18px').weight('semibold'),
+  )
+    .frame({ width: '3xl', height: '3xl' })
+    .background('background')
+    .corner('infinite')
+    .opacity(atEdge ? '40' : 'opaque')
+    .align('center')
+    .justify('center')
+    .disabled(atEdge)
+    .role('button')
+    .hitSlop('md');
+}
 
 interface SongSearchResult {
   syraTrackId: string;
@@ -118,7 +169,6 @@ const SongResultRow = memo(function SongResultRow({
   onSelect: (result: SongSearchResult) => void;
 }) {
   const { t } = useTranslation();
-  const { colors } = useTheme();
   const preview = useProfileSongPreview(result.previewUrl);
 
   const handlePress = useCallback(() => {
@@ -132,23 +182,16 @@ const SongResultRow = memo(function SongResultRow({
       .onPress(handlePress)
       .subtitle(result.artist)
       .leadingView(
-        Embed(
-          result.artworkUrl ? (
-            <Image
-              source={{ uri: result.artworkUrl }}
-              style={{ width: 40, height: 40, borderRadius: 6 }}
-              contentFit="cover"
-              transition={120}
-            />
-          ) : (
-            <View
-              className="rounded-md bg-muted items-center justify-center"
-              style={{ width: 40, height: 40 }}
-            >
-              {toElement(Icon(RiMusic2Line).size('md').foreground('muted'))}
-            </View>
-          ),
-        ),
+        result.artworkUrl
+          ? Embed(
+              <Image
+                source={{ uri: result.artworkUrl }}
+                style={{ width: 40, height: 40, borderRadius: 6 }}
+                contentFit="cover"
+                transition={120}
+              />,
+            )
+          : artworkPlaceholder(RiMusic2Line, 'mutedFill'),
       )
       .trailing(
         Embed(
@@ -178,8 +221,6 @@ const PodcastResultRow = memo(function PodcastResultRow({
   isSelected: boolean;
   onSelect: (result: PodcastSearchResult) => void;
 }) {
-  const { colors } = useTheme();
-
   const handlePress = useCallback(() => {
     onSelect(result);
   }, [onSelect, result]);
@@ -190,23 +231,16 @@ const PodcastResultRow = memo(function PodcastResultRow({
       .onPress(handlePress)
       .subtitle(result.author)
       .leadingView(
-        Embed(
-          result.artworkUrl ? (
-            <Image
-              source={{ uri: result.artworkUrl }}
-              style={{ width: 40, height: 40, borderRadius: 6 }}
-              contentFit="cover"
-              transition={120}
-            />
-          ) : (
-            <View
-              className="rounded-md bg-muted items-center justify-center"
-              style={{ width: 40, height: 40 }}
-            >
-              {toElement(Icon(RiMic2Line).size('md').foreground('muted'))}
-            </View>
-          ),
-        ),
+        result.artworkUrl
+          ? Embed(
+              <Image
+                source={{ uri: result.artworkUrl }}
+                style={{ width: 40, height: 40, borderRadius: 6 }}
+                contentFit="cover"
+                transition={120}
+              />,
+            )
+          : artworkPlaceholder(RiMic2Line, 'mutedFill'),
       ),
   );
 });
@@ -365,40 +399,38 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
         .weight('bold')
         .margin('bottom', 'md'),
       /* SONG / PODCAST toggle */ HStack(
-        Embed(
+        Embed((render) => (
           <Pressable
             onPress={() => switchTab('song')}
             accessibilityRole="button"
             accessibilityState={{ selected: isSongTab }}
             accessibilityLabel={t('profile.media.tabSong')}
-            className="flex-1 py-2 rounded-full items-center justify-center"
-            style={{ backgroundColor: isSongTab ? colors.background : 'transparent' }}
+            style={[TAB_STYLE, { backgroundColor: isSongTab ? colors.background : 'transparent' }]}
           >
-            <Text
-              className="text-[14px] font-semibold"
-              style={{ color: isSongTab ? colors.text : colors.textSecondary }}
-            >
-              {t('profile.media.tabSong')}
-            </Text>
-          </Pressable>,
-        ),
-        Embed(
+            {render(
+              RawText(t('profile.media.tabSong'))
+                .font('14')
+                .weight('semibold')
+                .foreground(isSongTab ? 'foreground' : 'muted'),
+            )}
+          </Pressable>
+        )),
+        Embed((render) => (
           <Pressable
             onPress={() => switchTab('podcast')}
             accessibilityRole="button"
             accessibilityState={{ selected: !isSongTab }}
             accessibilityLabel={t('profile.media.tabPodcast')}
-            className="flex-1 py-2 rounded-full items-center justify-center"
-            style={{ backgroundColor: !isSongTab ? colors.background : 'transparent' }}
+            style={[TAB_STYLE, { backgroundColor: !isSongTab ? colors.background : 'transparent' }]}
           >
-            <Text
-              className="text-[14px] font-semibold"
-              style={{ color: !isSongTab ? colors.text : colors.textSecondary }}
-            >
-              {t('profile.media.tabPodcast')}
-            </Text>
-          </Pressable>,
-        ),
+            {render(
+              RawText(t('profile.media.tabPodcast'))
+                .font('14')
+                .weight('semibold')
+                .foreground(!isSongTab ? 'foreground' : 'muted'),
+            )}
+          </Pressable>
+        )),
       )
         .padding('all', 'xs')
         .background('mutedFill')
@@ -408,7 +440,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
         Icon(RiSearchLine).size('sm').foreground('muted'),
         Embed(
           <TextInput
-            className="flex-1 text-[15px] text-foreground"
+            style={[SEARCH_INPUT_STYLE, { color: colors.text }]}
             placeholder={
               isSongTab
                 ? t('profile.media.song.searchPlaceholder')
@@ -492,7 +524,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                     onSelect={handleSelectSong}
                   />
                 )}
-                className="max-h-[300px]"
+                style={RESULTS_STYLE}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 onEndReached={songSearch.loadMore}
@@ -522,7 +554,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                   onSelect={handleSelectPodcast}
                 />
               )}
-              className="max-h-[300px]"
+              style={RESULTS_STYLE}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               onEndReached={podcastSearch.loadMore}
@@ -540,23 +572,16 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           toElement(
             VStack(
               HStack(
-                Embed(
-                  selectedSong.artworkUrl ? (
-                    <Image
-                      source={{ uri: selectedSong.artworkUrl }}
-                      style={{ width: 40, height: 40, borderRadius: 6 }}
-                      contentFit="cover"
-                      transition={120}
-                    />
-                  ) : (
-                    <View
-                      className="rounded-md bg-background items-center justify-center"
-                      style={{ width: 40, height: 40 }}
-                    >
-                      {toElement(Icon(RiMusic2Line).size('md').foreground('muted'))}
-                    </View>
-                  ),
-                ),
+                selectedSong.artworkUrl
+                  ? Embed(
+                      <Image
+                        source={{ uri: selectedSong.artworkUrl }}
+                        style={{ width: 40, height: 40, borderRadius: 6 }}
+                        contentFit="cover"
+                        transition={120}
+                      />,
+                    )
+                  : artworkPlaceholder(RiMusic2Line, 'background'),
                 VStack(
                   RawText(selectedSong.title)
                     .foreground('foreground')
@@ -576,45 +601,13 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                       .foreground('muted')
                       .font('sm'),
                     HStack(
-                      Embed(
-                        <Pressable
-                          onPress={decrementStart}
-                          disabled={startSec <= 0}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('profile.media.song.startEarlier')}
-                          hitSlop={tokens.hitSlop.md}
-                          className="rounded-full bg-background items-center justify-center"
-                          style={{ width: 32, height: 32, opacity: startSec <= 0 ? 0.4 : 1 }}
-                        >
-                          <Text className="text-foreground text-lg font-semibold leading-none">
-                            {'−'}
-                          </Text>
-                        </Pressable>,
-                      ),
-                      RawText(formatDuration(startSec))
-                        .foreground('foreground')
-                        .font('md')
-                        .weight('semibold')
-                        .when('web', (v) => v.monospacedDigit()),
-                      Embed(
-                        <Pressable
-                          onPress={incrementStart}
-                          disabled={startSec >= maxStartSec}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('profile.media.song.startLater')}
-                          hitSlop={tokens.hitSlop.md}
-                          className="rounded-full bg-background items-center justify-center"
-                          style={{
-                            width: 32,
-                            height: 32,
-                            opacity: startSec >= maxStartSec ? 0.4 : 1,
-                          }}
-                        >
-                          <Text className="text-foreground text-lg font-semibold leading-none">
-                            +
-                          </Text>
-                        </Pressable>,
-                      ),
+                      startStepButton('−', startSec <= 0)
+                        .onPress(decrementStart)
+                        .label(t('profile.media.song.startEarlier')),
+                      startOffsetLabel(formatDuration(startSec)),
+                      startStepButton('+', startSec >= maxStartSec)
+                        .onPress(incrementStart)
+                        .label(t('profile.media.song.startLater')),
                     )
                       .align('center')
                       .spacing('md'),
@@ -623,27 +616,25 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                     .justify('between')
                     .margin('top', 'md')
                 : null,
-              Embed(
-                <Pressable
-                  onPress={handleSaveSong}
-                  disabled={saving}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('profile.media.save')}
-                  className="mt-3 rounded-full bg-primary py-2.5 items-center justify-center"
-                  style={{ opacity: saving ? 0.6 : 1 }}
-                >
-                  {saving ? (
-                    <SpinnerIcon size={20} color={colors.primaryForeground} />
-                  ) : (
-                    toElement(
-                      RawText(t('profile.media.save'))
-                        .font('md')
-                        .weight('semibold')
-                        .foreground('onPrimary'),
-                    )
-                  )}
-                </Pressable>,
-              ),
+              VStack(
+                saving
+                  ? SpinnerIcon().size('md').tint('onPrimary')
+                  : RawText(t('profile.media.save'))
+                      .font('md')
+                      .weight('semibold')
+                      .foreground('onPrimary'),
+              )
+                .padding('vertical', '10')
+                .background('primary')
+                .corner('infinite')
+                .opacity(saving ? '60' : 'opaque')
+                .align('center')
+                .justify('center')
+                .margin('top', 'md')
+                .onPress(handleSaveSong)
+                .disabled(saving)
+                .role('button')
+                .label(t('profile.media.save')),
             )
               .padding('all', 'md')
               .background('mutedFill')
@@ -657,23 +648,16 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           toElement(
             VStack(
               HStack(
-                Embed(
-                  selectedPodcast.artworkUrl ? (
-                    <Image
-                      source={{ uri: selectedPodcast.artworkUrl }}
-                      style={{ width: 40, height: 40, borderRadius: 6 }}
-                      contentFit="cover"
-                      transition={120}
-                    />
-                  ) : (
-                    <View
-                      className="rounded-md bg-background items-center justify-center"
-                      style={{ width: 40, height: 40 }}
-                    >
-                      {toElement(Icon(RiMic2Line).size('md').foreground('muted'))}
-                    </View>
-                  ),
-                ),
+                selectedPodcast.artworkUrl
+                  ? Embed(
+                      <Image
+                        source={{ uri: selectedPodcast.artworkUrl }}
+                        style={{ width: 40, height: 40, borderRadius: 6 }}
+                        contentFit="cover"
+                        transition={120}
+                      />,
+                    )
+                  : artworkPlaceholder(RiMic2Line, 'background'),
                 VStack(
                   RawText(selectedPodcast.title)
                     .foreground('foreground')
@@ -689,27 +673,25 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
               )
                 .align('center')
                 .spacing('md'),
-              Embed(
-                <Pressable
-                  onPress={handleSavePodcast}
-                  disabled={saving}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('profile.media.save')}
-                  className="mt-3 rounded-full bg-primary py-2.5 items-center justify-center"
-                  style={{ opacity: saving ? 0.6 : 1 }}
-                >
-                  {saving ? (
-                    <SpinnerIcon size={20} color={colors.primaryForeground} />
-                  ) : (
-                    toElement(
-                      RawText(t('profile.media.save'))
-                        .font('md')
-                        .weight('semibold')
-                        .foreground('onPrimary'),
-                    )
-                  )}
-                </Pressable>,
-              ),
+              VStack(
+                saving
+                  ? SpinnerIcon().size('md').tint('onPrimary')
+                  : RawText(t('profile.media.save'))
+                      .font('md')
+                      .weight('semibold')
+                      .foreground('onPrimary'),
+              )
+                .padding('vertical', '10')
+                .background('primary')
+                .corner('infinite')
+                .opacity(saving ? '60' : 'opaque')
+                .align('center')
+                .justify('center')
+                .margin('top', 'md')
+                .onPress(handleSavePodcast)
+                .disabled(saving)
+                .role('button')
+                .label(t('profile.media.save')),
             )
               .padding('all', 'md')
               .background('mutedFill')
@@ -742,3 +724,19 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
       .background('background'),
   );
 });
+
+/** Tailwind's `rounded-full` as NativeWind drew it: an infinite radius on the web, its largest number on native. */
+const ROUNDED_FULL = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+
+/** Plain objects, not a StyleSheet: what NativeWind's classes drew, inline as they were. */
+const TAB_STYLE: ViewStyle = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  paddingVertical: 8,
+  borderRadius: ROUNDED_FULL,
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+const SEARCH_INPUT_STYLE: TextStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%', fontSize: 15 };
+const RESULTS_STYLE: ViewStyle = { maxHeight: 300 };
