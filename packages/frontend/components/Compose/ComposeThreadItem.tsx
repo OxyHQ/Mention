@@ -21,7 +21,7 @@ import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { tokenAlpha, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 // Deep imports rather than this directory's own barrel: the barrel re-exports
 // eight sheets, so naming it from inside `components/Compose/` pulled all of them
@@ -203,6 +203,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     styles,
   }) => {
     const theme = useTheme();
+    const colorTokens = useColorTokens();
+    const connector = { backgroundColor: tokenAlpha(colorTokens.primary, 0.2) };
     const { t } = useTranslation();
     const threadId = item.id;
 
@@ -333,17 +335,17 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     );
 
     return (
-      <View className="border-border" style={containerStyle}>
+      <View style={[{ borderColor: colorTokens.border }, containerStyle]}>
         {showTimeline ? (
           <>
-            {/* The connector's colour is the className, never an interpolated
-              hex-alpha suffix on `theme.colors.primary` — that token resolves to
-              `rgb(0 98 157)`, so `${primary}30` yields a malformed string
-              react-native-web reads back as FULLY OPAQUE, painting a solid bar
-              instead of the faint line. Geometry (incl. `left`) lives in the
+            {/* The connector's colour is Bloom's `tokenAlpha`, never an
+              interpolated hex-alpha suffix on `theme.colors.primary` — that token
+              resolves to `rgb(0 98 157)`, so `${primary}30` yields a malformed
+              string react-native-web reads back as FULLY OPAQUE, painting a solid
+              bar instead of the faint line. Geometry (incl. `left`) lives in the
               composer's own sheet entries. */}
-            <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
-            <View className="bg-primary/20" style={styles.itemConnectorLine} />
+            <View style={[connector, styles.itemConnectorLineAbove]} />
+            <View style={[connector, styles.itemConnectorLine]} />
           </>
         ) : null}
         <View style={styles.threadItemWithTimeline}>
@@ -358,10 +360,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
           >
             <MentionTextInput
               ref={handleTextInputRef}
-              // Same rule as the main composer's input: the colour is the theme's,
-              // never a literal. A hardcoded `#111111` here is what made a thread
-              // reply's own text invisible against the dark background.
-              className="text-foreground"
+              // Same rule as the main composer's input: the colour is the theme's
+              // (MentionTextInput's own foreground), never a literal. A hardcoded
+              // `#111111` here is what made a thread reply's own text invisible
+              // against the dark background.
               style={styles.threadTextInput}
               placeholder={t('compose.thread.placeholder')}
               value={item.text}
@@ -421,8 +423,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                   return (
                     <View
                       key={mediaItem.id}
-                      className="border-border bg-muted"
-                      style={styles.mediaPreviewItem}
+                      style={[
+                        { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
+                        styles.mediaPreviewItem,
+                      ]}
                     >
                       <ComposeMediaPreview
                         type={mediaItem.type}
@@ -480,8 +484,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       ) : null}
                       <TouchableOpacity
                         onPress={() => onMediaRemove(threadId, mediaItem.id)}
-                        className="bg-card"
-                        style={styles.mediaRemoveButton}
+                        style={[{ backgroundColor: colorTokens.card }, styles.mediaRemoveButton]}
                         hitSlop={tokens.hitSlop.sm}
                       >
                         {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
@@ -493,8 +496,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 {itemHasArticle && item.article && (
                   <View style={styles.pollAttachmentWrapper}>
                     <TouchableOpacity
-                      className="border-border bg-muted"
                       style={[
+                        { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
                         styles.articleAttachmentWrapper,
                         {
                           borderColor: theme.colors.border,
@@ -513,8 +516,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleArticleRemove}
-                      className="bg-card"
-                      style={styles.pollAttachmentRemoveButton}
+                      style={[
+                        { backgroundColor: colorTokens.card },
+                        styles.pollAttachmentRemoveButton,
+                      ]}
                       hitSlop={tokens.hitSlop.sm}
                     >
                       {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
@@ -525,8 +530,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 {itemHasEvent && item.event && (
                   <View style={styles.pollAttachmentWrapper}>
                     <TouchableOpacity
-                      className="border-border bg-muted"
                       style={[
+                        { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
                         styles.articleAttachmentWrapper,
                         {
                           borderColor: theme.colors.border,
@@ -546,8 +551,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleEventRemove}
-                      className="bg-card"
-                      style={styles.pollAttachmentRemoveButton}
+                      style={[
+                        { backgroundColor: colorTokens.card },
+                        styles.pollAttachmentRemoveButton,
+                      ]}
                       hitSlop={tokens.hitSlop.sm}
                     >
                       {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
@@ -563,8 +570,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                         defaultValue: 'Remove commerce attachment',
                       })}
                       onPress={() => onCommerceRemove?.(threadId, commerceReferenceKey(ref))}
-                      className="bg-card"
-                      style={styles.pollAttachmentRemoveButton}
+                      style={[
+                        { backgroundColor: colorTokens.card },
+                        styles.pollAttachmentRemoveButton,
+                      ]}
                     >
                       {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
                     </TouchableOpacity>
@@ -573,7 +582,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 {/* Thread item podcast preview */}
                 {itemHasPodcast && item.podcast && (
                   <View style={styles.pollAttachmentWrapper}>
-                    <View className="border-border bg-card" style={styles.articleAttachmentWrapper}>
+                    <View
+                      style={[
+                        { borderColor: colorTokens.border, backgroundColor: colorTokens.card },
+                        styles.articleAttachmentWrapper,
+                      ]}
+                    >
                       <PostPodcastAttachment
                         podcast={item.podcast}
                         width={320}
@@ -584,8 +598,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                     </View>
                     <TouchableOpacity
                       onPress={handlePodcastRemove}
-                      className="bg-card"
-                      style={styles.pollAttachmentRemoveButton}
+                      style={[
+                        { backgroundColor: colorTokens.card },
+                        styles.pollAttachmentRemoveButton,
+                      ]}
                       hitSlop={tokens.hitSlop.sm}
                     >
                       {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
@@ -619,8 +635,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                     </View>
                     <TouchableOpacity
                       onPress={handleRoomRemove}
-                      className="bg-card"
-                      style={styles.pollAttachmentRemoveButton}
+                      style={[
+                        { backgroundColor: colorTokens.card },
+                        styles.pollAttachmentRemoveButton,
+                      ]}
                       hitSlop={tokens.hitSlop.sm}
                     >
                       {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
