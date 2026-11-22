@@ -2,6 +2,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ComposeMentionSummary from '../ComposeMentionSummary';
 import type { MentionData } from '@/utils/mentions';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * WHAT THE AUTHOR IS TOLD, BEFORE THEY SEND.
@@ -36,6 +37,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: {} }),
 }));
 
@@ -100,9 +102,11 @@ async function renderSummary(texts: string[], mentions: MentionData[] = []) {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   await act(async () => {
     tree = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <ComposeMentionSummary texts={texts} mentions={mentions} />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <ComposeMentionSummary texts={texts} mentions={mentions} />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
 
@@ -149,6 +153,13 @@ afterEach(() => {
  * suite would have passed on the rendered output alone, while tsc reported its
  * only errors in a different file entirely.
  */
+/** What the summary drew inside Bloom's theme: `null` while it draws nothing. */
+function drawn(tree: TestRenderer.ReactTestRenderer) {
+  const provider = tree.toJSON();
+  if (provider === null || Array.isArray(provider)) return provider;
+  return provider.children;
+}
+
 describe('the composer asks about the URLs the author actually typed', () => {
   it('sends the real URL, not a placeholder standing in for one', async () => {
     stubEndpoint({
@@ -319,7 +330,7 @@ describe('a link that stays a link is never announced', () => {
   it('renders nothing at all for a body with no mentions', async () => {
     const tree = await renderSummary(['just some words']);
 
-    expect(tree.toJSON()).toBeNull();
+    expect(drawn(tree)).toBeNull();
   });
 });
 
@@ -330,7 +341,7 @@ describe('the summary describes the body, and only the body', () => {
       [{ userId: 'user-bob', username: 'bob', displayName: 'Bob' }],
     );
 
-    expect(tree.toJSON()).toBeNull();
+    expect(drawn(tree)).toBeNull();
   });
 
   it('asserts nothing until the lookup has answered', async () => {
@@ -345,9 +356,11 @@ describe('the summary describes the body, and only the body', () => {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
       tree = TestRenderer.create(
-        <QueryClientProvider client={client}>
-          <ComposeMentionSummary texts={['https://mention.earth/@alice']} mentions={[]} />
-        </QueryClientProvider>,
+        <BloomThemeProvider fonts={false}>
+          <QueryClientProvider client={client}>
+            <ComposeMentionSummary texts={['https://mention.earth/@alice']} mentions={[]} />
+          </QueryClientProvider>
+        </BloomThemeProvider>,
       );
     });
     await act(async () => {
@@ -387,9 +400,11 @@ describe('the summary describes the body, and only the body', () => {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
       tree = TestRenderer.create(
-        <QueryClientProvider client={client}>
-          <ComposeMentionSummary texts={['https://mention.earth/@a']} mentions={[]} />
-        </QueryClientProvider>,
+        <BloomThemeProvider fonts={false}>
+          <QueryClientProvider client={client}>
+            <ComposeMentionSummary texts={['https://mention.earth/@a']} mentions={[]} />
+          </QueryClientProvider>
+        </BloomThemeProvider>,
       );
     });
 
@@ -400,9 +415,11 @@ describe('the summary describes the body, and only the body', () => {
     ]) {
       await act(async () => {
         (tree as TestRenderer.ReactTestRenderer).update(
-          <QueryClientProvider client={client}>
-            <ComposeMentionSummary texts={[text]} mentions={[]} />
-          </QueryClientProvider>,
+          <BloomThemeProvider fonts={false}>
+            <QueryClientProvider client={client}>
+              <ComposeMentionSummary texts={[text]} mentions={[]} />
+            </QueryClientProvider>
+          </BloomThemeProvider>,
         );
         await jest.advanceTimersByTimeAsync(50);
       });

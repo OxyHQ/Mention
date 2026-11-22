@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import ComposeScheduleIndicator from '@/components/Compose/ComposeScheduleIndicator';
 import PostHeader from '@/components/Post/PostHeader';
@@ -189,29 +189,26 @@ describe('ComposeScheduleIndicator', () => {
   });
 
   /**
-   * The slot must look like the label it stands in for, in BOTH states: same
-   * class list, and no inline colour at all. The inline-colour half is the old
-   * trap — accent roles resolve to `rgb(...)`, so `` `${primary}1A` `` yields a
+   * The slot must look like the label it stands in for, in BOTH states: the
+   * same type (`PostHeader`'s 15px muted time, at Bloom's `close` line height)
+   * and a colour painted from the theme's role. The colour half is the old
+   * trap: accent roles resolve to `rgb(...)`, so `` `${primary}1A` `` yields a
    * string react-native-web reads back as FULLY OPAQUE, which is how a control
    * ends up painting primary on primary and vanishing.
    */
   it('wears the same style as the word it replaces, scheduled or not', () => {
-    const expected = 'text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap';
-
-    for (const scheduledLabel of [SCHEDULED_LABEL, null]) {
+    const styles = [SCHEDULED_LABEL, null].map((scheduledLabel) => {
       const tree = render({ scheduledLabel });
-
-      const [label] = tree.root.findAllByType(Text);
-      expect(label.props.className).toBe(expected);
-
-      const everyStyle = tree.root
-        .findAllByType(Text)
-        .flatMap((node) => [node.props.style].flat())
-        .filter(Boolean);
-      expect(everyStyle.some((entry) => 'color' in (entry as object))).toBe(false);
-
+      // The label is a language text: React Native's host `Text`.
+      const label = tree.root.findAll((node) => (node.type as unknown) === 'Text')[0];
+      const style = StyleSheet.flatten(label?.props.style);
       act(() => tree.unmount());
-    }
+      return style;
+    });
+
+    expect(styles[0]).toEqual(styles[1]);
+    expect(styles[0]).toMatchObject({ fontSize: 15, lineHeight: 15 * 1.25 });
+    expect(String(styles[0]?.color)).not.toMatch(/\)[0-9a-f]{2}$/i);
   });
 
   it('dims rather than disappears while the post is going out', () => {
