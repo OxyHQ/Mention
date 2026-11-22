@@ -1,9 +1,9 @@
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import type React from 'react';
 import { useCallback } from 'react';
-import { View } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import type { NotificationListItem } from '@/utils/groupNotifications';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 export interface NotificationsListProps {
   /** Web layout identity; native keeps its existing list lifecycle. */
@@ -61,41 +61,43 @@ export function NotificationsList({
     }
   }, [hasMore, onEndReached]);
 
-  const listFooter = isFetchingMore ? (
-    <View style={{ paddingVertical: 16 }}>
-      <NotificationSkeleton count={2} />
-    </View>
-  ) : null;
+  const listFooter = isFetchingMore
+    ? toElement(VStack(Embed(<NotificationSkeleton count={2} />)).padding('vertical', 'lg'))
+    : null;
 
-  return (
-    <View style={{ flex: 1, minHeight: 0 }}>
-      <VirtualList
-        screen={{}}
-        data={items}
-        keyExtractor={getItemKey}
-        renderItem={renderItem}
-        getItemType={getItemType}
-        ListHeaderComponent={header}
-        ListEmptyComponent={emptyState}
-        ListFooterComponent={listFooter}
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        scrollbar="never"
-        // No fill of its own. The list used to paint `colors.background`,
-        // which is darker than the panel fill every other tab shows
-        // through (Bloom's `StackScene` / `useSurfaceFill`), so the Notifications
-        // body read as a different surface from its own header.
-        //
-        // Empty, the content grows to the viewport: the empty state is
-        // the whole page, and a pull that starts anywhere on it reaches
-        // the refresh control instead of landing below a short content box.
-        contentContainerStyle={items.length === 0 ? EMPTY_CONTENT : undefined}
-        style={LIST_STYLE}
-        drawDistance={400}
-        key={`notifications-${tabKey}`}
-      />
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        <VirtualList
+          screen={{}}
+          data={items}
+          keyExtractor={getItemKey}
+          renderItem={renderItem}
+          getItemType={getItemType}
+          ListHeaderComponent={header}
+          ListEmptyComponent={emptyState}
+          ListFooterComponent={listFooter}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          scrollbar="never"
+          // No fill of its own. The list used to paint `colors.background`,
+          // which is darker than the panel fill every other tab shows
+          // through (Bloom's `StackScene` / `useSurfaceFill`), so the Notifications
+          // body read as a different surface from its own header.
+          //
+          // Empty, the content grows to the viewport: the empty state is
+          // the whole page, and a pull that starts anywhere on it reaches
+          // the refresh control instead of landing below a short content box.
+          contentContainerStyle={items.length === 0 ? EMPTY_CONTENT : undefined}
+          style={LIST_STYLE}
+          drawDistance={400}
+          key={`notifications-${tabKey}`}
+        />,
+      ),
+    )
+      .frame({ minHeight: 'none' })
+      .grow(),
   );
 }

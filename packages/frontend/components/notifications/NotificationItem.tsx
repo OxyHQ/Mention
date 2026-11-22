@@ -47,6 +47,8 @@ import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
 import { useStorePost } from '@/hooks/useStorePost';
 
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
 const logger = createLogger('NotificationItem');
 
 type GroupedActor = GroupedNotification['actors'][number];
@@ -278,39 +280,53 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
 }) => {
   const shown = actors.slice(0, COLLAPSED_STRIP_LIMIT);
   const extra = totalActors - shown.length;
-  return (
-    <View className="flex-row items-center">
-      {shown.map((actor, index) => (
-        // `zIndex` is the only per-item dynamic value (stack order) — everything
-        // else is NativeWind. The -8px overlap for every avatar after the first
-        // is `-ml-2`.
-        <View
-          // Position, not identity: an actor with no id shares `undefined` with
-          // every other, and two such actors in one strip would collide on the
-          // key. The strip is a fixed slice of a stable array, so the index IS
-          // the stable identity here.
-          key={actor.id ?? `slot-${index}`}
-          className={cn(index > 0 && '-ml-2')}
-          style={{ zIndex: shown.length - index }}
-        >
-          <View className="border-2 border-background rounded-full">
-            <AccountAvatar
-              account={actor}
-              source={actor.avatar}
-              size={STACK_AVATAR_SIZE}
-              variant={MEDIA_VARIANT_AVATAR}
-            />
+  return toElement(
+    HStack(
+      Embed(
+        shown.map((actor, index) => (
+          // `zIndex` is the only per-item dynamic value (stack order) — everything
+          // else is NativeWind. The -8px overlap for every avatar after the first
+          // is `-ml-2`.
+          <View
+            // Position, not identity: an actor with no id shares `undefined` with
+            // every other, and two such actors in one strip would collide on the
+            // key. The strip is a fixed slice of a stable array, so the index IS
+            // the stable identity here.
+            key={actor.id ?? `slot-${index}`}
+            className={cn(index > 0 && '-ml-2')}
+            style={{ zIndex: shown.length - index }}
+          >
+            {toElement(
+              VStack(
+                Embed(
+                  <AccountAvatar
+                    account={actor}
+                    source={actor.avatar}
+                    size={STACK_AVATAR_SIZE}
+                    variant={MEDIA_VARIANT_AVATAR}
+                  />,
+                ),
+              )
+                .border('background', 'thick')
+                .corner('infinite'),
+            )}
           </View>
-        </View>
-      ))}
-      {extra > 0 ? (
-        <View className="-ml-2">
-          <View className="w-7 h-7 rounded-full border-2 bg-primary border-background items-center justify-center">
-            <Text className="text-primary-foreground text-[9px] font-bold">+{extra}</Text>
-          </View>
-        </View>
-      ) : null}
-    </View>
+        )),
+      ),
+      extra > 0
+        ? VStack(
+            VStack(
+              Embed(<Text className="text-primary-foreground text-[9px] font-bold">+{extra}</Text>),
+            )
+              .frame({ width: '28', height: '28' })
+              .background('primary')
+              .border('background', 'thick')
+              .corner('infinite')
+              .align('center')
+              .justify('center'),
+          ).margin('left', '-sm')
+        : null,
+    ).align('center'),
   );
 };
 
@@ -714,58 +730,73 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
       {showStrip ? <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} /> : null}
 
       {/* Byline: bold name + muted @handle + federated badge + "· time". */}
-      <View className="flex-row items-end gap-2">
-        {/* Same hover target as a post byline. Only for a SINGLE actor: a
-                  grouped byline reads "Alice, Bob and 3 more", so previewing one
-                  of them from the whole phrase would be arbitrary. */}
-        <ProfileHoverCard
-          username={isSingleActor ? resolvedPrimary.handle : undefined}
-          style={{ minWidth: 0 }}
-        >
-          <View className="flex-row items-end flex-shrink min-w-0">
-            <UserName
-              name={bylineName}
-              verified={isSingleActor && resolvedPrimary.verified}
-              style={{ container: { flexShrink: 0 } }}
-            />
-            {showHandleLine ? (
-              <Text
-                className="text-muted-foreground text-[15px] leading-5"
-                style={{ flexShrink: 10, minWidth: 0 }}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {` @${resolvedPrimary.handle}`}
-              </Text>
-            ) : null}
-            {isSingleActor ? (
-              <AccountBadge
-                isFederated={resolvedPrimary.isFederated}
-                kind={resolvedPrimary.kind}
-                size={13}
-                containerClassName="self-center ml-1"
-              />
-            ) : null}
-          </View>
-        </ProfileHoverCard>
-        {timeLabel ? (
-          <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
-            {'·'} {timeLabel}
-          </Text>
-        ) : null}
-      </View>
+      {toElement(
+        HStack(
+          /* Same hover target as a post byline. Only for a SINGLE actor: a
+                        grouped byline reads "Alice, Bob and 3 more", so previewing one
+                        of them from the whole phrase would be arbitrary. */ Embed(
+            <ProfileHoverCard
+              username={isSingleActor ? resolvedPrimary.handle : undefined}
+              style={{ minWidth: 0 }}
+            >
+              {toElement(
+                HStack(
+                  Embed(
+                    <UserName
+                      name={bylineName}
+                      verified={isSingleActor && resolvedPrimary.verified}
+                      style={{ container: { flexShrink: 0 } }}
+                    />,
+                  ),
+                  Embed(
+                    showHandleLine ? (
+                      <Text
+                        className="text-muted-foreground text-[15px] leading-5"
+                        style={{ flexShrink: 10, minWidth: 0 }}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {` @${resolvedPrimary.handle}`}
+                      </Text>
+                    ) : null,
+                  ),
+                  Embed(
+                    isSingleActor ? (
+                      <AccountBadge
+                        isFederated={resolvedPrimary.isFederated}
+                        kind={resolvedPrimary.kind}
+                        size={13}
+                        containerClassName="self-center ml-1"
+                      />
+                    ) : null,
+                  ),
+                )
+                  .frame({ minWidth: 'none' })
+                  .align('end')
+                  .shrink('normal'),
+              )}
+            </ProfileHoverCard>,
+          ),
+          timeLabel
+            ? RawText('·', ' ', timeLabel)
+                .foreground('muted')
+                .font('md')
+                .leading('20px')
+                .shrink('never')
+                .when('web', (v) => v.noWrap())
+            : null,
+        )
+          .align('end')
+          .spacing('sm'),
+      )}
 
-      {channelText ? (
-        <Text className="text-muted-foreground text-[13px] leading-4" numberOfLines={1}>
-          {channelText}
-        </Text>
-      ) : null}
+      {channelText
+        ? toElement(RawText(channelText).foreground('muted').font('sm').leading('16px').lines(1))
+        : null}
 
-      {actionText ? (
-        <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
-          {actionText}
-        </Text>
-      ) : null}
+      {actionText
+        ? toElement(RawText(actionText).foreground('muted').font('md').leading('20px').lines(2))
+        : null}
 
       {previewText ? <NotificationPreview text={previewText} /> : null}
     </>
@@ -825,7 +856,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               {avatarContent}
             </Pressable>
           ) : (
-            <View className="relative mr-3">{avatarContent}</View>
+            toElement(VStack(Embed(avatarContent)).margin('right', 'md'))
           )}
 
           {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
@@ -847,87 +878,124 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               mainContent
             )}
 
-            {isGroup && item.expandable ? (
-              <View className="mt-1 gap-2">
-                {expanded ? (
-                  <View className="gap-2">
-                    {resolvedActors.map((actor, index) => (
-                      <ProfileHoverCard key={actor.id ?? `slot-${index}`} username={actor.handle}>
-                        <Pressable
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            openActorProfile(actor);
-                          }}
-                          className="flex-row items-center gap-2"
-                          accessibilityRole="button"
-                        >
-                          <AccountAvatar
-                            account={actor}
-                            source={actor.avatar}
-                            size={STACK_AVATAR_SIZE}
-                            variant={MEDIA_VARIANT_AVATAR}
-                          />
-                          <UserName name={actorLabel(actor, someone)} variant="small" />
-                        </Pressable>
-                      </ProfileHoverCard>
-                    ))}
-                  </View>
-                ) : null}
-                <Pressable
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    toggleExpanded();
-                  }}
-                  hitSlop={tokens.hitSlop.md}
-                  accessibilityRole="button"
-                >
-                  <Text className="text-primary text-sm font-semibold">
-                    {expanded
-                      ? t('notification.group.showLess', { defaultValue: 'Show less' })
-                      : t('notification.group.showAll', { defaultValue: 'Show all' })}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
+            {isGroup && item.expandable
+              ? toElement(
+                  VStack(
+                    expanded
+                      ? VStack(
+                          Embed(
+                            resolvedActors.map((actor, index) => (
+                              <ProfileHoverCard
+                                key={actor.id ?? `slot-${index}`}
+                                username={actor.handle}
+                              >
+                                {toElement(
+                                  HStack(
+                                    Embed(
+                                      <AccountAvatar
+                                        account={actor}
+                                        source={actor.avatar}
+                                        size={STACK_AVATAR_SIZE}
+                                        variant={MEDIA_VARIANT_AVATAR}
+                                      />,
+                                    ),
+                                    Embed(
+                                      <UserName
+                                        name={actorLabel(actor, someone)}
+                                        variant="small"
+                                      />,
+                                    ),
+                                  )
+                                    .align('center')
+                                    .spacing('sm')
+                                    .onPress((event) => {
+                                      event.stopPropagation();
+                                      openActorProfile(actor);
+                                    })
+                                    .role('button'),
+                                )}
+                              </ProfileHoverCard>
+                            )),
+                          ),
+                        ).spacing('sm')
+                      : null,
+                    Embed(
+                      <Pressable
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          toggleExpanded();
+                        }}
+                        hitSlop={tokens.hitSlop.md}
+                        accessibilityRole="button"
+                      >
+                        {toElement(
+                          RawText(
+                            expanded
+                              ? t('notification.group.showLess', { defaultValue: 'Show less' })
+                              : t('notification.group.showAll', { defaultValue: 'Show all' }),
+                          )
+                            .foreground('primary')
+                            .font('14')
+                            .leading('20px')
+                            .weight('semibold'),
+                        )}
+                      </Pressable>,
+                    ),
+                  )
+                    .margin('top', 'xs')
+                    .spacing('sm'),
+                )
+              : null}
 
             {/* Accept/Decline are shown ONLY while the invite is genuinely pending.
                 Once the viewer has responded, the row shows a resolved label
                 instead — so a handled invite is never actionable again. */}
-            {isCollabInvite && collabInvitePending ? (
-              <View className="flex-row gap-2 mt-2">
-                <Button
-                  className="flex-1"
-                  onPress={openAcceptSheet}
-                  disabled={actionLoading}
-                  stopPropagation
-                >
-                  {t('collab.accept', { defaultValue: 'Accept' })}
-                </Button>
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  className="flex-1"
-                  stopPropagation
-                  onPress={() => {
-                    const intent = captureIntent();
-                    if (intent) void runDecline(intent);
-                  }}
-                  disabled={actionLoading}
-                >
-                  {t('collab.decline', { defaultValue: 'Decline' })}
-                </Button>
-              </View>
-            ) : null}
+            {isCollabInvite && collabInvitePending
+              ? toElement(
+                  HStack(
+                    Embed(
+                      <Button
+                        className="flex-1"
+                        onPress={openAcceptSheet}
+                        disabled={actionLoading}
+                        stopPropagation
+                      >
+                        {t('collab.accept', { defaultValue: 'Accept' })}
+                      </Button>,
+                    ),
+                    Embed(
+                      <Button
+                        appearance="subtle"
+                        tone="neutral"
+                        className="flex-1"
+                        stopPropagation
+                        onPress={() => {
+                          const intent = captureIntent();
+                          if (intent) void runDecline(intent);
+                        }}
+                        disabled={actionLoading}
+                      >
+                        {t('collab.decline', { defaultValue: 'Decline' })}
+                      </Button>,
+                    ),
+                  )
+                    .spacing('sm')
+                    .margin('top', 'sm'),
+                )
+              : null}
 
             {isCollabInvite && collabAccepted ? (
               <View
                 className="flex-row items-center gap-1.5 mt-1"
                 pointerEvents={separateGestures ? 'none' : undefined}
               >
-                <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
-                <Text className="text-muted-foreground text-[15px] leading-5">
-                  {t('collab.youAccepted', { defaultValue: 'You accepted' })}
-                </Text>
+                {toElement(Icon(RiCheckboxCircleFill).size('sm').foreground('success'))}
+                {toElement(
+                  RawText(t('collab.youAccepted', { defaultValue: 'You accepted' }))
+                    .foreground('muted')
+                    .font('md')
+                    .leading('20px'),
+                )}
               </View>
             ) : null}
 
@@ -936,10 +1004,13 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 className="flex-row items-center gap-1.5 mt-1"
                 pointerEvents={separateGestures ? 'none' : undefined}
               >
-                <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
-                <Text className="text-muted-foreground text-[15px] leading-5">
-                  {t('collab.youDeclined', { defaultValue: 'You declined' })}
-                </Text>
+                {toElement(Icon(RiCloseCircleLine).size('sm').foreground('muted'))}
+                {toElement(
+                  RawText(t('collab.youDeclined', { defaultValue: 'You declined' }))
+                    .foreground('muted')
+                    .font('md')
+                    .leading('20px'),
+                )}
               </View>
             ) : null}
           </View>

@@ -2,9 +2,9 @@ import { NotificationSkeleton } from '@/components/notifications/NotificationSke
 import { usePanelScrollContainer } from '@oxy.so/bloom/app-shell/hooks';
 import { VirtualList } from '@oxy.so/bloom/list';
 import type React from 'react';
-import { View } from 'react-native';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import type { NotificationListItem } from '@/utils/groupNotifications';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 export interface NotificationsListProps {
   /** Viewer and tab identity for web layout and scroll restoration. */
@@ -72,11 +72,13 @@ export function NotificationsList({
       ListHeaderComponent={header}
       ListEmptyComponent={emptyState}
       ListFooterComponent={
-        isFetchingMore ? (
-          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-            <NotificationSkeleton count={2} />
-          </View>
-        ) : null
+        isFetchingMore
+          ? toElement(
+              VStack(Embed(<NotificationSkeleton count={2} />))
+                .padding('vertical', 'lg')
+                .align('center'),
+            )
+          : null
       }
     />
   );

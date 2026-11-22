@@ -1,7 +1,7 @@
 import type React from 'react';
-import { View } from 'react-native';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { POST_ITEM_SPACING } from '@/styles/shared';
+import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
 
 // Mirrors the real NotificationItem anatomy (single source of truth:
 // POST_ITEM_SPACING). AVATAR_SIZE = 40, full-width `border-b border-border py-3`
@@ -13,19 +13,26 @@ const PLACEHOLDER_ROWS = 6;
 // One placeholder row: a 40px avatar circle + two stacked text lines (a wider
 // byline line, a shorter action line), matching the real row's byline/action
 // stack.
-const NotificationSkeletonRow: React.FC = () => (
-  <View className="w-full border-b border-border py-3">
-    <View className="px-3 flex-row items-start">
-      <View className="mr-3">
-        <Skeleton.Circle size={AVATAR_SIZE} />
-      </View>
-      <View className="flex-1 gap-2 pt-0.5">
-        <Skeleton.Text style={{ fontSize: 15, lineHeight: 20, width: '55%' }} />
-        <Skeleton.Text style={{ fontSize: 14, lineHeight: 20, width: '35%' }} />
-      </View>
-    </View>
-  </View>
-);
+const NotificationSkeletonRow: React.FC = () =>
+  toElement(
+    VStack(
+      HStack(
+        VStack(Embed(<Skeleton.Circle size={AVATAR_SIZE} />)).margin('right', 'md'),
+        VStack(
+          Embed(<Skeleton.Text style={{ fontSize: 15, lineHeight: 20, width: '55%' }} />),
+          Embed(<Skeleton.Text style={{ fontSize: 14, lineHeight: 20, width: '35%' }} />),
+        )
+          .padding('top', '2xs')
+          .flex('1')
+          .spacing('sm'),
+      )
+        .padding('horizontal', 'md')
+        .align('start'),
+    )
+      .padding('vertical', 'md')
+      .frame({ width: 'full' })
+      .border('border', 'thin', 'bottom'),
+  );
 
 /**
  * Skeleton placeholder for the initial notifications load. Renders a short list

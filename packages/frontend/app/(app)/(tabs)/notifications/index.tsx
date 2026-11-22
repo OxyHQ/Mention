@@ -57,6 +57,16 @@ import { prewarmUsersByIds } from '@/utils/userEnrichment';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import type { NotificationIntent } from '@/types/notificationIntent';
 
+import {
+  Embed as LEmbed,
+  Icon as LIcon,
+  Text as LText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
+
 const notificationLogger = createLogger('Notifications');
 
 /** Time buckets the list is sectioned into, newest first. */
@@ -605,12 +615,18 @@ const NotificationsScreen = screen(function NotificationsScreen() {
   const renderNotification = useCallback(
     (item: NotificationListItem) => {
       if (item.kind === 'header') {
-        return (
-          <View className="px-3 pb-1 pt-3">
-            <Text className="text-muted-foreground text-[13px] font-semibold uppercase leading-6">
-              {item.label}
-            </Text>
-          </View>
+        return toElement(
+          VStack(
+            LText(item.label)
+              .foreground('muted')
+              .font('sm')
+              .weight('semibold')
+              .textCase('uppercase')
+              .leading('24px'),
+          )
+            .padding('horizontal', 'md')
+            .padding('bottom', 'xs')
+            .padding('top', 'md'),
         );
       }
       return (
@@ -748,11 +764,7 @@ const NotificationsScreen = screen(function NotificationsScreen() {
     }
 
     if (isLoading && !refreshing) {
-      return (
-        <View className="flex-1">
-          <NotificationSkeleton />
-        </View>
-      );
+      return toElement(VStack(LEmbed(<NotificationSkeleton />)).flex('1'));
     }
 
     if (error && !notificationsData) {
@@ -784,22 +796,31 @@ const NotificationsScreen = screen(function NotificationsScreen() {
               justifyContent: 'center',
             }}
           >
-            <RiHand width={18} height={18} fill="#fff" />
+            {toElement(LIcon(RiHand).size('18').foreground(appColors.color.hexfff))}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text className="leading-6 text-foreground" style={{ fontSize: 15, fontWeight: '600' }}>
-              {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
-            </Text>
-            <Text
-              className="leading-6 text-muted-foreground"
-              style={{ fontSize: 13, marginTop: 1 }}
-            >
-              {t('pokes.seeAllPokesSubtitle', {
-                defaultValue: 'Suggested follows, poke history & more',
-              })}
-            </Text>
-          </View>
-          <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
+          {toElement(
+            VStack(
+              LEmbed(
+                <Text
+                  className="leading-6 text-foreground"
+                  style={{ fontSize: 15, fontWeight: '600' }}
+                >
+                  {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
+                </Text>,
+              ),
+              LEmbed(
+                <Text
+                  className="leading-6 text-muted-foreground"
+                  style={{ fontSize: 13, marginTop: 1 }}
+                >
+                  {t('pokes.seeAllPokesSubtitle', {
+                    defaultValue: 'Suggested follows, poke history & more',
+                  })}
+                </Text>,
+              ),
+            ).grow(),
+          )}
+          {toElement(LIcon(RiArrowRightSLine).size('md').foreground('muted'))}
         </TouchableOpacity>
       ) : null;
 

@@ -1,18 +1,17 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { View, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import { StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
-
 import { EmptyState } from '@/components/common/EmptyState';
+
 import { Error as ErrorComponent } from '@/components/Error';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import { SEO } from '@/components/SEO';
@@ -20,6 +19,7 @@ import { ProfileCard } from '@/components/ProfileCard';
 import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { Embed, HStack, Header, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
@@ -161,39 +161,55 @@ export default function PokesScreen() {
   );
 
   const renderSectionHeader = useCallback(
-    (title: string, count?: number, showAll?: boolean, onToggle?: () => void) => (
-      <View style={styles.sectionHeader}>
-        <Text className="text-foreground" style={styles.sectionTitle}>
-          {title}
-          {count != null && count > 0 ? (
-            <Text className="text-muted-foreground" style={styles.sectionCount}>
-              {' '}
-              ({count})
-            </Text>
-          ) : null}
-        </Text>
-        {onToggle && (
-          <TouchableOpacity onPress={onToggle} activeOpacity={0.7}>
-            <Text style={[styles.seeAll, { color: theme.colors.primary }]}>
-              {showAll
-                ? t('pokes.showLess', { defaultValue: 'Show less' })
-                : t('pokes.seeAll', { defaultValue: 'See all' })}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    ),
+    (title: string, count?: number, showAll?: boolean, onToggle?: () => void) =>
+      toElement(
+        HStack(
+          Embed(
+            <Text className="text-foreground" style={styles.sectionTitle}>
+              {title}
+              {count != null && count > 0 ? (
+                <Text className="text-muted-foreground" style={styles.sectionCount}>
+                  {' '}
+                  ({count})
+                </Text>
+              ) : null}
+            </Text>,
+          ),
+          Embed(
+            onToggle && (
+              <TouchableOpacity onPress={onToggle} activeOpacity={0.7}>
+                <Text style={[styles.seeAll, { color: theme.colors.primary }]}>
+                  {showAll
+                    ? t('pokes.showLess', { defaultValue: 'Show less' })
+                    : t('pokes.seeAll', { defaultValue: 'See all' })}
+                </Text>
+              </TouchableOpacity>
+            ),
+          ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('top', 'md')
+          .padding('bottom', 'xs')
+          .justify('between')
+          .align('center'),
+      ),
     [theme, t],
   );
 
   const renderContent = () => {
     if (!isAuthenticated) {
-      return (
-        <View className="flex-1 justify-center items-center px-5">
-          <Text className="text-base leading-6 text-center text-muted-foreground">
-            {t('state.no_session')}
-          </Text>
-        </View>
+      return toElement(
+        VStack(
+          LText(t('state.no_session'))
+            .font('16')
+            .leading('24px')
+            .textAlign('center')
+            .foreground('muted'),
+        )
+          .padding('horizontal', 'xl')
+          .flex('1')
+          .justify('center')
+          .align('center'),
       );
     }
 
@@ -240,60 +256,76 @@ export default function PokesScreen() {
 
     return (
       <>
-        {receivedPokes.length > 0 && (
-          <View>
-            {renderSectionHeader(
-              t('pokes.receivedTitle', { defaultValue: 'Followers who poked you' }),
-            )}
-            {receivedPokes.map((item) =>
-              renderUserRow(
-                item.id,
-                item.user,
-                <>
-                  {formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' })}
-                  {item.pokeCount > 1
-                    ? ` \u00B7 ${item.pokeCount} ${t('pokes.count', { defaultValue: 'pokes' })}`
-                    : ''}
-                </>,
-                item.pokedBack ? 'undo' : 'pokeBack',
+        {receivedPokes.length > 0 &&
+          toElement(
+            VStack(
+              Embed(
+                renderSectionHeader(
+                  t('pokes.receivedTitle', { defaultValue: 'Followers who poked you' }),
+                ),
               ),
-            )}
-          </View>
-        )}
-
-        {sentPokes.length > 0 && (
-          <View>
-            {renderSectionHeader(
-              t('pokes.sentTitle', { defaultValue: 'Followers you poked' }),
-              sentPokes.length,
-              showAllSent,
-              sentPokes.length > SENT_PREVIEW_COUNT ? () => setShowAllSent((v) => !v) : undefined,
-            )}
-            {visibleSent.map((item) =>
-              renderUserRow(
-                item.id,
-                item.user,
-                formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' }),
-                'undo',
+              Embed(
+                receivedPokes.map((item) =>
+                  renderUserRow(
+                    item.id,
+                    item.user,
+                    <>
+                      {formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' })}
+                      {item.pokeCount > 1
+                        ? ` \u00B7 ${item.pokeCount} ${t('pokes.count', { defaultValue: 'pokes' })}`
+                        : ''}
+                    </>,
+                    item.pokedBack ? 'undo' : 'pokeBack',
+                  ),
+                ),
               ),
-            )}
-          </View>
-        )}
-
-        {suggestions.length > 0 && (
-          <View>
-            {renderSectionHeader(
-              t('pokes.suggestedTitle', { defaultValue: 'Suggested' }),
-              undefined,
-              showAllSuggested,
-              suggestions.length > SUGGESTED_PREVIEW_COUNT
-                ? () => setShowAllSuggested((v) => !v)
-                : undefined,
-            )}
-            {/* No meta line: the row already shows the suggestion's @handle. */}
-            {visibleSuggested.map((item) => renderUserRow(item.user.id, item.user, null, 'poke'))}
-          </View>
-        )}
+            ),
+          )}
+        {sentPokes.length > 0 &&
+          toElement(
+            VStack(
+              Embed(
+                renderSectionHeader(
+                  t('pokes.sentTitle', { defaultValue: 'Followers you poked' }),
+                  sentPokes.length,
+                  showAllSent,
+                  sentPokes.length > SENT_PREVIEW_COUNT
+                    ? () => setShowAllSent((v) => !v)
+                    : undefined,
+                ),
+              ),
+              Embed(
+                visibleSent.map((item) =>
+                  renderUserRow(
+                    item.id,
+                    item.user,
+                    formatRelativeTime(new Date(item.createdAt), locale, { style: 'short' }),
+                    'undo',
+                  ),
+                ),
+              ),
+            ),
+          )}
+        {suggestions.length > 0 &&
+          toElement(
+            VStack(
+              Embed(
+                renderSectionHeader(
+                  t('pokes.suggestedTitle', { defaultValue: 'Suggested' }),
+                  undefined,
+                  showAllSuggested,
+                  suggestions.length > SUGGESTED_PREVIEW_COUNT
+                    ? () => setShowAllSuggested((v) => !v)
+                    : undefined,
+                ),
+              ),
+              /* No meta line: the row already shows the suggestion's @handle. */ Embed(
+                visibleSuggested.map((item) =>
+                  renderUserRow(item.user.id, item.user, null, 'poke'),
+                ),
+              ),
+            ),
+          )}
         <SuggestedUsers
           title={t('pokes.peopleToFollow', { defaultValue: 'People you may know' })}
           maxCards={10}
@@ -311,12 +343,11 @@ export default function PokesScreen() {
         })}
       />
       <Screen
-        header={
-          <PageHeader
-            title={t('pokes.title', { defaultValue: 'Pokes' })}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('pokes.title', { defaultValue: 'Pokes' }))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
         <ScreenScrollView
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}

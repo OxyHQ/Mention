@@ -1,16 +1,16 @@
 import { useCallback } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { List } from '@oxy.so/bloom/list';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 import { PrivateMentionRow } from '@/components/privateMentions/PrivateMentionRow';
 import { usePrivateMentionConversations } from '@/hooks/usePrivateMentionConversations';
+
+import { Embed, Header, VStack, toElement } from '@oxy.so/bloom-language';
 
 const ROW_HEIGHT = 72;
 
@@ -99,12 +99,11 @@ export default function PrivateMentionsScreen() {
         robots="noindex,nofollow"
       />
       <Screen
-        header={
-          <PageHeader
-            title={t('privateMentions.title', { defaultValue: 'Private mentions' })}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('privateMentions.title', { defaultValue: 'Private mentions' }))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
         <VirtualList
           screen={{}}
@@ -118,11 +117,7 @@ export default function PrivateMentionsScreen() {
           onRefresh={canUsePrivateApi ? handleRefresh : undefined}
           ListEmptyComponent={renderEmpty()}
           ListFooterComponent={
-            isFetchingNextPage ? (
-              <View>
-                <List loading loadingCount={2} />
-              </View>
-            ) : null
+            isFetchingNextPage ? toElement(VStack(Embed(<List loading loadingCount={2} />))) : null
           }
         />
       </Screen>
