@@ -1,4 +1,5 @@
 import type React from 'react';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import TestRenderer, {
   type ReactTestInstance,
   type ReactTestRenderer,
@@ -23,6 +24,7 @@ jest.mock('@oxy.so/bloom/icons', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/badge', () => ({
+  ...jest.requireActual('@oxy.so/bloom/badge'),
   Badge: ({ content }: { content: string }) => content,
 }));
 // Bloom's surface, rule and type ramp, as plain React Native: the Card keeps its
@@ -31,21 +33,29 @@ jest.mock('@oxy.so/bloom/card', () => {
   const { Pressable } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Card: (props: Record<string, unknown>) => <Pressable {...props} /> };
 });
-jest.mock('@oxy.so/bloom/divider', () => ({ Divider: () => null }));
+jest.mock('@oxy.so/bloom/divider', () => ({
+  ...jest.requireActual('@oxy.so/bloom/divider'),
+  Divider: () => null,
+}));
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text };
 });
 
 jest.mock('@oxy.so/bloom/item', () => ({
+  ...jest.requireActual('@oxy.so/bloom/item'),
   Item: ({ title }: { title: string }) => title,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { primary: '#000', textSecondary: '#666', textTertiary: '#999' } }),
 }));
 
 const mockToast = jest.fn();
-jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@oxy.so/bloom/toast', () => ({
+  ...jest.requireActual('@oxy.so/bloom/toast'),
+  toast: (...args: unknown[]) => mockToast(...args),
+}));
 
 jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
@@ -115,7 +125,10 @@ function result(overrides: Partial<JobSearchResult> = {}): JobSearchResult {
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(element);
+    // The language paints its text and glyphs from the theme, as the app's provider supplies it.
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }

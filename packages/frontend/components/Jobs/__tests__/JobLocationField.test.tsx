@@ -24,25 +24,32 @@ jest.mock('@/services/jobsService', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/dialog', () => ({
+  ...jest.requireActual('@oxy.so/bloom/dialog'),
   Dialog: ({ open, children }: Props) => (open ? children : null),
 }));
 jest.mock('@oxy.so/bloom/item', () => ({
+  ...jest.requireActual('@oxy.so/bloom/item'),
   Item: (props: Props) => {
     const { View } = jest.requireActual('react-native');
-    return <View testID="item" {...props} />;
+    return <View {...props} testID="item" />;
   },
 }));
-jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/loading', () => ({
+  ...jest.requireActual('@oxy.so/bloom/loading'),
+  Loading: () => null,
+}));
 jest.mock('@oxy.so/bloom/search', () => ({
+  ...jest.requireActual('@oxy.so/bloom/search'),
   Search: (props: Props) => {
     const { View } = jest.requireActual('react-native');
-    return <View testID="search" {...props} />;
+    return <View {...props} testID="search" />;
   },
 }));
 jest.mock('@oxy.so/bloom/segmented-control', () => ({
+  ...jest.requireActual('@oxy.so/bloom/segmented-control'),
   SegmentedControl: (props: Props) => {
     const { View } = jest.requireActual('react-native');
-    return <View testID="segmented" {...props} />;
+    return <View {...props} testID="segmented" />;
   },
   SegmentedControlItem: ({ children }: Props) => children,
   SegmentedControlItemText: ({ children }: Props) => children,
@@ -57,6 +64,12 @@ import {
   type JobLocationDraft,
 } from '../jobForm';
 import CodePickerDialog from '../CodePickerDialog';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const BARCELONA = {
   id: '3128760',
@@ -71,7 +84,7 @@ const mounted: ReactTestRenderer[] = [];
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(themed(element));
   });
   mounted.push(renderer);
   return renderer;
@@ -145,9 +158,9 @@ describe('JobLocationField', () => {
     const onChange = jest.fn();
     const renderer = render(<JobLocationField value={EMPTY_JOB_LOCATION} onChange={onChange} />);
     const segmented = renderer.root.find((node) => node.props.testID === 'segmented');
-    act(() => segmented.props.onChange('place'));
-    act(() => segmented.props.onChange('country'));
-    act(() => segmented.props.onChange('none'));
+    act(() => segmented.props.onValueChange('place'));
+    act(() => segmented.props.onValueChange('country'));
+    act(() => segmented.props.onValueChange('none'));
     expect(onChange.mock.calls.map(([draft]) => draft)).toEqual([
       { kind: 'place', place: null },
       { kind: 'country', countryCode: null },
@@ -169,7 +182,7 @@ describe('JobLocationField', () => {
     // Open the place dialog, then type enough to enable the search.
     act(() => items(renderer)[0].props.onPress());
     const search = renderer.root.find((node) => node.props.testID === 'search');
-    act(() => search.props.onChangeText('barc'));
+    act(() => search.props.onValueChange('barc'));
     act(() => {
       jest.advanceTimersByTime(400);
     });
@@ -215,16 +228,16 @@ describe('CodePickerDialog', () => {
     );
     const search = () => renderer.root.find((node) => node.props.testID === 'search');
 
-    act(() => search().props.onChangeText('islensk'));
+    act(() => search().props.onValueChange('islensk'));
     expect(items(renderer).map((node) => node.props.title)).toEqual(['Íslensk króna']);
 
-    act(() => search().props.onChangeText('xc'));
+    act(() => search().props.onValueChange('xc'));
     expect(items(renderer).map((node) => node.props.title)).toEqual(['XCG']);
 
-    act(() => search().props.onChangeText('zzz'));
+    act(() => search().props.onValueChange('zzz'));
     expect(items(renderer)).toHaveLength(0);
 
-    act(() => search().props.onChangeText(''));
+    act(() => search().props.onValueChange(''));
     act(() => items(renderer)[0].props.onPress());
     expect(onSelect).toHaveBeenCalledWith('EUR');
   });

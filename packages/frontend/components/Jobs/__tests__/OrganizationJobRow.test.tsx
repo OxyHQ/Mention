@@ -1,4 +1,5 @@
 import type React from 'react';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import TestRenderer, {
   type ReactTestInstance,
   type ReactTestRenderer,
@@ -13,6 +14,7 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/badge', () => ({
+  ...jest.requireActual('@oxy.so/bloom/badge'),
   Badge: ({ content }: { content: string }) => content,
 }));
 // Bloom's surface, rule and type ramp, as plain React Native: the Card keeps its
@@ -21,10 +23,13 @@ jest.mock('@oxy.so/bloom/card', () => {
   const { Pressable } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Card: (props: Record<string, unknown>) => <Pressable {...props} /> };
 });
-jest.mock('@oxy.so/bloom/divider', () => ({ Divider: () => null }));
+jest.mock('@oxy.so/bloom/divider', () => ({
+  ...jest.requireActual('@oxy.so/bloom/divider'),
+  Divider: () => null,
+}));
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text };
 });
 
 jest.mock('react-i18next', () => ({
@@ -60,7 +65,10 @@ function job(overrides: Partial<MentionJobPosting> = {}): MentionJobPosting {
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(element);
+    // The language paints its text and glyphs from the theme, as the app's provider supplies it.
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }
