@@ -1,6 +1,13 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileMedia } from '../ProfileMedia';
 import { PinnedMediaSection } from '../EditProfile/PinnedMediaSection';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import type React from 'react';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const mockOpen = jest.fn();
 let mockMedia: unknown = null;
@@ -12,7 +19,10 @@ jest.mock('@/stores/appearanceStore', () => ({
     select({ mySettings: { profileMedia: mockMedia } }),
 }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { primary: '#000' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ colors: { primary: '#000' } }),
+}));
 jest.mock('@oxy.so/bloom/icons/RiAddLine', () => ({ RiAddLine: () => null }));
 jest.mock('../ProfileSong', () => ({
   ProfileSong: ({ onEdit }: { onEdit: () => void }) => {
@@ -53,7 +63,7 @@ beforeEach(() => {
 it.each([song, podcast])('opens the existing $type from the profile', (media) => {
   const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
   act(() => {
-    rendered.current = TestRenderer.create(<ProfileMedia media={media} isOwnProfile />);
+    rendered.current = TestRenderer.create(themed(<ProfileMedia media={media} isOwnProfile />));
   });
   const renderer = rendered.current;
   if (!renderer) throw new Error('Profile media did not render');
@@ -65,7 +75,7 @@ it.each([song, podcast])('opens the existing $type from the profile', (media) =>
 it('opens an empty picker to add pinned media in profile settings', () => {
   const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
   act(() => {
-    rendered.current = TestRenderer.create(<PinnedMediaSection />);
+    rendered.current = TestRenderer.create(themed(<PinnedMediaSection />));
   });
   const renderer = rendered.current;
   if (!renderer) throw new Error('Pinned media section did not render');
@@ -78,7 +88,7 @@ it('opens the existing selection from profile settings', () => {
   mockMedia = podcast;
   const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
   act(() => {
-    rendered.current = TestRenderer.create(<PinnedMediaSection />);
+    rendered.current = TestRenderer.create(themed(<PinnedMediaSection />));
   });
   const renderer = rendered.current;
   if (!renderer) throw new Error('Pinned media section did not render');

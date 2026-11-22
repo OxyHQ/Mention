@@ -28,8 +28,12 @@ import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 're
 const mockShowChannelInfo = jest.fn();
 
 jest.mock('@oxy.so/bloom/styles', () => ({
+  ...jest.requireActual('@oxy.so/bloom/styles'),
   useSurfaceFill: () => 'rgb(20, 55, 84)',
-  tokens: { hitSlop: { sm: 6, md: 8, lg: 12 } },
+  tokens: {
+    ...jest.requireActual('@oxy.so/bloom/styles').tokens,
+    hitSlop: { sm: 6, md: 8, lg: 12 },
+  },
 }));
 jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
   showChannelInfo: () => mockShowChannelInfo(),
@@ -41,9 +45,13 @@ jest.mock('@/hooks/useAccountCategoryLabel', () => ({
   useAccountCategoryLabel: () => (id: string) => id,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { text: '#000000', primary: '#0000ff' } }),
 }));
-jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({
+  ...jest.requireActual('@oxy.so/bloom/toast'),
+  toast: jest.fn(),
+}));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 
 // Host-string stand-ins so "which marker" is read off the render rather than

@@ -8,7 +8,10 @@ const mockImageResolver = jest.fn((id: string, variant: string) =>
   id ? `https://photo.test/${id}/${variant}` : undefined,
 );
 const mockCapability = jest.fn(() => ({ sharedLiveRendering: true }));
-jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: (props: unknown) => mockAvatar(props) }));
+jest.mock('@oxy.so/bloom/avatar', () => ({
+  ...jest.requireActual('@oxy.so/bloom/avatar'),
+  Avatar: (props: unknown) => mockAvatar(props),
+}));
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   parseAvatarCharacter: jest.requireActual(
     require('node:path').join(
@@ -27,7 +30,10 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');
   const React = jest.requireActual('react');
-  const mock = Object.create(actual);
+  // React Native's own (lazy) exports as OWN properties: a namespace import
+  // (`import * as ReactNative`, as Bloom's agent avatar reads Platform) copies only
+  // own properties, so a prototype-chained mock would hand it no Platform.
+  const mock = Object.defineProperties({}, Object.getOwnPropertyDescriptors(actual));
   Object.defineProperty(mock, 'View', {
     value: React.forwardRef(function MockMeasuredView(props: unknown, ref: unknown) {
       React.useImperativeHandle(ref, () => ({
@@ -39,12 +45,19 @@ jest.mock('react-native', () => {
   return mock;
 });
 jest.mock('react-native-reanimated', () => ({
+  // Reanimated's real exports for what the Bloom language's motion layer reads at load
+  // (Easing and the rest); the component's own animation stays inert.
+  ...jest.requireActual('react-native-reanimated'),
   __esModule: true,
-  default: { View: jest.requireActual('react-native').View },
+  default: {
+    ...jest.requireActual('react-native-reanimated').default,
+    View: jest.requireActual('react-native').View,
+  },
   useAnimatedStyle: () => ({}),
   Extrapolation: { CLAMP: 'clamp' },
 }));
 jest.mock('@oxy.so/bloom/image-resolver', () => ({
+  ...jest.requireActual('@oxy.so/bloom/image-resolver'),
   useImageResolver: () => mockImageResolver,
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
@@ -123,9 +136,10 @@ it('shows the stored character without clipping or opening a photo, and tolerate
       />,
     );
   });
-  expect(tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled).toBe(
-    false,
-  );
+  // Enabled: the language's press host carries `disabled` only while it is disabled.
+  expect(
+    tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled,
+  ).toBeFalsy();
   act(() => tree.unmount());
 });
 
@@ -148,13 +162,15 @@ it('a failed photo disables zoom, while replacement and late old errors keep the
     true,
   );
   act(() => tree.update(<ZoomableAvatar source="https://photo.test/second.jpg" />));
-  expect(tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled).toBe(
-    false,
-  );
+  // Enabled: the language's press host carries `disabled` only while it is disabled.
+  expect(
+    tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled,
+  ).toBeFalsy();
   act(() => oldError());
-  expect(tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled).toBe(
-    false,
-  );
+  // Enabled: the language's press host carries `disabled` only while it is disabled.
+  expect(
+    tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled,
+  ).toBeFalsy();
   const replacement = mockAvatar.mock.lastCall?.[0] as typeof props;
   if (!replacement) throw new Error('Replacement avatar did not render');
   act(() => replacement.onImageError());

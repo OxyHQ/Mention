@@ -28,16 +28,21 @@ jest.mock('@oxy.so/bloom/chip', () => {
     </Pressable>
   );
   return {
+    ...jest.requireActual('@oxy.so/bloom/chip'),
     CappedChipRow: ({ children }: { children: unknown }) => <View>{children}</View>,
     Chip: MockChipComponent,
   };
 });
 // The mocked Chip, as the rendered tree names it.
 import { Chip as MockChip } from '@oxy.so/bloom/chip';
-jest.mock('@oxy.so/bloom/item', () => ({ Item: () => null }));
+jest.mock('@oxy.so/bloom/item', () => ({
+  ...jest.requireActual('@oxy.so/bloom/item'),
+  Item: () => null,
+}));
 jest.mock('@oxy.so/bloom/icons/RiExternalLinkLine', () => ({ RiExternalLinkLine: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiLink', () => ({ RiLink: () => null }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#000' } }),
 }));
 

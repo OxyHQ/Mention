@@ -29,10 +29,19 @@ jest.mock('@oxy.so/bloom/zoomable-media-gallery', () => {
     }),
   };
 });
-jest.mock('@oxy.so/bloom/image-resolver', () => ({ useImageResolver: () => undefined }));
+jest.mock('@oxy.so/bloom/image-resolver', () => ({
+  ...jest.requireActual('@oxy.so/bloom/image-resolver'),
+  useImageResolver: () => undefined,
+}));
 jest.mock('react-native-reanimated', () => ({
+  // Reanimated's real exports for what the Bloom language's motion layer reads at load
+  // (Easing and the rest); the component's own animation stays inert.
+  ...jest.requireActual('react-native-reanimated'),
   __esModule: true,
-  default: { View: require('react-native').View },
+  default: {
+    ...jest.requireActual('react-native-reanimated').default,
+    View: require('react-native').View,
+  },
   Extrapolation: { CLAMP: 'clamp' },
   interpolate: (value: number) => value,
   useAnimatedStyle: (callback: () => object) => callback(),
