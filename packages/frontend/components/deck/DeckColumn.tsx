@@ -11,7 +11,6 @@ import { deckRoutes, retryFailedDeckRoutes } from './deckRoutes';
 import { PanelErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { useTranslation } from 'react-i18next';
 import { usePanelNavigation } from '@oxy.so/bloom/app-shell/hooks';
-import { Button } from '@oxy.so/bloom/button';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
 import {
@@ -30,6 +29,7 @@ import {
   HStack,
   Icon,
   SettingsSelect as LSettingsSelect,
+  Text,
   Toggle,
   VStack,
   toElement,
@@ -56,6 +56,11 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
       navigation.push(deckRouteForSource(name));
     }
   };
+  const liveUpdatesRow = LGroupedSectionItem(t('deck.liveUpdates', 'Update in real time')).trailing(
+    Toggle([settings.liveUpdates ?? false, (liveUpdates) => updatePanel(panelId, { liveUpdates })])
+      .disabled(!canUsePrivateApi)
+      .label(t('deck.liveUpdates', 'Update in real time')),
+  );
   return (
     <>
       {toElement(
@@ -122,20 +127,12 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
             ),
             source !== 'saved'
               ? LGroupedSection(
-                  LGroupedSectionItem(t('deck.liveUpdates', 'Update in real time'))
-                    .description(
-                      !canUsePrivateApi
-                        ? t('deck.liveRequiresSignIn', 'Sign in to receive live feed updates')
-                        : undefined,
-                    )
-                    .trailing(
-                      Toggle([
-                        settings.liveUpdates ?? false,
-                        (liveUpdates) => updatePanel(panelId, { liveUpdates }),
-                      ])
-                        .disabled(!canUsePrivateApi)
-                        .label(t('deck.liveUpdates', 'Update in real time')),
-                    ),
+                  // Signed out, the row says why live updates are off.
+                  canUsePrivateApi
+                    ? liveUpdatesRow
+                    : liveUpdatesRow.description(
+                        t('deck.liveRequiresSignIn', 'Sign in to receive live feed updates'),
+                      ),
                   LGroupedSectionItem(
                     t('deck.pauseWhileReading', 'Pause updates while reading'),
                   ).trailing(
@@ -147,34 +144,23 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
                 )
               : null,
             HStack(
-              Embed(
-                <Button
-                  className="flex-1"
-                  appearance="outline"
-                  onPress={() => {
-                    resetPanel(panelId);
-                    const source = (
-                      DEFAULT_DECK_SETTINGS[panelId] ?? DEFAULT_DECK_SETTINGS['deck-0']
-                    ).source;
-                    navigation.push(deckRouteForSource(source));
-                  }}
-                >
-                  {t('deck.reset')}
-                </Button>,
-              ),
-              Embed(
-                <Button
-                  className="flex-1"
-                  disabled={!canRemove}
-                  appearance="subtle"
-                  onPress={() => {
-                    setOpen(false);
-                    removePanel(panelId);
-                  }}
-                >
-                  {t('deck.removePanel', 'Remove panel')}
-                </Button>,
-              ),
+              LButton(Text(t('deck.reset')))
+                .style('outline')
+                .flex('1')
+                .onPress(() => {
+                  resetPanel(panelId);
+                  const source = (DEFAULT_DECK_SETTINGS[panelId] ?? DEFAULT_DECK_SETTINGS['deck-0'])
+                    .source;
+                  navigation.push(deckRouteForSource(source));
+                }),
+              LButton(Text(t('deck.removePanel', 'Remove panel')))
+                .style('subtle')
+                .flex('1')
+                .disabled(!canRemove)
+                .onPress(() => {
+                  setOpen(false);
+                  removePanel(panelId);
+                }),
             ).spacing('md'),
           )
             .padding('horizontal', 'xl')

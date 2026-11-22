@@ -1,6 +1,7 @@
 import React, { Activity, useMemo } from 'react';
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
 import { Platform, Text } from 'react-native';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
@@ -14,6 +15,14 @@ import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
 // through the shared extended TextStyle and bridge at the consumption point
 // rather than using an `as any` cast (same pattern as SideBar/SearchBar).
 const LINK_STYLE = Platform.OS === 'web' ? asTextStyle({ cursor: 'pointer' }) : undefined;
+
+// The footer's small print, at 12.5px (no type step or font token has it), so
+// it keeps React Native's Text over the theme's muted ink.
+const useFooterStyles = createTokenStyles((t) => ({
+  note: { color: t.mutedForeground, fontSize: 12.5 },
+  noteInset: { paddingTop: 2 },
+  linkInset: { paddingRight: 12, paddingBottom: 4 },
+}));
 
 // Static footer links that don't depend on translations — URLs never change
 const STATIC_FOOTER_URLS = [
@@ -52,6 +61,7 @@ function RightBarContent() {
 }
 
 function RightBarFooter() {
+  const footerStyles = useFooterStyles();
   const { t } = useTranslation();
 
   const footerLinks = useMemo(
@@ -73,7 +83,7 @@ function RightBarFooter() {
         ),
       ).wrap(),
       Embed(
-        <Text className="text-muted-foreground text-[12.5px] pt-0.5">
+        <Text style={[footerStyles.note, footerStyles.noteInset]}>
           Made with ❤️ in the 🌎 by Oxy&trade;.
         </Text>,
       ) /* No legal notice under the links on purpose: "Mention" carries no
@@ -86,10 +96,10 @@ function RightBarFooter() {
 // Extracted to its own component so that each link's onPress is stable via the
 // component identity rather than a new arrow function created in the parent's map.
 const FooterLink = React.memo(function FooterLink({ label, url }: { label: string; url: string }) {
+  const footerStyles = useFooterStyles();
   return (
     <Text
-      className="text-muted-foreground text-[12.5px] pr-3 pb-1"
-      style={LINK_STYLE}
+      style={[footerStyles.note, footerStyles.linkInset, LINK_STYLE]}
       onPress={() => openExternalLink(url)}
     >
       {label}

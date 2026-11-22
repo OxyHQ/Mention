@@ -1,4 +1,4 @@
-import { View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
@@ -42,8 +42,11 @@ export function Error({
 
   return (
     <View
-      className="flex-1 justify-center items-center py-8 px-6"
-      style={[{ paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }, style]}
+      style={[
+        styles.screen,
+        { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
+        style,
+      ]}
     >
       <EmptyState
         error={{
@@ -69,3 +72,17 @@ export function Error({
     </View>
   );
 }
+
+// The screen's frame keeps React Native's view: its vertical padding adds the
+// safe area's insets, a runtime value no space token holds.
+const styles = StyleSheet.create({
+  screen: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+});

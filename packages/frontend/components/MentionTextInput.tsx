@@ -21,7 +21,7 @@ import {
   type StyleProp,
   type TextStyle,
 } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import MentionPicker, { type MentionUser } from './MentionPicker';
 import { asTextStyle } from '@/types/webStyles';
 import {
@@ -75,6 +75,7 @@ const MentionTextInput = memo(
       ref,
     ) => {
       const theme = useTheme();
+      const inkStyles = useInkStyles();
       const [showMentionPicker, setShowMentionPicker] = useState(false);
       const [mentionQuery, setMentionQuery] = useState('');
       const [cursorPosition, setCursorPosition] = useState(0);
@@ -355,13 +356,14 @@ const MentionTextInput = memo(
 
       const inputStyle = useMemo(
         () => [
+          inkStyles.input,
           styles.textInput,
           Platform.OS !== 'web' &&
             multiline &&
             contentHeight !== undefined && { height: contentHeight },
           style,
         ],
-        [multiline, contentHeight, style],
+        [inkStyles, multiline, contentHeight, style],
       );
 
       return toElement(
@@ -378,7 +380,6 @@ const MentionTextInput = memo(
               placeholderTextColor={theme.colors.textTertiary}
               maxLength={maxLength}
               multiline={multiline}
-              className="text-foreground"
               style={inputStyle}
               {...textInputProps}
             />,
@@ -403,6 +404,9 @@ const MentionTextInput = memo(
 );
 
 MentionTextInput.displayName = 'MentionTextInput';
+
+// The input's ink, before its own styles (a caller's colour still wins).
+const useInkStyles = createTokenStyles((t) => ({ input: { color: t.foreground } }));
 
 const styles = StyleSheet.create({
   container: {
