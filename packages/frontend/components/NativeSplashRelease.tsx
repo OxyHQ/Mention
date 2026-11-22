@@ -9,8 +9,12 @@ import { hideNativeSplash } from '@oxy.so/expo-splash';
  * (Bloom's font gate, the app providers, the account boundary), so it mounts in
  * the same commit as the first real screen — or as the visible boot fallback
  * `AuthRouter` draws while the session resolves. Its first layout is the signal:
- * the splash is hidden on the following frame, Expo's documented handoff
- * (`hideAsync` from the root view's `onLayout`).
+ * the splash is hidden from that `onLayout`, Expo's documented handoff
+ * (`hideAsync` from the root view's `onLayout`). The layout has already happened
+ * natively, so the screen is there to uncover. Waiting for a JS frame first
+ * cost about 1 s of cold start (Pixel 8a, release): the frame callback queued
+ * behind the startup renders still running on the JS thread, while the screen
+ * with the first posts from disk was already mounted under the splash.
  *
  * Nothing else hides the splash. It used to be hidden as soon as the startup
  * tasks settled — by `AppInitializer` and again by the root layout's
@@ -27,7 +31,7 @@ export function NativeSplashRelease() {
   const onLayout = useCallback(() => {
     if (released.current) return;
     released.current = true;
-    requestAnimationFrame(() => hideNativeSplash());
+    hideNativeSplash();
   }, []);
   return <View pointerEvents="none" style={styles.marker} onLayout={onLayout} />;
 }
