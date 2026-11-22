@@ -776,7 +776,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                         isFederated={resolvedPrimary.isFederated}
                         kind={resolvedPrimary.kind}
                         size={13}
-                        containerClassName="self-center ml-1"
+                        style={BADGE_PLACEMENT}
                       />
                     ) : null,
                   ),
@@ -1114,3 +1114,6 @@ const rowStyles = StyleSheet.create({
 // re-render every row — the parent passes a stable `item` and a memoized
 // `onMarkAsRead`.
 export const NotificationItem = React.memo(NotificationItemComponent);
+
+/** The identity marker sits centred on the name line, 4pt after the name. */
+const BADGE_PLACEMENT = { alignSelf: 'center', marginLeft: 4 } as const;

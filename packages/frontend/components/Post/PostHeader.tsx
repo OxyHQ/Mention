@@ -478,7 +478,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       isFederated={user.isFederated}
       kind={user.kind}
       size={13}
-      containerClassName="self-center ml-1"
+      style={BADGE_PLACEMENT}
     />
   );
 
@@ -682,3 +682,6 @@ const styles = StyleSheet.create({
   menuButton: { paddingHorizontal: 8 },
   menuButtonCompact: { marginLeft: 'auto', flexShrink: 0, paddingHorizontal: 8 },
 });
+
+/** The identity marker sits centred on the name line, 4pt after the name. */
+const BADGE_PLACEMENT = { alignSelf: 'center', marginLeft: 4 } as const;
