@@ -30,18 +30,18 @@ export type BottomBarContent = 'tabs' | 'sign-in' | null;
  * whose session is about to restore.
  */
 export function bottomBarContent({
-  pathname,
+  route,
   isAuthenticated,
   isAuthResolved,
 }: {
-  pathname: string | null | undefined;
+  route: { fullScreen: boolean; videos: boolean };
   isAuthenticated: boolean;
   isAuthResolved: boolean;
 }): BottomBarContent {
-  if (hidesBottomBar(pathname)) return null;
+  if (route.fullScreen) return null;
   // Public immersive video keeps navigation available instead of covering the reel
   // with a large invitation. Account-only actions retain their existing auth gates.
-  if (pathname === '/videos') return 'tabs';
+  if (route.videos) return 'tabs';
   if (isAuthenticated) return 'tabs';
   return isAuthResolved ? 'sign-in' : null;
 }

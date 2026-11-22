@@ -6,7 +6,6 @@ import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSetti
 import { isDefaultLeadingDeckPanel } from '@/components/deck/deckEntry';
 import { useLayoutEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppLayout, layout, Sheet, Stack } from '@oxy.so/bloom-language/router';
 
@@ -18,6 +17,8 @@ import { DeckColumn, DeckColumnHeaderActions } from '@/components/deck/DeckColum
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
+import { RouteErrorBoundary } from '@/components/shell/RouteErrorBoundary';
+import { ShellRouteSync, useShellRoute } from '@/components/shell/shellRoute';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
 import RegisterPush from '@/components/RegisterPushToken';
 import { PushNotificationOpener } from '@/components/PushNotificationOpener';
@@ -145,21 +146,20 @@ const MentionShell = layout(function MentionShell() {
       videoRoute,
     );
   };
-  const pathname = usePathname();
-  const onVideosRoute = pathname === '/videos';
+  // The route's facts, not its path: the shell re-renders when one of them
+  // changes, not on every navigation (see `ShellRouteSync`).
+  const route = useShellRoute();
+  const onVideosRoute = route.videos;
   const deckAvailable = useDeckAvailable();
-  const deckOpen = (pathname === '/deck' || deckEnabled) && deckAvailable;
+  const deckOpen = (route.deck || deckEnabled) && deckAvailable;
   const firstDeckId = deckOrder[0];
-  const onInsightsRoute =
-    pathname === '/insights' ||
-    pathname === '/insights/weekly_recap' ||
-    /^\/c\/[^/]+\/insights$/.test(pathname);
+  const onInsightsRoute = route.insights;
 
   // The anonymous invitation belongs to the main panel's Bloom footer. Whether
   // it or the bar shows follows the route and the session; Bloom hides both
   // under the keyboard.
-  const bottomContent = bottomBarContent({ pathname, isAuthenticated, isAuthResolved });
-  const ownsMainReplyNavigation = isAuthenticated && !deckOpen && /^\/p\/[^/]+$/.test(pathname);
+  const bottomContent = bottomBarContent({ route, isAuthenticated, isAuthResolved });
+  const ownsMainReplyNavigation = isAuthenticated && !deckOpen && route.post;
 
   return AppLayout(Stack('(tabs)', Sheet('compose'), 'p/[id]/boost'))
     .primaryAction(RiQuillPenLine, t('sidebar.compose'), 'write')
@@ -176,7 +176,7 @@ const MentionShell = layout(function MentionShell() {
       // Native content scrolls under the floating bar (Bloom's scrollers pad
       // their end clear of it); the web document reserves it, except under
       // the full-bleed camera.
-      reserveBottomBarSpace: IS_WEB && pathname !== '/camera' && !ownsMainReplyNavigation,
+      reserveBottomBarSpace: IS_WEB && !route.camera && !ownsMainReplyNavigation,
       panelLayout: {
         onPanelOrderChange: deckOpen
           ? (order) => {
@@ -207,9 +207,6 @@ const MentionShell = layout(function MentionShell() {
               id: 'main',
               role: 'main',
               visible: true,
-              // A screen that throws fails inside its panel, never the whole app;
-              // navigating to another route recovers it.
-              errorBoundary: { resetKey: pathname, onError: reportBoundaryError },
               // The Expo child navigator keeps the same host across every layout mode,
               // including the Deck entry link that opens the home route.
               keepMounted: true,
@@ -219,7 +216,9 @@ const MentionShell = layout(function MentionShell() {
               maxWidth: deckOpen ? 390 : undefined,
               resizable: false,
               content: (
-                <>
+                // A screen that throws fails inside its panel, never the whole
+                // app; navigating to another route recovers it.
+                <RouteErrorBoundary onError={reportBoundaryError}>
                   <View
                     style={StyleSheet.absoluteFill}
                     pointerEvents="box-none"
@@ -228,7 +227,7 @@ const MentionShell = layout(function MentionShell() {
                   <PostReplyNavigationContext.Provider value={ownsMainReplyNavigation}>
                     <DeckHomeEntry>{navigator}</DeckHomeEntry>
                   </PostReplyNavigationContext.Provider>
-                </>
+                </RouteErrorBoundary>
               ),
             },
             IS_WEB && !deckOpen,
@@ -334,6 +333,7 @@ export default function AppRoute() {
       {/* Ungated on purpose: the public socket is what makes trending realtime
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
+      <ShellRouteSync />
       <MentionShell />
       <RegisterPush />
       <PushNotificationOpener />

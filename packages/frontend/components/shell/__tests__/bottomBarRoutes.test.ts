@@ -1,4 +1,5 @@
 import { bottomBarContent, hidesBottomBar } from '../bottomBarRoutes';
+import { shellRouteOf } from '../shellRoute';
 
 describe('hidesBottomBar', () => {
   // The pushed composer: the tab bar and the FAB sat on its footer (#1140).
@@ -11,10 +12,18 @@ describe('hidesBottomBar', () => {
   it('hides the bar over the first-run welcome flow', () => {
     expect(hidesBottomBar('/welcome')).toBe(true);
     expect(
-      bottomBarContent({ pathname: '/welcome', isAuthenticated: true, isAuthResolved: true }),
+      bottomBarContent({
+        route: shellRouteOf('/welcome'),
+        isAuthenticated: true,
+        isAuthResolved: true,
+      }),
     ).toBeNull();
     expect(
-      bottomBarContent({ pathname: '/welcome', isAuthenticated: false, isAuthResolved: true }),
+      bottomBarContent({
+        route: shellRouteOf('/welcome'),
+        isAuthenticated: false,
+        isAuthResolved: true,
+      }),
     ).toBeNull();
   });
 
@@ -41,7 +50,7 @@ describe('hidesBottomBar', () => {
  */
 describe('bottomBarContent', () => {
   const base = {
-    pathname: '/@nate',
+    route: shellRouteOf('/@nate'),
     isAuthenticated: false,
     isAuthResolved: true,
   };
@@ -59,16 +68,18 @@ describe('bottomBarContent', () => {
   });
 
   it('draws nothing on the full-screen composer, signed in or not', () => {
-    expect(bottomBarContent({ ...base, pathname: '/compose' })).toBeNull();
-    expect(bottomBarContent({ ...base, pathname: '/compose', isAuthenticated: true })).toBeNull();
+    expect(bottomBarContent({ ...base, route: shellRouteOf('/compose') })).toBeNull();
+    expect(
+      bottomBarContent({ ...base, route: shellRouteOf('/compose'), isAuthenticated: true }),
+    ).toBeNull();
   });
 });
 
 it.each([true, false])(
   'keeps immersive Videos navigation while anonymous auth is resolved=%s',
   (isAuthResolved) => {
-    expect(bottomBarContent({ pathname: '/videos', isAuthenticated: false, isAuthResolved })).toBe(
-      'tabs',
-    );
+    expect(
+      bottomBarContent({ route: shellRouteOf('/videos'), isAuthenticated: false, isAuthResolved }),
+    ).toBe('tabs');
   },
 );
