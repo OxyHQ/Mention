@@ -3,13 +3,13 @@ import { memo, useCallback } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
-import { Card } from '@oxy.so/bloom/card';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 import {
   Badge as LBadge,
+  Card as LCard,
   Embed,
   HStack,
   RawText,
@@ -105,54 +105,43 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
         time: formatTimeAgo(job.createdAt),
       });
 
-  return (
-    <Card
-      radius="radius-16"
-      onPress={open}
-      className="p-4"
-      accessibilityRole="button"
-      accessibilityLabel={job.title}
-      appearance="outline"
-    >
-      {toElement(
-        HStack(
-          LText(job.title).grow().font('headline').weight('bold').lines(2),
-          Embed(
-            !isPublished ? (
-              <Badge
-                content={job.status}
-                color={STATUS_TONE[job.status]}
-                variant="subtle"
-                size="sm"
-              />
-            ) : null,
-          ),
-        )
-          .align('start')
-          .justify('between')
-          .spacing('sm'),
-      )}
-      {badges.length > 0
-        ? toElement(
-            HStack(
-              Embed(
-                badges.map((label) =>
-                  toElement(LBadge(label).color('default').style('outlined').size('sm'), label),
-                ),
-              ),
-            )
-              .wrap()
-              .spacing('6')
-              .margin('top', 'sm'),
+  return toElement(
+    LCard(
+      HStack(
+        LText(job.title).grow().font('headline').weight('bold').lines(2),
+        Embed(
+          !isPublished ? (
+            <Badge
+              content={job.status}
+              color={STATUS_TONE[job.status]}
+              variant="subtle"
+              size="sm"
+            />
+          ) : null,
+        ),
+      )
+        .align('start')
+        .justify('between')
+        .spacing('sm'),
+      badges.length > 0
+        ? HStack(
+            badges.map((label) =>
+              LBadge(label).color('default').style('outlined').size('sm').id(label),
+            ),
           )
-        : null}
-      {salaryLabel
-        ? toElement(LText(salaryLabel).margin('top', 'sm').font('body').weight('semibold'))
-        : null}
-      {toElement(
-        RawText(dateLabel).foreground('muted').font('xs').leading('16px').margin('top', 'sm'),
-      )}
-    </Card>
+            .wrap()
+            .spacing('6')
+            .margin('top', 'sm')
+        : null,
+      salaryLabel ? LText(salaryLabel).margin('top', 'sm').font('body').weight('semibold') : null,
+      RawText(dateLabel).foreground('muted').font('xs').leading('16px').margin('top', 'sm'),
+    )
+      .style('outline')
+      .radius('lg')
+      .padding('lg')
+      .onPress(open)
+      .role('button')
+      .label(job.title),
   );
 });
 

@@ -1,11 +1,11 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
-import { ScrollView, Text } from 'react-native';
+import { ScrollView, type ViewStyle } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -20,11 +20,15 @@ import {
   Chip as LChip,
   Embed,
   HStack,
+  Loading as LLoading,
   RawText,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** The sheet's scroll: 16pt sides, 12pt top, at most 90% of the window. */
+const SHEET_SCROLL_STYLE: ViewStyle = { paddingHorizontal: 16, paddingTop: 12, maxHeight: '90%' };
 
 const STATUS_TONE: Record<
   MentionJobApplicationStatus,
@@ -57,6 +61,7 @@ const JobApplicationDetailSheet = ({
   onStatusChanged,
 }: JobApplicationDetailSheetProps) => {
   const { t } = useTranslation();
+  const colorTokens = useColorTokens();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const [noteDraft, setNoteDraft] = useState('');
@@ -129,8 +134,7 @@ const JobApplicationDetailSheet = ({
 
   return (
     <ScrollView
-      className="bg-background px-4 pt-3"
-      style={{ maxHeight: '90%' }}
+      style={[SHEET_SCROLL_STYLE, { backgroundColor: colorTokens.background }]}
       contentContainerStyle={{ paddingBottom: 24 }}
     >
       {toElement(
@@ -202,17 +206,13 @@ const JobApplicationDetailSheet = ({
                 .leading('20px')
                 .foreground('muted')
                 .margin('bottom', 'xs'),
-              Embed(
-                application.portfolioLinks.map((link) => (
-                  <Text
-                    key={link}
-                    className="text-primary text-[14px]"
-                    numberOfLines={1}
-                    onPress={() => void openExternalLink(link)}
-                  >
-                    {link}
-                  </Text>
-                )),
+              application.portfolioLinks.map((link) =>
+                RawText(link)
+                  .foreground('primary')
+                  .font('14')
+                  .lines(1)
+                  .onPress(() => void openExternalLink(link))
+                  .id(link),
               ),
             ).margin('bottom', 'md'),
           )
@@ -274,9 +274,7 @@ const JobApplicationDetailSheet = ({
           )
             .wrap()
             .spacing('sm'),
-          Embed(
-            statusMutation.isPending ? <Loading className="text-primary mt-2" size="sm" /> : null,
-          ),
+          statusMutation.isPending ? LLoading().size('sm').margin('top', 'sm') : null,
         )
           .margin('top', 'sm')
           .margin('bottom', 'lg'),
