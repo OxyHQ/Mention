@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { ProfileTabBarRow } from '../ProfileTabBarRow';
@@ -30,6 +30,7 @@ const PUBLISHED_FILL = '#0f1e2d';
 jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => '#0f1e2d' }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#666666' } }),
 }));
 
@@ -60,11 +61,15 @@ function renderRow() {
   return renderer;
 }
 
-/** The row itself — the outermost host view, the one carrying the fill. */
+/** The row itself — the outermost host view, the one carrying the fill (its style flattened). */
 function rowProps(renderer: TestRenderer.ReactTestRenderer) {
-  return renderer.root.findAllByType(View)[0].props as {
+  const props = renderer.root.findAllByType(View)[0].props as {
     className?: string;
-    style?: { backgroundColor?: string };
+    style?: Parameters<typeof StyleSheet.flatten>[0];
+  };
+  return {
+    className: props.className,
+    style: StyleSheet.flatten(props.style) as { backgroundColor?: string } | undefined,
   };
 }
 
