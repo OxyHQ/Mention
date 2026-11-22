@@ -5,7 +5,6 @@ import { useRouter } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import { Button, Embed, Icon, type IconComponent } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
-import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
@@ -800,24 +799,20 @@ const NotificationsScreen = screen(function NotificationsScreen() {
           </View>
           {toElement(
             VStack(
-              LEmbed(
-                <Text
-                  className="leading-6 text-foreground"
-                  style={{ fontSize: 15, fontWeight: '600' }}
-                >
-                  {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
-                </Text>,
-              ),
-              LEmbed(
-                <Text
-                  className="leading-6 text-muted-foreground"
-                  style={{ fontSize: 13, marginTop: 1 }}
-                >
-                  {t('pokes.seeAllPokesSubtitle', {
-                    defaultValue: 'Suggested follows, poke history & more',
-                  })}
-                </Text>,
-              ),
+              LText(t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' }))
+                .foreground('foreground')
+                .font('md')
+                .weight('semibold')
+                .leading('24px'),
+              LText(
+                t('pokes.seeAllPokesSubtitle', {
+                  defaultValue: 'Suggested follows, poke history & more',
+                }),
+              )
+                .foreground('muted')
+                .font('sm')
+                .leading('24px')
+                .margin('top', '1'),
             ).grow(),
           )}
           {toElement(LIcon(RiArrowRightSLine).size('md').foreground('muted'))}

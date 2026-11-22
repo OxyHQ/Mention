@@ -19,7 +19,14 @@ import { ProfileCard } from '@/components/ProfileCard';
 import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { Embed, HStack, Header, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Header,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
@@ -164,17 +171,15 @@ export default function PokesScreen() {
     (title: string, count?: number, showAll?: boolean, onToggle?: () => void) =>
       toElement(
         HStack(
-          Embed(
-            <Text className="text-foreground" style={styles.sectionTitle}>
-              {title}
-              {count != null && count > 0 ? (
-                <Text className="text-muted-foreground" style={styles.sectionCount}>
-                  {' '}
-                  ({count})
-                </Text>
-              ) : null}
-            </Text>,
-          ),
+          LText(
+            title,
+            count != null && count > 0
+              ? LText(' ', '(', count, ')').foreground('muted').font('md').weight('regular')
+              : null,
+          )
+            .foreground('foreground')
+            .font('md')
+            .weight('bold'),
           Embed(
             onToggle && (
               <TouchableOpacity onPress={onToggle} activeOpacity={0.7}>
@@ -385,14 +390,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  sectionCount: {
-    fontSize: 15,
-    fontWeight: '400',
   },
   seeAll: {
     fontSize: 13,
