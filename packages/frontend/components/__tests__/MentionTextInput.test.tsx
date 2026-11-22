@@ -12,6 +12,7 @@ import {
 } from '@/utils/mentionSearch';
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: { textTertiary: '#999' },
   }),
