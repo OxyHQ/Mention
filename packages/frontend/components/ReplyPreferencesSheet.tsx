@@ -1,4 +1,4 @@
-import { ScrollView } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
@@ -20,7 +20,7 @@ export default function ReplyPreferencesSheet() {
   const setTreeView = useThreadPreferencesStore((state) => state.setTreeView);
 
   return (
-    <ScrollView contentContainerClassName="px-4 pt-2 pb-8" showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {toElement(
         LGroupedSection(
           LGroupedSectionItem(t('replyPreferences.linear', { defaultValue: 'Linear' }))
@@ -41,3 +41,8 @@ export default function ReplyPreferencesSheet() {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  // Tailwind's `px-4` is the logical inline padding, as NativeWind wrote it.
+  content: { paddingInline: 16, paddingTop: 8, paddingBottom: 32 },
+});

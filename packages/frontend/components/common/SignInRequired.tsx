@@ -1,6 +1,5 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type { ReactNode } from 'react';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 import { Embed, ScrollView, toElement } from '@oxy.so/bloom-language';
@@ -49,10 +48,10 @@ export function SignInRequired({ label, description, children }: SignInRequiredP
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <ScreenScrollView contentContainerClassName="flex-grow">
-        <OxyAuthPrompt label={label} description={description} />
-      </ScreenScrollView>
+    return toElement(
+      ScrollView(Embed(<OxyAuthPrompt label={label} description={description} />)).contentView(
+        (v) => v.flex('grow'),
+      ),
     );
   }
 
