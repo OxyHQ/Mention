@@ -1,18 +1,21 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useMemo } from 'react';
-import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
-import { Switch } from '@oxy.so/bloom/switch';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { HStack, RawText, Toggle, VStack, toElement } from '@oxy.so/bloom-language';
+
+/** The row the post goes out as says so. */
+const currentMark = (text: string) =>
+  RawText(text).foreground('primary').font('sm').weight('semibold');
 
 const PICKER_AVATAR_SIZE = 36;
 
@@ -137,23 +140,29 @@ const PublishAsDialog = memo(function PublishAsDialog({
         })}
         selected={selectedOxyUserId === null}
         trailing={
-          selectedOxyUserId === null ? (
-            <Text className="text-primary text-[13px] font-semibold">
-              {t('compose.publishAs.current', { defaultValue: 'Current' })}
-            </Text>
-          ) : undefined
+          selectedOxyUserId === null
+            ? toElement(currentMark(t('compose.publishAs.current', { defaultValue: 'Current' })))
+            : undefined
         }
       />
 
       {isLoading ? (
         <ListSkeleton />
       ) : otherAccounts.length === 0 ? (
-        <Text className="text-center text-sm text-muted-foreground py-6 px-6">
-          {t('compose.publishAs.empty', {
-            defaultValue:
-              'You do not operate any other account yet. A channel is one people follow without following the people who write for it.',
-          })}
-        </Text>
+        toElement(
+          RawText(
+            t('compose.publishAs.empty', {
+              defaultValue:
+                'You do not operate any other account yet. A channel is one people follow without following the people who write for it.',
+            }),
+          )
+            .textAlign('center')
+            .font('14')
+            .leading('20px')
+            .foreground('muted')
+            .padding('vertical', '2xl')
+            .padding('horizontal', '2xl'),
+        )
       ) : (
         otherAccounts.map((account) => {
           const handle = getNormalizedUserHandle(account.account) ?? '';
@@ -177,11 +186,11 @@ const PublishAsDialog = memo(function PublishAsDialog({
               subtitle={handle ? `@${handle}` : undefined}
               selected={account.accountId === selectedOxyUserId}
               trailing={
-                account.accountId === selectedOxyUserId ? (
-                  <Text className="text-primary text-[13px] font-semibold">
-                    {t('compose.publishAs.current', { defaultValue: 'Current' })}
-                  </Text>
-                ) : undefined
+                account.accountId === selectedOxyUserId
+                  ? toElement(
+                      currentMark(t('compose.publishAs.current', { defaultValue: 'Current' })),
+                    )
+                  : undefined
               }
             />
           );
@@ -200,23 +209,37 @@ const PublishAsDialog = memo(function PublishAsDialog({
       {/* Only a post published as somebody else can also be somewhere else — an
           ordinary post is already on the author's profile, so the question has no
           meaning there. */}
-      {selectedOxyUserId && alsoPostToProfile !== undefined && onAlsoPostToProfileChange ? (
-        <View className="mt-2 flex-row items-center gap-3 rounded-2xl border border-border px-3 py-3">
-          <View className="flex-1">
-            <Text className="text-foreground text-[15px] font-semibold">
-              {t('compose.publishAs.alsoPostToProfile', {
-                defaultValue: 'Also post to my profile',
-              })}
-            </Text>
-            <Text className="text-muted-foreground text-[13px]">
-              {t('compose.publishAs.alsoPostToProfileHint', {
-                defaultValue: 'Reposts the post onto your own profile once it is published.',
-              })}
-            </Text>
-          </View>
-          <Switch checked={alsoPostToProfile} onCheckedChange={onAlsoPostToProfileChange} />
-        </View>
-      ) : null}
+      {selectedOxyUserId && alsoPostToProfile !== undefined && onAlsoPostToProfileChange
+        ? toElement(
+            HStack(
+              VStack(
+                RawText(
+                  t('compose.publishAs.alsoPostToProfile', {
+                    defaultValue: 'Also post to my profile',
+                  }),
+                )
+                  .foreground('foreground')
+                  .font('md')
+                  .weight('semibold'),
+                RawText(
+                  t('compose.publishAs.alsoPostToProfileHint', {
+                    defaultValue: 'Reposts the post onto your own profile once it is published.',
+                  }),
+                )
+                  .foreground('muted')
+                  .font('sm'),
+              ).flex('1'),
+              Toggle([alsoPostToProfile, onAlsoPostToProfileChange]),
+            )
+              .margin('top', 'sm')
+              .align('center')
+              .spacing('md')
+              .padding('horizontal', 'md')
+              .padding('vertical', 'md')
+              .border('border', 'thin')
+              .corner('lg'),
+          )
+        : null}
     </Dialog>
   );
 });

@@ -1,7 +1,8 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/lib/navigation/router';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity, type ViewStyle } from 'react-native';
+import { tokens } from '@oxy.so/bloom/styles';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
@@ -24,10 +25,34 @@ import {
   Header,
   Icon,
   RawText,
+  VStack,
+  defineTokens,
   toElement,
+  type Child,
 } from '@oxy.so/bloom-language';
 
 const logger = createLogger('UnpublishedSheet');
+
+/** The sheet stops growing at 600pt (`max-h-[600px]`). */
+const sheetTokens = defineTokens({ space: { maxHeight: 600 } });
+/** The sheet: its header, tabs and body, or a preview in their place. */
+const unpublishedSheet = (...children: Child[]) =>
+  VStack(...children)
+    .flex('1')
+    .frame({ maxHeight: sheetTokens.space.maxHeight })
+    .background('background');
+/** A tab: half the strip, its name and count over an underline (`flex-1 flex-row items-center justify-center gap-1.5 py-3 border-b-2`). */
+const TAB = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  paddingVertical: tokens.space.md,
+  borderBottomWidth: 2,
+} satisfies ViewStyle;
 
 type UnpublishedTab = 'drafts' | 'scheduled';
 
@@ -49,32 +74,34 @@ const TabButton: React.FC<TabButtonProps> = ({ label, count, isActive, onPress }
 
   return (
     <TouchableOpacity
-      className="flex-1 flex-row items-center justify-center gap-1.5 py-3 border-b-2"
-      style={{ borderBottomColor: isActive ? theme.colors.primary : 'transparent' }}
+      style={[TAB, { borderBottomColor: isActive ? theme.colors.primary : 'transparent' }]}
       onPress={onPress}
       activeOpacity={0.75}
       accessibilityRole="tab"
       accessibilityState={{ selected: isActive }}
     >
-      <Text
-        className="text-[15px] font-semibold"
-        style={{ color: isActive ? theme.colors.primary : theme.colors.textSecondary }}
-      >
-        {label}
-      </Text>
-      {count !== undefined && count > 0 && (
-        <View
-          className="min-w-5 px-1.5 py-0.5 rounded-full items-center"
-          style={{ backgroundColor: isActive ? theme.colors.primary : theme.colors.border }}
-        >
-          <Text
-            className="text-[11px] font-semibold"
-            style={{ color: isActive ? theme.colors.card : theme.colors.textSecondary }}
-          >
-            {count}
-          </Text>
-        </View>
+      {toElement(
+        RawText(label)
+          .font('md')
+          .weight('semibold')
+          .foreground(isActive ? 'primary' : 'muted'),
       )}
+      {count !== undefined && count > 0
+        ? toElement(
+            VStack(
+              RawText(count)
+                .font('11')
+                .weight('semibold')
+                .foreground(isActive ? 'card' : 'muted'),
+            )
+              .padding('horizontal', '6')
+              .padding('vertical', '2xs')
+              .frame({ minWidth: 'xl' })
+              .background(isActive ? 'primary' : 'border')
+              .corner('infinite')
+              .align('center'),
+          )
+        : null}
     </TouchableOpacity>
   );
 };
@@ -203,116 +230,124 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
       : serverDrafts.find((post) => post.id === previewServerDraftId);
 
   if (previewServerDraft) {
-    return (
-      <View className="flex-1 max-h-[600px] bg-background">
-        <ServerDraftPreview
-          post={previewServerDraft}
-          onBack={closeServerDraftPreview}
-          onEdit={() => editPost(previewServerDraft)}
-          onPublish={publishServerDraft}
-          onDelete={deleteServerDraft}
-          onDone={closeServerDraftPreview}
-        />
-      </View>
+    return toElement(
+      unpublishedSheet(
+        Embed(
+          <ServerDraftPreview
+            post={previewServerDraft}
+            onBack={closeServerDraftPreview}
+            onEdit={() => editPost(previewServerDraft)}
+            onPublish={publishServerDraft}
+            onDelete={deleteServerDraft}
+            onDone={closeServerDraftPreview}
+          />,
+        ),
+      ),
     );
   }
 
   if (previewDraft) {
-    return (
-      <View className="flex-1 max-h-[600px] bg-background">
-        <DraftPreview
-          draft={previewDraft}
-          onBack={closeDraftPreview}
-          onEdit={() => {
-            closeDraftPreview();
-            void openDraft(previewDraft);
-          }}
-        />
-      </View>
+    return toElement(
+      unpublishedSheet(
+        Embed(
+          <DraftPreview
+            draft={previewDraft}
+            onBack={closeDraftPreview}
+            onEdit={() => {
+              closeDraftPreview();
+              void openDraft(previewDraft);
+            }}
+          />,
+        ),
+      ),
     );
   }
 
   if (previewPost) {
-    return (
-      <View className="flex-1 max-h-[600px] bg-background">
-        <ScheduledPostPreview
-          post={previewPost}
-          onBack={closePreview}
-          onEdit={() => editPost(previewPost)}
-          onPublishNow={publishScheduledPostNow}
-          onCancel={cancelScheduledPost}
-          onCancelled={closePreview}
-        />
-      </View>
+    return toElement(
+      unpublishedSheet(
+        Embed(
+          <ScheduledPostPreview
+            post={previewPost}
+            onBack={closePreview}
+            onEdit={() => editPost(previewPost)}
+            onPublishNow={publishScheduledPostNow}
+            onCancel={cancelScheduledPost}
+            onCancelled={closePreview}
+          />,
+        ),
+      ),
     );
   }
 
-  return (
-    <View className="flex-1 max-h-[600px] bg-background">
-      {toElement(
-        Header(t('compose.unpublished', { defaultValue: 'Unpublished' }))
-          .safeArea(false)
-          .toolbar(
-            LButton(Icon(RiCloseLine))
-              .shape('circle')
-              .style('subtle')
-              .tint('neutral')
-              .onPress(onClose)
-              .label(t('common.close', { defaultValue: 'Close' })),
-          )
-          .inPage(),
-      )}
-      {switchingDraft && toElement(RawText(t('common.saving')).role('alert'))}
-      <View
-        pointerEvents={switchingDraft ? 'none' : 'auto'}
-        accessibilityElementsHidden={switchingDraft}
-        importantForAccessibility={switchingDraft ? 'no-hide-descendants' : 'auto'}
-        style={{ flex: 1 }}
-      >
-        {toElement(
-          HStack(
-            Embed(
-              <TabButton
-                label={t('compose.drafts')}
-                isActive={activeTab === 'drafts'}
-                onPress={showDrafts}
-              />,
-            ),
-            Embed(
-              <TabButton
-                label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
-                count={scheduledPosts.length}
-                isActive={activeTab === 'scheduled'}
-                onPress={showScheduled}
-              />,
-            ),
-          )
-            .border('border', 'thin', 'bottom')
-            .role('tablist'),
-        )}
+  return toElement(
+    unpublishedSheet(
+      Header(t('compose.unpublished', { defaultValue: 'Unpublished' }))
+        .safeArea(false)
+        .toolbar(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      switchingDraft ? RawText(t('common.saving')).role('alert') : null,
+      // The body takes no input while a draft opens; the language has no
+      // modifier for hiding a subtree from assistive technology.
+      Embed(
+        <View
+          pointerEvents={switchingDraft ? 'none' : 'auto'}
+          accessibilityElementsHidden={switchingDraft}
+          importantForAccessibility={switchingDraft ? 'no-hide-descendants' : 'auto'}
+          style={{ flex: 1 }}
+        >
+          {toElement(
+            HStack(
+              Embed(
+                <TabButton
+                  label={t('compose.drafts')}
+                  isActive={activeTab === 'drafts'}
+                  onPress={showDrafts}
+                />,
+              ),
+              Embed(
+                <TabButton
+                  label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
+                  count={scheduledPosts.length}
+                  isActive={activeTab === 'scheduled'}
+                  onPress={showScheduled}
+                />,
+              ),
+            )
+              .border('border', 'thin', 'bottom')
+              .role('tablist'),
+          )}
 
-        {activeTab === 'drafts' ? (
-          <DraftsList
-            onLoadDraft={openDraft}
-            onPreviewDraft={openDraftPreview}
-            currentDraftId={currentDraftId}
-            onPreviewServerDraft={openServerDraftPreview}
-            onEditServerDraft={editPost}
-          />
-        ) : (
-          <ScheduledPostsList
-            posts={scheduledPosts}
-            isLoading={isLoading}
-            isError={isError}
-            onRetry={refetch}
-            onPreview={openPreview}
-            onEdit={editPost}
-            onCancel={cancelScheduledPost}
-            viewerId={viewerId}
-          />
-        )}
-      </View>
-    </View>
+          {activeTab === 'drafts' ? (
+            <DraftsList
+              onLoadDraft={openDraft}
+              onPreviewDraft={openDraftPreview}
+              currentDraftId={currentDraftId}
+              onPreviewServerDraft={openServerDraftPreview}
+              onEditServerDraft={editPost}
+            />
+          ) : (
+            <ScheduledPostsList
+              posts={scheduledPosts}
+              isLoading={isLoading}
+              isError={isError}
+              onRetry={refetch}
+              onPreview={openPreview}
+              onEdit={editPost}
+              onCancel={cancelScheduledPost}
+              viewerId={viewerId}
+            />
+          )}
+        </View>,
+      ),
+    ),
   );
 };
 

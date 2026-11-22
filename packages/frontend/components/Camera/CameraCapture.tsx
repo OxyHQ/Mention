@@ -17,7 +17,7 @@ import { RiCameraSwitchLine } from '@oxy.so/bloom/icons/RiCameraSwitchLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
 import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
-import { Text } from '@oxy.so/bloom/typography';
+import { Text, fontFamilyStyle } from '@oxy.so/bloom/typography';
 import {
   FLASH_CHOICES,
   HOLD_TO_RECORD_MS,
@@ -37,7 +37,17 @@ import {
 } from './constants';
 import { useVideoRecorder } from './useVideoRecorder';
 import type { LocalCapture } from './useCaptureUpload';
-import { Button as LButton, Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Embed,
+  Text as LText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+
+/** The selected zoom stop (`text-yellow-400`, as NativeWind drew it). */
+const cameraColors = defineTokens({ color: { active: '#fcc800' } });
 
 /** The arc drawn around the shutter while recording. */
 const RING_SIZE = 92;
@@ -483,7 +493,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
       </View>
       {countdown !== null
         ? toElement(
-            VStack(Embed(<Text className="text-white text-8xl font-bold">{countdown}</Text>))
+            VStack(Embed(<Text style={styles.countdownText}>{countdown}</Text>))
               .align('center')
               .justify('center')
               .position({ top: 'none', left: 'none', right: 'none', bottom: 'none' })
@@ -524,9 +534,12 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                 amount: `${stop}×`,
               })}
             >
-              <Text className={selected ? 'text-yellow-400 text-xs' : 'text-white text-xs'}>
-                {text}
-              </Text>
+              {toElement(
+                LText(text)
+                  .font('xs')
+                  .leading('16px')
+                  .foreground(selected ? cameraColors.color.active : 'white'),
+              )}
             </Pressable>
           );
         })}
@@ -679,7 +692,7 @@ function RoundButton({
       <Icon width={20} height={20} fill={active ? '#facc15' : '#fff'} />
       {badge ? (
         <View style={styles.roundBadge}>
-          <Text className="text-black text-[9px] font-bold">{badge}</Text>
+          <Text style={styles.badgeText}>{badge}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -693,6 +706,16 @@ function formatRemaining(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
+  // Sizes off Bloom's type scale and the language's (`text-8xl font-bold`, `text-[9px]`).
+  // The display face, as Bloom's Text drew it from a size of `text-3xl` up.
+  countdownText: {
+    ...fontFamilyStyle('display'),
+    color: '#fff',
+    fontSize: 96,
+    lineHeight: 96,
+    fontWeight: '700',
+  },
+  badgeText: { color: '#000', fontSize: 9, fontWeight: '700' },
   root: { flex: 1, backgroundColor: '#000' },
   explain: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   close: { position: 'absolute', top: 56, left: 20 },
