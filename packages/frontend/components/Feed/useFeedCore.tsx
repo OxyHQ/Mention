@@ -93,6 +93,13 @@ export interface FeedProps {
    * Feed must be bounded; `validate:feed-hot-path` checks it.
    */
   previewLimit?: number;
+  /**
+   * Draw the header alone for now: the rows, the loading state and the footer
+   * come once this is false. The data loads meanwhile. A screen whose header is
+   * what the reader opened (a post above its replies) passes it for its first
+   * frame (`useAfterFirstFrame`), so that frame is the header's alone.
+   */
+  rowsDeferred?: boolean;
 }
 
 type DefaultedFeedProp =
@@ -112,8 +119,17 @@ type ResolvedFeedProps = FeedProps & Required<Pick<FeedProps, DefaultedFeedProp>
 
 export function useFeedCore(props: FeedProps) {
   const merged: ResolvedFeedProps = { ...DEFAULT_FEED_PROPS, ...props };
-  const { type, userId, filters, reloadKey, threaded, threadPostId, previewLimit, onRefresh } =
-    merged;
+  const {
+    type,
+    userId,
+    filters,
+    reloadKey,
+    threaded,
+    threadPostId,
+    previewLimit,
+    onRefresh,
+    rowsDeferred = false,
+  } = merged;
 
   const { t } = useTranslation();
   const theme = useTheme();
@@ -194,6 +210,8 @@ export function useFeedCore(props: FeedProps) {
   // there and the footer's "Load more" is how the next page is asked for.
   const loadsOnRequest = useAgeProtections().feedProfile === 'protected';
   const handleLoadMore = useCallback(() => {
+    // A header drawn alone is not the end of the list.
+    if (rowsDeferred) return;
     if (
       !canAutoLoadFeed({
         previewLimit,
@@ -204,7 +222,14 @@ export function useFeedCore(props: FeedProps) {
     )
       return;
     feedLoadMore();
-  }, [previewLimit, feedState.hasMore, feedState.isLoading, loadsOnRequest, feedLoadMore]);
+  }, [
+    rowsDeferred,
+    previewLimit,
+    feedState.hasMore,
+    feedState.isLoading,
+    loadsOnRequest,
+    feedLoadMore,
+  ]);
 
   const handleRetry = useCallback(async () => {
     feedClearError();
@@ -250,7 +275,7 @@ export function useFeedCore(props: FeedProps) {
 
   // While the pinned post holds the first presentation, the feed is still
   // "loading": no rows, no leading element, no footer.
-  const presentedRows = holdForLeading ? EMPTY_ROWS : feedRows;
+  const presentedRows = holdForLeading || rowsDeferred ? EMPTY_ROWS : feedRows;
   const isLoadingMore = feedState.isLoading && presentedRows.length > 0;
   // `error` is reported only while nothing is in flight, so with rows on screen
   // it is the next page that failed, not the feed.
@@ -361,8 +386,8 @@ export function useFeedCore(props: FeedProps) {
     impressionTracker,
     receivesOwnNewPost,
     header,
-    emptyState,
-    footer,
+    emptyState: rowsDeferred ? null : emptyState,
+    footer: rowsDeferred ? null : footer,
   };
 }
 
@@ -406,7 +431,8 @@ export function areFeedPropsEqual(prevProps: FeedProps, nextProps: FeedProps): b
     prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
     prevProps.listLeadingComponent !== nextProps.listLeadingComponent ||
     prevProps.leadingPostId !== nextProps.leadingPostId ||
-    prevProps.leadingPending !== nextProps.leadingPending
+    prevProps.leadingPending !== nextProps.leadingPending ||
+    prevProps.rowsDeferred !== nextProps.rowsDeferred
   ) {
     return false;
   }

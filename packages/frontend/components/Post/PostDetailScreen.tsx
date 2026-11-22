@@ -51,6 +51,7 @@ import { isPrivateMention, postAcceptsReplies } from '@/utils/postReplies';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { createLogger } from '@oxy.so/core/logger';
 import { getFollowingCachedPost } from '@/modules/mention-widgets';
+import { useAfterFirstFrame } from '@/hooks/useAfterFirstFrame';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 
@@ -109,6 +110,8 @@ const PostDetailScreen = screen(function PostDetailScreen({
   onBack,
 }: PostDetailScreenProps) {
   const openPostEngagement = useOpenPostEngagement();
+  // The post draws first; its replies and the reply prompt mount a frame later.
+  const afterFirstFrame = useAfterFirstFrame();
   // Supervision, the post and its replies load at the same time; only what is
   // SHOWN waits for the access gate (see the returns below).
   const access = usePostReadAccess(id ? String(id) : '');
@@ -588,21 +591,22 @@ const PostDetailScreen = screen(function PostDetailScreen({
       ? screenNode.footer(Embed(replyFooter), { placement: 'overlay', keyboard: 'follow' })
       : screenNode;
   };
-  const replyFooter = user ? (
-    <PostReplyFooter>
-      {post && access.allowed && postAcceptsReplies(post) ? (
-        <CompactReplyComposer
-          key={`${user.id}:${composeReplyTargetId}`}
-          postId={composeReplyTargetId}
-          placeholder={
-            isPrivateMention(post)
-              ? t('privateMentions.replyPlaceholder', { defaultValue: 'Reply privately' })
-              : t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
-          }
-        />
-      ) : undefined}
-    </PostReplyFooter>
-  ) : undefined;
+  const replyFooter =
+    user && afterFirstFrame ? (
+      <PostReplyFooter>
+        {post && access.allowed && postAcceptsReplies(post) ? (
+          <CompactReplyComposer
+            key={`${user.id}:${composeReplyTargetId}`}
+            postId={composeReplyTargetId}
+            placeholder={
+              isPrivateMention(post)
+                ? t('privateMentions.replyPlaceholder', { defaultValue: 'Reply privately' })
+                : t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })
+            }
+          />
+        ) : undefined}
+      </PostReplyFooter>
+    ) : undefined;
   if (access.failed) {
     return chrome(
       <EmptyState
@@ -662,6 +666,7 @@ const PostDetailScreen = screen(function PostDetailScreen({
           threaded={treeView}
           threadPostId={repliesQueryTargetId}
           contentContainerStyle={feedContentStyle}
+          rowsDeferred={!afterFirstFrame}
         />
       )}
     </>,
