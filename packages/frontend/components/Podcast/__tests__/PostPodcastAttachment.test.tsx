@@ -1,5 +1,7 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+import type { ReactElement } from 'react';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 import { PostPodcastAttachment } from '../PostPodcastAttachment';
 import { syraPodcastCards } from '@/lib/references/syraPodcastCards';
 
@@ -36,7 +38,19 @@ const legacy = {
 const current = { id: 'show', title: 'Current title', showUrl: 'https://syra.fm/podcasts/show' };
 let renderer: TestRenderer.ReactTestRenderer;
 const screen = () => JSON.stringify(renderer.toJSON());
-const box = () => renderer.root.findByProps({ testID: 'syra-podcast-card' }).props.style;
+// The card's box: its outermost element with the test ID, its style flattened.
+const box = () =>
+  StyleSheet.flatten(
+    renderer.root.findAll((node) => node.props.testID === 'syra-podcast-card', { deep: false })[0]
+      ?.props.style,
+  );
+/** The status text is a language view, whose leaves paint from Bloom's theme. */
+const create = (element: ReactElement) =>
+  TestRenderer.create(
+    <BloomProvider fonts={false} haptics={false} defaultMode="light">
+      {element}
+    </BloomProvider>,
+  );
 beforeEach(() => {
   jest.useFakeTimers();
   mockLoad.mockReset();
@@ -49,7 +63,7 @@ afterEach(() => {
 it('keeps feed usable during outage without ever rendering cached metadata, preserving dimensions', async () => {
   mockLoad.mockReturnValue(new Promise(() => {}));
   act(() => {
-    renderer = TestRenderer.create(
+    renderer = create(
       <>
         <Text>Feed ready</Text>
         <PostPodcastAttachment podcast={legacy} width="100%" />
@@ -59,20 +73,20 @@ it('keeps feed usable during outage without ever rendering cached metadata, pres
   expect(screen()).toContain('Feed ready');
   expect(screen()).not.toContain('Old copied');
   expect(screen()).not.toContain('secret.invalid');
-  expect(box()).toEqual({ width: '100%', height: 200 });
+  expect(box()).toMatchObject({ width: '100%', height: 200 });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(8016);
   });
   expect(screen()).toContain('unavailable');
   expect(screen()).not.toContain('Old copied');
-  expect(box()).toEqual({ width: '100%', height: 200 });
+  expect(box()).toMatchObject({ width: '100%', height: 200 });
 });
 it('renders current facts, then forgets them immediately on withdrawal and never falls back', async () => {
   mockLoad
     .mockResolvedValueOnce({ items: [current], unavailableIds: [] })
     .mockResolvedValueOnce({ items: [], unavailableIds: ['show'] });
   act(() => {
-    renderer = TestRenderer.create(<PostPodcastAttachment podcast={legacy} width={340} />);
+    renderer = create(<PostPodcastAttachment podcast={legacy} width={340} />);
   });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(16);
@@ -97,7 +111,7 @@ it('deduplicates visible cards and defers hidden cards', async () => {
     </>
   );
   act(() => {
-    renderer = TestRenderer.create(cards);
+    renderer = create(cards);
   });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(16);
@@ -106,10 +120,10 @@ it('deduplicates visible cards and defers hidden cards', async () => {
   mockVisible = true;
   act(() => {
     renderer.update(
-      <>
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
         <PostPodcastAttachment podcast={legacy} width={341} />
         <PostPodcastAttachment podcast={legacy} width={341} />
-      </>,
+      </BloomProvider>,
     );
   });
   await act(async () => {
