@@ -11,8 +11,7 @@ import {
 } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -23,13 +22,24 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Rating } from '@oxy.so/bloom/rating';
-import { Search } from '@oxy.so/bloom/search';
 import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import type { CustomFeedListResponse } from '@mention/shared-types';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+import {
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  ScrollView as LScrollView,
+  Search as LSearch,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const PAGE_LIMIT = 20;
 
@@ -91,44 +101,54 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
     memberProfiles: item.memberProfiles,
   };
 
-  return (
-    <View className="mx-4 mt-3">
-      <FeedCard
-        feed={feedData}
-        showDescription
-        showLikes={false}
-        headerRight={
-          <FeedSubscribeButton
-            isSubscribed={item.isLiked || false}
-            isSubscribing={isSubscribing}
-            onPress={handleSubscribe}
-          />
-        }
-      />
-      {/* Extra marketplace metadata below the card */}
-      {(averageRating > 0 || subscriberCount > 0) && (
-        <View className="flex-row items-center gap-3 px-4 pb-2 -mt-1">
-          {averageRating > 0 && (
-            <Rating
-              variant="stars"
-              size="sm"
-              value={averageRating.toFixed(1)}
-              fillValue={averageRating}
-              count={reviewCount > 0 ? formatCompactNumber(reviewCount) : undefined}
-              starColor={theme.colors.primary}
+  return toElement(
+    VStack(
+      Embed(
+        <FeedCard
+          feed={feedData}
+          showDescription
+          showLikes={false}
+          headerRight={
+            <FeedSubscribeButton
+              isSubscribed={item.isLiked || false}
+              isSubscribing={isSubscribing}
+              onPress={handleSubscribe}
             />
-          )}
-          {subscriberCount > 0 && (
-            <View className="flex-row items-center gap-[3px]">
-              <RiGroupLine width={13} height={13} fill={theme.colors.textSecondary} />
-              <Text className="text-[13px] text-muted-foreground">
-                {formatCompactNumber(subscriberCount)}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-    </View>
+          }
+        />,
+      ),
+      /* Extra marketplace metadata below the card */ averageRating > 0 || subscriberCount > 0
+        ? HStack(
+            Embed(
+              averageRating > 0 && (
+                <Rating
+                  variant="stars"
+                  size="sm"
+                  value={averageRating.toFixed(1)}
+                  fillValue={averageRating}
+                  count={reviewCount > 0 ? formatCompactNumber(reviewCount) : undefined}
+                  starColor={theme.colors.primary}
+                />
+              ),
+            ),
+            subscriberCount > 0
+              ? HStack(
+                  Icon(RiGroupLine).size('13').foreground('muted'),
+                  RawText(formatCompactNumber(subscriberCount)).font('sm').foreground('muted'),
+                )
+                  .align('center')
+                  .spacing('3')
+              : null,
+          )
+            .padding('horizontal', 'lg')
+            .padding('bottom', 'sm')
+            .align('center')
+            .spacing('md')
+            .margin('top', '-xs')
+        : null,
+    )
+      .margin('horizontal', 'lg')
+      .margin('top', 'md'),
   );
 });
 
@@ -306,75 +326,84 @@ function FeedMarketplaceScreen() {
   const keyExtractor = useCallback((item: MarketplaceFeed) => String(item._id || item.id), []);
 
   const ListHeader = useMemo(
-    () => (
-      <View>
-        {searchVisible && (
-          <View className="mx-4 mt-2 mb-1">
-            <Search
-              label={t('marketplace.searchPlaceholder', { defaultValue: 'Search feeds...' })}
-              value={search}
-              onValueChange={handleSearchChange}
-              onClearText={() => handleSearchChange('')}
-              autoFocus
-            />
-          </View>
-        )}
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.pillsContent}
-          className="mt-3"
-        >
-          {categoryPills.map((cat) => {
-            const active = cat === activeCategory;
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[
-                  styles.pill,
-                  active
-                    ? { backgroundColor: theme.colors.primary }
-                    : { borderWidth: 1, borderColor: theme.colors.border },
-                ]}
-                onPress={() => handleCategoryPress(cat)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  className={cn('text-sm font-medium', active ? 'text-white' : 'text-foreground')}
-                >
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <View style={[styles.sortRow, { borderBottomColor: theme.colors.border }]}>
-          {SORT_OPTIONS_CONFIG.map((opt) => {
-            const active = opt.id === sortBy;
-            return (
-              <TouchableOpacity
-                key={opt.id}
-                className="flex-1 items-center py-2.5 relative"
-                onPress={() => handleSortPress(opt.id)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  className={cn(
-                    'text-sm',
-                    active ? 'font-bold text-primary' : 'font-medium text-muted-foreground',
-                  )}
-                >
-                  {t(opt.labelKey)}
-                </Text>
-                {active && <View style={styles.sortIndicator} className="bg-primary" />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-    ),
+    () =>
+      toElement(
+        VStack(
+          Embed(
+            searchVisible &&
+              toElement(
+                VStack(
+                  LSearch([search, handleSearchChange])
+                    .label(t('marketplace.searchPlaceholder', { defaultValue: 'Search feeds...' }))
+                    .onClearText(() => handleSearchChange(''))
+                    .autoFocus(),
+                )
+                  .margin('horizontal', 'lg')
+                  .margin('top', 'sm')
+                  .margin('bottom', 'xs'),
+              ),
+          ),
+          Embed(
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.pillsContent}
+              className="mt-3"
+            >
+              {categoryPills.map((cat) => {
+                const active = cat === activeCategory;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.pill,
+                      active
+                        ? { backgroundColor: theme.colors.primary }
+                        : { borderWidth: 1, borderColor: theme.colors.border },
+                    ]}
+                    onPress={() => handleCategoryPress(cat)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      className={cn(
+                        'text-sm font-medium',
+                        active ? 'text-white' : 'text-foreground',
+                      )}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>,
+          ),
+          Embed(
+            <View style={[styles.sortRow, { borderBottomColor: theme.colors.border }]}>
+              {SORT_OPTIONS_CONFIG.map((opt) => {
+                const active = opt.id === sortBy;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    className="flex-1 items-center py-2.5 relative"
+                    onPress={() => handleSortPress(opt.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      className={cn(
+                        'text-sm',
+                        active ? 'font-bold text-primary' : 'font-medium text-muted-foreground',
+                      )}
+                    >
+                      {t(opt.labelKey)}
+                    </Text>
+                    {active && <View style={styles.sortIndicator} className="bg-primary" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>,
+          ),
+        ),
+      ),
     [
       searchVisible,
       search,
@@ -409,65 +438,65 @@ function FeedMarketplaceScreen() {
   }, [loading, debouncedSearch, theme, t]);
 
   const ListFooter = useMemo(
-    () => (loadingMore ? <ListSkeleton count={2} /> : <View className="h-8" />),
+    () => (loadingMore ? <ListSkeleton count={2} /> : toElement(VStack().frame({ height: '3xl' }))),
     [loadingMore],
   );
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={t('marketplace.title', { defaultValue: 'Feed Marketplace' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          actions={
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
-              onPress={() => {
-                setSearchVisible((v) => !v);
-                if (searchVisible) handleSearchChange('');
-              }}
-              accessibilityLabel={
-                searchVisible
-                  ? t('common.close', { defaultValue: 'Close' })
-                  : t('search.title', { defaultValue: 'Search' })
-              }
-            />
-          }
-        />
-      }
+      header={toElement(
+        Header(t('marketplace.title', { defaultValue: 'Feed Marketplace' }))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .toolbar(
+            Embed(
+              <Button
+                appearance="subtle"
+                tone="neutral"
+                iconOnly
+                leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
+                onPress={() => {
+                  setSearchVisible((v) => !v);
+                  if (searchVisible) handleSearchChange('');
+                }}
+                accessibilityLabel={
+                  searchVisible
+                    ? t('common.close', { defaultValue: 'Close' })
+                    : t('search.title', { defaultValue: 'Search' })
+                }
+              />,
+            ),
+          )
+          .inPage(),
+      )}
     >
       {loading && feeds.length === 0 ? (
-        <ScreenScrollView contentContainerClassName="px-4 pt-4 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <FeedCardSkeleton key={i} />
-          ))}
-        </ScreenScrollView>
+        toElement(
+          LScrollView(
+            Embed(Array.from({ length: 4 }).map((_, i) => <FeedCardSkeleton key={i} />)),
+          ).contentView((v) => v.padding('horizontal', 'lg').padding('top', 'lg').spacing('md')),
+        )
       ) : IS_WEB ? (
-        // WEB: the screen scroller is the document, so the marketplace renders
-        // in normal flow and paginates from the window's end. The horizontal
-        // category-pills ScrollView inside ListHeader stays — a horizontal
-        // scroller does not conflict with the document scroll.
-        <ScreenScrollView
-          contentContainerClassName="pb-8"
-          onEndReached={handleLoadMore}
-          keyboardShouldPersistTaps="handled"
-        >
-          {ListHeader}
-          {feeds.length === 0
-            ? ListEmpty
-            : feeds.map((item) => (
-                <MarketplaceFeedCard
-                  key={keyExtractor(item)}
-                  item={item}
-                  onSubscribeToggle={handleSubscribeToggle}
-                  subscribingId={subscribingId}
-                />
-              ))}
-          {ListFooter}
-        </ScreenScrollView>
+        toElement(
+          LScrollView(
+            Embed(ListHeader),
+            Embed(
+              feeds.length === 0
+                ? ListEmpty
+                : feeds.map((item) => (
+                    <MarketplaceFeedCard
+                      key={keyExtractor(item)}
+                      item={item}
+                      onSubscribeToggle={handleSubscribeToggle}
+                      subscribingId={subscribingId}
+                    />
+                  )),
+            ),
+            Embed(ListFooter),
+          )
+            .contentView((v) => v.padding('bottom', '3xl'))
+            .onEndReached(handleLoadMore)
+            .keyboardTaps('handled'),
+        )
       ) : (
         <VirtualList
           screen={{}}

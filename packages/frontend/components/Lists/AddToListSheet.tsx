@@ -1,18 +1,29 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, TouchableOpacity, ScrollView } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { useRouter } from '@/lib/navigation/router';
-import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { listsService } from '@/services/listsService';
 import { createLogger } from '@oxy.so/core/logger';
+
+import {
+  Checkbox as LCheckbox,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 const logger = createLogger('AddToListSheet');
 
@@ -134,99 +145,154 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
     router.push('/lists/create');
   }, [onClose, router]);
 
-  return (
-    <View className="bg-background px-4 pt-3 pb-2">
-      <View className="flex-row items-center justify-between mb-1">
-        <Text className="text-foreground text-lg font-bold">
-          {t('lists.addTo.title', { user: label, defaultValue: `Add ${label} to list` })}
-        </Text>
-        <TouchableOpacity
-          onPress={onClose}
-          hitSlop={tokens.hitSlop.md}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-        >
-          <RiCloseLine width={22} height={22} fill={theme.colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      {loading ? (
-        <ListSkeleton />
-      ) : error ? (
-        <View className="items-center justify-center py-8 gap-3">
-          <Text className="text-muted-foreground text-sm text-center">{error}</Text>
-          <TouchableOpacity onPress={load}>
-            <Text className="text-primary text-sm font-semibold">
-              {t('common.retry', { defaultValue: 'Try again' })}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : rows.length === 0 ? (
-        <View className="items-center justify-center py-8 gap-3">
-          <RiListUnordered width={40} height={40} fill={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground text-sm text-center">
-            {t('lists.addTo.empty', { defaultValue: 'You have no lists yet' })}
-          </Text>
-          <TouchableOpacity onPress={goCreate} className="bg-primary rounded-full px-5 py-2.5">
-            <Text className="text-primary-foreground text-sm font-semibold">
-              {t('lists.createList', { defaultValue: 'Create list' })}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
-          {rows.map((row) => (
-            <View
-              key={row.id}
-              className="flex-row items-center justify-between py-3 border-b border-border"
-            >
-              {/* The label area and the checkbox are SIBLINGS, never one inside
-                  the other: a pressable row wrapping Bloom's Checkbox is a
-                  button inside a button on web, and a click on the box would
-                  toggle twice. The box carries the accessible name; the label
-                  area is only a bigger touch target for the same toggle. */}
-              <TouchableOpacity
-                className="flex-row items-center gap-3 flex-1"
-                onPress={() => toggle(row)}
-                disabled={row.pending}
-                activeOpacity={0.7}
-                accessible={false}
-              >
-                <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
-                  <RiListUnordered width={18} height={18} fill={theme.colors.text} />
-                </View>
-                <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
-                  {row.title}
-                </Text>
-              </TouchableOpacity>
-              {row.pending ? (
-                <SpinnerIcon size={18} className="text-primary" />
-              ) : (
-                <Checkbox
-                  size="lg"
-                  checked={row.hasUser}
-                  onCheckedChange={() => toggle(row)}
-                  accessibilityLabel={row.title}
-                />
-              )}
-            </View>
-          ))}
-
+  return toElement(
+    VStack(
+      HStack(
+        RawText(t('lists.addTo.title', { user: label, defaultValue: `Add ${label} to list` }))
+          .foreground('foreground')
+          .font('18')
+          .leading('28px')
+          .weight('bold'),
+        Embed(
           <TouchableOpacity
-            className="flex-row items-center gap-3 py-3.5"
-            onPress={goCreate}
-            activeOpacity={0.7}
+            onPress={onClose}
+            hitSlop={tokens.hitSlop.md}
             accessibilityRole="button"
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
           >
-            <View className="w-9 h-9 rounded-lg items-center justify-center bg-primary">
-              <RiAddLine size="md" fill="#fff" />
-            </View>
-            <Text className="text-primary text-[15px] font-semibold">
-              {t('lists.addTo.newList', { defaultValue: 'New list' })}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      )}
-    </View>
+            {toElement(Icon(RiCloseLine).size('22').foreground('muted'))}
+          </TouchableOpacity>,
+        ),
+      )
+        .align('center')
+        .justify('between')
+        .margin('bottom', 'xs'),
+      Embed(
+        loading ? (
+          <ListSkeleton />
+        ) : error ? (
+          toElement(
+            VStack(
+              RawText(error).foreground('muted').font('14').leading('20px').textAlign('center'),
+              Embed(
+                <TouchableOpacity onPress={load}>
+                  {toElement(
+                    RawText(t('common.retry', { defaultValue: 'Try again' }))
+                      .foreground('primary')
+                      .font('14')
+                      .leading('20px')
+                      .weight('semibold'),
+                  )}
+                </TouchableOpacity>,
+              ),
+            )
+              .padding('vertical', '3xl')
+              .align('center')
+              .justify('center')
+              .spacing('md'),
+          )
+        ) : rows.length === 0 ? (
+          toElement(
+            VStack(
+              Icon(RiListUnordered).size('40').foreground('muted'),
+              RawText(t('lists.addTo.empty', { defaultValue: 'You have no lists yet' }))
+                .foreground('muted')
+                .font('14')
+                .leading('20px')
+                .textAlign('center'),
+              Embed(
+                <TouchableOpacity
+                  onPress={goCreate}
+                  className="bg-primary rounded-full px-5 py-2.5"
+                >
+                  {toElement(
+                    RawText(t('lists.createList', { defaultValue: 'Create list' }))
+                      .foreground('onPrimary')
+                      .font('14')
+                      .leading('20px')
+                      .weight('semibold'),
+                  )}
+                </TouchableOpacity>,
+              ),
+            )
+              .padding('vertical', '3xl')
+              .align('center')
+              .justify('center')
+              .spacing('md'),
+          )
+        ) : (
+          <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            {rows.map((row) =>
+              toElement(
+                HStack(
+                  /* The label area and the checkbox are SIBLINGS, never one inside
+                          the other: a pressable row wrapping Bloom's Checkbox is a
+                          button inside a button on web, and a click on the box would
+                          toggle twice. The box carries the accessible name; the label
+                          area is only a bigger touch target for the same toggle. */ Embed(
+                    <TouchableOpacity
+                      className="flex-row items-center gap-3 flex-1"
+                      onPress={() => toggle(row)}
+                      disabled={row.pending}
+                      activeOpacity={0.7}
+                      accessible={false}
+                    >
+                      <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
+                        {toElement(Icon(RiListUnordered).size('18').foreground('foreground'))}
+                      </View>
+                      {toElement(
+                        RawText(row.title)
+                          .foreground('foreground')
+                          .font('md')
+                          .weight('medium')
+                          .flex('1')
+                          .lines(1),
+                      )}
+                    </TouchableOpacity>,
+                  ),
+                  Embed(
+                    row.pending ? (
+                      <SpinnerIcon size={18} className="text-primary" />
+                    ) : (
+                      toElement(
+                        LCheckbox([row.hasUser, () => toggle(row)])
+                          .size('lg')
+                          .label(row.title),
+                      )
+                    ),
+                  ),
+                )
+                  .padding('vertical', 'md')
+                  .border('border', 'thin', 'bottom')
+                  .align('center')
+                  .justify('between'),
+                row.id,
+              ),
+            )}
+
+            <TouchableOpacity
+              className="flex-row items-center gap-3 py-3.5"
+              onPress={goCreate}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
+              <View className="w-9 h-9 rounded-lg items-center justify-center bg-primary">
+                {toElement(Icon(RiAddLine).size('md').foreground(appColors.color.hexfff))}
+              </View>
+              {toElement(
+                RawText(t('lists.addTo.newList', { defaultValue: 'New list' }))
+                  .foreground('primary')
+                  .font('md')
+                  .weight('semibold'),
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        ),
+      ),
+    )
+      .padding('horizontal', 'lg')
+      .padding('top', 'md')
+      .padding('bottom', 'sm')
+      .background('background'),
   );
 }

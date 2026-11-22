@@ -3,11 +3,18 @@ import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Text } from '@oxy.so/bloom/typography';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
+import {
+  Avatar as LAvatar,
+  Embed,
+  HStack,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * ListCard Component
@@ -78,26 +85,44 @@ export function ListCard({
       )}
       style={isRow ? undefined : { borderWidth: StyleSheet.hairlineWidth }}
     >
-      <View className="flex-row items-center gap-3">
-        <Avatar size={40} variant={MEDIA_VARIANT_AVATAR} />
-        <View className="flex-1 gap-1">
-          <Text className="text-base font-semibold leading-5 text-foreground" numberOfLines={1}>
-            {list.name}
-          </Text>
-          {list.creator && (
-            <ProfileHoverCard username={getNormalizedUserHandle(list.creator) ?? undefined}>
-              <Text className="text-muted-foreground text-sm leading-[18px]" numberOfLines={1}>
-                {purposeLabel} by @{list.creator.username}
-              </Text>
-            </ProfileHoverCard>
-          )}
-        </View>
-        {showPinButton && (
-          <View className="items-end min-w-[80px]">
-            {/* Pin button can be added here if needed */}
-          </View>
-        )}
-      </View>
+      {toElement(
+        HStack(
+          LAvatar(undefined, { variant: MEDIA_VARIANT_AVATAR }).size('xl'),
+          VStack(
+            LText(list.name)
+              .font('16')
+              .weight('semibold')
+              .leading('20px')
+              .foreground('foreground')
+              .lines(1),
+            Embed(
+              list.creator && (
+                <ProfileHoverCard username={getNormalizedUserHandle(list.creator) ?? undefined}>
+                  {toElement(
+                    LText(purposeLabel, ' by @', list.creator.username)
+                      .foreground('muted')
+                      .font('14')
+                      .leading('18px')
+                      .lines(1),
+                  )}
+                </ProfileHoverCard>
+              ),
+            ),
+          )
+            .flex('1')
+            .spacing('xs'),
+          Embed(
+            showPinButton &&
+              toElement(
+                VStack(/* Pin button can be added here if needed */)
+                  .frame({ minWidth: '80' })
+                  .align('end'),
+              ),
+          ),
+        )
+          .align('center')
+          .spacing('md'),
+      )}
       {list.description && (
         <Text
           className={cn('text-muted-foreground text-sm leading-5', !isRow && 'mt-1')}
@@ -108,19 +133,27 @@ export function ListCard({
       )}
       {(list.itemCount !== undefined || list.subscriberCount !== undefined) && (
         <View className={cn('flex-row items-center gap-3', !isRow && 'mt-1')}>
-          {list.itemCount !== undefined && (
-            <Text className="text-muted-foreground text-sm leading-6 font-semibold">
-              {list.itemCount} {list.itemCount === 1 ? 'item' : 'items'}
-            </Text>
-          )}
-          {list.subscriberCount !== undefined && (
-            <Text className="text-muted-foreground text-sm leading-6 font-semibold">
-              {t('lists.subscriberCount', {
-                count: list.subscriberCount,
-                defaultValue: '{{count}} subscribers',
-              })}
-            </Text>
-          )}
+          {list.itemCount !== undefined &&
+            toElement(
+              LText(list.itemCount, ' ', list.itemCount === 1 ? 'item' : 'items')
+                .foreground('muted')
+                .font('14')
+                .leading('24px')
+                .weight('semibold'),
+            )}
+          {list.subscriberCount !== undefined &&
+            toElement(
+              LText(
+                t('lists.subscriberCount', {
+                  count: list.subscriberCount,
+                  defaultValue: '{{count}} subscribers',
+                }),
+              )
+                .foreground('muted')
+                .font('14')
+                .leading('24px')
+                .weight('semibold'),
+            )}
         </View>
       )}
     </PressableScale>

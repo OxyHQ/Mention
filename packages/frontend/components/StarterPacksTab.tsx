@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
@@ -12,6 +12,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 export function StarterPacksTab() {
   const router = useRouter();
@@ -46,14 +48,18 @@ export function StarterPacksTab() {
   }, [fetchPacks]);
 
   if (loading) {
-    return (
-      <View style={styles.list}>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <View key={i} style={styles.cardWrapper}>
-            <StarterPackCardSkeleton />
-          </View>
-        ))}
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          Array.from({ length: 3 }).map((_, i) =>
+            toElement(VStack(Embed(<StarterPackCardSkeleton />)).margin('bottom', 'sm'), i),
+          ),
+        ),
+      )
+        .padding('left', 'lg')
+        .padding('right', 'lg')
+        .padding('top', 'sm')
+        .padding('bottom', '3xl'),
     );
   }
 
@@ -81,13 +87,15 @@ export function StarterPacksTab() {
   const renderItem = ({ item }: { item: StarterPackSummary }) => {
     const cardData = starterPackCardData(item);
 
-    return (
-      <View style={styles.cardWrapper}>
-        <StarterPackCard
-          pack={cardData}
-          onPress={() => router.push(`/starter-packs/${item._id || item.id}`)}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <StarterPackCard
+            pack={cardData}
+            onPress={() => router.push(`/starter-packs/${item._id || item.id}`)}
+          />,
+        ),
+      ).margin('bottom', 'sm'),
     );
   };
 

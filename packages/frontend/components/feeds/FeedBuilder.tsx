@@ -1,4 +1,3 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
@@ -11,10 +10,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { TouchableOpacity, StyleSheet } from 'react-native';
+import { Screen } from '@oxy.so/bloom/screen';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
@@ -36,14 +33,9 @@ import type {
   ModuleParamProperty,
 } from '@mention/shared-types';
 
-import { Slider } from '@oxy.so/bloom/slider';
-import { Switch } from '@oxy.so/bloom/switch';
-import { Field } from '@oxy.so/bloom/field';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { TagField, commitTag } from '@oxy.so/bloom/tag-field';
-import { Search } from '@oxy.so/bloom/search';
-import { Divider } from '@oxy.so/bloom/divider';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -53,6 +45,26 @@ import Feed from '@/components/Feed/Feed';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
+
+import {
+  Button as LButton,
+  Divider as LDivider,
+  Embed,
+  Field as LField,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  ScrollView,
+  Search as LSearch,
+  Slider as LSlider,
+  Text as LText,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 type ModuleState = { enabled: boolean; params: Record<string, unknown> };
@@ -201,17 +213,20 @@ const ChipInput = ({
     (text: string) => setDraft?.(draftKey, text),
     [setDraft, draftKey],
   );
-  return (
-    <Field label={label}>
-      <TagField
-        value={values}
-        onChange={(next) => onChange([...next])}
-        placeholder={t('feeds.builder.chipPlaceholder')}
-        max={max}
-        inputValue={store ? (store.drafts[draftKey] ?? '') : undefined}
-        onInputValueChange={store ? handleInputChange : undefined}
-      />
-    </Field>
+  return toElement(
+    LField(
+      label,
+      Embed(
+        <TagField
+          value={values}
+          onChange={(next) => onChange([...next])}
+          placeholder={t('feeds.builder.chipPlaceholder')}
+          max={max}
+          inputValue={store ? (store.drafts[draftKey] ?? '') : undefined}
+          onInputValueChange={store ? handleInputChange : undefined}
+        />,
+      ),
+    ),
   );
 };
 
@@ -226,11 +241,13 @@ const BooleanParamRow = ({
   onChange: (value: boolean) => void;
 }) => {
   const handleChange = useHapticChange(onChange);
-  return (
-    <View className="flex-row items-center justify-between">
-      <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-      <Switch checked={value} onCheckedChange={handleChange} accessibilityLabel={label} />
-    </View>
+  return toElement(
+    HStack(
+      RawText(label).font('sm').weight('semibold').foreground('foreground'),
+      Toggle([value, handleChange]).label(label),
+    )
+      .align('center')
+      .justify('between'),
   );
 };
 
@@ -282,73 +299,90 @@ const AccountPicker = ({
     setResults([]);
   };
 
-  return (
-    <View className="gap-2">
-      <Text className="text-[13px] font-semibold text-foreground">
-        {t('feeds.builder.addAccounts')}
-      </Text>
-
-      {selected.map((u) => (
-        <View key={u.id} className="flex-row items-center gap-3">
-          <AccountAvatar
-            account={u}
-            source={u.avatar ?? undefined}
-            size={36}
-            variant={MEDIA_VARIANT_AVATAR}
-          />
-          <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-              {accountName(u)}
-            </Text>
-            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
-              @{u.username}
-            </Text>
-          </View>
+  return toElement(
+    VStack(
+      RawText(t('feeds.builder.addAccounts'))
+        .font('sm')
+        .weight('semibold')
+        .foreground('foreground'),
+      Embed(
+        selected.map((u) =>
+          toElement(
+            HStack(
+              Embed(
+                <AccountAvatar
+                  account={u}
+                  source={u.avatar ?? undefined}
+                  size={36}
+                  variant={MEDIA_VARIANT_AVATAR}
+                />,
+              ),
+              VStack(
+                RawText(accountName(u))
+                  .font('md')
+                  .weight('semibold')
+                  .foreground('foreground')
+                  .lines(1),
+                RawText('@', u.username).font('sm').foreground('muted').lines(1),
+              ).flex('1'),
+              Embed(
+                <TouchableOpacity
+                  onPress={() => onChange(selected.filter((s) => s.id !== u.id))}
+                  hitSlop={tokens.hitSlop.md}
+                >
+                  {toElement(Icon(RiCloseCircleLine).size('22').foreground('muted'))}
+                </TouchableOpacity>,
+              ),
+            )
+              .align('center')
+              .spacing('md'),
+            u.id,
+          ),
+        ),
+      ),
+      LSearch([search, doSearch])
+        .label(t('feeds.builder.searchAccounts'))
+        .onClearText(() => doSearch('')),
+      Embed(
+        results.map((u) => (
           <TouchableOpacity
-            onPress={() => onChange(selected.filter((s) => s.id !== u.id))}
-            hitSlop={tokens.hitSlop.md}
+            key={u.id}
+            className="flex-row items-center gap-3 py-1.5"
+            onPress={() => add(u)}
+            activeOpacity={0.7}
           >
-            <RiCloseCircleLine width={22} height={22} fill={theme.colors.textSecondary} />
+            <AccountAvatar
+              account={u}
+              source={u.avatar ?? undefined}
+              size={36}
+              variant={MEDIA_VARIANT_AVATAR}
+            />
+            {toElement(
+              VStack(
+                RawText(accountName(u))
+                  .font('md')
+                  .weight('semibold')
+                  .foreground('foreground')
+                  .lines(1),
+                RawText('@', u.username).font('sm').foreground('muted').lines(1),
+              ).flex('1'),
+            )}
+            {toElement(
+              VStack(
+                RawText(t('feeds.builder.add'))
+                  .font('sm')
+                  .weight('semibold')
+                  .foreground('foreground'),
+              )
+                .padding('horizontal', 'md')
+                .padding('vertical', 'xs')
+                .border('border', 'thin')
+                .corner('10'),
+            )}
           </TouchableOpacity>
-        </View>
-      ))}
-
-      <Search
-        label={t('feeds.builder.searchAccounts')}
-        value={search}
-        onValueChange={doSearch}
-        onClearText={() => doSearch('')}
-      />
-
-      {results.map((u) => (
-        <TouchableOpacity
-          key={u.id}
-          className="flex-row items-center gap-3 py-1.5"
-          onPress={() => add(u)}
-          activeOpacity={0.7}
-        >
-          <AccountAvatar
-            account={u}
-            source={u.avatar ?? undefined}
-            size={36}
-            variant={MEDIA_VARIANT_AVATAR}
-          />
-          <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-              {accountName(u)}
-            </Text>
-            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
-              @{u.username}
-            </Text>
-          </View>
-          <View className="border border-border rounded-[10px] px-3 py-1">
-            <Text className="text-[13px] font-semibold text-foreground">
-              {t('feeds.builder.add')}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      ))}
-    </View>
+        )),
+      ),
+    ).spacing('sm'),
   );
 };
 
@@ -396,46 +430,43 @@ const ParamControl = ({
       const fractional = step < 1;
       const fallback = typeof descriptor.default === 'number' ? descriptor.default : min;
       const current = typeof value === 'number' ? value : fallback;
-      return (
-        <Slider
-          value={current}
-          onValueChange={(v) => onChange(fractional ? v : Math.round(v))}
-          min={min}
-          max={max}
-          step={step}
-          label={label}
-          formatValue={(v) => (fractional ? v.toFixed(2) : String(Math.round(v)))}
-        />
+      return toElement(
+        LSlider([current, (v) => onChange(fractional ? v : Math.round(v))], label)
+          .bounds(min, max)
+          .step(step)
+          .valueFormat((v) => (fractional ? v.toFixed(2) : String(Math.round(v)))),
       );
     }
 
     case 'enum': {
       const options = descriptor.options ?? [];
       const selected = typeof value === 'string' ? value : undefined;
-      return (
-        <View className="gap-1.5">
-          <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-          <View>
-            {options.map((option) => {
-              const active = selected === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  className="flex-row items-center justify-between py-2"
-                  onPress={() => onChange(active ? undefined : option.value)}
-                  activeOpacity={0.7}
-                >
-                  <Text className="text-[14px] text-foreground">
-                    {t(option.labelKey, { defaultValue: option.label })}
-                  </Text>
-                  {active ? (
-                    <RiCheckLine width={18} height={18} fill={theme.colors.primary} />
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+      return toElement(
+        VStack(
+          RawText(label).font('sm').weight('semibold').foreground('foreground'),
+          VStack(
+            Embed(
+              options.map((option) => {
+                const active = selected === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    className="flex-row items-center justify-between py-2"
+                    onPress={() => onChange(active ? undefined : option.value)}
+                    activeOpacity={0.7}
+                  >
+                    {toElement(
+                      RawText(t(option.labelKey, { defaultValue: option.label }))
+                        .font('14')
+                        .foreground('foreground'),
+                    )}
+                    {active ? toElement(Icon(RiCheckLine).size('18').foreground('primary')) : null}
+                  </TouchableOpacity>
+                );
+              }),
+            ),
+          ),
+        ).spacing('6'),
       );
     }
 
@@ -453,33 +484,37 @@ const ParamControl = ({
             onChange([...arr, optionValue]);
           }
         };
-        return (
-          <View className="gap-1.5">
-            <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-            <View className="flex-row flex-wrap gap-1.5">
-              {descriptor.options.map((option) => {
-                const active = arr.includes(option.value);
-                return (
-                  <TouchableOpacity
-                    key={option.value}
-                    onPress={() => toggle(option.value)}
-                    activeOpacity={0.7}
-                    className={
-                      active
-                        ? 'rounded-full px-3 py-1 bg-primary'
-                        : 'rounded-full px-3 py-1 bg-background border border-border'
-                    }
-                  >
-                    <Text
-                      className={active ? 'text-[13px] text-white' : 'text-[13px] text-foreground'}
+        return toElement(
+          VStack(
+            RawText(label).font('sm').weight('semibold').foreground('foreground'),
+            HStack(
+              Embed(
+                descriptor.options.map((option) => {
+                  const active = arr.includes(option.value);
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      onPress={() => toggle(option.value)}
+                      activeOpacity={0.7}
+                      className={
+                        active
+                          ? 'rounded-full px-3 py-1 bg-primary'
+                          : 'rounded-full px-3 py-1 bg-background border border-border'
+                      }
                     >
-                      {t(option.labelKey, { defaultValue: option.label })}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+                      {toElement(
+                        RawText(t(option.labelKey, { defaultValue: option.label }))
+                          .font('sm')
+                          .foreground(active ? 'white' : 'foreground'),
+                      )}
+                    </TouchableOpacity>
+                  );
+                }),
+              ),
+            )
+              .wrap()
+              .spacing('6'),
+          ).spacing('6'),
         );
       }
 
@@ -539,32 +574,38 @@ const SchemaParamField = ({
   }
 
   if (prop.type === 'number') {
-    return (
-      <Field label={label}>
-        <TextFieldInput
-          label={label}
-          placeholder={null}
-          keyboardType="numeric"
-          value={value == null ? '' : String(value)}
-          onValueChange={(txt) => {
-            if (txt.trim() === '') return onChange(undefined);
-            const n = Number(txt);
-            onChange(Number.isNaN(n) ? undefined : n);
-          }}
-        />
-      </Field>
+    return toElement(
+      LField(
+        label,
+        Embed(
+          <TextFieldInput
+            label={label}
+            placeholder={null}
+            keyboardType="numeric"
+            value={value == null ? '' : String(value)}
+            onValueChange={(txt) => {
+              if (txt.trim() === '') return onChange(undefined);
+              const n = Number(txt);
+              onChange(Number.isNaN(n) ? undefined : n);
+            }}
+          />,
+        ),
+      ),
     );
   }
 
-  return (
-    <Field label={label}>
-      <TextFieldInput
-        label={label}
-        placeholder={null}
-        value={typeof value === 'string' ? value : ''}
-        onValueChange={(txt) => onChange(txt)}
-      />
-    </Field>
+  return toElement(
+    LField(
+      label,
+      Embed(
+        <TextFieldInput
+          label={label}
+          placeholder={null}
+          value={typeof value === 'string' ? value : ''}
+          onValueChange={(txt) => onChange(txt)}
+        />,
+      ),
+    ),
   );
 };
 
@@ -601,49 +642,59 @@ const ModuleCard = ({
   const hasParams = entry.params.length > 0 || schemaOnlyKeys.length > 0;
   const hasBody = enabled && (isAccounts || hasParams);
 
-  return (
-    <View className="rounded-2xl p-4 bg-muted mb-2">
-      <View className="flex-row items-center gap-3">
-        <View className="flex-1 gap-0.5">
-          <Text className="text-[15px] font-semibold text-foreground">{label}</Text>
-          {description ? (
-            <Text className="text-[13px] leading-[18px] text-muted-foreground">{description}</Text>
-          ) : null}
-        </View>
-        <Switch checked={enabled} onCheckedChange={handleToggle} accessibilityLabel={label} />
-      </View>
-      {hasBody ? (
-        <View className="mt-3 gap-3">
-          <Divider spacing={12} />
-          {isAccounts ? (
-            accountsSlot
-          ) : (
-            <>
-              {entry.params.map((param) => (
-                <ParamControl
-                  key={param.key}
-                  descriptor={param}
-                  value={state?.params?.[param.key]}
-                  onChange={(v) => onParam(param.key, v)}
-                  draftKey={chipDraftKey(kind, entry.id, param.key)}
-                />
-              ))}
-              {schemaOnlyKeys.map((key) => (
-                <SchemaParamField
-                  key={key}
-                  moduleId={entry.id}
-                  name={key}
-                  prop={entry.paramsSchema.properties[key]}
-                  value={state?.params?.[key]}
-                  onChange={(v) => onParam(key, v)}
-                  draftKey={chipDraftKey(kind, entry.id, key)}
-                />
-              ))}
-            </>
-          )}
-        </View>
-      ) : null}
-    </View>
+  return toElement(
+    VStack(
+      HStack(
+        VStack(
+          RawText(label).font('md').weight('semibold').foreground('foreground'),
+          description ? RawText(description).font('sm').leading('18px').foreground('muted') : null,
+        )
+          .flex('1')
+          .spacing('2xs'),
+        Toggle([enabled, handleToggle]).label(label),
+      )
+        .align('center')
+        .spacing('md'),
+      hasBody
+        ? VStack(
+            LDivider().spacing('md'),
+            Embed(
+              isAccounts ? (
+                accountsSlot
+              ) : (
+                <>
+                  {entry.params.map((param) => (
+                    <ParamControl
+                      key={param.key}
+                      descriptor={param}
+                      value={state?.params?.[param.key]}
+                      onChange={(v) => onParam(param.key, v)}
+                      draftKey={chipDraftKey(kind, entry.id, param.key)}
+                    />
+                  ))}
+                  {schemaOnlyKeys.map((key) => (
+                    <SchemaParamField
+                      key={key}
+                      moduleId={entry.id}
+                      name={key}
+                      prop={entry.paramsSchema.properties[key]}
+                      value={state?.params?.[key]}
+                      onChange={(v) => onParam(key, v)}
+                      draftKey={chipDraftKey(kind, entry.id, key)}
+                    />
+                  ))}
+                </>
+              ),
+            ),
+          )
+            .margin('top', 'md')
+            .spacing('md')
+        : null,
+    )
+      .padding('all', 'lg')
+      .background('mutedFill')
+      .corner('lg')
+      .margin('bottom', 'sm'),
   );
 };
 
@@ -711,26 +762,40 @@ const CategorizedModules = ({
 
   return (
     <>
-      {groups.map((group) => (
-        <View key={group.category}>
-          {showHeadings ? (
-            <Text className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mt-2 mb-1.5">
-              {t(`feeds.categories.${group.category}`, { defaultValue: humanize(group.category) })}
-            </Text>
-          ) : null}
-          {group.entries.map((entry) => (
-            <ModuleCard
-              key={entry.id}
-              kind={kind}
-              entry={entry}
-              state={states[entry.id]}
-              onToggle={(e) => onToggle(entry.id, e)}
-              onParam={(k, v) => onParam(entry.id, k, v)}
-              accountsSlot={renderAccountsSlot?.(entry)}
-            />
-          ))}
-        </View>
-      ))}
+      {groups.map((group) =>
+        toElement(
+          VStack(
+            showHeadings
+              ? RawText(
+                  t(`feeds.categories.${group.category}`, {
+                    defaultValue: humanize(group.category),
+                  }),
+                )
+                  .font('sm')
+                  .weight('bold')
+                  .textCase('uppercase')
+                  .tracking('wide')
+                  .foreground('muted')
+                  .margin('top', 'sm')
+                  .margin('bottom', '6')
+              : null,
+            Embed(
+              group.entries.map((entry) => (
+                <ModuleCard
+                  key={entry.id}
+                  kind={kind}
+                  entry={entry}
+                  state={states[entry.id]}
+                  onToggle={(e) => onToggle(entry.id, e)}
+                  onParam={(k, v) => onParam(entry.id, k, v)}
+                  accountsSlot={renderAccountsSlot?.(entry)}
+                />
+              )),
+            ),
+          ),
+          group.category,
+        ),
+      )}
     </>
   );
 };
@@ -954,19 +1019,28 @@ export function FeedBuilder({
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          actions={
-            canUsePrivateApi ? (
-              <Button size="sm" onPress={handleSave} disabled={!canSave} loading={saving}>
-                {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
-              </Button>
-            ) : undefined
-          }
-        />
-      }
+      header={toElement(
+        Header(feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle'))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .toolbar(
+            Embed(
+              canUsePrivateApi
+                ? toElement(
+                    LButton(
+                      LText(
+                        savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create'),
+                      ),
+                    )
+                      .size('sm')
+                      .onPress(handleSave)
+                      .disabled(!canSave)
+                      .loading(saving),
+                  )
+                : undefined,
+            ),
+          )
+          .inPage(),
+      )}
     >
       <SignInRequired
         label={t('feeds.builder.signInRequired', { defaultValue: 'Sign in to build a feed' })}
@@ -978,153 +1052,165 @@ export function FeedBuilder({
           <FormSkeleton />
         ) : (
           <ChipDraftContext.Provider value={chipDraftStore}>
-            <ScreenScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Details */}
-              <View className="rounded-2xl p-4 bg-muted">
-                <Field label={t('feeds.builder.titleLabel')}>
-                  <TextFieldInput
-                    label={t('feeds.builder.titleLabel')}
-                    value={title}
-                    onValueChange={setTitle}
-                    placeholder={t('feeds.builder.titlePlaceholder')}
-                    maxLength={100}
-                  />
-                </Field>
-                <Divider spacing={12} />
-                <Field label={t('feeds.builder.descriptionLabel')}>
-                  <Textarea
-                    value={description}
-                    onValueChange={setDescription}
-                    placeholder={t('feeds.builder.descriptionPlaceholder')}
-                    maxLength={500}
-                    autoResize
-                    rows={2}
-                    maxRows={6}
-                  />
-                </Field>
-              </View>
-
-              {/* Visibility */}
-              <GroupedSection
-                title={t('feeds.builder.visibility')}
-                footer={t('feeds.builder.publicDescription')}
-              >
-                <GroupedSectionItem
-                  title={t('feeds.builder.public')}
-                  showChevron={false}
-                  rightElement={
-                    <Switch
-                      checked={isPublic}
-                      onCheckedChange={handlePublicChange}
-                      accessibilityLabel={t('feeds.builder.public')}
-                    />
-                  }
-                />
-              </GroupedSection>
-
-              {/* Mode */}
-              <GroupedSection
-                title={t('feeds.builder.mode')}
-                footer={t('feeds.builder.modeDescription')}
-              >
-                <GroupedSectionItem
-                  title={t('feeds.builder.ranked')}
-                  onPress={() => setMode('ranked')}
-                  showChevron={false}
-                  rightElement={<ModeCheck active={mode === 'ranked'} />}
-                />
-                <GroupedSectionItem
-                  title={t('feeds.builder.chronological')}
-                  onPress={() => setMode('chronological')}
-                  showChevron={false}
-                  rightElement={<ModeCheck active={mode === 'chronological'} />}
-                />
-              </GroupedSection>
-
-              {/* Sources */}
-              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">
-                {t('feeds.builder.sources')}
-              </Text>
-              <Text className="text-[13px] text-muted-foreground mb-2">
-                {t('feeds.builder.sourcesDescription')}
-              </Text>
-              <CategorizedModules
-                kind="sources"
-                entries={catalog.sources}
-                states={sourceStates}
-                onToggle={toggleSource}
-                onParam={paramSource}
-                renderAccountsSlot={(entry) =>
-                  entry.id === 'accounts' ? (
-                    <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
-                  ) : undefined
-                }
-              />
-
-              {/* Filters */}
-              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">
-                {t('feeds.builder.filters')}
-              </Text>
-              <Text className="text-[13px] text-muted-foreground mb-2">
-                {t('feeds.builder.filtersDescription')}
-              </Text>
-              <CategorizedModules
-                kind="filters"
-                entries={catalog.filters}
-                states={filterStates}
-                onToggle={toggleFilter}
-                onParam={paramFilter}
-              />
-
-              {/* Ranking signals (ranked mode only) */}
-              {mode === 'ranked' && catalog.signals.length > 0 ? (
-                <>
-                  <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">
-                    {t('feeds.builder.signals')}
-                  </Text>
-                  <Text className="text-[13px] text-muted-foreground mb-2">
-                    {t('feeds.builder.signalsDescription')}
-                  </Text>
+            {toElement(
+              ScrollView(
+                /* Details */ VStack(
+                  LField(
+                    t('feeds.builder.titleLabel'),
+                    Embed(
+                      <TextFieldInput
+                        label={t('feeds.builder.titleLabel')}
+                        value={title}
+                        onValueChange={setTitle}
+                        placeholder={t('feeds.builder.titlePlaceholder')}
+                        maxLength={100}
+                      />,
+                    ),
+                  ),
+                  LDivider().spacing('md'),
+                  LField(
+                    t('feeds.builder.descriptionLabel'),
+                    Embed(
+                      <Textarea
+                        value={description}
+                        onValueChange={setDescription}
+                        placeholder={t('feeds.builder.descriptionPlaceholder')}
+                        maxLength={500}
+                        autoResize
+                        rows={2}
+                        maxRows={6}
+                      />,
+                    ),
+                  ),
+                )
+                  .padding('all', 'lg')
+                  .background('mutedFill')
+                  .corner('lg'),
+                /* Visibility */ LGroupedSection(
+                  LGroupedSectionItem(t('feeds.builder.public'))
+                    .chevron(false)
+                    .trailing(
+                      Toggle([isPublic, handlePublicChange]).label(t('feeds.builder.public')),
+                    ),
+                )
+                  .title(t('feeds.builder.visibility'))
+                  .caption(t('feeds.builder.publicDescription')),
+                /* Mode */ LGroupedSection(
+                  LGroupedSectionItem(t('feeds.builder.ranked'))
+                    .onPress(() => setMode('ranked'))
+                    .chevron(false)
+                    .trailing(Embed(<ModeCheck active={mode === 'ranked'} />)),
+                  LGroupedSectionItem(t('feeds.builder.chronological'))
+                    .onPress(() => setMode('chronological'))
+                    .chevron(false)
+                    .trailing(Embed(<ModeCheck active={mode === 'chronological'} />)),
+                )
+                  .title(t('feeds.builder.mode'))
+                  .caption(t('feeds.builder.modeDescription')),
+                /* Sources */ RawText(t('feeds.builder.sources'))
+                  .font('md')
+                  .weight('bold')
+                  .foreground('foreground')
+                  .margin('top', 'lg')
+                  .margin('bottom', 'xs'),
+                RawText(t('feeds.builder.sourcesDescription'))
+                  .font('sm')
+                  .foreground('muted')
+                  .margin('bottom', 'sm'),
+                Embed(
                   <CategorizedModules
-                    kind="signals"
-                    entries={catalog.signals}
-                    states={signalStates}
-                    onToggle={toggleSignal}
-                    onParam={paramSignal}
-                  />
-                </>
-              ) : null}
-
-              {/* Live preview (available once the feed is saved) */}
-              <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">
-                {t('feeds.builder.preview')}
-              </Text>
-              {savedFeedId ? (
-                <View className="rounded-2xl overflow-hidden border border-border">
-                  {/* Non-scrolling inside the builder's scroller, so it is not
-                      virtualized: bounded to a preview's worth of rows and never
-                      pages (#1103). The full feed is one tap away once saved. */}
-                  <Feed
-                    type="custom"
-                    filters={{ customFeedId: savedFeedId }}
-                    scrollEnabled={false}
-                    previewLimit={FEED_PREVIEW_ROWS}
-                    reloadKey={previewKey}
-                    hideHeader
-                  />
-                </View>
-              ) : (
-                <Text className="text-[13px] text-muted-foreground">
-                  {t('feeds.builder.saveToPreview')}
-                </Text>
-              )}
-
-              <View className="h-10" />
-            </ScreenScrollView>
+                    kind="sources"
+                    entries={catalog.sources}
+                    states={sourceStates}
+                    onToggle={toggleSource}
+                    onParam={paramSource}
+                    renderAccountsSlot={(entry) =>
+                      entry.id === 'accounts' ? (
+                        <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
+                      ) : undefined
+                    }
+                  />,
+                ),
+                /* Filters */ RawText(t('feeds.builder.filters'))
+                  .font('md')
+                  .weight('bold')
+                  .foreground('foreground')
+                  .margin('top', 'lg')
+                  .margin('bottom', 'xs'),
+                RawText(t('feeds.builder.filtersDescription'))
+                  .font('sm')
+                  .foreground('muted')
+                  .margin('bottom', 'sm'),
+                Embed(
+                  <CategorizedModules
+                    kind="filters"
+                    entries={catalog.filters}
+                    states={filterStates}
+                    onToggle={toggleFilter}
+                    onParam={paramFilter}
+                  />,
+                ),
+                /* Ranking signals (ranked mode only) */ Embed(
+                  mode === 'ranked' && catalog.signals.length > 0 ? (
+                    <>
+                      {toElement(
+                        RawText(t('feeds.builder.signals'))
+                          .font('md')
+                          .weight('bold')
+                          .foreground('foreground')
+                          .margin('top', 'lg')
+                          .margin('bottom', 'xs'),
+                      )}
+                      {toElement(
+                        RawText(t('feeds.builder.signalsDescription'))
+                          .font('sm')
+                          .foreground('muted')
+                          .margin('bottom', 'sm'),
+                      )}
+                      <CategorizedModules
+                        kind="signals"
+                        entries={catalog.signals}
+                        states={signalStates}
+                        onToggle={toggleSignal}
+                        onParam={paramSignal}
+                      />
+                    </>
+                  ) : null,
+                ),
+                /* Live preview (available once the feed is saved) */ RawText(
+                  t('feeds.builder.preview'),
+                )
+                  .font('md')
+                  .weight('bold')
+                  .foreground('foreground')
+                  .margin('top', 'lg')
+                  .margin('bottom', 'sm'),
+                savedFeedId
+                  ? VStack(
+                      /* Non-scrolling inside the builder's scroller, so it is not
+                                  virtualized: bounded to a preview's worth of rows and never
+                                  pages (#1103). The full feed is one tap away once saved. */ Embed(
+                        <Feed
+                          type="custom"
+                          filters={{ customFeedId: savedFeedId }}
+                          scrollEnabled={false}
+                          previewLimit={FEED_PREVIEW_ROWS}
+                          reloadKey={previewKey}
+                          hideHeader
+                        />,
+                      ),
+                    )
+                      .border('border', 'thin')
+                      .corner('lg')
+                      .clipped()
+                  : RawText(t('feeds.builder.saveToPreview')).font('sm').foreground('muted'),
+                VStack().frame({ height: '4xl' }),
+              )
+                .contentMargins('lg')
+                .spacing('sm')
+                .scrollIndicators('hidden', 'vertical')
+                .keyboardTaps('handled'),
+            )}
           </ChipDraftContext.Provider>
         )}
       </SignInRequired>
@@ -1134,11 +1220,9 @@ export function FeedBuilder({
 
 const ModeCheck = ({ active }: { active: boolean }) => {
   const theme = useTheme();
-  return active ? (
-    <RiCheckLine size="md" fill={theme.colors.primary} />
-  ) : (
-    <View className="w-5 h-5" />
-  );
+  return active
+    ? toElement(Icon(RiCheckLine).size('md').foreground('primary'))
+    : toElement(VStack().frame({ width: 'xl', height: 'xl' }));
 };
 
 const styles = StyleSheet.create({

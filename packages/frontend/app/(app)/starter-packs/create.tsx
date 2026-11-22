@@ -1,10 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Card } from '@oxy.so/bloom/card';
-import { Divider } from '@oxy.so/bloom/divider';
+import { TouchableOpacity } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -20,9 +16,23 @@ import type { User } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
+import {
+  Card as LCard,
+  Divider as LDivider,
+  Embed,
+  Field as LField,
+  HStack,
+  Header,
+  RawText,
+  ScrollView,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
+
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
-export default function CreateStarterPackScreen() {
+export default screen(function CreateStarterPackScreen() {
   const router = useRouter();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
@@ -94,98 +104,125 @@ export default function CreateStarterPackScreen() {
     }
   }, [name, description, members, queryClient, user?.id, t, router]);
 
-  return (
-    <Screen
-      header={
-        <PageHeader
-          title={t('starterPacks.create')}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+  return Embed(
+    <SignInRequired
+      label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
+      description={t('starterPacks.signInRequiredDesc', {
+        defaultValue: 'A starter pack is a set of accounts you recommend following together.',
+      })}
     >
-      <SignInRequired
-        label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
-        description={t('starterPacks.signInRequiredDesc', {
-          defaultValue: 'A starter pack is a set of accounts you recommend following together.',
-        })}
-      >
-        <ScreenScrollView contentContainerStyle={{ padding: 16 }}>
-          <View className="gap-3 mb-2.5">
-            <Field label="Name">
-              <TextFieldInput
-                label="Name"
-                value={name}
-                onChangeText={setName}
-                placeholder="e.g. Tech people to follow"
-              />
-            </Field>
-
-            <Field label="Description">
-              <Textarea
-                value={description}
-                onChangeText={setDescription}
-                placeholder={t('starterPacks.descriptionPlaceholder')}
-                rows={3}
-              />
-            </Field>
-
-            <Field label={`Add accounts (${members.length}/150)`} style={{ marginTop: 12 }}>
-              <Search
-                label={t('starterPacks.searchUsersPlaceholder')}
-                value={search}
-                onChangeText={doSearch}
-                onClearText={() => doSearch('')}
-              />
-            </Field>
-          </View>
-
-          {results.length > 0 && (
-            <Card appearance="outline" radius="radius-12">
-              {results.map((u, index) => (
-                <React.Fragment key={u.id}>
-                  {index > 0 && <Divider />}
-                  <TouchableOpacity
-                    className="flex-row items-center justify-between px-3 py-2.5"
-                    onPress={() => addMember(u)}
-                  >
-                    <Text className="text-foreground font-primary">
-                      @{u.username} · {u.name.displayName}
-                    </Text>
-                    <Text className="text-primary font-semibold font-primary">Add</Text>
-                  </TouchableOpacity>
-                </React.Fragment>
-              ))}
-            </Card>
-          )}
-
-          {members.length > 0 && (
-            <View className="mt-2.5">
-              <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Members</Text>
-              {members.map((m) => (
-                <View key={m.id} className="flex-row items-center py-1.5">
-                  <Text className="text-foreground">@{m.username}</Text>
-                  <TouchableOpacity onPress={() => removeMember(m.id)}>
-                    <Text className="text-destructive ml-2.5">Remove</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity
-            disabled={saving || !name.trim()}
-            onPress={onCreate}
-            className={cn(
-              'mt-5 py-3 rounded-[10px] items-center bg-primary',
-              !name.trim() && 'opacity-60',
-            )}
-          >
-            <Text className="text-primary-foreground font-bold font-primary">
-              {saving ? 'Creating...' : 'Create Starter Pack'}
-            </Text>
-          </TouchableOpacity>
-        </ScreenScrollView>
-      </SignInRequired>
-    </Screen>
+      {toElement(
+        ScrollView(
+          VStack(
+            LField(
+              'Name',
+              Embed(
+                <TextFieldInput
+                  label="Name"
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="e.g. Tech people to follow"
+                />,
+              ),
+            ),
+            LField(
+              'Description',
+              Embed(
+                <Textarea
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder={t('starterPacks.descriptionPlaceholder')}
+                  rows={3}
+                />,
+              ),
+            ),
+            Embed(
+              <Field label={`Add accounts (${members.length}/150)`} style={{ marginTop: 12 }}>
+                <Search
+                  label={t('starterPacks.searchUsersPlaceholder')}
+                  value={search}
+                  onChangeText={doSearch}
+                  onClearText={() => doSearch('')}
+                />
+              </Field>,
+            ),
+          )
+            .spacing('md')
+            .margin('bottom', '10'),
+          results.length > 0
+            ? LCard(
+                Embed(
+                  results.map((u, index) => (
+                    <React.Fragment key={u.id}>
+                      {index > 0 && toElement(LDivider())}
+                      <TouchableOpacity
+                        className="flex-row items-center justify-between px-3 py-2.5"
+                        onPress={() => addMember(u)}
+                      >
+                        {toElement(
+                          RawText('@', u.username, ' · ', u.name.displayName).foreground(
+                            'foreground',
+                          ),
+                        )}
+                        {toElement(RawText('Add').foreground('primary').weight('semibold'))}
+                      </TouchableOpacity>
+                    </React.Fragment>
+                  )),
+                ),
+              )
+                .style('outline')
+                .radius('md')
+            : null,
+          members.length > 0
+            ? VStack(
+                RawText('Members')
+                  .font('14')
+                  .leading('20px')
+                  .foreground('muted')
+                  .margin('bottom', '6'),
+                Embed(
+                  members.map((m) =>
+                    toElement(
+                      HStack(
+                        RawText('@', m.username).foreground('foreground'),
+                        Embed(
+                          <TouchableOpacity onPress={() => removeMember(m.id)}>
+                            {toElement(
+                              RawText('Remove').foreground('destructive').margin('left', '10'),
+                            )}
+                          </TouchableOpacity>,
+                        ),
+                      )
+                        .padding('vertical', '6')
+                        .align('center'),
+                      m.id,
+                    ),
+                  ),
+                ),
+              ).margin('top', '10')
+            : null,
+          Embed(
+            <TouchableOpacity
+              disabled={saving || !name.trim()}
+              onPress={onCreate}
+              className={cn(
+                'mt-5 py-3 rounded-[10px] items-center bg-primary',
+                !name.trim() && 'opacity-60',
+              )}
+            >
+              {toElement(
+                RawText(saving ? 'Creating...' : 'Create Starter Pack')
+                  .foreground('onPrimary')
+                  .weight('bold'),
+              )}
+            </TouchableOpacity>,
+          ),
+        ).contentMargins('lg'),
+      )}
+    </SignInRequired>,
+  ).header(
+    Header(t('starterPacks.create'))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-}
+});

@@ -14,6 +14,8 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
+import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+
 export interface FeedCardData {
   id: string;
   uri?: string;
@@ -130,66 +132,81 @@ export function FeedCard({
       accessibilityLabel={accessibilityLabel}
       testID={`feed-${feed.id}`}
     >
-      <View className="flex-row items-center gap-3">
-        {/* Avatar */}
-        <AccountAvatar
-          account={feed.avatar ? undefined : feed.creator}
-          source={feed.avatar || feed.creator?.avatar}
-          size={36}
-          variant={MEDIA_VARIANT_AVATAR}
-          shape="squircle"
-        />
-
-        {/* Text content */}
-        <View className="flex-1">
-          <Text className="text-sm font-semibold leading-[18px] text-foreground" numberOfLines={1}>
-            {feed.displayName}
-          </Text>
-          {feed.creator && (
-            <ProfileHoverCard username={getNormalizedUserHandle(feed.creator) ?? undefined}>
-              <Text className="text-sm text-muted-foreground leading-[18px]" numberOfLines={1}>
-                Feed by @{feed.creator.username}
-              </Text>
-            </ProfileHoverCard>
-          )}
-        </View>
-
-        {/* Right side: avatar cluster or custom slot */}
-        {avatarItems.length > 0 ? (
-          <AccountAvatarGroup
-            items={avatarItems}
-            size={28}
-            max={3}
-            variant={MEDIA_VARIANT_AVATAR}
-          />
-        ) : headerRight ? (
-          <View>{headerRight}</View>
-        ) : null}
-      </View>
-
-      {showDescription && feed.description ? (
-        <Text
-          className="text-muted-foreground text-sm leading-5"
-          numberOfLines={variant === 'row' ? 2 : 3}
-        >
-          {feed.description}
-        </Text>
-      ) : null}
-
-      {statsLine ? (
-        <Text className="text-sm text-muted-foreground leading-[18px]" numberOfLines={1}>
-          {statsLine}
-        </Text>
-      ) : null}
-
-      {showLikes && feed.likeCount && feed.likeCount > 0 ? (
-        <Text
-          className="text-sm font-semibold text-muted-foreground leading-[18px]"
-          numberOfLines={1}
-        >
-          Pinned by {formatCompactNumber(feed.likeCount)} {feed.likeCount === 1 ? 'user' : 'users'}
-        </Text>
-      ) : null}
+      {toElement(
+        HStack(
+          /* Avatar */ Embed(
+            <AccountAvatar
+              account={feed.avatar ? undefined : feed.creator}
+              source={feed.avatar || feed.creator?.avatar}
+              size={36}
+              variant={MEDIA_VARIANT_AVATAR}
+              shape="squircle"
+            />,
+          ),
+          /* Text content */ VStack(
+            LText(feed.displayName)
+              .font('14')
+              .weight('semibold')
+              .leading('18px')
+              .foreground('foreground')
+              .lines(1),
+            Embed(
+              feed.creator && (
+                <ProfileHoverCard username={getNormalizedUserHandle(feed.creator) ?? undefined}>
+                  {toElement(
+                    LText('Feed by @', feed.creator.username)
+                      .font('14')
+                      .foreground('muted')
+                      .leading('18px')
+                      .lines(1),
+                  )}
+                </ProfileHoverCard>
+              ),
+            ),
+          ).flex('1'),
+          /* Right side: avatar cluster or custom slot */ Embed(
+            avatarItems.length > 0 ? (
+              <AccountAvatarGroup
+                items={avatarItems}
+                size={28}
+                max={3}
+                variant={MEDIA_VARIANT_AVATAR}
+              />
+            ) : headerRight ? (
+              toElement(VStack(Embed(headerRight)))
+            ) : null,
+          ),
+        )
+          .align('center')
+          .spacing('md'),
+      )}
+      {showDescription && feed.description
+        ? toElement(
+            LText(feed.description)
+              .foreground('muted')
+              .font('14')
+              .leading('20px')
+              .lines(variant === 'row' ? 2 : 3),
+          )
+        : null}
+      {statsLine
+        ? toElement(LText(statsLine).font('14').foreground('muted').leading('18px').lines(1))
+        : null}
+      {showLikes && feed.likeCount && feed.likeCount > 0
+        ? toElement(
+            LText(
+              'Pinned by ',
+              formatCompactNumber(feed.likeCount),
+              ' ',
+              feed.likeCount === 1 ? 'user' : 'users',
+            )
+              .font('14')
+              .weight('semibold')
+              .foreground('muted')
+              .leading('18px')
+              .lines(1),
+          )
+        : null}
     </PressableScale>
   );
 }

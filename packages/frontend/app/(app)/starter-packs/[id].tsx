@@ -1,10 +1,7 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { Text } from '@oxy.so/bloom/typography';
+import { StyleSheet } from 'react-native';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useRouter, useLocalSearchParams, useFocusEffect } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { starterPacksService } from '@/services/starterPacksService';
@@ -22,6 +19,18 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@oxy.so/core/logger';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface MemberProfile {
   id: string;
@@ -127,83 +136,117 @@ export default function StarterPackDetailScreen() {
   const packBody = pack ? (
     <>
       {/* Hero section with grouped member avatars */}
-      <View className="items-center px-6 pt-6 pb-4 gap-4">
-        {avatarItems.length > 0 ? (
-          <AvatarGroup
-            items={avatarItems}
-            size={56}
-            max={8}
-            total={members.length}
-            variant={MEDIA_VARIANT_AVATAR_LG}
-          />
-        ) : (
-          <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
-            <RiRocket2Line width={32} height={32} fill={theme.colors.primary} />
-          </View>
-        )}
-
-        <Text
-          className="text-[22px] leading-6 font-bold text-center text-foreground"
-          numberOfLines={2}
-        >
-          {pack.name}
-        </Text>
-
-        {pack.description && (
-          <Text className="text-[15px] leading-[22px] text-center text-muted-foreground">
-            {pack.description}
-          </Text>
-        )}
-
-        <Text className="text-sm leading-6 text-muted-foreground">
-          {members.length} {members.length === 1 ? 'account' : 'accounts'}
-          {pack.useCount > 0
-            ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
-            : ''}
-        </Text>
-
-        {/* Follow-all: multi-mode FollowButton drops the viewer's own id,
-            self-gates on private-API readiness, and records pack usage on
-            success. Renders null when no other members remain. */}
-        <FollowButton
-          userIds={followAllUserIds}
-          size="lg"
-          followAllLabel="Follow all"
-          followedAllLabel="Following all"
-          onBulkFollow={handleBulkFollow}
-          style={styles.followAllButton}
-        />
-
-        {/* Joined count — only show for popular packs (>= 50) */}
-        {pack.useCount >= 50 && (
-          <View className="flex-row items-center gap-1.5 mt-1">
-            <RiLineChartLine width={14} height={14} fill={theme.colors.textSecondary} />
-            <Text className="text-sm leading-6 font-semibold text-muted-foreground">
-              {formatCompactNumber(pack.useCount)} joined
-            </Text>
-          </View>
-        )}
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            avatarItems.length > 0 ? (
+              <AvatarGroup
+                items={avatarItems}
+                size={56}
+                max={8}
+                total={members.length}
+                variant={MEDIA_VARIANT_AVATAR_LG}
+              />
+            ) : (
+              toElement(
+                VStack(Icon(RiRocket2Line).size('2xl').foreground('primary'))
+                  .frame({ width: '64', height: '64' })
+                  .background('primary/20')
+                  .corner('lg')
+                  .align('center')
+                  .justify('center'),
+              )
+            ),
+          ),
+          LText(pack.name)
+            .font('2xl')
+            .leading('24px')
+            .weight('bold')
+            .textAlign('center')
+            .foreground('foreground')
+            .lines(2),
+          Embed(
+            pack.description &&
+              toElement(
+                LText(pack.description)
+                  .font('md')
+                  .leading('22px')
+                  .textAlign('center')
+                  .foreground('muted'),
+              ),
+          ),
+          LText(
+            members.length,
+            ' ',
+            members.length === 1 ? 'account' : 'accounts',
+            pack.useCount > 0
+              ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
+              : '',
+          )
+            .font('14')
+            .leading('24px')
+            .foreground('muted'),
+          /* Follow-all: multi-mode FollowButton drops the viewer's own id,
+                  self-gates on private-API readiness, and records pack usage on
+                  success. Renders null when no other members remain. */ Embed(
+            <FollowButton
+              userIds={followAllUserIds}
+              size="lg"
+              followAllLabel="Follow all"
+              followedAllLabel="Following all"
+              onBulkFollow={handleBulkFollow}
+              style={styles.followAllButton}
+            />,
+          ),
+          /* Joined count — only show for popular packs (>= 50) */ pack.useCount >= 50
+            ? HStack(
+                Icon(RiLineChartLine).size('14').foreground('muted'),
+                LText(formatCompactNumber(pack.useCount), ' joined')
+                  .font('14')
+                  .leading('24px')
+                  .weight('semibold')
+                  .foreground('muted'),
+              )
+                .align('center')
+                .spacing('6')
+                .margin('top', 'xs')
+            : null,
+        )
+          .padding('horizontal', '2xl')
+          .padding('top', '2xl')
+          .padding('bottom', 'lg')
+          .align('center')
+          .spacing('lg'),
+      )}
 
       {/* Member list — rows are full-bleed, so only the section title is inset. */}
-      <View className="pt-2 pb-8">
-        <Text className="text-base leading-6 font-bold mb-3 px-4 text-foreground">
-          Accounts in this pack
-        </Text>
-        {/* The shared user row; its follow button renders nothing on the viewer's own row. */}
-        {members.map((m) => (
-          <ProfileCard
-            key={m.id}
-            profile={{
-              id: m.id,
-              username: m.username,
-              name: { displayName: m.displayName },
-              avatar: m.avatar,
-            }}
-            showFollowButton
-          />
-        ))}
-      </View>
+      {toElement(
+        VStack(
+          LText('Accounts in this pack')
+            .padding('horizontal', 'lg')
+            .font('16')
+            .leading('24px')
+            .weight('bold')
+            .margin('bottom', 'md')
+            .foreground('foreground'),
+          /* The shared user row; its follow button renders nothing on the viewer's own row. */ Embed(
+            members.map((m) => (
+              <ProfileCard
+                key={m.id}
+                profile={{
+                  id: m.id,
+                  username: m.username,
+                  name: { displayName: m.displayName },
+                  avatar: m.avatar,
+                }}
+                showFollowButton
+              />
+            )),
+          ),
+        )
+          .padding('top', 'sm')
+          .padding('bottom', '3xl'),
+      )}
     </>
   ) : null;
 
@@ -215,36 +258,43 @@ export default function StarterPackDetailScreen() {
         description={pack?.description || 'A curated collection of accounts to follow'}
       />
       <Screen
-        header={
-          <PageHeader
-            title={pack?.name || 'Starter Pack'}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-            actions={
-              isOwner ? (
-                <Button
-                  onPress={handleEdit}
-                  accessibilityLabel="Edit starter pack"
-                  tone="accent"
-                  appearance="plain"
-                >
-                  Edit
-                </Button>
-              ) : undefined
-            }
-          />
-        }
+        header={toElement(
+          Header(pack?.name || 'Starter Pack')
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .toolbar(
+              Embed(
+                isOwner
+                  ? toElement(
+                      LButton(LText('Edit'))
+                        .onPress(handleEdit)
+                        .label('Edit starter pack')
+                        .tint('accent')
+                        .style('plain'),
+                    )
+                  : undefined,
+              ),
+            )
+            .inPage(),
+        )}
       >
-        <ScreenScrollView>
-          {error ? (
-            <View className="items-center justify-center py-16">
-              <Text className="text-destructive">{error}</Text>
-            </View>
-          ) : loading ? (
-            <DetailSkeleton />
-          ) : (
-            packBody
-          )}
-        </ScreenScrollView>
+        {toElement(
+          ScrollView(
+            Embed(
+              error ? (
+                toElement(
+                  VStack(LText(error).foreground('destructive'))
+                    .padding('vertical', '64')
+                    .align('center')
+                    .justify('center'),
+                )
+              ) : loading ? (
+                <DetailSkeleton />
+              ) : (
+                packBody
+              ),
+            ),
+          ),
+        )}
       </Screen>
     </>
   );

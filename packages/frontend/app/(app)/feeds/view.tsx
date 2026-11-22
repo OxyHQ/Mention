@@ -1,8 +1,6 @@
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { useMemo } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
@@ -10,6 +8,8 @@ import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import type { FeedType } from '@mention/shared-types/feed';
+import { Embed, Group, Header } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * Read-only viewer for a descriptor-addressed feed that has no dedicated detail
@@ -28,7 +28,7 @@ import type { FeedType } from '@mention/shared-types/feed';
 /** Descriptors that carry their own content and need no preset entry. */
 const PASS_THROUGH_DESCRIPTOR_PREFIXES = ['feedgen|', 'trend|'] as const;
 
-export default function PresetFeedViewScreen() {
+export default screen(function PresetFeedViewScreen() {
   const { descriptor, title } = useLocalSearchParams<{ descriptor: string; title: string }>();
   const { t } = useTranslation();
   const { canUsePrivateApi, isPrivateApiPending } = useAuth();
@@ -103,15 +103,14 @@ export default function PresetFeedViewScreen() {
     return <Feed type={preset.descriptor as FeedType} />;
   };
 
-  return (
-    <Screen
-      scroll="auto"
-      header={
-        <PageHeader title={headerTitle} backLabel={t('common.back', { defaultValue: 'Back' })} />
-      }
-    >
-      <SEO title={headerTitle} description={t('seo.feeds.description')} />
-      {renderBody()}
-    </Screen>
-  );
-}
+  return Group(
+    Embed(<SEO title={headerTitle} description={t('seo.feeds.description')} />),
+    Embed(renderBody()),
+  )
+    .screenScroll('auto')
+    .header(
+      Header(headerTitle)
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .inPage(),
+    );
+});

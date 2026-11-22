@@ -1,9 +1,9 @@
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import { lazy, Suspense, type ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FeedBuilder as FeedBuilderComponent } from './FeedBuilder';
+import { Header, toElement } from '@oxy.so/bloom-language';
 
 // Both routes share one async boundary, so Metro does not move the editor into
 // the startup bundle just because it is used by both create and edit.
@@ -15,12 +15,11 @@ function BuilderLoading({ editing }: { editing: boolean }) {
   const { t } = useTranslation();
   return (
     <Screen
-      header={
-        <PageHeader
-          title={editing ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+      header={toElement(
+        Header(editing ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle'))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      )}
     >
       <FormSkeleton />
     </Screen>

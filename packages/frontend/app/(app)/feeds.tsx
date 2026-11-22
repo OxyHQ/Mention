@@ -3,9 +3,7 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
+import { View, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -26,7 +24,6 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
 
 import { Fab } from '@oxy.so/bloom/fab';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { SEO } from '@/components/SEO';
@@ -36,10 +33,23 @@ import type { BloomIcon } from '@/components/settings/RowIcon';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Search } from '@oxy.so/bloom/search';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
+
+import {
+  Avatar as LAvatar,
+  Button as LButton,
+  Embed,
+  Header,
+  Icon,
+  RawText,
+  Search as LSearch,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 /**
  * Live trends offered on this screen.
@@ -99,11 +109,9 @@ const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }
           : { backgroundColor: theme.colors.primary },
       ]}
     >
-      {pinned ? (
-        <RiCheckLine width={14} height={14} fill={theme.colors.text} />
-      ) : (
-        <RiAddLine width={14} height={14} fill="#fff" />
-      )}
+      {pinned
+        ? toElement(Icon(RiCheckLine).size('14').foreground('foreground'))
+        : toElement(Icon(RiAddLine).size('14').foreground(appColors.color.hexfff))}
     </TouchableOpacity>
   );
 };
@@ -136,17 +144,30 @@ const PresetRow = ({
         accessibilityRole="button"
         accessibilityLabel={t(preset.labelKey)}
       >
-        <View className="w-9 h-9 rounded-full items-center justify-center bg-muted">
-          <PresetIcon width={20} height={20} fill={theme.colors.primary} />
-        </View>
-        <View className="flex-1 gap-0.5">
-          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-            {t(preset.labelKey)}
-          </Text>
-          <Text className="text-[13px] leading-[18px] text-muted-foreground" numberOfLines={2}>
-            {t(preset.descriptionKey)}
-          </Text>
-        </View>
+        {toElement(
+          VStack(Embed(<PresetIcon width={20} height={20} fill={theme.colors.primary} />))
+            .frame({ width: '36', height: '36' })
+            .background('mutedFill')
+            .corner('infinite')
+            .align('center')
+            .justify('center'),
+        )}
+        {toElement(
+          VStack(
+            RawText(t(preset.labelKey))
+              .font('md')
+              .weight('semibold')
+              .foreground('foreground')
+              .lines(1),
+            RawText(t(preset.descriptionKey))
+              .font('sm')
+              .leading('18px')
+              .foreground('muted')
+              .lines(2),
+          )
+            .flex('1')
+            .spacing('2xs'),
+        )}
       </TouchableOpacity>
       {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
     </View>
@@ -191,17 +212,26 @@ const TrendFeedRow = ({
         accessibilityRole="button"
         accessibilityLabel={trend.displayName}
       >
-        <View className="w-9 h-9 rounded-full items-center justify-center bg-muted">
-          <RiLineChartLine size="md" fill={theme.colors.primary} />
-        </View>
-        <View className="flex-1 gap-0.5">
-          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-            {trend.displayName}
-          </Text>
-          <Text className="text-[13px] leading-[18px] text-muted-foreground" numberOfLines={1}>
-            {subtitle}
-          </Text>
-        </View>
+        {toElement(
+          VStack(Icon(RiLineChartLine).size('md').foreground('primary'))
+            .frame({ width: '36', height: '36' })
+            .background('mutedFill')
+            .corner('infinite')
+            .align('center')
+            .justify('center'),
+        )}
+        {toElement(
+          VStack(
+            RawText(trend.displayName)
+              .font('md')
+              .weight('semibold')
+              .foreground('foreground')
+              .lines(1),
+            RawText(subtitle).font('sm').leading('18px').foreground('muted').lines(1),
+          )
+            .flex('1')
+            .spacing('2xs'),
+        )}
       </TouchableOpacity>
       {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
     </View>
@@ -235,27 +265,36 @@ const FeedRow = ({
         accessibilityRole="button"
         accessibilityLabel={item.title || 'Untitled Feed'}
       >
-        <Avatar source={item.avatar || undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
-        <View className="flex-1 gap-0.5">
-          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-            {item.title || 'Untitled Feed'}
-          </Text>
-          <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
-            {item.owner ? `@${item.owner.username || item.owner.handle}` : ''}
-            {memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : ''}
-            {typeof item.likeCount === 'number' && item.likeCount > 0
-              ? ` · ${formatCompactNumber(item.likeCount)} likes`
-              : ''}
-          </Text>
-          {item.description ? (
-            <Text
-              className="text-[13px] leading-[18px] mt-0.5 text-muted-foreground"
-              numberOfLines={2}
-            >
-              {item.description}
-            </Text>
-          ) : null}
-        </View>
+        {toElement(LAvatar(item.avatar || undefined, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))}
+        {toElement(
+          VStack(
+            RawText(item.title || 'Untitled Feed')
+              .font('md')
+              .weight('semibold')
+              .foreground('foreground')
+              .lines(1),
+            RawText(
+              item.owner ? `@${item.owner.username || item.owner.handle}` : '',
+              memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : '',
+              typeof item.likeCount === 'number' && item.likeCount > 0
+                ? ` · ${formatCompactNumber(item.likeCount)} likes`
+                : '',
+            )
+              .font('sm')
+              .foreground('muted')
+              .lines(1),
+            item.description
+              ? RawText(item.description)
+                  .font('sm')
+                  .leading('18px')
+                  .margin('top', '2xs')
+                  .foreground('muted')
+                  .lines(2)
+              : null,
+          )
+            .flex('1')
+            .spacing('2xs'),
+        )}
       </TouchableOpacity>
       {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
     </View>
@@ -430,9 +469,14 @@ const FeedsScreen: React.FC = () => {
   const content = (
     <>
       {/* Built-in preset feeds */}
-      <Text className="text-[15px] font-bold text-foreground mt-2 mb-1">
-        {t('feeds.presets.title')}
-      </Text>
+      {toElement(
+        RawText(t('feeds.presets.title'))
+          .font('md')
+          .weight('bold')
+          .foreground('foreground')
+          .margin('top', 'sm')
+          .margin('bottom', 'xs'),
+      )}
       {visiblePresets.map((preset) => (
         <PresetRow
           key={preset.id}
@@ -448,9 +492,14 @@ const FeedsScreen: React.FC = () => {
       {/* Live trends — under the curated shelf, never above it. */}
       {trendFeeds.length > 0 ? (
         <>
-          <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
-            {t('feeds.trending.title')}
-          </Text>
+          {toElement(
+            RawText(t('feeds.trending.title'))
+              .font('md')
+              .weight('bold')
+              .foreground('foreground')
+              .margin('top', '2xl')
+              .margin('bottom', 'xs'),
+          )}
           {trendFeeds.map((trend, index) => (
             <TrendFeedRow
               key={trend.id}
@@ -470,18 +519,24 @@ const FeedsScreen: React.FC = () => {
       ) : null}
 
       {/* Discover feeds */}
-      <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
-        {t('feeds.discoverNew.title')}
-      </Text>
+      {toElement(
+        RawText(t('feeds.discoverNew.title'))
+          .font('md')
+          .weight('bold')
+          .foreground('foreground')
+          .margin('top', '2xl')
+          .margin('bottom', 'xs'),
+      )}
 
-      <View className="mt-2 mb-1">
-        <Search
-          label={t('feeds.searchPlaceholder')}
-          value={searchQuery}
-          onValueChange={setSearchQuery}
-          onClearText={() => setSearchQuery('')}
-        />
-      </View>
+      {toElement(
+        VStack(
+          LSearch([searchQuery, setSearchQuery])
+            .label(t('feeds.searchPlaceholder'))
+            .onClearText(() => setSearchQuery('')),
+        )
+          .margin('top', 'sm')
+          .margin('bottom', 'xs'),
+      )}
 
       {loading && !refreshing && publicFeeds.length === 0 ? (
         <ListSkeleton />
@@ -501,9 +556,14 @@ const FeedsScreen: React.FC = () => {
       {/* Your feeds */}
       {myFeeds.length > 0 && (
         <>
-          <Text className="text-[15px] font-bold text-foreground mt-7 mb-1">
-            {t('feeds.yourFeeds.title')}
-          </Text>
+          {toElement(
+            RawText(t('feeds.yourFeeds.title'))
+              .font('md')
+              .weight('bold')
+              .foreground('foreground')
+              .margin('top', '28')
+              .margin('bottom', 'xs'),
+          )}
           {myFeeds.map((f) => (
             <FeedRow
               key={String(f._id || f.id)}
@@ -517,7 +577,7 @@ const FeedsScreen: React.FC = () => {
         </>
       )}
 
-      <View className="h-20" />
+      {toElement(VStack().frame({ height: '80' }))}
     </>
   );
 
@@ -526,21 +586,18 @@ const FeedsScreen: React.FC = () => {
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
       <Screen
         reselect={{ refresh: onRefresh }}
-        header={
-          <PageHeader
-            title={t('feeds.title')}
-            actions={
-              <Button
-                appearance="subtle"
-                tone="neutral"
-                iconOnly
-                leadingIcon={RiSettings3Line}
-                onPress={() => requestSettings('/settings/feed')}
-                accessibilityLabel={t('sidebar.settings', { defaultValue: 'Settings' })}
-              />
-            }
-          />
-        }
+        header={toElement(
+          Header(t('feeds.title'))
+            .toolbar(
+              LButton(Icon(RiSettings3Line))
+                .shape('circle')
+                .style('subtle')
+                .tint('neutral')
+                .onPress(() => requestSettings('/settings/feed'))
+                .label(t('sidebar.settings', { defaultValue: 'Settings' })),
+            )
+            .inPage(),
+        )}
         // The page's own action; the shell's compose FAB steps aside for it.
         primaryAction={
           canEdit ? (

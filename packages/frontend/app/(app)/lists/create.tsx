@@ -1,12 +1,8 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Switch } from '@oxy.so/bloom/switch';
-import { Card } from '@oxy.so/bloom/card';
-import { Divider } from '@oxy.so/bloom/divider';
+import { TouchableOpacity } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -19,6 +15,20 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import type { User } from '@oxy.so/core';
+
+import {
+  Card as LCard,
+  Divider as LDivider,
+  Embed,
+  Field as LField,
+  HStack,
+  Header,
+  RawText,
+  ScrollView,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
@@ -89,12 +99,11 @@ function CreateListScreen() {
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={t('lists.create.title')}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+      header={toElement(
+        Header(t('lists.create.title'))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      )}
     >
       <SignInRequired
         label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
@@ -103,97 +112,127 @@ function CreateListScreen() {
             'Lists group the accounts you want to read together. The ones you create or follow appear here.',
         })}
       >
-        <ScreenScrollView contentContainerStyle={{ padding: 16 }}>
-          <View className="gap-3 mb-2.5">
-            <Field label={t('lists.create.titleLabel')}>
-              <TextFieldInput
-                label={t('lists.create.titleLabel')}
-                value={title}
-                onChangeText={setTitle}
-                placeholder={t('lists.create.titlePlaceholder')}
-              />
-            </Field>
-
-            <Field label={t('lists.create.descriptionLabel')}>
-              <Textarea
-                value={description}
-                onChangeText={setDescription}
-                placeholder={t('lists.create.descriptionPlaceholder')}
-                rows={3}
-              />
-            </Field>
-
-            <View className="flex-row items-center justify-between">
-              <Text className="text-sm text-muted-foreground font-primary">
-                {t('lists.create.publicLabel')}
-              </Text>
-              <Switch
-                checked={isPublic}
-                onCheckedChange={setIsPublic}
-                accessibilityLabel={t('lists.create.publicLabel')}
-              />
-            </View>
-
-            <Field label={t('lists.create.addMembers')} style={{ marginTop: 12 }}>
-              <Search
-                label={t('lists.create.searchUsersPlaceholder')}
-                value={search}
-                onChangeText={doSearch}
-                onClearText={() => doSearch('')}
-              />
-            </Field>
-          </View>
-
-          {results.length > 0 && (
-            <Card appearance="outline" radius="radius-12">
-              {results.map((u, index) => (
-                <React.Fragment key={u.id}>
-                  {index > 0 && <Divider />}
-                  <TouchableOpacity
-                    className="flex-row items-center justify-between px-3 py-2.5"
-                    onPress={() => addMember(u)}
-                  >
-                    <Text className="text-foreground font-primary">
-                      @{u.username} • {u.name.displayName}
-                    </Text>
-                    <Text className="text-primary font-semibold font-primary">
-                      {t('lists.create.add')}
-                    </Text>
-                  </TouchableOpacity>
-                </React.Fragment>
-              ))}
-            </Card>
-          )}
-
-          {members.length > 0 && (
-            <View className="mt-2.5">
-              <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-                {t('lists.create.members')}
-              </Text>
-              {members.map((m) => (
-                <View key={m.id} className="flex-row items-center py-1.5">
-                  <Text className="text-foreground">@{m.username}</Text>
-                  <TouchableOpacity onPress={() => removeMember(m.id)}>
-                    <Text className="text-destructive ml-2.5">{t('lists.create.remove')}</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity
-            disabled={saving || !title.trim()}
-            onPress={onCreate}
-            className={cn(
-              'mt-5 py-3 rounded-[10px] items-center bg-primary',
-              !title.trim() && 'opacity-60',
-            )}
-          >
-            <Text className="text-primary-foreground font-bold font-primary">
-              {saving ? t('lists.create.saving') : t('lists.create.createButton')}
-            </Text>
-          </TouchableOpacity>
-        </ScreenScrollView>
+        {toElement(
+          ScrollView(
+            VStack(
+              LField(
+                t('lists.create.titleLabel'),
+                Embed(
+                  <TextFieldInput
+                    label={t('lists.create.titleLabel')}
+                    value={title}
+                    onChangeText={setTitle}
+                    placeholder={t('lists.create.titlePlaceholder')}
+                  />,
+                ),
+              ),
+              LField(
+                t('lists.create.descriptionLabel'),
+                Embed(
+                  <Textarea
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder={t('lists.create.descriptionPlaceholder')}
+                    rows={3}
+                  />,
+                ),
+              ),
+              HStack(
+                RawText(t('lists.create.publicLabel'))
+                  .font('14')
+                  .leading('20px')
+                  .foreground('muted'),
+                Toggle([isPublic, setIsPublic]).label(t('lists.create.publicLabel')),
+              )
+                .align('center')
+                .justify('between'),
+              Embed(
+                <Field label={t('lists.create.addMembers')} style={{ marginTop: 12 }}>
+                  <Search
+                    label={t('lists.create.searchUsersPlaceholder')}
+                    value={search}
+                    onChangeText={doSearch}
+                    onClearText={() => doSearch('')}
+                  />
+                </Field>,
+              ),
+            )
+              .spacing('md')
+              .margin('bottom', '10'),
+            results.length > 0
+              ? LCard(
+                  Embed(
+                    results.map((u, index) => (
+                      <React.Fragment key={u.id}>
+                        {index > 0 && toElement(LDivider())}
+                        <TouchableOpacity
+                          className="flex-row items-center justify-between px-3 py-2.5"
+                          onPress={() => addMember(u)}
+                        >
+                          {toElement(
+                            RawText('@', u.username, ' • ', u.name.displayName).foreground(
+                              'foreground',
+                            ),
+                          )}
+                          {toElement(
+                            RawText(t('lists.create.add')).foreground('primary').weight('semibold'),
+                          )}
+                        </TouchableOpacity>
+                      </React.Fragment>
+                    )),
+                  ),
+                )
+                  .style('outline')
+                  .radius('md')
+              : null,
+            members.length > 0
+              ? VStack(
+                  RawText(t('lists.create.members'))
+                    .font('14')
+                    .leading('20px')
+                    .foreground('muted')
+                    .margin('bottom', '6'),
+                  Embed(
+                    members.map((m) =>
+                      toElement(
+                        HStack(
+                          RawText('@', m.username).foreground('foreground'),
+                          Embed(
+                            <TouchableOpacity onPress={() => removeMember(m.id)}>
+                              {toElement(
+                                RawText(t('lists.create.remove'))
+                                  .foreground('destructive')
+                                  .margin('left', '10'),
+                              )}
+                            </TouchableOpacity>,
+                          ),
+                        )
+                          .padding('vertical', '6')
+                          .align('center'),
+                        m.id,
+                      ),
+                    ),
+                  ),
+                ).margin('top', '10')
+              : null,
+            Embed(
+              <TouchableOpacity
+                disabled={saving || !title.trim()}
+                onPress={onCreate}
+                className={cn(
+                  'mt-5 py-3 rounded-[10px] items-center bg-primary',
+                  !title.trim() && 'opacity-60',
+                )}
+              >
+                {toElement(
+                  RawText(saving ? t('lists.create.saving') : t('lists.create.createButton'))
+                    .foreground('onPrimary')
+                    .weight('bold'),
+                )}
+              </TouchableOpacity>,
+            ),
+          ).contentMargins('lg'),
+        )}
       </SignInRequired>
     </Screen>
   );

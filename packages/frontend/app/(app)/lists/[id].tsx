@@ -2,7 +2,7 @@ import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, RefreshControl, Platform, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, RefreshControl, Platform, TouchableOpacity } from 'react-native';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -15,14 +15,12 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import Feed from '@/components/Feed/Feed';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { listsService } from '@/services/listsService';
 import { subscribeToListChanges } from '@/services/listMutations';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -35,6 +33,22 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { shareLink } from '@/utils/shareLink';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SignInRequired } from '@/components/common/SignInRequired';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  ScrollView,
+  TabItem,
+  Tabs as LTabs,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 interface ListOwner {
   _id?: string;
@@ -153,88 +167,124 @@ function ListDetailScreen() {
   // `ListHeaderComponent`); on the `members` tab the same chrome renders inside
   // that tab's own <ScreenScrollView>. Declared after the data so it can read `list`.
   const renderSubheader = useCallback(
-    () => (
-      <View className="px-4 pt-3 pb-2">
-        <View className="flex-row items-start gap-3">
-          <Avatar
-            source={list?.avatar || undefined}
-            size={58}
-            variant={MEDIA_VARIANT_AVATAR_LG}
-            style={{ borderRadius: 12 }}
-          />
-          <View className="flex-1 justify-center">
-            <Text
-              className="text-foreground text-[22px] font-bold leading-[26px]"
-              numberOfLines={4}
-            >
-              {list?.title || 'Untitled List'}
-            </Text>
-            <ProfileHoverCard username={isOwnList ? undefined : listOwnerHandle}>
-              <Pressable
-                onPress={() => {
-                  if (listOwnerHandle && !isOwnList) {
-                    router.push(`/@${listOwnerHandle}`);
-                  }
-                }}
-                disabled={isOwnList || !listOwner?.username}
-              >
-                <Text className="text-muted-foreground text-sm mt-0.5">{bylineText}</Text>
-              </Pressable>
-            </ProfileHoverCard>
-          </View>
-        </View>
-
-        {/* Description */}
-        {list?.description ? (
-          <Text className="text-foreground text-[15px] leading-[20px] mt-3">
-            {list.description}
-          </Text>
-        ) : null}
-
-        {/* Stats row */}
-        <View className="flex-row items-center gap-4 mt-3 mb-1">
-          <View className="flex-row items-center gap-1">
-            <Text className="text-foreground text-sm font-semibold">
-              {formatCompactNumber(memberCount)}
-            </Text>
-            <Text className="text-muted-foreground text-sm">
-              {memberCount === 1 ? 'member' : 'members'}
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-1">
-            <Text className="text-foreground text-sm font-semibold">
-              {formatCompactNumber(subscriberCount)}
-            </Text>
-            <Text className="text-muted-foreground text-sm">
-              {subscriberCount === 1
-                ? t('lists.subscriberSingular', { defaultValue: 'subscriber' })
-                : t('lists.subscriberPlural', { defaultValue: 'subscribers' })}
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-1">
-            {list?.isPublic ? (
-              <RiGlobalLine width={14} height={14} fill={theme.colors.textSecondary} />
-            ) : (
-              <RiLockLine width={14} height={14} fill={theme.colors.textSecondary} />
-            )}
-            <Text className="text-muted-foreground text-sm">
-              {list?.isPublic ? 'Public' : 'Private'}
-            </Text>
-          </View>
-          {!isOwnList ? (
-            <View className="ml-auto">
-              <EntityFollowButton
-                entityType="list"
-                entityId={listId}
-                label={t('lists.followList', { defaultValue: 'Follow list' })}
-                followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
-                size="sm"
-              />
-            </View>
-          ) : null}
-        </View>
-      </View>
-    ),
+    () =>
+      toElement(
+        VStack(
+          HStack(
+            Embed(
+              <Avatar
+                source={list?.avatar || undefined}
+                size={58}
+                variant={MEDIA_VARIANT_AVATAR_LG}
+                style={{ borderRadius: 12 }}
+              />,
+            ),
+            VStack(
+              Embed(
+                <Text
+                  className="text-foreground text-[22px] font-bold leading-[26px]"
+                  numberOfLines={4}
+                >
+                  {list?.title || 'Untitled List'}
+                </Text>,
+              ),
+              Embed(
+                <ProfileHoverCard username={isOwnList ? undefined : listOwnerHandle}>
+                  {toElement(
+                    VStack(
+                      RawText(bylineText)
+                        .foreground('muted')
+                        .font('14')
+                        .leading('20px')
+                        .margin('top', '2xs'),
+                    )
+                      .onPress(() => {
+                        if (listOwnerHandle && !isOwnList) {
+                          router.push(`/@${listOwnerHandle}`);
+                        }
+                      })
+                      .disabled(isOwnList || !listOwner?.username),
+                  )}
+                </ProfileHoverCard>,
+              ),
+            )
+              .flex('1')
+              .justify('center'),
+          )
+            .align('start')
+            .spacing('md'),
+          /* Description */ list?.description
+            ? RawText(list.description)
+                .foreground('foreground')
+                .font('md')
+                .leading('20px')
+                .margin('top', 'md')
+            : null,
+          /* Stats row */ HStack(
+            HStack(
+              RawText(formatCompactNumber(memberCount))
+                .foreground('foreground')
+                .font('14')
+                .leading('20px')
+                .weight('semibold'),
+              RawText(memberCount === 1 ? 'member' : 'members')
+                .foreground('muted')
+                .font('14')
+                .leading('20px'),
+            )
+              .align('center')
+              .spacing('xs'),
+            HStack(
+              RawText(formatCompactNumber(subscriberCount))
+                .foreground('foreground')
+                .font('14')
+                .leading('20px')
+                .weight('semibold'),
+              RawText(
+                subscriberCount === 1
+                  ? t('lists.subscriberSingular', { defaultValue: 'subscriber' })
+                  : t('lists.subscriberPlural', { defaultValue: 'subscribers' }),
+              )
+                .foreground('muted')
+                .font('14')
+                .leading('20px'),
+            )
+              .align('center')
+              .spacing('xs'),
+            HStack(
+              list?.isPublic
+                ? Icon(RiGlobalLine).size('14').foreground('muted')
+                : Icon(RiLockLine).size('14').foreground('muted'),
+              RawText(list?.isPublic ? 'Public' : 'Private')
+                .foreground('muted')
+                .font('14')
+                .leading('20px'),
+            )
+              .align('center')
+              .spacing('xs'),
+            Embed(
+              !isOwnList ? (
+                <View className="ml-auto">
+                  <EntityFollowButton
+                    entityType="list"
+                    entityId={listId}
+                    label={t('lists.followList', { defaultValue: 'Follow list' })}
+                    followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
+                    size="sm"
+                  />
+                </View>
+              ) : null,
+            ),
+          )
+            .align('center')
+            .spacing('lg')
+            .margin('top', 'md')
+            .margin('bottom', 'xs'),
+        )
+          .padding('horizontal', 'lg')
+          .padding('top', 'md')
+          .padding('bottom', 'sm'),
+      ),
     [
       list?.avatar,
       list?.title,
@@ -256,16 +306,18 @@ function ListDetailScreen() {
   // Chrome (subheader + tab bar) handed to the posts-tab Feed as its
   // listHeaderComponent. A single element so the Feed treats it as one header.
   const postsTabHeader = useMemo(
-    () => (
-      <View>
-        {renderSubheader()}
-        <Tabs value={'posts'} onValueChange={setActiveTab} variant="underline">
-          {TABS.map((tab: { id: string; label: string; count?: number }) => (
-            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-          ))}
-        </Tabs>
-      </View>
-    ),
+    () =>
+      toElement(
+        VStack(
+          Embed(renderSubheader()),
+          LTabs(
+            ['posts', setActiveTab],
+            TABS.map((tab: { id: string; label: string; count?: number }) =>
+              TabItem(tab.id, tab.label).count(tab.count),
+            ),
+          ).style('underline'),
+        ),
+      ),
     [renderSubheader, TABS, listId],
   );
 
@@ -283,26 +335,30 @@ function ListDetailScreen() {
             : t('videos.share', { defaultValue: 'Share' })
         }
       />
-      {isOwnList ? (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiEditBoxLine}
-          onPress={() => router.push(`/lists/${listId}/edit`)}
-          accessibilityLabel={t('common.edit', { defaultValue: 'Edit' })}
-        />
-      ) : null}
+      {isOwnList
+        ? toElement(
+            LButton(Icon(RiEditBoxLine))
+              .shape('circle')
+              .style('subtle')
+              .tint('neutral')
+              .onPress(() => router.push(`/lists/${listId}/edit`))
+              .label(t('common.edit', { defaultValue: 'Edit' })),
+          )
+        : null}
     </>
   );
 
   // Loading state
   if (loading) {
     return (
-      <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
-        <ScreenScrollView>
-          <DetailSkeleton />
-        </ScreenScrollView>
+      <Screen
+        header={toElement(
+          Header()
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
+      >
+        {toElement(ScrollView(Embed(<DetailSkeleton />)))}
       </Screen>
     );
   }
@@ -311,33 +367,44 @@ function ListDetailScreen() {
   if (error || !list) {
     return (
       <Screen
-        header={
-          <PageHeader
-            title={t('lists.detail.title')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('lists.detail.title'))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
-        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3">
-          <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground text-base">{error || 'List not found'}</Text>
-          <TouchableOpacity onPress={loadList}>
-            <Text className="text-primary text-sm font-medium">Try again</Text>
-          </TouchableOpacity>
-        </ScreenScrollView>
+        {toElement(
+          ScrollView(
+            Icon(RiAlertLine).size('3xl').foreground('muted'),
+            RawText(error || 'List not found')
+              .foreground('muted')
+              .font('16')
+              .leading('normal'),
+            Embed(
+              <TouchableOpacity onPress={loadList}>
+                {toElement(
+                  RawText('Try again')
+                    .foreground('primary')
+                    .font('14')
+                    .leading('20px')
+                    .weight('medium'),
+                )}
+              </TouchableOpacity>,
+            ),
+          ).contentView((v) => v.flex('1').align('center').justify('center').spacing('md')),
+        )}
       </Screen>
     );
   }
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={list.title || t('lists.detail.title')}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          actions={headerActions}
-        />
-      }
+      header={toElement(
+        Header(list.title || t('lists.detail.title'))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .toolbar(Embed(headerActions))
+          .inPage(),
+      )}
     >
       {/* Tab content.
           `posts` is the ONLY feed tab and it is the scroll-owning virtualized
@@ -360,11 +427,14 @@ function ListDetailScreen() {
             }
           >
             {renderSubheader()}
-            <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">
-              {TABS.map((tab: { id: string; label: string; count?: number }) => (
-                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-              ))}
-            </Tabs>
+            {toElement(
+              LTabs(
+                [activeTab, setActiveTab],
+                TABS.map((tab: { id: string; label: string; count?: number }) =>
+                  TabItem(tab.id, tab.label).count(tab.count),
+                ),
+              ).style('underline'),
+            )}
             <EmptyState
               title={t('lists.emptyPosts', { defaultValue: 'No posts yet' })}
               subtitle={t('lists.emptyPostsSubtext', {
@@ -389,16 +459,17 @@ function ListDetailScreen() {
           isOwnList={isOwnList}
           refreshing={refreshing}
           onRefresh={onRefresh}
-          header={
-            <View>
-              {renderSubheader()}
-              <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">
-                {TABS.map((tab: { id: string; label: string; count?: number }) => (
-                  <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-                ))}
-              </Tabs>
-            </View>
-          }
+          header={toElement(
+            VStack(
+              Embed(renderSubheader()),
+              LTabs(
+                [activeTab, setActiveTab],
+                TABS.map((tab: { id: string; label: string; count?: number }) =>
+                  TabItem(tab.id, tab.label).count(tab.count),
+                ),
+              ).style('underline'),
+            ),
+          )}
         />
       )}
     </Screen>
@@ -466,15 +537,22 @@ function ListMembers({
           onPress={() => router.push(`/lists/${listId}/edit`)}
           activeOpacity={0.7}
         >
-          <View className="w-10 h-10 rounded-full items-center justify-center bg-primary">
-            <RiUserAddFill size="md" fill="#fff" />
-          </View>
-          <Text className="text-primary text-[15px] font-semibold">
-            {t('lists.addPeople', { defaultValue: 'Add people' })}
-          </Text>
+          {toElement(
+            VStack(Icon(RiUserAddFill).size('md').foreground(appColors.color.hexfff))
+              .frame({ width: '4xl', height: '4xl' })
+              .background('primary')
+              .corner('infinite')
+              .align('center')
+              .justify('center'),
+          )}
+          {toElement(
+            RawText(t('lists.addPeople', { defaultValue: 'Add people' }))
+              .foreground('primary')
+              .font('md')
+              .weight('semibold'),
+          )}
         </TouchableOpacity>
       )}
-
       {memberIds.length === 0 ? (
         <EmptyState
           title={t('lists.emptyMembers', { defaultValue: 'No members yet' })}
@@ -489,33 +567,42 @@ function ListMembers({
           containerStyle={{ minHeight: 200 }}
         />
       ) : (
-        <View className="pt-2">
-          <Text className="text-muted-foreground text-sm mb-2 px-4">
-            {memberIds.length} {memberIds.length === 1 ? 'member' : 'members'}
-          </Text>
-          {resolvingMembers && (
-            <ProfileCardSkeletonList count={skeletonRowCount} showFollowButton />
-          )}
-          {members.map((member) => (
-            <ProfileCard
-              key={member.id}
-              profile={{
-                id: member.id,
-                username: member.username,
-                name: member.name,
-                avatar: member.avatar,
-                color: member.color,
-                // `verified` reaches the SDK `User` through its index signature
-                // (typed `unknown`), so it is narrowed rather than cast.
-                verified: typeof member.verified === 'boolean' ? member.verified : undefined,
-                isFederated: member.isFederated,
-                kind: member.kind,
-                instance: member.instance,
-              }}
-              showFollowButton
-            />
-          ))}
-        </View>
+        toElement(
+          VStack(
+            RawText(memberIds.length, ' ', memberIds.length === 1 ? 'member' : 'members')
+              .padding('horizontal', 'lg')
+              .foreground('muted')
+              .font('14')
+              .leading('20px')
+              .margin('bottom', 'sm'),
+            Embed(
+              resolvingMembers && (
+                <ProfileCardSkeletonList count={skeletonRowCount} showFollowButton />
+              ),
+            ),
+            Embed(
+              members.map((member) => (
+                <ProfileCard
+                  key={member.id}
+                  profile={{
+                    id: member.id,
+                    username: member.username,
+                    name: member.name,
+                    avatar: member.avatar,
+                    color: member.color,
+                    // `verified` reaches the SDK `User` through its index signature
+                    // (typed `unknown`), so it is narrowed rather than cast.
+                    verified: typeof member.verified === 'boolean' ? member.verified : undefined,
+                    isFederated: member.isFederated,
+                    kind: member.kind,
+                    instance: member.instance,
+                  }}
+                  showFollowButton
+                />
+              )),
+            ),
+          ).padding('top', 'sm'),
+        )
       )}
     </ScreenScrollView>
   );
@@ -537,12 +624,11 @@ function ListDetailAccess() {
     return (
       <Screen
         scroll="auto"
-        header={
-          <PageHeader
-            title={t('lists.detail.title')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('lists.detail.title'))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
         <SignInRequired
           label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}

@@ -1,16 +1,16 @@
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
-import { View, Text } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import { customFeedsService } from '@/services/customFeedsService';
 import FeedBuilder from '@/components/feeds/LazyFeedBuilder';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+import { Embed, Header, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Edit an existing custom feed (owner only). Loads the feed, re-verifies
@@ -34,32 +34,36 @@ function EditFeedScreen() {
   const isOwner = Boolean(user?.id && feed?.ownerOxyUserId === user.id);
 
   if (notReady) {
-    return (
-      <View className="flex-1">
-        <PageHeader
-          title={t('feeds.builder.editTitle')}
-          onBack={back}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-        <FormSkeleton />
-      </View>
+    return toElement(
+      VStack(
+        Header(t('feeds.builder.editTitle'))
+          .onBack(back)
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+        Embed(<FormSkeleton />),
+      ).flex('1'),
     );
   }
 
   if (!feed || !isOwner) {
-    return (
-      <View className="flex-1">
-        <PageHeader
-          title={t('feeds.builder.editTitle')}
-          onBack={back}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-        <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-base text-center text-muted-foreground">
-            {t('feeds.builder.notAllowed', { defaultValue: "You can't edit this feed." })}
-          </Text>
-        </View>
-      </View>
+    return toElement(
+      VStack(
+        Header(t('feeds.builder.editTitle'))
+          .onBack(back)
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+        VStack(
+          RawText(t('feeds.builder.notAllowed', { defaultValue: "You can't edit this feed." }))
+            .font('16')
+            .leading('normal')
+            .textAlign('center')
+            .foreground('muted'),
+        )
+          .padding('horizontal', '3xl')
+          .flex('1')
+          .align('center')
+          .justify('center'),
+      ).flex('1'),
     );
   }
 

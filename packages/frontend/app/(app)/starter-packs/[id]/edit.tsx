@@ -1,16 +1,12 @@
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
-import { Divider } from '@oxy.so/bloom/divider';
-import { Field } from '@oxy.so/bloom/field';
 import { Item } from '@oxy.so/bloom/item';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -31,6 +27,23 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
 import type { User } from '@oxy.so/core';
+
+import {
+  Avatar as LAvatar,
+  Card as LCard,
+  Divider as LDivider,
+  Embed,
+  Field as LField,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  Row,
+  ScrollView,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 interface MemberProfile {
   id: string;
@@ -54,7 +67,7 @@ const MAX_MEMBERS = 150;
  * Owner gating lives on the detail screen (the Edit entry point only shows for
  * the owner); this screen re-verifies ownership once the pack loads.
  */
-export default function EditStarterPackScreen() {
+export default screen(function EditStarterPackScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const packId = String(id);
@@ -252,222 +265,250 @@ export default function EditStarterPackScreen() {
     }
   }, [packId, router]);
 
-  const header = (
-    <PageHeader title="Edit starter pack" backLabel={t('common.back', { defaultValue: 'Back' })} />
+  const header = toElement(
+    Header('Edit starter pack')
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
 
   if (loading) {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView>
-          <FormSkeleton />
-        </ScreenScrollView>
-      </Screen>
-    );
+    return ScrollView(Embed(<FormSkeleton />)).header(Embed(header));
   }
 
   if (error) {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
-          <RiCloseCircleLine size="3xl" fill={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground text-base text-center">{error}</Text>
-          <TouchableOpacity onPress={load}>
-            <Text className="text-primary text-sm font-semibold">Try again</Text>
-          </TouchableOpacity>
-        </ScreenScrollView>
-      </Screen>
-    );
+    return ScrollView(
+      Icon(RiCloseCircleLine).size('3xl').foreground('muted'),
+      RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
+      Embed(
+        <TouchableOpacity onPress={load}>
+          {toElement(
+            RawText('Try again')
+              .foreground('primary')
+              .font('14')
+              .leading('20px')
+              .weight('semibold'),
+          )}
+        </TouchableOpacity>,
+      ),
+    )
+      .contentView((v) =>
+        v.padding('horizontal', '3xl').flex('1').align('center').justify('center').spacing('md'),
+      )
+      .header(Embed(header));
   }
 
-  return (
-    <Screen header={header}>
-      <ScreenScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
-        <View className="gap-3 mb-3">
-          <Field label="Name">
-            <TextFieldInput
-              label="Name"
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Tech people to follow"
-            />
-          </Field>
-
-          <Field label="Description">
-            <Textarea
-              value={description}
-              onChangeText={setDescription}
-              placeholder="What is this starter pack about?"
-              rows={3}
-            />
-          </Field>
-
-          {/* Add accounts: themed Bloom search field + result rows. The
-              description carries the member count; at capacity the error
-              replaces it and says why the field no longer accepts input. */}
-          <Field
-            label="Add accounts"
-            description={`${members.length}/${MAX_MEMBERS}`}
-            error={
-              atCapacity ? 'This starter pack is full. Remove an account to add another.' : null
-            }
-          >
-            <Search
-              label="Search people"
-              value={search}
-              onChangeText={runSearch}
-              onClearText={clearSearch}
-              editable={!atCapacity}
-            />
-          </Field>
-        </View>
-
-        {searching && (
-          <View className="flex-row items-center gap-2 mt-2.5">
-            <ListSkeleton count={2} />
-            <Text className="text-muted-foreground text-xs font-primary">Searching…</Text>
-          </View>
-        )}
-
-        {results.length > 0 && (
-          <Card border="thin" elevation="none" radius="radius-16" style={{ marginTop: 10 }}>
-            {results.map((u, index) => {
-              const already = memberIdSet.has(u.id);
-              const busy = pendingIds.has(u.id);
-              const blockedByCap = atCapacity && !already;
-              return (
-                <React.Fragment key={u.id}>
-                  {index > 0 && <Divider />}
-                  <Item
-                    leading={
-                      <Avatar
-                        source={u.avatar}
-                        name={u.name.displayName}
-                        size={40}
-                        variant={MEDIA_VARIANT_AVATAR}
-                      />
-                    }
-                    title={u.name.displayName}
-                    subtitle={`@${u.username}`}
-                    onPress={blockedByCap || already || busy ? undefined : () => addMember(u)}
-                    accessibilityLabel={
-                      already ? `${u.name.displayName} already added` : `Add ${u.name.displayName}`
-                    }
-                    trailing={
-                      already ? (
-                        <Button
-                          appearance="subtle"
-                          tone="neutral"
-                          size="sm"
-                          disabled
-                          icon={<RiCheckLine size="xs" fill={theme.colors.success} />}
-                          accessibilityLabel={`${u.name.displayName} added`}
-                        >
-                          Added
-                        </Button>
-                      ) : (
-                        <Button
-                          appearance="solid"
-                          tone="accent"
-                          size="sm"
-                          loading={busy}
-                          disabled={blockedByCap}
-                          icon={<RiAddLine size="xs" fill={theme.colors.primaryForeground} />}
-                          onPress={() => addMember(u)}
-                          accessibilityLabel={`Add ${u.name.displayName}`}
-                        >
-                          Add
-                        </Button>
-                      )
-                    }
-                  />
-                </React.Fragment>
-              );
-            })}
-          </Card>
-        )}
-
-        {/* Current members. */}
-        <View className="flex-row items-center justify-between mt-5 mb-1.5">
-          <Text className="text-sm text-foreground font-semibold font-primary">
-            Members ({members.length})
-          </Text>
-          {!atCapacity && members.length > 0 && (
-            <Text className="text-xs text-muted-foreground font-primary">
-              {remainingCapacity} {remainingCapacity === 1 ? 'spot' : 'spots'} left
-            </Text>
-          )}
-        </View>
-
-        {members.length === 0 ? (
-          <View className="items-center justify-center py-10 gap-3">
-            <RiGroupLine width={40} height={40} fill={theme.colors.textSecondary} />
-            <Text className="text-muted-foreground text-sm text-center font-primary">
-              Search above to add people to this starter pack
-            </Text>
-          </View>
-        ) : (
-          <Card border="thin" elevation="none" radius="radius-16">
-            {members.map((m, index) => {
+  return ScrollView(
+    VStack(
+      LField(
+        'Name',
+        Embed(
+          <TextFieldInput
+            label="Name"
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Tech people to follow"
+          />,
+        ),
+      ),
+      LField(
+        'Description',
+        Embed(
+          <Textarea
+            value={description}
+            onChangeText={setDescription}
+            placeholder="What is this starter pack about?"
+            rows={3}
+          />,
+        ),
+      ),
+      /* Add accounts: themed Bloom search field + result rows. The
+                description carries the member count; at capacity the error
+                replaces it and says why the field no longer accepts input. */ LField(
+        'Add accounts',
+        Embed(
+          <Search
+            label="Search people"
+            value={search}
+            onChangeText={runSearch}
+            onClearText={clearSearch}
+            editable={!atCapacity}
+          />,
+        ),
+      )
+        .description(`${members.length}/${MAX_MEMBERS}`)
+        .error(atCapacity ? 'This starter pack is full. Remove an account to add another.' : null),
+    )
+      .spacing('md')
+      .margin('bottom', 'md'),
+    Embed(
+      searching &&
+        toElement(
+          HStack(
+            Embed(<ListSkeleton count={2} />),
+            RawText('Searching…').foreground('muted').font('xs').leading('16px'),
+          )
+            .align('center')
+            .spacing('sm')
+            .margin('top', '10'),
+        ),
+    ),
+    Embed(
+      results.length > 0 && (
+        <Card border="thin" elevation="none" radius="radius-16" style={{ marginTop: 10 }}>
+          {results.map((u, index) => {
+            const already = memberIdSet.has(u.id);
+            const busy = pendingIds.has(u.id);
+            const blockedByCap = atCapacity && !already;
+            return (
+              <React.Fragment key={u.id}>
+                {index > 0 && toElement(LDivider())}
+                <Item
+                  leading={toElement(
+                    LAvatar(u.avatar, {
+                      variant: MEDIA_VARIANT_AVATAR,
+                      name: u.name.displayName,
+                    }).size('xl'),
+                  )}
+                  title={u.name.displayName}
+                  subtitle={`@${u.username}`}
+                  onPress={blockedByCap || already || busy ? undefined : () => addMember(u)}
+                  accessibilityLabel={
+                    already ? `${u.name.displayName} already added` : `Add ${u.name.displayName}`
+                  }
+                  trailing={
+                    already ? (
+                      <Button
+                        appearance="subtle"
+                        tone="neutral"
+                        size="sm"
+                        disabled
+                        icon={toElement(Icon(RiCheckLine).size('xs').foreground('success'))}
+                        accessibilityLabel={`${u.name.displayName} added`}
+                      >
+                        Added
+                      </Button>
+                    ) : (
+                      <Button
+                        appearance="solid"
+                        tone="accent"
+                        size="sm"
+                        loading={busy}
+                        disabled={blockedByCap}
+                        icon={toElement(Icon(RiAddLine).size('xs').foreground('onPrimary'))}
+                        onPress={() => addMember(u)}
+                        accessibilityLabel={`Add ${u.name.displayName}`}
+                      >
+                        Add
+                      </Button>
+                    )
+                  }
+                />
+              </React.Fragment>
+            );
+          })}
+        </Card>
+      ),
+    ),
+    /* Current members. */ HStack(
+      RawText('Members (', members.length, ')')
+        .font('14')
+        .leading('20px')
+        .foreground('foreground')
+        .weight('semibold'),
+      !atCapacity && members.length > 0
+        ? RawText(remainingCapacity, ' ', remainingCapacity === 1 ? 'spot' : 'spots', ' left')
+            .font('xs')
+            .leading('16px')
+            .foreground('muted')
+        : null,
+    )
+      .align('center')
+      .justify('between')
+      .margin('top', 'xl')
+      .margin('bottom', '6'),
+    members.length === 0
+      ? VStack(
+          Icon(RiGroupLine).size('40').foreground('muted'),
+          RawText('Search above to add people to this starter pack')
+            .foreground('muted')
+            .font('14')
+            .leading('20px')
+            .textAlign('center'),
+        )
+          .padding('vertical', '4xl')
+          .align('center')
+          .justify('center')
+          .spacing('md')
+      : LCard(
+          Embed(
+            members.map((m, index) => {
               const busy = pendingIds.has(m.id);
               return (
                 <React.Fragment key={m.id}>
-                  {index > 0 && <Divider />}
-                  <Item
-                    leading={
-                      <Avatar
-                        source={m.avatar}
-                        name={m.name.displayName}
-                        size={40}
-                        variant={MEDIA_VARIANT_AVATAR}
-                      />
-                    }
-                    title={m.name.displayName}
-                    subtitle={`@${m.username}`}
-                    trailing={
-                      <Button
-                        appearance="plain"
-                        tone="neutral"
-                        size="sm"
-                        loading={busy}
-                        onPress={() => removeMember(m)}
-                        iconOnly
-                        icon={<RiDeleteBinLine size="sm" fill={theme.colors.error} />}
-                        accessibilityLabel={`Remove ${m.name.displayName}`}
-                      />
-                    }
-                  />
+                  {index > 0 && toElement(LDivider())}
+                  {toElement(
+                    Row(m.name.displayName)
+                      .leadingView(
+                        LAvatar(m.avatar, {
+                          variant: MEDIA_VARIANT_AVATAR,
+                          name: m.name.displayName,
+                        }).size('xl'),
+                      )
+                      .subtitle(`@${m.username}`)
+                      .trailing(
+                        Embed(
+                          <Button
+                            appearance="plain"
+                            tone="neutral"
+                            size="sm"
+                            loading={busy}
+                            onPress={() => removeMember(m)}
+                            iconOnly
+                            icon={toElement(Icon(RiDeleteBinLine).size('sm').foreground('error'))}
+                            accessibilityLabel={`Remove ${m.name.displayName}`}
+                          />,
+                        ),
+                      ),
+                  )}
                 </React.Fragment>
               );
-            })}
-          </Card>
+            }),
+          ),
+        )
+          .outline('thin')
+          .elevation('none')
+          .radius('lg'),
+    Embed(
+      <TouchableOpacity
+        disabled={savingDetails || !name.trim()}
+        onPress={saveDetails}
+        className={cn(
+          'mt-5 py-3 rounded-[10px] items-center bg-primary flex-row justify-center gap-2',
+          (savingDetails || !name.trim()) && 'opacity-60',
         )}
-
-        <TouchableOpacity
-          disabled={savingDetails || !name.trim()}
-          onPress={saveDetails}
-          className={cn(
-            'mt-5 py-3 rounded-[10px] items-center bg-primary flex-row justify-center gap-2',
-            (savingDetails || !name.trim()) && 'opacity-60',
-          )}
-          accessibilityRole="button"
-          accessibilityLabel="Save starter pack"
-        >
-          {savingDetails && <SpinnerIcon size={16} className="text-primary-foreground" />}
-          <Text className="text-primary-foreground font-bold font-primary">
-            {savingDetails ? 'Saving...' : 'Save changes'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={deletePack}
-          className="mt-3 py-3 rounded-[10px] items-center border border-border"
-          accessibilityRole="button"
-          accessibilityLabel="Delete starter pack"
-        >
-          <Text className="text-destructive font-semibold font-primary">Delete starter pack</Text>
-        </TouchableOpacity>
-      </ScreenScrollView>
-    </Screen>
-  );
-}
+        accessibilityRole="button"
+        accessibilityLabel="Save starter pack"
+      >
+        {savingDetails && <SpinnerIcon size={16} className="text-primary-foreground" />}
+        {toElement(
+          RawText(savingDetails ? 'Saving...' : 'Save changes')
+            .foreground('onPrimary')
+            .weight('bold'),
+        )}
+      </TouchableOpacity>,
+    ),
+    Embed(
+      <TouchableOpacity
+        onPress={deletePack}
+        className="mt-3 py-3 rounded-[10px] items-center border border-border"
+        accessibilityRole="button"
+        accessibilityLabel="Delete starter pack"
+      >
+        {toElement(RawText('Delete starter pack').foreground('destructive').weight('semibold'))}
+      </TouchableOpacity>,
+    ),
+  )
+    .contentMargins('lg')
+    .keyboardTaps('handled')
+    .header(Embed(header));
+});

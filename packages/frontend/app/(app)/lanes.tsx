@@ -1,11 +1,9 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { TextInput, TouchableOpacity } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 
@@ -35,6 +33,19 @@ import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SEO } from '@/components/SEO';
+
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  ScrollView,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const lanesLogger = createLogger('Lanes');
 
@@ -71,11 +82,10 @@ export default function LanesScreen() {
   const [editingLaneId, setEditingLaneId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
 
-  const header = (
-    <PageHeader
-      title={t('lanes.title', { defaultValue: 'Lanes' })}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
+  const header = toElement(
+    Header(t('lanes.title', { defaultValue: 'Lanes' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
 
   const lanesQueryKey = viewerQueryKeys.ownedLanes(user?.id);
@@ -240,7 +250,7 @@ export default function LanesScreen() {
         groups: [
           [
             {
-              icon: <RiEditBoxLine width={22} height={22} fill={colors.textSecondary} />,
+              icon: toElement(Icon(RiEditBoxLine).size('22').foreground('muted')),
               label: t('lanes.rename', { defaultValue: 'Rename' }),
               onPress: () => {
                 setEditingLaneId(lane.id);
@@ -251,7 +261,7 @@ export default function LanesScreen() {
           modeActions,
           [
             {
-              icon: <RiDeleteBinLine width={22} height={22} fill={colors.error} />,
+              icon: toElement(Icon(RiDeleteBinLine).size('22').foreground('error')),
               label: t('lanes.delete', { defaultValue: 'Delete lane' }),
               onPress: () => handleDelete(lane),
               color: colors.error,
@@ -289,148 +299,213 @@ export default function LanesScreen() {
         })}
       />
       <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="py-2" keyboardShouldPersistTaps="handled">
-          <GroupedSection>
-            <View className="px-4 py-3.5 flex-row items-center gap-3">
-              <RiInformationFill size="md" fill={colors.primary} />
-              <Text className="flex-1 text-[13px] text-foreground">
-                {t('lanes.description', {
-                  defaultValue:
-                    'Keep separate tracks of your posts and decide which ones reach your profile.',
-                })}
-              </Text>
-            </View>
-          </GroupedSection>
-
-          <GroupedSection title={t('lanes.addLane', { defaultValue: 'New lane' })}>
-            <View className="px-4 py-3 flex-row items-center gap-3">
-              <RiNodeTree width={20} height={20} fill={colors.textSecondary} />
-              <TextInput
-                className="flex-1 text-[15px] text-foreground"
-                placeholder={t('lanes.namePlaceholder', { defaultValue: 'Lane name' })}
-                placeholderTextColor={colors.textSecondary}
-                value={input}
-                onChangeText={setInput}
-                maxLength={MAX_LANE_NAME_LENGTH}
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={handleAdd}
-                editable={!createMutation.isPending && !atCap}
-              />
-              {createMutation.isPending ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
-              ) : (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel={t('lanes.addLane', { defaultValue: 'New lane' })}
-                  disabled={input.trim().length === 0 || atCap}
-                  onPress={handleAdd}
-                  activeOpacity={0.7}
-                >
-                  <RiAddCircleLine
-                    width={26}
-                    height={26}
-                    fill={
-                      input.trim().length === 0 || atCap ? colors.textSecondary : colors.primary
-                    }
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-            {atCap ? (
-              <View className="px-4 pb-3">
-                <Text className="text-[13px] text-muted-foreground">
-                  {t('lanes.atCap', {
-                    count: MAX_LANES_PER_OWNER,
-                    defaultValue: 'You can have at most {{count}} lanes.',
-                  })}
-                </Text>
-              </View>
-            ) : null}
-          </GroupedSection>
-
-          <GroupedSection title={t('lanes.yourLanes', { defaultValue: 'Your lanes' })}>
-            {isLoading ? (
-              <ListSkeleton />
-            ) : isError ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('lanes.loadFailed', { defaultValue: 'Failed to load your lanes' })}
-                  error={{
-                    title: t('lanes.loadFailed', { defaultValue: 'Failed to load your lanes' }),
-                    message: t('common.tryAgain', { defaultValue: 'Try again' }),
-                    onRetry: async () => {
-                      await refetch();
-                    },
-                  }}
-                />
-              </View>
-            ) : lanes.length === 0 ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('lanes.empty', { defaultValue: 'No lanes yet' })}
-                  sticker="lanes"
-                />
-              </View>
-            ) : (
-              lanes.map((lane) =>
-                lane.id === editingLaneId ? (
-                  <View key={lane.id} className="px-4 py-3 flex-row items-center gap-3">
-                    <RiEditBoxLine size="md" fill={colors.textSecondary} />
-                    <TextInput
-                      className="flex-1 text-[15px] text-foreground"
-                      value={editingName}
-                      onChangeText={setEditingName}
-                      maxLength={MAX_LANE_NAME_LENGTH}
-                      autoCorrect={false}
-                      autoFocus
-                      returnKeyType="done"
-                      onSubmitEditing={() => handleSaveRename(lane)}
-                      editable={!renameMutation.isPending}
+        {toElement(
+          ScrollView(
+            LGroupedSection(
+              HStack(
+                Icon(RiInformationFill).size('md').foreground('primary'),
+                RawText(
+                  t('lanes.description', {
+                    defaultValue:
+                      'Keep separate tracks of your posts and decide which ones reach your profile.',
+                  }),
+                )
+                  .flex('1')
+                  .font('sm')
+                  .foreground('foreground'),
+              )
+                .padding('horizontal', 'lg')
+                .padding('vertical', '14')
+                .align('center')
+                .spacing('md'),
+            ),
+            LGroupedSection(
+              HStack(
+                Icon(RiNodeTree).size('md').foreground('muted'),
+                Embed(
+                  <TextInput
+                    className="flex-1 text-[15px] text-foreground"
+                    placeholder={t('lanes.namePlaceholder', { defaultValue: 'Lane name' })}
+                    placeholderTextColor={colors.textSecondary}
+                    value={input}
+                    onChangeText={setInput}
+                    maxLength={MAX_LANE_NAME_LENGTH}
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handleAdd}
+                    editable={!createMutation.isPending && !atCap}
+                  />,
+                ),
+                Embed(
+                  createMutation.isPending ? (
+                    <Loading
+                      className="text-primary"
+                      variant="inline"
+                      size="sm"
+                      style={{ flex: undefined }}
                     />
+                  ) : (
                     <TouchableOpacity
                       accessibilityRole="button"
-                      accessibilityLabel={t('common.save', { defaultValue: 'Save' })}
-                      onPress={() => handleSaveRename(lane)}
+                      accessibilityLabel={t('lanes.addLane', { defaultValue: 'New lane' })}
+                      disabled={input.trim().length === 0 || atCap}
+                      onPress={handleAdd}
                       activeOpacity={0.7}
                     >
-                      <Text className="text-[13px] font-semibold text-primary">
-                        {t('common.save', { defaultValue: 'Save' })}
-                      </Text>
+                      <RiAddCircleLine
+                        width={26}
+                        height={26}
+                        fill={
+                          input.trim().length === 0 || atCap ? colors.textSecondary : colors.primary
+                        }
+                      />
                     </TouchableOpacity>
-                  </View>
-                ) : (
-                  <GroupedSectionItem
-                    key={lane.id}
-                    icon={
-                      <ModeIcon mode={lane.displayMode} size={20} fill={colors.textSecondary} />
-                    }
-                    title={lane.name}
-                    description={`${t('lanes.postCount', {
-                      count: lane.postCount ?? 0,
-                      defaultValue: '{{count}} posts',
-                    })} · ${modeLabel(lane.displayMode)}`}
-                    onPress={() => openLaneMenu(lane)}
-                  />
+                  ),
                 ),
               )
-            )}
-          </GroupedSection>
-
-          <View className="px-4 pt-2 pb-6 gap-1">
-            {LANE_DISPLAY_MODES.map((mode) => (
-              <Text key={mode} className="text-[12px] text-muted-foreground">
-                <Text className="font-semibold">{modeLabel(mode)}</Text>
-                {` — ${modeDescription(mode)}`}
-              </Text>
-            ))}
-          </View>
-        </ScreenScrollView>
+                .padding('horizontal', 'lg')
+                .padding('vertical', 'md')
+                .align('center')
+                .spacing('md'),
+              atCap
+                ? VStack(
+                    RawText(
+                      t('lanes.atCap', {
+                        count: MAX_LANES_PER_OWNER,
+                        defaultValue: 'You can have at most {{count}} lanes.',
+                      }),
+                    )
+                      .font('sm')
+                      .foreground('muted'),
+                  )
+                    .padding('horizontal', 'lg')
+                    .padding('bottom', 'md')
+                : null,
+            ).title(t('lanes.addLane', { defaultValue: 'New lane' })),
+            LGroupedSection(
+              Embed(
+                isLoading ? (
+                  <ListSkeleton />
+                ) : isError ? (
+                  toElement(
+                    VStack(
+                      Embed(
+                        <EmptyState
+                          title={t('lanes.loadFailed', {
+                            defaultValue: 'Failed to load your lanes',
+                          })}
+                          error={{
+                            title: t('lanes.loadFailed', {
+                              defaultValue: 'Failed to load your lanes',
+                            }),
+                            message: t('common.tryAgain', { defaultValue: 'Try again' }),
+                            onRetry: async () => {
+                              await refetch();
+                            },
+                          }}
+                        />,
+                      ),
+                    ).padding('vertical', 'lg'),
+                  )
+                ) : lanes.length === 0 ? (
+                  toElement(
+                    VStack(
+                      Embed(
+                        <EmptyState
+                          title={t('lanes.empty', { defaultValue: 'No lanes yet' })}
+                          sticker="lanes"
+                        />,
+                      ),
+                    ).padding('vertical', 'lg'),
+                  )
+                ) : (
+                  lanes.map((lane) =>
+                    lane.id === editingLaneId
+                      ? toElement(
+                          HStack(
+                            Icon(RiEditBoxLine).size('md').foreground('muted'),
+                            Embed(
+                              <TextInput
+                                className="flex-1 text-[15px] text-foreground"
+                                value={editingName}
+                                onChangeText={setEditingName}
+                                maxLength={MAX_LANE_NAME_LENGTH}
+                                autoCorrect={false}
+                                autoFocus
+                                returnKeyType="done"
+                                onSubmitEditing={() => handleSaveRename(lane)}
+                                editable={!renameMutation.isPending}
+                              />,
+                            ),
+                            Embed(
+                              <TouchableOpacity
+                                accessibilityRole="button"
+                                accessibilityLabel={t('common.save', { defaultValue: 'Save' })}
+                                onPress={() => handleSaveRename(lane)}
+                                activeOpacity={0.7}
+                              >
+                                {toElement(
+                                  RawText(t('common.save', { defaultValue: 'Save' }))
+                                    .font('sm')
+                                    .weight('semibold')
+                                    .foreground('primary'),
+                                )}
+                              </TouchableOpacity>,
+                            ),
+                          )
+                            .padding('horizontal', 'lg')
+                            .padding('vertical', 'md')
+                            .align('center')
+                            .spacing('md'),
+                          lane.id,
+                        )
+                      : toElement(
+                          LGroupedSectionItem(lane.name)
+                            .leadingView(
+                              Embed(
+                                <ModeIcon
+                                  mode={lane.displayMode}
+                                  size={20}
+                                  fill={colors.textSecondary}
+                                />,
+                              ),
+                            )
+                            .description(
+                              `${t('lanes.postCount', {
+                                count: lane.postCount ?? 0,
+                                defaultValue: '{{count}} posts',
+                              })} · ${modeLabel(lane.displayMode)}`,
+                            )
+                            .onPress(() => openLaneMenu(lane)),
+                          lane.id,
+                        ),
+                  )
+                ),
+              ),
+            ).title(t('lanes.yourLanes', { defaultValue: 'Your lanes' })),
+            VStack(
+              Embed(
+                LANE_DISPLAY_MODES.map((mode) =>
+                  toElement(
+                    RawText(
+                      RawText(modeLabel(mode)).weight('semibold'),
+                      ` — ${modeDescription(mode)}`,
+                    )
+                      .font('xs')
+                      .foreground('muted'),
+                    mode,
+                  ),
+                ),
+              ),
+            )
+              .padding('horizontal', 'lg')
+              .padding('top', 'sm')
+              .padding('bottom', '2xl')
+              .spacing('xs'),
+          )
+            .contentView((v) => v.padding('vertical', 'sm'))
+            .keyboardTaps('handled'),
+        )}
       </Screen>
     </>
   );

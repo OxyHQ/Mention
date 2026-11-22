@@ -2,14 +2,11 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { Avatar } from '@oxy.so/bloom/avatar';
+import { Screen } from '@oxy.so/bloom/screen';
 import { Card } from '@oxy.so/bloom/card';
-import { Divider } from '@oxy.so/bloom/divider';
 import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -28,6 +25,20 @@ import { logger } from '@oxy.so/core/logger';
 import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
+
+import {
+  Avatar as LAvatar,
+  Card as LCard,
+  Divider as LDivider,
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  ScrollView,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface MemberProfile {
   id: string;
@@ -214,145 +225,198 @@ function EditListMembersScreen() {
     [listId, members, pendingIds, setPending, t],
   );
 
-  const header = (
-    <PageHeader
-      title={t('lists.edit.title', { defaultValue: 'Edit members' })}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
+  const header = toElement(
+    Header(t('lists.edit.title', { defaultValue: 'Edit members' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
 
   if (loading) {
-    return (
-      <Screen header={header}>
-        <ScreenScrollView>
-          <FormSkeleton />
-        </ScreenScrollView>
-      </Screen>
-    );
+    return <Screen header={header}>{toElement(ScrollView(Embed(<FormSkeleton />)))}</Screen>;
   }
 
   if (error) {
     return (
       <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
-          <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground text-base text-center">{error}</Text>
-          <TouchableOpacity onPress={load}>
-            <Text className="text-primary text-sm font-semibold">
-              {t('common.retry', { defaultValue: 'Try again' })}
-            </Text>
-          </TouchableOpacity>
-        </ScreenScrollView>
+        {toElement(
+          ScrollView(
+            Icon(RiAlertLine).size('3xl').foreground('muted'),
+            RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
+            Embed(
+              <TouchableOpacity onPress={load}>
+                {toElement(
+                  RawText(t('common.retry', { defaultValue: 'Try again' }))
+                    .foreground('primary')
+                    .font('14')
+                    .leading('20px')
+                    .weight('semibold'),
+                )}
+              </TouchableOpacity>,
+            ),
+          ).contentView((v) =>
+            v
+              .padding('horizontal', '3xl')
+              .flex('1')
+              .align('center')
+              .justify('center')
+              .spacing('md'),
+          ),
+        )}
       </Screen>
     );
   }
 
   return (
     <Screen header={header}>
-      <ScreenScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
-        <Field
-          label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
-          style={{ marginBottom: 10 }}
-        >
-          <Search
-            label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
-            value={search}
-            onChangeText={runSearch}
-            onClearText={() => runSearch('')}
-          />
-        </Field>
-        {searching && <ListSkeleton count={2} />}
-
-        {results.length > 0 && (
-          <Card appearance="outline" radius="radius-12" style={{ marginBottom: 12 }}>
-            {results.map((u, index) => {
-              const already = memberIdSet.has(u.id);
-              const busy = pendingIds.has(u.id);
-              return (
-                <React.Fragment key={u.id}>
-                  {index > 0 && <Divider />}
-                  <TouchableOpacity
-                    className="flex-row items-center gap-3 px-3 py-2.5"
-                    onPress={() => addMember(u)}
-                    disabled={already || busy}
-                    activeOpacity={0.7}
-                  >
-                    <Avatar source={u.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
-                    <View className="flex-1">
-                      <Text className="text-foreground font-medium" numberOfLines={1}>
-                        @{u.username}
-                      </Text>
-                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>
-                        {u.name.displayName}
-                      </Text>
-                    </View>
-                    {busy ? (
-                      <SpinnerIcon size={18} className="text-primary" />
-                    ) : already ? (
-                      <RiCheckboxCircleFill width={22} height={22} fill={theme.colors.primary} />
-                    ) : (
-                      <Text className="text-primary font-semibold font-primary">
-                        {t('lists.create.add', { defaultValue: 'Add' })}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </React.Fragment>
-              );
-            })}
-          </Card>
-        )}
-
-        <Text className="text-sm text-muted-foreground mb-1.5 mt-1 font-primary">
-          {members.length}{' '}
-          {members.length === 1
-            ? t('lists.memberSingular', { defaultValue: 'member' })
-            : t('lists.memberPlural', { defaultValue: 'members' })}
-        </Text>
-
-        {members.length === 0 ? (
-          <View className="items-center justify-center py-10 gap-3">
-            <RiGroupLine width={44} height={44} fill={theme.colors.textSecondary} />
-            <Text className="text-muted-foreground text-sm text-center">
-              {t('lists.emptyMembersSubtext', { defaultValue: 'Add people to curate this list' })}
-            </Text>
-          </View>
-        ) : (
-          <Card appearance="outline" radius="radius-12">
-            {members.map((m, index) => {
-              const busy = pendingIds.has(m.id);
-              return (
-                <React.Fragment key={m.id}>
-                  {index > 0 && <Divider />}
-                  <View className="flex-row items-center gap-3 px-3 py-2.5">
-                    <Avatar source={m.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
-                    <View className="flex-1">
-                      <Text className="text-foreground font-medium" numberOfLines={1}>
-                        @{m.username}
-                      </Text>
-                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>
-                        {m.name.displayName}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => removeMember(m)}
-                      disabled={busy}
-                      hitSlop={tokens.hitSlop.md}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('lists.create.remove', { defaultValue: 'Remove' })}
-                    >
-                      {busy ? (
-                        <SpinnerIcon size={18} className="text-destructive" />
-                      ) : (
-                        <RiIndeterminateCircleFill size="lg" fill={theme.colors.error} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </React.Fragment>
-              );
-            })}
-          </Card>
-        )}
-      </ScreenScrollView>
+      {toElement(
+        ScrollView(
+          Embed(
+            <Field
+              label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
+              style={{ marginBottom: 10 }}
+            >
+              <Search
+                label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
+                value={search}
+                onChangeText={runSearch}
+                onClearText={() => runSearch('')}
+              />
+            </Field>,
+          ),
+          Embed(searching && <ListSkeleton count={2} />),
+          Embed(
+            results.length > 0 && (
+              <Card appearance="outline" radius="radius-12" style={{ marginBottom: 12 }}>
+                {results.map((u, index) => {
+                  const already = memberIdSet.has(u.id);
+                  const busy = pendingIds.has(u.id);
+                  return (
+                    <React.Fragment key={u.id}>
+                      {index > 0 && toElement(LDivider())}
+                      <TouchableOpacity
+                        className="flex-row items-center gap-3 px-3 py-2.5"
+                        onPress={() => addMember(u)}
+                        disabled={already || busy}
+                        activeOpacity={0.7}
+                      >
+                        {toElement(LAvatar(u.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))}
+                        {toElement(
+                          VStack(
+                            RawText('@', u.username)
+                              .foreground('foreground')
+                              .weight('medium')
+                              .lines(1),
+                            RawText(u.name.displayName)
+                              .foreground('muted')
+                              .font('xs')
+                              .leading('16px')
+                              .lines(1),
+                          ).flex('1'),
+                        )}
+                        {busy ? (
+                          <SpinnerIcon size={18} className="text-primary" />
+                        ) : already ? (
+                          toElement(Icon(RiCheckboxCircleFill).size('22').foreground('primary'))
+                        ) : (
+                          toElement(
+                            RawText(t('lists.create.add', { defaultValue: 'Add' }))
+                              .foreground('primary')
+                              .weight('semibold'),
+                          )
+                        )}
+                      </TouchableOpacity>
+                    </React.Fragment>
+                  );
+                })}
+              </Card>
+            ),
+          ),
+          RawText(
+            members.length,
+            ' ',
+            members.length === 1
+              ? t('lists.memberSingular', { defaultValue: 'member' })
+              : t('lists.memberPlural', { defaultValue: 'members' }),
+          )
+            .font('14')
+            .leading('20px')
+            .foreground('muted')
+            .margin('bottom', '6')
+            .margin('top', 'xs'),
+          members.length === 0
+            ? VStack(
+                Icon(RiGroupLine).size('44').foreground('muted'),
+                RawText(
+                  t('lists.emptyMembersSubtext', {
+                    defaultValue: 'Add people to curate this list',
+                  }),
+                )
+                  .foreground('muted')
+                  .font('14')
+                  .leading('20px')
+                  .textAlign('center'),
+              )
+                .padding('vertical', '4xl')
+                .align('center')
+                .justify('center')
+                .spacing('md')
+            : LCard(
+                Embed(
+                  members.map((m, index) => {
+                    const busy = pendingIds.has(m.id);
+                    return (
+                      <React.Fragment key={m.id}>
+                        {index > 0 && toElement(LDivider())}
+                        {toElement(
+                          HStack(
+                            LAvatar(m.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'),
+                            VStack(
+                              RawText('@', m.username)
+                                .foreground('foreground')
+                                .weight('medium')
+                                .lines(1),
+                              RawText(m.name.displayName)
+                                .foreground('muted')
+                                .font('xs')
+                                .leading('16px')
+                                .lines(1),
+                            ).flex('1'),
+                            Embed(
+                              <TouchableOpacity
+                                onPress={() => removeMember(m)}
+                                disabled={busy}
+                                hitSlop={tokens.hitSlop.md}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('lists.create.remove', {
+                                  defaultValue: 'Remove',
+                                })}
+                              >
+                                {busy ? (
+                                  <SpinnerIcon size={18} className="text-destructive" />
+                                ) : (
+                                  toElement(
+                                    Icon(RiIndeterminateCircleFill).size('lg').foreground('error'),
+                                  )
+                                )}
+                              </TouchableOpacity>,
+                            ),
+                          )
+                            .padding('horizontal', 'md')
+                            .padding('vertical', '10')
+                            .align('center')
+                            .spacing('md'),
+                        )}
+                      </React.Fragment>
+                    );
+                  }),
+                ),
+              )
+                .style('outline')
+                .radius('md'),
+        )
+          .contentMargins('lg')
+          .keyboardTaps('handled'),
+      )}
     </Screen>
   );
 }

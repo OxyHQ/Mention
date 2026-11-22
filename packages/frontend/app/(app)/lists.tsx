@@ -1,11 +1,8 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { useCallback, useEffect } from 'react';
-import { View, Text } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { listsService, type MentionList } from '@/services/listsService';
 import { entityFollowService } from '@/services/entityFollowService';
 import { subscribeToListChanges } from '@/services/listMutations';
@@ -16,6 +13,17 @@ import { ListCard as ListCardComponent, type ListCardData } from '@/components/L
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  RawText,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
 
@@ -115,39 +123,72 @@ function ListsScreen() {
         containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
       />
     ) : (
-      <View className="px-1 pb-4">
-        {hasOwned ? (
-          <View className="mb-4">
-            <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
-              {t('lists.sections.yours', { defaultValue: 'Your lists' })}
-            </Text>
-            {ownedLists.map((l) => (
-              <View key={String(l._id || l.id)} className="px-3 mb-2">
-                <ListCardComponent
-                  list={toListCardData(l)}
-                  onPress={() => router.push(`/lists/${l._id || l.id}`)}
-                />
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {hasFollowed ? (
-          <View className="mb-2">
-            <Text className="text-muted-foreground text-xs font-semibold uppercase tracking-wide px-3 mb-2">
-              {t('lists.sections.followed', { defaultValue: 'Followed lists' })}
-            </Text>
-            {followedLists.map((l) => (
-              <View key={String(l._id || l.id)} className="px-3 mb-2">
-                <ListCardComponent
-                  list={toListCardData(l)}
-                  onPress={() => router.push(`/lists/${l._id || l.id}`)}
-                />
-              </View>
-            ))}
-          </View>
-        ) : null}
-      </View>
+      toElement(
+        VStack(
+          hasOwned
+            ? VStack(
+                RawText(t('lists.sections.yours', { defaultValue: 'Your lists' }))
+                  .padding('horizontal', 'md')
+                  .foreground('muted')
+                  .font('xs')
+                  .leading('16px')
+                  .weight('semibold')
+                  .textCase('uppercase')
+                  .tracking('wide')
+                  .margin('bottom', 'sm'),
+                Embed(
+                  ownedLists.map((l) =>
+                    toElement(
+                      VStack(
+                        Embed(
+                          <ListCardComponent
+                            list={toListCardData(l)}
+                            onPress={() => router.push(`/lists/${l._id || l.id}`)}
+                          />,
+                        ),
+                      )
+                        .padding('horizontal', 'md')
+                        .margin('bottom', 'sm'),
+                      String(l._id || l.id),
+                    ),
+                  ),
+                ),
+              ).margin('bottom', 'lg')
+            : null,
+          hasFollowed
+            ? VStack(
+                RawText(t('lists.sections.followed', { defaultValue: 'Followed lists' }))
+                  .padding('horizontal', 'md')
+                  .foreground('muted')
+                  .font('xs')
+                  .leading('16px')
+                  .weight('semibold')
+                  .textCase('uppercase')
+                  .tracking('wide')
+                  .margin('bottom', 'sm'),
+                Embed(
+                  followedLists.map((l) =>
+                    toElement(
+                      VStack(
+                        Embed(
+                          <ListCardComponent
+                            list={toListCardData(l)}
+                            onPress={() => router.push(`/lists/${l._id || l.id}`)}
+                          />,
+                        ),
+                      )
+                        .padding('horizontal', 'md')
+                        .margin('bottom', 'sm'),
+                      String(l._id || l.id),
+                    ),
+                  ),
+                ),
+              ).margin('bottom', 'sm')
+            : null,
+        )
+          .padding('horizontal', 'xs')
+          .padding('bottom', 'lg'),
+      )
     );
 
   return (
@@ -155,19 +196,22 @@ function ListsScreen() {
       <SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />
       <Screen
         reselect={{ refresh: refreshLists }}
-        header={
-          <PageHeader
-            title={t('lists.title')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-            actions={
-              canUsePrivateApi ? (
-                <Button size="sm" onPress={() => router.push('/lists/create')}>
-                  {t('lists.new')}
-                </Button>
-              ) : undefined
-            }
-          />
-        }
+        header={toElement(
+          Header(t('lists.title'))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .toolbar(
+              Embed(
+                canUsePrivateApi
+                  ? toElement(
+                      LButton(LText(t('lists.new')))
+                        .size('sm')
+                        .onPress(() => router.push('/lists/create')),
+                    )
+                  : undefined,
+              ),
+            )
+            .inPage(),
+        )}
       >
         <SignInRequired
           label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
@@ -176,7 +220,11 @@ function ListsScreen() {
               'Lists group the accounts you want to read together. The ones you create or follow appear here.',
           })}
         >
-          <ScreenScrollView contentContainerClassName="px-3 pt-2.5">{content}</ScreenScrollView>
+          {toElement(
+            ScrollView(Embed(content)).contentView((v) =>
+              v.padding('horizontal', 'md').padding('top', '10'),
+            ),
+          )}
         </SignInRequired>
       </Screen>
     </>

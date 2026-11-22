@@ -4,7 +4,6 @@ import { useCallback, useMemo, type ReactNode } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -18,6 +17,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import type { StarterPackSummary } from '@/services/starterPacksService';
+import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 export interface StarterPackCardData {
   id: string;
@@ -132,93 +132,104 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
 
   const hasAvatars = avatarItems.length > 0;
 
-  return (
-    <PressableScale
-      onPress={onPress}
-      style={styles.pressable}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      testID={`starterpack-${pack.id}`}
-    >
-      {/* The press owns the scale; Bloom's `Card` owns the surface. */}
-      <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
-        {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
-        {hasAvatars ? (
-          <AccountAvatarGroup
-            items={avatarItems}
-            size={32}
-            variant={MEDIA_VARIANT_AVATAR}
-            max={MAX_ROW_AVATARS}
-            total={pack.totalMembers ?? pack.memberCount}
-            ringColor={theme.colors.card}
-          />
-        ) : (
-          <IconCircle icon={RiRocket2Line} style={styles.iconBubble} />
-        )}
+  return toElement(
+    VStack(
+      /* The press owns the scale; Bloom's `Card` owns the surface. */ Embed(
+        <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
+          {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
+          {hasAvatars ? (
+            <AccountAvatarGroup
+              items={avatarItems}
+              size={32}
+              variant={MEDIA_VARIANT_AVATAR}
+              max={MAX_ROW_AVATARS}
+              total={pack.totalMembers ?? pack.memberCount}
+              ringColor={theme.colors.card}
+            />
+          ) : (
+            <IconCircle icon={RiRocket2Line} style={styles.iconBubble} />
+          )}
 
-        {/* Name and byline */}
-        <View style={styles.titleRow}>
-          <View style={styles.titleContainer}>
-            <Text variant="headline-semibold" style={styles.title} numberOfLines={2}>
-              {pack.name}
-            </Text>
-            {pack.creator && (
-              // No preview of yourself — the byline reads "by you" and is not
-              // even a link in that case.
-              <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
-                <TouchableOpacity
-                  onPress={handleCreatorPress}
-                  disabled={isOwner}
-                  activeOpacity={0.6}
-                  // Vertical only on purpose: the card behind this byline is
-                  // itself pressable, so horizontal slop would take taps meant
-                  // for opening the pack.
-                  hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
-                >
-                  <Text
-                    variant="body-regular"
-                    style={[styles.byline, { color: theme.colors.textSecondary }]}
-                    numberOfLines={1}
-                  >
-                    {isOwner ? 'Starter pack by you' : `Starter pack by @${pack.creator.username}`}
-                  </Text>
-                </TouchableOpacity>
-              </ProfileHoverCard>
-            )}
-          </View>
-        </View>
+          {/* Name and byline */}
+          {toElement(
+            HStack(
+              VStack(
+                Embed(
+                  <Text variant="headline-semibold" style={styles.title} numberOfLines={2}>
+                    {pack.name}
+                  </Text>,
+                ),
+                Embed(
+                  pack.creator && (
+                    // No preview of yourself — the byline reads "by you" and is not
+                    // even a link in that case.
+                    <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
+                      <TouchableOpacity
+                        onPress={handleCreatorPress}
+                        disabled={isOwner}
+                        activeOpacity={0.6}
+                        // Vertical only on purpose: the card behind this byline is
+                        // itself pressable, so horizontal slop would take taps meant
+                        // for opening the pack.
+                        hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
+                      >
+                        <Text
+                          variant="body-regular"
+                          style={[styles.byline, { color: theme.colors.textSecondary }]}
+                          numberOfLines={1}
+                        >
+                          {isOwner
+                            ? 'Starter pack by you'
+                            : `Starter pack by @${pack.creator.username}`}
+                        </Text>
+                      </TouchableOpacity>
+                    </ProfileHoverCard>
+                  ),
+                ),
+              )
+                .spacing('2xs')
+                .grow(),
+            )
+              .align('start')
+              .spacing('md'),
+          )}
 
-        {/* Description */}
-        {!noDescription && pack.description ? (
-          <Text variant="body-regular" numberOfLines={3}>
-            {pack.description}
-          </Text>
-        ) : null}
+          {/* Description */}
+          {!noDescription && pack.description
+            ? toElement(LText(pack.description).font('body').lines(3))
+            : null}
 
-        {/* Stats */}
-        <Text
-          variant="body-2-medium"
-          style={[styles.statLine, { color: theme.colors.textSecondary }]}
-        >
-          {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
-          {pack.useCount > 0
-            ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
-            : ''}
-        </Text>
-
-        {/* Joined count — only shown when >= 50, matching Bluesky */}
-        {pack.useCount >= 50 && (
+          {/* Stats */}
           <Text
-            variant="body-2-semibold"
+            variant="body-2-medium"
             style={[styles.statLine, { color: theme.colors.textSecondary }]}
           >
-            {formatCompactNumber(pack.useCount)} users have joined!
+            {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
+            {pack.useCount > 0
+              ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
+              : ''}
           </Text>
-        )}
 
-        {footer}
-      </Card>
-    </PressableScale>
+          {/* Joined count — only shown when >= 50, matching Bluesky */}
+          {pack.useCount >= 50 && (
+            <Text
+              variant="body-2-semibold"
+              style={[styles.statLine, { color: theme.colors.textSecondary }]}
+            >
+              {formatCompactNumber(pack.useCount)} users have joined!
+            </Text>
+          )}
+
+          {footer}
+        </Card>,
+      ),
+    )
+      .frame({ width: 'full' })
+      .onPress(onPress)
+      .role('button')
+      .label(accessibilityLabel)
+      .testID(`starterpack-${pack.id}`)
+      .pressScale(),
   );
 }
 
@@ -229,15 +240,21 @@ export function StarterPackCardSkeleton() {
   return (
     <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
       {/* Skeleton avatar row */}
-      <View style={styles.skeletonAvatarRow}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <View
-            key={i}
-            className="bg-input"
-            style={[styles.skeletonCircle, { marginLeft: i > 0 ? -8 : 0, zIndex: 6 - i }]}
-          />
-        ))}
-      </View>
+      {toElement(
+        HStack(
+          Embed(
+            Array.from({ length: 6 }).map((_, i) => (
+              <View
+                key={i}
+                className="bg-input"
+                style={[styles.skeletonCircle, { marginLeft: i > 0 ? -8 : 0, zIndex: 6 - i }]}
+              />
+            )),
+          ),
+        )
+          .padding('vertical', 'xs')
+          .align('center'),
+      )}
       <Skeleton.Row style={{ gap: 12 }}>
         <Skeleton.Col style={{ gap: 6 }}>
           <Skeleton.Text style={{ width: 160, fontSize: 16 }} />

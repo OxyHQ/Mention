@@ -1,8 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { useRouter, useFocusEffect } from '@/lib/navigation/router';
@@ -16,6 +13,16 @@ import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SignInRequired } from '@/components/common/SignInRequired';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  ScrollView,
+  Text,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export default function StarterPacksScreen() {
   const router = useRouter();
@@ -50,13 +57,17 @@ export default function StarterPacksScreen() {
 
   // Directory body — identical on both platforms; only the scroll host differs.
   const content = loading ? (
-    <View className="px-1 gap-2">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <View key={i} className="px-3">
-          <StarterPackCardSkeleton />
-        </View>
-      ))}
-    </View>
+    toElement(
+      VStack(
+        Embed(
+          Array.from({ length: 3 }).map((_, i) =>
+            toElement(VStack(Embed(<StarterPackCardSkeleton />)).padding('horizontal', 'md'), i),
+          ),
+        ),
+      )
+        .padding('horizontal', 'xs')
+        .spacing('sm'),
+    )
   ) : myPacks.length === 0 ? (
     <EmptyState
       title="No starter packs yet"
@@ -69,20 +80,29 @@ export default function StarterPacksScreen() {
       containerStyle={{ paddingVertical: 36, paddingHorizontal: 20 }}
     />
   ) : (
-    <View className="px-1">
-      {myPacks.map((p: StarterPackSummary) => {
-        const cardData = starterPackCardData(p);
+    toElement(
+      VStack(
+        Embed(
+          myPacks.map((p: StarterPackSummary) => {
+            const cardData = starterPackCardData(p);
 
-        return (
-          <View key={String(p._id || p.id)} className="px-3 mb-2">
-            <StarterPackCard
-              pack={cardData}
-              onPress={() => router.push(`/starter-packs/${p._id || p.id}`)}
-            />
-          </View>
-        );
-      })}
-    </View>
+            return toElement(
+              VStack(
+                Embed(
+                  <StarterPackCard
+                    pack={cardData}
+                    onPress={() => router.push(`/starter-packs/${p._id || p.id}`)}
+                  />,
+                ),
+              )
+                .padding('horizontal', 'md')
+                .margin('bottom', 'sm'),
+              String(p._id || p.id),
+            );
+          }),
+        ),
+      ).padding('horizontal', 'xs'),
+    )
   );
 
   return (
@@ -93,19 +113,22 @@ export default function StarterPacksScreen() {
         robots="index,follow"
       />
       <Screen
-        header={
-          <PageHeader
-            title={t('starterPacks.title')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-            actions={
-              canUsePrivateApi ? (
-                <Button size="sm" onPress={() => router.push('/starter-packs/create')}>
-                  New
-                </Button>
-              ) : undefined
-            }
-          />
-        }
+        header={toElement(
+          Header(t('starterPacks.title'))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .toolbar(
+              Embed(
+                canUsePrivateApi
+                  ? toElement(
+                      LButton(Text('New'))
+                        .size('sm')
+                        .onPress(() => router.push('/starter-packs/create')),
+                    )
+                  : undefined,
+              ),
+            )
+            .inPage(),
+        )}
       >
         <SignInRequired
           label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
@@ -113,7 +136,11 @@ export default function StarterPacksScreen() {
             defaultValue: 'A starter pack is a set of accounts you recommend following together.',
           })}
         >
-          <ScreenScrollView contentContainerClassName="px-3 pt-2.5">{content}</ScreenScrollView>
+          {toElement(
+            ScrollView(Embed(content)).contentView((v) =>
+              v.padding('horizontal', 'md').padding('top', '10'),
+            ),
+          )}
         </SignInRequired>
       </Screen>
     </>
