@@ -91,20 +91,30 @@ index 278b17621df2a34d8eb3ba8ff0edadbb2f2705ea..cff9e30d7634ba6af0dd17e3ce9e8836
 +{"version":3,"sources":["fork/useBackButton.native.ts"],"sourcesContent":[null],"names":["useBackButton","ref","React","useEffect","subscription","BackHandler","addEventListener","navigation","current","canGoBack","dispatchSync","CommonActions","goBack","updateOwnership","setNativeNavigationFallback","isNativeBackNavigationOwned","removeStateListener","addListener","removeOwnershipListener","remove"],"mappings":";;;;+BASgBA;;;eAAAA;;;;iEATO;;;;;;;yBACK;;;;;;wBAMrB;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;AAEA,SAASA,cAAcC,GAA2D;IACvFC,SAAMC,SAAS,CAAC;QACd,MAAMC,eAAeC,0BAAW,CAACC,gBAAgB,CAAC,qBAAqB;YACrE,MAAMC,aAAaN,IAAIO,OAAO;YAE9B,IAAID,cAAc,MAAM;gBACtB,OAAO;YACT;YAEA,IAAIA,WAAWE,SAAS,IAAI;gBAC1BF,WAAWG,YAAY,CAACC,qBAAa,CAACC,MAAM;gBAE5C,OAAO;YACT;YAEA,OAAO;QACT;QAGA,MAAMC,kBAAkB,IACtBT,aAAaU,2BAA2B,GACtCb,IAAIO,OAAO,EAAEO,kCAAkC;QAEnDF;QACA,MAAMG,sBAAsBf,IAAIO,OAAO,EAAES,YAAY,SAASJ;QAC9D,MAAMK,0BAA0BjB,IAAIO,OAAO,EAAES,YAC3C,6BACAJ;QAGF,OAAO;YACLG;YACAE;YACAd,aAAae,MAAM;QACrB;IACF,GAAG;QAAClB;KAAI;AACV"}
 \ No newline at end of file
 diff --git a/build/fork/getStateFromPath.js b/build/fork/getStateFromPath.js
-index 3006e9ccc20775758659b1d4f7f17e3a9a8da4f9..95166bd37ad9623a7e9b9e7fb713ec683247136f 100644
+index 3006e9c..82fd12b 100644
 --- a/build/fork/getStateFromPath.js
 +++ b/build/fork/getStateFromPath.js
-@@ -111,18 +111,27 @@ function getStateFromPath(path, options, segments = []) {
+@@ -111,31 +111,67 @@ function getStateFromPath(path, options, segments = []) {
      return result;
  }
  /**
 - * Reference to the most recently computed config resources.
-+ * Reference to the most recently computed config resources, with the options
-+ * and the segments they were computed for.
-  */ let cachedConfigResources = [
+- */ let cachedConfigResources = [
++ * The route table in two parts: what depends on the options alone (every
++ * route's normalized config and its regex), built once per options, and its
++ * order, which also depends on the current segments (the sorter prefers the
++ * routes they name), sorted once per segments. Upstream rebuilt both on every
++ * call, and every tab trigger resolves its href through here on each render of
++ * a tabs layout.
++ */ let cachedRouteTable = [
      undefined,
+-    prepareConfigResources()
++    prepareRouteTable()
++];
++let cachedConfigResources = [
++    undefined,
 +    '',
-     prepareConfigResources()
++    undefined
  ];
  function getConfigResources(options, previousSegments) {
 -    // Recompute every time because config resources depend on the current state.
@@ -113,22 +123,59 @@ index 3006e9ccc20775758659b1d4f7f17e3a9a8da4f9..95166bd37ad9623a7e9b9e7fb713ec68
 -        prepareConfigResources(options, previousSegments)
 -    ];
 -    return cachedConfigResources[1];
-+    // The resources depend on the options and on the current segments (the
-+    // route sorter prefers the routes they name), nothing else: reuse them
-+    // while both are the same. Every tab trigger resolves its href through here
-+    // on each render of a tabs layout.
++    if (cachedRouteTable[0] !== options) {
++        cachedRouteTable = [
++            options,
++            prepareRouteTable(options)
++        ];
++    }
 +    const segmentsKey = previousSegments.join('\0');
 +    if (cachedConfigResources[0] !== options || cachedConfigResources[1] !== segmentsKey) {
 +        cachedConfigResources = [
 +            options,
 +            segmentsKey,
-+            prepareConfigResources(options, previousSegments)
++            orderRouteTable(cachedRouteTable[1], previousSegments)
 +        ];
 +    }
 +    return cachedConfigResources[2];
  }
- function prepareConfigResources(options, previousSegments) {
+-function prepareConfigResources(options, previousSegments) {
++function prepareRouteTable(options) {
      if (options) {
+         (0, _validatePathConfig.validatePathConfig)(options);
+     }
+     const initialRoutes = getInitialRoutes(options);
+-    const configs = getNormalizedConfigs(initialRoutes, options?.screens, previousSegments);
++    const screens = options?.screens ?? {};
++    const configs = [].concat(...Object.keys(screens).map((key)=>createNormalizedConfigs(key, screens, [], initialRoutes, []))).map(_getStateFromPathforks.appendIsInitial(initialRoutes));
+     checkForDuplicatedConfigs(configs);
+-    const configWithRegexes = getConfigsWithRegexes(configs);
+     return {
+         initialRoutes,
+-        configs,
+-        configWithRegexes
++        entries: configs.map((config)=>[
++                config,
++                {
++                    ...config,
++                    // Add `$` to the regex to make sure it matches till end of the path and not just beginning
++                    regex: _getStateFromPathforks.configRegExp(config)
++                }
++            ])
++    };
++}
++function orderRouteTable({ initialRoutes, entries }, previousSegments) {
++    const sorter = _getStateFromPathforks.getRouteConfigSorter(previousSegments);
++    const sorted = [
++        ...entries
++    ].sort((a, b)=>sorter(a[0], b[0]));
++    return {
++        initialRoutes,
++        configs: sorted.map((entry)=>entry[0]),
++        configWithRegexes: sorted.map((entry)=>entry[1])
+     };
+ }
+ function getInitialRoutes(options) {
 diff --git a/build/global-state/createSeededNavigationState.js b/build/global-state/createSeededNavigationState.js
 index cb11c3ff30bc36c217f713b495fe2ce7ccac7ff0..66556f7de9035d5f384b18769d65fd488b08f05e 100644
 --- a/build/global-state/createSeededNavigationState.js

@@ -31,15 +31,18 @@ those two files the patched lines map to the nearest upstream line. The native
 predictive Back gates (source-built opted and default APKs, device acceptance)
 were not repeated for this forward.
 
-`fork/getStateFromPath.js` reuses the route config it prepares (every route's
-normalized config, its regex and the sort) while the options and the current
-segments are the same; upstream rebuilds it on every call ("config resources
-depend on the current state", which is those two inputs). Bloom's tab pager is
-a `useTabsWithTriggers` layout, which resolves each tab's href through
-`getStateFromPath` on every render, and it renders on every navigation, a
-pushed post included: on the Pixel 8a that rebuild was 90 to 210 ms of each tab
-switch, post open and Back (Hermes sampling profile, 2026-11-22). Remove the
-hunk when upstream caches the config resources.
+`fork/getStateFromPath.js` builds the route table once and sorts it once per
+location. Upstream rebuilt it on every call: every route's normalized config,
+its regex and the sort ("config resources depend on the current state"). Only
+the order depends on the current segments (the sorter prefers the routes they
+name), so the configs and regexes are built once per options and sorted once per
+segments. Bloom's tab pager is a `useTabsWithTriggers` layout, which resolves
+each tab's href through `getStateFromPath` on every render, and it renders on
+every navigation, a pushed post included: on the Pixel 8a the rebuild was 90 to
+210 ms of each tab switch, post open and Back, and a rebuild once per navigation
+still 25 ms (Hermes sampling profiles, 2026-11-22). Results match upstream's for
+the same options, path and segments. Remove the hunk when upstream caches the
+route table.
 
 # expo-video 58.0.13
 
