@@ -188,6 +188,8 @@ function collectNativeRowVideoKeys(row: NativeFeedRow, into: string[]): void {
  */
 const LIST_HEADER_STYLE: ViewStyle = { flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' };
 const FEED_CONTAINER_BASE_STYLE: ViewStyle = { minHeight: 0 };
+/** A scrolling feed fills its parent (Tailwind's `flex-1`: grow, shrink, a 0% basis). */
+const FEED_CONTAINER_FILL_STYLE: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' };
 
 /**
  * A non-scrolling ScrollView replacement for FlashList.
@@ -649,8 +651,11 @@ const Feed = (props: FeedProps) => {
   return (
     <FeedErrorBoundary>
       <View
-        className={scrollEnabled === false ? undefined : 'flex-1'}
-        style={[FEED_CONTAINER_BASE_STYLE, scrollEnabled !== false && containerStyle]}
+        style={[
+          FEED_CONTAINER_BASE_STYLE,
+          scrollEnabled !== false && FEED_CONTAINER_FILL_STYLE,
+          scrollEnabled !== false && containerStyle,
+        ]}
       >
         {/* This list owns viewability for every video inside it: a player
                     whose row is not viewable is not visible, so it cannot play. */}

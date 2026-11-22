@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
 
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import {
   INTERSTITIAL_CARD_GAP,
@@ -58,6 +58,19 @@ interface InterstitialShellProps<TItem> {
   report: ReportInterstitialEvent;
 }
 
+// The band keeps React Native's view: its ref is the impression target, which a
+// language stack does not hand out.
+const useBandStyles = createTokenStyles((t) => ({
+  band: {
+    backgroundColor: t.muted,
+    borderColor: t.border,
+    width: '100%',
+    borderBottomWidth: 1,
+    paddingBottom: 12,
+    paddingTop: 12,
+  },
+}));
+
 export function InterstitialShell<TItem>({
   title,
   seeMoreHref,
@@ -72,6 +85,7 @@ export function InterstitialShell<TItem>({
   const router = useRouter();
   const { t } = useTranslation();
   const isDesktop = useIsScreenNotMobile();
+  const bandStyles = useBandStyles();
 
   const handleSeeMore = useCallback(() => {
     report('seeMore');
@@ -97,7 +111,7 @@ export function InterstitialShell<TItem>({
   );
 
   return (
-    <View ref={impressionRef} className="bg-muted border-border w-full border-b pb-3 pt-3">
+    <View ref={impressionRef} style={bandStyles.band}>
       {/* Placeholders sit in the same carousel as the cards they stand in for, so
           nothing shifts when the suggestions land; only the arrows and the
           See-more card wait for real content. */}

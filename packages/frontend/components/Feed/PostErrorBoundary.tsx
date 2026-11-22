@@ -1,9 +1,8 @@
 import { recoverChunkError } from '@/lib/chunkReload';
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
 import { logger } from '@oxy.so/core/logger';
 
-import { Button as LButton, Text as LText, toElement } from '@oxy.so/bloom-language';
+import { Button as LButton, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   children: React.ReactNode;
@@ -17,13 +16,16 @@ interface State {
 }
 
 function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
-  return (
-    <View className="border-border" style={styles.container}>
-      {toElement(
-        LText('This post could not be displayed.').foreground('muted').font('14').leading('20px'),
-      )}
-      {toElement(LButton(LText('Tap to retry')).style('plain').size('sm').onPress(onRetry))}
-    </View>
+  return toElement(
+    VStack(
+      LText('This post could not be displayed.').foreground('muted').font('14').leading('20px'),
+      LButton(LText('Tap to retry')).style('plain').size('sm').onPress(onRetry),
+    )
+      .padding('all', 'lg')
+      .frame({ minHeight: '5xl' })
+      .border('border', 'hairline', 'bottom')
+      .align('center')
+      .justify('center'),
   );
 }
 
@@ -69,13 +71,3 @@ export class PostErrorBoundary extends React.Component<Props, State> {
     return this.props.children;
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 60,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-});

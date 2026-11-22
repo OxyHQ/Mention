@@ -4,7 +4,7 @@ import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
   Button as LButton,
@@ -43,7 +43,7 @@ interface FeedFooterProps {
 export const FeedFooter = memo<FeedFooterProps>(
   ({ hasMore, isLoadingMore, hasItems, loadFailed, onRetryLoadMore, loadOnRequest, caughtUp }) => {
     const { t } = useTranslation();
-    const theme = useTheme();
+    const footerTokens = useFooterTokens();
     const { isAuthenticated, isAuthResolved, signIn } = useAuth();
 
     const handleSignIn = useCallback(() => {
@@ -56,8 +56,7 @@ export const FeedFooter = memo<FeedFooterProps>(
     if (isAuthResolved && !isAuthenticated && hasItems) {
       return (
         <TouchableOpacity
-          className="flex-row items-center justify-center py-4 px-5 border-border"
-          style={styles.signInFooter}
+          style={[styles.signInFooter, footerTokens.rule]}
           onPress={handleSignIn}
           activeOpacity={0.7}
         >
@@ -120,8 +119,17 @@ export const FeedFooter = memo<FeedFooterProps>(
 FeedFooter.displayName = 'FeedFooter';
 
 const styles = StyleSheet.create({
+  // A touchable row (it dims under the finger, which the language's press
+  // variant has no timed opacity for).
   signInFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     gap: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
 });
+
+const useFooterTokens = createTokenStyles((t) => ({ rule: { borderColor: t.border } }));

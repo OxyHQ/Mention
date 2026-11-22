@@ -3,6 +3,10 @@ import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { RiDoubleQuotesL } from '@oxy.so/bloom/icons/RiDoubleQuotesL';
 import { showActionMenu } from '@/components/common/ActionMenu';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
+// The menu's glyphs paint in the primary ink, as a bare Bloom icon does (the
+// `text-foreground` class they carried never reached an icon's fill).
 export function showRepostMenu({
   isBoosted,
   quotesDisabled,
@@ -22,14 +26,14 @@ export function showRepostMenu({
       [
         {
           label: isBoosted ? t('post.undoRepost', 'Undo repost') : t('post.repost', 'Repost'),
-          icon: <RiRepeat2Line width={20} height={20} className="text-foreground" />,
+          icon: toElement(Icon(RiRepeat2Line).size('md').foreground('primary')),
           onPress: onRepost,
         },
         ...(!quotesDisabled
           ? [
               {
                 label: t('post.quote', 'Quote'),
-                icon: <RiDoubleQuotesL width={20} height={20} className="text-foreground" />,
+                icon: toElement(Icon(RiDoubleQuotesL).size('md').foreground('primary')),
                 onPress: onQuote,
               },
             ]

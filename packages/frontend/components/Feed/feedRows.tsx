@@ -25,7 +25,7 @@ import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styl
 import { useTranslation } from 'react-i18next';
 import type { OpenPostPanel } from '@/components/Post/postEngagementContext';
 
-import { RawText, toElement } from '@oxy.so/bloom-language';
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Shared feed-row model + render helpers used by BOTH the native (FlashList)
@@ -465,23 +465,21 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({
   onPress,
 }) => {
   const [hoverOwner] = useState(() => ({}));
-  return (
-    <Pressable
-      className="border-border"
-      style={styles.showThreadLink}
-      onPress={onPress}
-      onHoverIn={() => enterThreadHover(sliceKey, hoverOwner)}
-      onHoverOut={() => leaveThreadHover(hoverOwner, sliceKey)}
-    >
-      <ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} />
-      {toElement(
-        RawText('Show this thread')
-          .foreground('primary')
-          .font('14')
-          .leading('20px')
-          .weight('medium'),
-      )}
-    </Pressable>
+  // Aligned with the post's content column (after the avatar), a hairline below.
+  return toElement(
+    VStack(
+      Embed(<ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} />),
+      RawText('Show this thread').foreground('primary').font('14').leading('20px').weight('medium'),
+    )
+      .padding('vertical', '10')
+      .padding('left', '64')
+      .padding('right', 'md')
+      .border('border', 'hairline', 'bottom')
+      .onPress(onPress)
+      .onHover(
+        () => enterThreadHover(sliceKey, hoverOwner),
+        () => leaveThreadHover(hoverOwner, sliceKey),
+      ),
   );
 };
 
@@ -579,9 +577,15 @@ export function renderFeedRow(
 
   if (row.replyBranch) {
     return (
+      // The branch's rule is drawn in the theme's border colour, the thread
+      // line's colour (both are `colors.border`).
       <View
-        className="border-border"
-        style={[styles.nestedRow, nestPadding, row.replyBranch.endsGroup && styles.branchSeparator]}
+        style={[
+          styles.nestedRow,
+          nestPadding,
+          row.replyBranch.endsGroup && styles.branchSeparator,
+          { borderColor: threadLineColor },
+        ]}
       >
         {row.replyBranch.continuingDepths.map((depth) => (
           <View
@@ -656,13 +660,6 @@ export const feedRowStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  showThreadLink: {
-    paddingVertical: 10,
-    // Align with PostItem content (after avatar): HPAD + AVATAR_SIZE + AVATAR_GAP = 64
-    paddingLeft: POST_ITEM_SPACING.AVATAR_OFFSET,
-    paddingRight: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   nestedRow: {
     position: 'relative',
   },

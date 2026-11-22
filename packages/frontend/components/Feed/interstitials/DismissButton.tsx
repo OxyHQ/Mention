@@ -1,11 +1,29 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, tokenAlpha } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { cn } from '@/lib/utils';
 
 import { Icon, toElement } from '@oxy.so/bloom-language';
+
+// A touchable (it dims under the finger, which the language's press variant has
+// no timed opacity for); over a card it floats in the corner on a veil.
+const useButtonStyles = createTokenStyles((t) => ({
+  button: {
+    height: 24,
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Number.MAX_SAFE_INTEGER,
+  },
+  overlay: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    zIndex: 10,
+    backgroundColor: tokenAlpha(t.background, 0.8),
+  },
+}));
 
 interface DismissButtonProps {
   onPress: () => void;
@@ -29,7 +47,7 @@ export function DismissButton({
   accessibilityLabel,
   overlay = false,
 }: DismissButtonProps) {
-  const { colors } = useTheme();
+  const styles = useButtonStyles();
   const { t } = useTranslation();
 
   return (
@@ -40,10 +58,7 @@ export function DismissButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={t('feed.interstitial.dismissHint')}
-      className={cn(
-        'h-6 w-6 items-center justify-center rounded-full',
-        overlay && 'absolute right-2 top-2 z-10 bg-background/80',
-      )}
+      style={[styles.button, overlay && styles.overlay]}
     >
       {toElement(Icon(RiCloseLine).size('14').foreground('muted'))}
     </TouchableOpacity>
