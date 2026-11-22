@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { Dimensions, FlatList, View } from 'react-native';
+import { Dimensions, FlatList, View, type ViewStyle } from 'react-native';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import { VirtualList } from '@oxy.so/bloom/list';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
@@ -15,6 +15,8 @@ export type {
 const NUM_COLUMNS = 3;
 const GAP = 1; // instagram-like tight spacing
 const H_PADDING = 0;
+/** `w-full`, for a grid that spans its parent. */
+const FULL_WIDTH: ViewStyle = { width: '100%' };
 
 type ProfileGridRow<T extends ProfileGridEntry> =
   | {
@@ -41,7 +43,8 @@ type ProfileGridRow<T extends ProfileGridEntry> =
 export function ProfileGridList<T extends ProfileGridEntry>({
   data,
   renderCell,
-  containerClassName,
+  background,
+  fullWidth,
   initialNumToRender,
   windowSize,
   ownsScroll = false,
@@ -143,7 +146,14 @@ export function ProfileGridList<T extends ProfileGridEntry>({
 
   if (ownsScroll) {
     return (
-      <View className={containerClassName} style={{ flex: 1, minHeight: 0 }} onLayout={onLayout}>
+      <View
+        style={[
+          fullWidth && FULL_WIDTH,
+          { backgroundColor: background },
+          { flex: 1, minHeight: 0 },
+        ]}
+        onLayout={onLayout}
+      >
         <VirtualList
           screen={{}}
           data={rows}
@@ -169,7 +179,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   }
 
   return (
-    <View className={containerClassName} onLayout={onLayout}>
+    <View style={[fullWidth && FULL_WIDTH, { backgroundColor: background }]} onLayout={onLayout}>
       <FlatList
         data={data}
         keyExtractor={keyExtractor}

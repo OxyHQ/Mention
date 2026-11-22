@@ -1,16 +1,15 @@
 import type { ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type ViewStyle } from 'react-native';
 import { FollowButton } from '@/components/FollowButton';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Text } from '@oxy.so/bloom/typography';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { useResolvedProfileIdentity, type ProfileCardData } from './ProfileCard';
 import UserName from './UserName';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
 
 const AVATAR_SIZE = 64;
 
@@ -27,12 +26,16 @@ const IDENTITY_STYLE = StyleSheet.create({
   container: { gap: 0, alignSelf: 'stretch' },
 });
 
+/** The tile, as `flex-1 items-center gap-2` drew it. */
+const TILE_STYLE: ViewStyle = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  alignItems: 'center',
+  gap: 8,
+};
+
 const styles = StyleSheet.create({
-  bio: {
-    alignSelf: 'stretch',
-    minHeight: BIO_LINES * BIO_LINE_HEIGHT,
-    lineHeight: BIO_LINE_HEIGHT,
-  },
   followButton: { alignSelf: 'stretch' },
 });
 
@@ -71,12 +74,14 @@ export function SuggestedProfileCard({
 
   return toElement(
     VStack(
-      Embed(
+      // Bloom's PressableScale as JSX: an inert tile (no route) is a pressable with no role,
+      // which a language press host cannot be (it names itself a button).
+      Embed((render) => (
         <PressableScale
           onPress={press}
           disabled={!press}
           accessibilityRole={press ? 'link' : undefined}
-          className="flex-1 items-center gap-2"
+          style={TILE_STYLE}
         >
           <AccountAvatar
             account={resolved}
@@ -97,15 +102,19 @@ export function SuggestedProfileCard({
             align="center"
             style={IDENTITY_STYLE}
           />
-          <Text
-            className="text-muted-foreground text-center text-[13px]"
-            style={styles.bio}
-            numberOfLines={BIO_LINES}
-          >
-            {bio ?? ''}
-          </Text>
-        </PressableScale>,
-      ),
+          {render(
+            // BIO_LINES lines of BIO_LINE_HEIGHT (18px), the box held at both (36) when shorter.
+            Text(bio ?? '')
+              .foreground('muted')
+              .textAlign('center')
+              .font('sm')
+              .leading('18px')
+              .alignSelf('stretch')
+              .frame({ minHeight: '36' })
+              .lines(BIO_LINES),
+          )}
+        </PressableScale>
+      )),
       Embed(
         <FollowButton
           userId={resolved.id}

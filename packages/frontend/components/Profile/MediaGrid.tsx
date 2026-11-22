@@ -1,8 +1,8 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { TouchableOpacity, View } from 'react-native';
-import { Image } from 'expo-image';
+import { TouchableOpacity, View, type ViewStyle } from 'react-native';
+import { Image, type ImageStyle } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -51,6 +51,18 @@ interface MediaGridEntry extends ProfileGridEntry {
 }
 
 const CAROUSEL_ICON_SIZE = 12;
+// What the cells' classes drew, as plain objects (a grid cell adds no view or hook for them).
+// expo-image takes one style object, not a list.
+const FILL: ImageStyle = { width: '100%', height: '100%' };
+/** The carousel mark: 4pt in from the top right corner, on black at 50%. */
+const CAROUSEL_BADGE: ViewStyle = {
+  position: 'absolute',
+  top: 4,
+  right: 4,
+  borderRadius: 4,
+  padding: 2,
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+};
 const INITIAL_RENDER_COUNT = 18;
 const WINDOW_SIZE = 7;
 
@@ -194,25 +206,21 @@ const MediaGrid: React.FC<MediaGridProps> = ({
           ) : (
             <Image
               source={{ uri: item.uri }}
-              className="bg-muted"
-              style={{ width: '100%', height: '100%' }}
+              style={{ backgroundColor: theme.colors.contrast50, ...FILL }}
               contentFit="cover"
               transition={150}
               cachePolicy="memory-disk"
             />
           )}
           {item.isCarousel && (
-            <View
-              className="absolute top-1 right-1 rounded p-0.5"
-              style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-            >
+            <View style={CAROUSEL_BADGE}>
               <RiStackLine width={CAROUSEL_ICON_SIZE} height={CAROUSEL_ICON_SIZE} fill="white" />
             </View>
           )}
         </TouchableOpacity>
       );
     },
-    [router, theme.colors.textSecondary],
+    [router, theme.colors.textSecondary, theme.colors.contrast50],
   );
 
   // Loading state first; if no items yet and feeds are still loading, show spinner
@@ -240,7 +248,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
       restorationKey={restorationKey}
       data={mediaItems}
       renderCell={renderCell}
-      containerClassName="bg-card"
+      background={theme.colors.card}
       initialNumToRender={INITIAL_RENDER_COUNT}
       windowSize={WINDOW_SIZE}
       ownsScroll={ownsScroll}

@@ -1,14 +1,24 @@
 import { memo, useCallback } from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { TouchableOpacity, View, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiFlowerLine } from '@oxy.so/bloom/icons/RiFlowerLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import type { ProfileMetaProps } from './types';
 
-import { HStack, Icon, RawText, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, Icon, RawText, toElement } from '@oxy.so/bloom-language';
+
+/** The meta row, as `flex-row flex-wrap mb-3 gap-x-4 gap-y-1` drew it. */
+const META_ROW_STYLE: ViewStyle = {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  marginBottom: 12,
+  columnGap: 16,
+  rowGap: 4,
+};
+/** The join date, as `flex-row items-center gap-1` drew it. */
+const JOINED_STYLE: ViewStyle = { flexDirection: 'row', alignItems: 'center', gap: 4 };
 
 /**
  * Profile metadata component
@@ -19,7 +29,6 @@ export const ProfileMeta = memo(function ProfileMeta({
   createdAt,
   aboutHref,
 }: ProfileMetaProps) {
-  const { colors } = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -41,33 +50,36 @@ export const ProfileMeta = memo(function ProfileMeta({
     return null;
   }
 
-  return (
-    <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
-      {hasLocation &&
-        toElement(
-          HStack(
-            Icon(RiMapPinLine).size('sm').foreground('muted'),
-            RawText(location).foreground('muted').font('md'),
-          )
-            .align('center')
-            .spacing('xs'),
-        )}
-      {createdAt && (
-        <TouchableOpacity
-          className="flex-row items-center gap-1"
-          onPress={openAbout}
-          disabled={!aboutHref}
-          activeOpacity={0.7}
-        >
-          {toElement(Icon(RiFlowerLine).size('sm').foreground('muted'))}
-          {toElement(
-            RawText(t('profile.joined'), ' ', formatJoinDate(createdAt))
-              .foreground('muted')
-              .font('md'),
+  // React Native's views: the row wraps with a gap per axis, and the join date fades on press.
+  return toElement(
+    Embed((render) => (
+      <View style={META_ROW_STYLE}>
+        {hasLocation &&
+          render(
+            HStack(
+              Icon(RiMapPinLine).size('sm').foreground('muted'),
+              RawText(location).foreground('muted').font('md'),
+            )
+              .align('center')
+              .spacing('xs'),
           )}
-          {aboutHref ? toElement(Icon(RiArrowRightSLine).size('sm').foreground('muted')) : null}
-        </TouchableOpacity>
-      )}
-    </View>
+        {createdAt && (
+          <TouchableOpacity
+            style={JOINED_STYLE}
+            onPress={openAbout}
+            disabled={!aboutHref}
+            activeOpacity={0.7}
+          >
+            {render(Icon(RiFlowerLine).size('sm').foreground('muted'))}
+            {render(
+              RawText(t('profile.joined'), ' ', formatJoinDate(createdAt))
+                .foreground('muted')
+                .font('md'),
+            )}
+            {aboutHref ? render(Icon(RiArrowRightSLine).size('sm').foreground('muted')) : null}
+          </TouchableOpacity>
+        )}
+      </View>
+    )),
   );
 });

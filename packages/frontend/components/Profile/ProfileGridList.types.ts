@@ -13,8 +13,10 @@ export interface ProfileGridListProps<T extends ProfileGridEntry> {
   data: T[];
   /** Render a single square cell given the measured item size. */
   renderCell: (item: T, itemSize: number) => React.ReactElement;
-  /** Container className (grids differ only in background/width utilities). */
-  containerClassName?: string;
+  /** The grid's fill behind its cells. */
+  background?: string;
+  /** The grid takes its parent's full width. */
+  fullWidth?: boolean;
   initialNumToRender?: number;
   windowSize?: number;
   ownsScroll?: boolean;
