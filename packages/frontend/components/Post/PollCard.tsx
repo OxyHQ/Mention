@@ -4,13 +4,15 @@ import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { StatBar } from '@oxy.so/bloom/stat-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { pollService, PollContractError, type PollDetailOption } from '@/services/pollService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('PollCard');
 
@@ -110,44 +112,63 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
 
   return (
     <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
-      <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>
-        {poll.question}
-      </Text>
-      <View className="gap-1">
-        {poll.options.map((opt: PollDetailOption) => {
-          const pct = totalVotes > 0 ? opt.voteCount / totalVotes : 0;
-          return (
-            <Pressable
-              key={opt._id}
-              onPress={() => handleVote(opt._id)}
-              hitSlop={tokens.hitSlop.md}
-              disabled={locked || voting}
-              accessibilityRole="button"
-              accessibilityLabel={`${opt.text}, ${Math.round(pct * 100)}%`}
-              style={({ pressed }) => [
-                styles.option,
-                pressed || locked ? styles.optionDimmed : null,
-              ]}
-            >
-              <StatBar
-                label={opt.text}
-                value={pct * 100}
-                max={100}
-                icon={
-                  <Text className="text-foreground text-sm font-semibold">
-                    {Math.round(pct * 100)}%
-                  </Text>
-                }
-              />
-            </Pressable>
-          );
-        })}
-      </View>
-      <View className="flex-row gap-1.5 mt-2.5">
-        <Text className="text-muted-foreground text-xs">{totalVotes} votes</Text>
-        <Text className="text-muted-foreground">{'\u00B7'}</Text>
-        <Text className="text-muted-foreground text-xs">{ended ? 'Ended' : 'Active'}</Text>
-      </View>
+      {toElement(
+        RawText(poll.question)
+          .foreground('foreground')
+          .font('16')
+          .leading('normal')
+          .weight('semibold')
+          .margin('bottom', 'sm')
+          .lines(3),
+      )}
+      {toElement(
+        VStack(
+          Embed(
+            poll.options.map((opt: PollDetailOption) => {
+              const pct = totalVotes > 0 ? opt.voteCount / totalVotes : 0;
+              return (
+                <Pressable
+                  key={opt._id}
+                  onPress={() => handleVote(opt._id)}
+                  hitSlop={tokens.hitSlop.md}
+                  disabled={locked || voting}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${opt.text}, ${Math.round(pct * 100)}%`}
+                  style={({ pressed }) => [
+                    styles.option,
+                    pressed || locked ? styles.optionDimmed : null,
+                  ]}
+                >
+                  <StatBar
+                    label={opt.text}
+                    value={pct * 100}
+                    max={100}
+                    icon={toElement(
+                      RawText(Math.round(pct * 100), '%')
+                        .foreground('foreground')
+                        .font('14')
+                        .leading('20px')
+                        .weight('semibold'),
+                    )}
+                  />
+                </Pressable>
+              );
+            }),
+          ),
+        ).spacing('xs'),
+      )}
+      {toElement(
+        HStack(
+          RawText(totalVotes, ' votes').foreground('muted').font('xs').leading('16px'),
+          RawText('·').foreground('muted'),
+          RawText(ended ? 'Ended' : 'Active')
+            .foreground('muted')
+            .font('xs')
+            .leading('16px'),
+        )
+          .spacing('6')
+          .margin('top', '10'),
+      )}
     </Card>
   );
 };

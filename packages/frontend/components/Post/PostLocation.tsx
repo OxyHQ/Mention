@@ -1,8 +1,10 @@
 import type React from 'react';
-import { View, Text, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
+import { View, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import type { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
+
+import { RawText, toElement } from '@oxy.so/bloom-language';
 
 interface PostLocationProps {
   location: GeoJSONPoint;
@@ -44,9 +46,7 @@ const PostLocation: React.FC<PostLocationProps> = ({
         fill={theme.colors.textSecondary}
         style={{ marginRight: 4 }}
       />
-      <Text className="text-muted-foreground text-[13px] flex-1" numberOfLines={1}>
-        {displayText}
-      </Text>
+      {toElement(RawText(displayText).foreground('muted').font('sm').flex('1').lines(1))}
     </Container>
   );
 };

@@ -1,8 +1,10 @@
 import type React from 'react';
-import { View, Text, type ViewStyle, Platform } from 'react-native';
+import { View, type ViewStyle, Platform } from 'react-native';
 import { cn } from '@/lib/utils';
 import PollCard from '../PollCard';
 import { IS_DEVELOPMENT } from '@/config';
+
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const webGrabCursorStyle: ViewStyle | null =
   Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
@@ -42,21 +44,37 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({
       style={[webGrabCursorStyle, style]}
     >
       {pollData ? (
-        // Fallback to simple display if we only have poll data without ID
-        <View className="flex-1 bg-muted p-4">
-          <Text className="text-foreground text-base font-bold mb-3">{pollData.question}</Text>
-          {pollData.options?.map((option: string, optIdx: number) => (
-            <View key={optIdx} className="bg-card border border-border p-3 rounded-lg mb-2">
-              <Text className="text-foreground text-sm">{option}</Text>
-            </View>
-          ))}
-        </View>
+        toElement(
+          VStack(
+            RawText(pollData.question)
+              .foreground('foreground')
+              .font('16')
+              .leading('normal')
+              .weight('bold')
+              .margin('bottom', 'md'),
+            Embed(
+              pollData.options?.map((option: string, optIdx: number) => (
+                <View key={optIdx} className="bg-card border border-border p-3 rounded-lg mb-2">
+                  {toElement(RawText(option).foreground('foreground').font('14').leading('20px'))}
+                </View>
+              )),
+            ),
+          )
+            .padding('all', 'lg')
+            .background('mutedFill')
+            .flex('1'),
+        )
       ) : (
         // Debug: Show what we received
         <View className="bg-muted p-4 rounded-[15px]">
-          <Text className="text-destructive text-base font-bold mb-3">
-            {IS_DEVELOPMENT ? 'Poll data missing' : 'Poll unavailable'}
-          </Text>
+          {toElement(
+            RawText(IS_DEVELOPMENT ? 'Poll data missing' : 'Poll unavailable')
+              .foreground('destructive')
+              .font('16')
+              .leading('normal')
+              .weight('bold')
+              .margin('bottom', 'md'),
+          )}
         </View>
       )}
     </View>

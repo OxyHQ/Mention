@@ -26,6 +26,8 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Link, type Href } from '@/lib/navigation/router';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
 const INDICATOR_ICON_SIZE = 14;
 
@@ -260,14 +262,16 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
 
   const timeLabel = useTimeAgo(date);
-  const timeText = timeLabel ? (
-    <Text
-      className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
-      style={{ flexShrink: 0 }}
-    >
-      {'\u00B7'} {timeLabel}
-    </Text>
-  ) : null;
+  const timeText = timeLabel
+    ? toElement(
+        RawText('·', ' ', timeLabel)
+          .foreground('muted')
+          .font('md')
+          .leading('close')
+          .shrink('never')
+          .when('web', (v) => v.noWrap()),
+      )
+    : null;
   // Collaborative posts (owner + accepted collaborators) render each author's
   // FIRST name as its own tappable link to that author's profile. Reduce the
   // canonical Oxy `User` collaborators to a first-name + normalized-handle view
@@ -438,7 +442,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
           style={{ marginTop: compact ? 0 : headerTopOffset }}
         >
-          <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
+          {toElement(Icon(RiMoreFill).size('18').foreground('muted'))}
         </TouchableOpacity>
       </DropdownMenuTrigger>
       {menuOpen ? menu : null}
@@ -491,48 +495,56 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               With NO display name the @handle becomes the bold primary (rendered
               ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
           {isCollabByline ? (
-            <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-              <Text
-                className="text-foreground text-[15px] font-semibold leading-tight"
-                style={{ flexShrink: 1, minWidth: 0 }}
-                numberOfLines={2}
-              >
-                {headerAuthors.map((a, i) => {
-                  const isLast = i === headerAuthors.length - 1;
-                  // A channel signing with its writer is not a list of
-                  // co-authors: the channel published it and a person wrote
-                  // it, so the byline reads "Notas de Nate by Nate". `and`
-                  // would claim they authored it jointly.
-                  const separator =
-                    i === 0
-                      ? ''
-                      : isLast
-                        ? bylineNamesWriter
-                          ? t('collab.by', { defaultValue: ' by ' })
-                          : t('collab.and', { defaultValue: ' and ' })
-                        : ', ';
-                  // Each first name links to that author's own profile; falls
-                  // back to plain text when the author has no resolvable handle.
-                  return (
-                    <React.Fragment key={`${a.handle || 'author'}-${i}`}>
-                      {separator}
-                      {linkAuthors && a.href ? (
-                        <Link
-                          href={a.href}
-                          push
-                          onPress={stopAtLink}
-                          accessibilityLabel={a.firstName}
-                        >
-                          {a.firstName}
-                        </Link>
-                      ) : (
-                        <Text>{a.firstName}</Text>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </Text>
-            </View>
+            toElement(
+              HStack(
+                RawText(
+                  headerAuthors.map((a, i) => {
+                    const isLast = i === headerAuthors.length - 1;
+                    // A channel signing with its writer is not a list of
+                    // co-authors: the channel published it and a person wrote
+                    // it, so the byline reads "Notas de Nate by Nate". `and`
+                    // would claim they authored it jointly.
+                    const separator =
+                      i === 0
+                        ? ''
+                        : isLast
+                          ? bylineNamesWriter
+                            ? t('collab.by', { defaultValue: ' by ' })
+                            : t('collab.and', { defaultValue: ' and ' })
+                          : ', ';
+                    // Each first name links to that author's own profile; falls
+                    // back to plain text when the author has no resolvable handle.
+                    return (
+                      <React.Fragment key={`${a.handle || 'author'}-${i}`}>
+                        {separator}
+                        {linkAuthors && a.href ? (
+                          <Link
+                            href={a.href}
+                            push
+                            onPress={stopAtLink}
+                            accessibilityLabel={a.firstName}
+                          >
+                            {a.firstName}
+                          </Link>
+                        ) : (
+                          <Text>{a.firstName}</Text>
+                        )}
+                      </React.Fragment>
+                    );
+                  }),
+                )
+                  .frame({ minWidth: 'none' })
+                  .foreground('foreground')
+                  .font('md')
+                  .weight('semibold')
+                  .leading('close')
+                  .shrink('normal')
+                  .lines(2),
+              )
+                .frame({ minWidth: 'none' })
+                .align('end')
+                .shrink('normal'),
+            )
           ) : (
             // The whole identity line \u2014 name, `@handle` and the federated badge
             // \u2014 is one hover target, so pointing at ANY part of it previews the
@@ -548,10 +560,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               >
                 {detail ? (
                   <>
-                    <View className="flex-row items-center">
-                      {identityName}
-                      {identityBadge}
-                    </View>
+                    {toElement(HStack(Embed(identityName), Embed(identityBadge)).align('center'))}
                     {identityHandle}
                   </>
                 ) : (
@@ -631,25 +640,30 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             </TouchableOpacity>
           ) : null}
           {laneSlot}
-          {showBoost && (
-            <View accessibilityRole="image" accessibilityLabel="Reposted">
-              <RiRepeat2Line
-                width={INDICATOR_ICON_SIZE}
-                height={INDICATOR_ICON_SIZE}
-                fill={theme.colors.textSecondary}
-              />
-            </View>
-          )}
+          {showBoost &&
+            toElement(
+              VStack(
+                Embed(
+                  <RiRepeat2Line
+                    width={INDICATOR_ICON_SIZE}
+                    height={INDICATOR_ICON_SIZE}
+                    fill={theme.colors.textSecondary}
+                  />,
+                ),
+              )
+                .role('image')
+                .label('Reposted'),
+            )}
           {compact ? menuButton : null}
           {showReply && (
             <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
-              <RiChat3Fill size="xs" fill={theme.colors.textSecondary} />
-              <Text className="text-muted-foreground text-xs">Replied</Text>
+              {toElement(Icon(RiChat3Fill).size('xs').foreground('muted'))}
+              {toElement(RawText('Replied').foreground('muted').font('xs').leading('16px'))}
             </View>
           )}
         </View>
         {bylineSlot}
-        {children ? <View>{children}</View> : null}
+        {children ? toElement(VStack(Embed(children))) : null}
       </View>
       {compact ? null : menuButton}
     </View>

@@ -1,11 +1,13 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
-import { Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useKnownLikers } from '@/hooks/useKnownLikers';
 import { displayNameOrHandle } from '@/utils/displayName';
+
+import { RawText, toElement } from '@oxy.so/bloom-language';
 
 /** Diameter of each stacked avatar, matching the profile's "Followed by" row. */
 const AVATAR_SIZE = 20;
@@ -132,9 +134,7 @@ export const KnownLikersRow = memo(function KnownLikersRow({
       {/* Two lines, not one: on a phone the sentence does not fit beside the
           avatars, and wrapping keeps the "and N others" tail readable where
           `numberOfLines={1}` would clip it mid-name. */}
-      <Text className="text-muted-foreground text-[14px] shrink" numberOfLines={2}>
-        {label}
-      </Text>
+      {toElement(RawText(label).foreground('muted').font('14').shrink('normal').lines(2))}
     </Pressable>
   );
 });

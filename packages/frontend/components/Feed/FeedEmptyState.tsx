@@ -1,11 +1,11 @@
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo } from 'react';
-import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { FeedType } from '@mention/shared-types';
 import type { FeedFailureKind } from '@/utils/feedRetry';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface FeedEmptyStateProps {
   isLoading: boolean;
@@ -36,15 +36,21 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
   ({ isLoading, error, errorKind, hasItems, type, onRetry, pending, isThread }) => {
     const { t } = useTranslation();
     if (isLoading || pending)
-      return (
-        <View className="w-full gap-3">
-          <FeedSkeleton />
-          {pending && (
-            <Text className="text-muted-foreground text-sm">
-              {t('feed.loadingPosts', { defaultValue: 'Loading posts…' })}
-            </Text>
-          )}
-        </View>
+      return toElement(
+        VStack(
+          Embed(<FeedSkeleton />),
+          Embed(
+            pending &&
+              toElement(
+                RawText(t('feed.loadingPosts', { defaultValue: 'Loading posts…' }))
+                  .foreground('muted')
+                  .font('14')
+                  .leading('20px'),
+              ),
+          ),
+        )
+          .frame({ width: 'full' })
+          .spacing('md'),
       );
 
     const hasError = !!error;

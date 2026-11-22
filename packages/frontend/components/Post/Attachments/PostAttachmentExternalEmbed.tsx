@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { AspectRatio } from '@oxy.so/bloom/aspect-ratio';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
@@ -10,6 +10,8 @@ import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { ExternalEmbedPlayer } from './ExternalEmbedPlayer';
 import { EmbedConsentDialog } from './EmbedConsentDialog';
 import PostAttachmentLink from './PostAttachmentLink';
+
+import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface PostAttachmentExternalEmbedProps {
   url: string;
@@ -104,7 +106,6 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   return (
     <View style={style} className="w-full overflow-hidden rounded-2xl border border-border bg-card">
       <EmbedConsentDialog control={consentControl} source={params.source} onAccept={onAccept} />
-
       <ExternalEmbedPlayer
         params={params}
         thumb={image}
@@ -112,22 +113,24 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         onPressPlay={onPressPlay}
         onDeactivate={onDeactivate}
       />
-
-      {!params.hideDetails ? (
-        <View className="gap-1 px-3 py-2">
-          {title ? (
-            <Text
-              numberOfLines={2}
-              className="text-[15px] font-semibold leading-snug text-foreground"
-            >
-              {title}
-            </Text>
-          ) : null}
-          <Text numberOfLines={1} className="text-xs text-muted-foreground">
-            {domain}
-          </Text>
-        </View>
-      ) : null}
+      {!params.hideDetails
+        ? toElement(
+            VStack(
+              title
+                ? RawText(title)
+                    .font('md')
+                    .weight('semibold')
+                    .leading('easy')
+                    .foreground('foreground')
+                    .lines(2)
+                : null,
+              RawText(domain).font('xs').leading('16px').foreground('muted').lines(1),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'sm')
+              .spacing('xs'),
+          )
+        : null}
     </View>
   );
 };

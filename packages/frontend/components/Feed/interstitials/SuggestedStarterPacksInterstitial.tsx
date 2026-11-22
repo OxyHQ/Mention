@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from 'react';
-import { View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +28,7 @@ import {
 } from './interstitialTelemetry';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { dismissInterstitialItem, useDismissedInterstitialItems } from '@/stores/readerStateStore';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Starter packs, inline in the feed — the one suggestion that fixes an empty
@@ -167,31 +167,39 @@ function SuggestedStarterPackItem({
   const memberIds = pack.memberOxyUserIds ?? [];
   const cardData = starterPackCardData(pack);
 
-  return (
-    <View className="flex-1 gap-2">
-      <View className="flex-1">
-        <StarterPackCard
-          pack={cardData}
-          onPress={() => {
-            report('click', position);
-            router.push(`/starter-packs/${id}`);
-          }}
-          // A carousel card has room for the faces and the counts, not a paragraph.
-          noDescription
-        />
-        <DismissButton
-          overlay
-          onPress={() => onDismiss(id, position)}
-          accessibilityLabel={t('feed.interstitial.starterPacks.dismiss', { name: pack.name })}
-        />
-      </View>
-      <FollowButton
-        userIds={memberIds}
-        size="sm"
-        followAllLabel={t('feed.interstitial.starterPacks.followAll')}
-        followedAllLabel={t('feed.interstitial.starterPacks.followingAll')}
-        onBulkFollow={() => onBulkFollow(id, position)}
-      />
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        Embed(
+          <StarterPackCard
+            pack={cardData}
+            onPress={() => {
+              report('click', position);
+              router.push(`/starter-packs/${id}`);
+            }}
+            // A carousel card has room for the faces and the counts, not a paragraph.
+            noDescription
+          />,
+        ),
+        Embed(
+          <DismissButton
+            overlay
+            onPress={() => onDismiss(id, position)}
+            accessibilityLabel={t('feed.interstitial.starterPacks.dismiss', { name: pack.name })}
+          />,
+        ),
+      ).flex('1'),
+      Embed(
+        <FollowButton
+          userIds={memberIds}
+          size="sm"
+          followAllLabel={t('feed.interstitial.starterPacks.followAll')}
+          followedAllLabel={t('feed.interstitial.starterPacks.followingAll')}
+          onBulkFollow={() => onBulkFollow(id, position)}
+        />,
+      ),
+    )
+      .flex('1')
+      .spacing('sm'),
   );
 }

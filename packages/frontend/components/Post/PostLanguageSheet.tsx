@@ -1,9 +1,11 @@
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { languageLabel, translateTargets, type PostLanguageOption } from '@/utils/postLanguages';
+
+import { Embed, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   /** The renditions this post can be read in right now. */
@@ -31,49 +33,71 @@ const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) =>
   const { t } = useTranslation();
   const theme = useTheme();
 
-  return (
-    <View className="bg-background p-4">
-      <Text className="text-foreground mb-2 px-1 text-[15px] font-semibold">
-        {t('post.language.pickerTitle', { defaultValue: 'Read this post in' })}
-      </Text>
-      {options.map((option) => (
-        <TouchableOpacity
-          key={option.tag}
-          className="bg-surface mb-1 flex-row items-center justify-between rounded-2xl px-3.5 py-3"
-          activeOpacity={0.7}
-          onPress={() => onSelect(option.tag)}
-        >
-          <View>
-            <Text className="text-foreground text-base font-medium">
-              {languageLabel(option.tag)}
-            </Text>
-            {option.source === 'machine' ? (
-              <Text className="text-muted-foreground text-[13px]">
-                {t('post.language.machine', { defaultValue: 'Translated' })}
-              </Text>
-            ) : null}
-          </View>
-          {option.tag === activeTag ? (
-            <RiCheckboxCircleFill size="md" fill={theme.colors.primary} />
-          ) : null}
-        </TouchableOpacity>
-      ))}
-
-      <Text className="text-muted-foreground mb-2 mt-4 px-1 text-[13px] font-semibold">
-        {t('post.language.translateTo', { defaultValue: 'Translate to' })}
-      </Text>
-      {translateTargets(options).map((language) => (
-        <TouchableOpacity
-          key={language.tag}
-          className="bg-surface mb-1 flex-row items-center justify-between rounded-2xl px-3.5 py-3"
-          activeOpacity={0.7}
-          onPress={() => onSelect(language.tag)}
-        >
-          <Text className="text-foreground text-base font-medium">{language.nativeName}</Text>
-          <Text className="text-muted-foreground text-[13px]">{language.englishName}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
+  return toElement(
+    VStack(
+      RawText(t('post.language.pickerTitle', { defaultValue: 'Read this post in' }))
+        .padding('horizontal', 'xs')
+        .foreground('foreground')
+        .margin('bottom', 'sm')
+        .font('md')
+        .weight('semibold'),
+      Embed(
+        options.map((option) => (
+          <TouchableOpacity
+            key={option.tag}
+            className="bg-surface mb-1 flex-row items-center justify-between rounded-2xl px-3.5 py-3"
+            activeOpacity={0.7}
+            onPress={() => onSelect(option.tag)}
+          >
+            {toElement(
+              VStack(
+                RawText(languageLabel(option.tag))
+                  .foreground('foreground')
+                  .font('16')
+                  .leading('normal')
+                  .weight('medium'),
+                option.source === 'machine'
+                  ? RawText(t('post.language.machine', { defaultValue: 'Translated' }))
+                      .foreground('muted')
+                      .font('sm')
+                  : null,
+              ),
+            )}
+            {option.tag === activeTag
+              ? toElement(Icon(RiCheckboxCircleFill).size('md').foreground('primary'))
+              : null}
+          </TouchableOpacity>
+        )),
+      ),
+      RawText(t('post.language.translateTo', { defaultValue: 'Translate to' }))
+        .padding('horizontal', 'xs')
+        .foreground('muted')
+        .margin('bottom', 'sm')
+        .margin('top', 'lg')
+        .font('sm')
+        .weight('semibold'),
+      Embed(
+        translateTargets(options).map((language) => (
+          <TouchableOpacity
+            key={language.tag}
+            className="bg-surface mb-1 flex-row items-center justify-between rounded-2xl px-3.5 py-3"
+            activeOpacity={0.7}
+            onPress={() => onSelect(language.tag)}
+          >
+            {toElement(
+              RawText(language.nativeName)
+                .foreground('foreground')
+                .font('16')
+                .leading('normal')
+                .weight('medium'),
+            )}
+            {toElement(RawText(language.englishName).foreground('muted').font('sm'))}
+          </TouchableOpacity>
+        )),
+      ),
+    )
+      .padding('all', 'lg')
+      .background('background'),
   );
 };
 

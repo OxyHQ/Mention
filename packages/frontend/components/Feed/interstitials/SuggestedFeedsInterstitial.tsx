@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from 'react';
-import { View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +29,7 @@ import {
 } from './interstitialTelemetry';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { dismissInterstitialItem, useDismissedInterstitialItems } from '@/stores/readerStateStore';
+import { Embed, HStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Custom feeds the viewer does not already read, inline in the feed.
@@ -234,19 +234,25 @@ function SuggestedFeedItem({
         report('click', position);
         router.push(`/feeds/${id}`);
       }}
-      headerRight={
-        <View className="flex-row items-center gap-1">
-          <FeedSubscribeButton
-            isSubscribed={isSubscribed}
-            isSubscribing={isSubscribing}
-            onPress={() => onSubscribe({ feedId: id, position })}
-          />
-          <DismissButton
-            onPress={() => onDismiss(id, position)}
-            accessibilityLabel={t('feed.interstitial.feeds.dismiss', { name: feed.title })}
-          />
-        </View>
-      }
+      headerRight={toElement(
+        HStack(
+          Embed(
+            <FeedSubscribeButton
+              isSubscribed={isSubscribed}
+              isSubscribing={isSubscribing}
+              onPress={() => onSubscribe({ feedId: id, position })}
+            />,
+          ),
+          Embed(
+            <DismissButton
+              onPress={() => onDismiss(id, position)}
+              accessibilityLabel={t('feed.interstitial.feeds.dismiss', { name: feed.title })}
+            />,
+          ),
+        )
+          .align('center')
+          .spacing('xs'),
+      )}
     />
   );
 }

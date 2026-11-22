@@ -5,6 +5,8 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { cn } from '@/lib/utils';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
 interface DismissButtonProps {
   onPress: () => void;
   /** Accessible name — what this dismisses ("Dismiss @nate"), not just "Dismiss". */
@@ -43,7 +45,7 @@ export function DismissButton({
         overlay && 'absolute right-2 top-2 z-10 bg-background/80',
       )}
     >
-      <RiCloseLine width={14} height={14} fill={colors.textSecondary} />
+      {toElement(Icon(RiCloseLine).size('14').foreground('muted'))}
     </TouchableOpacity>
   );
 }

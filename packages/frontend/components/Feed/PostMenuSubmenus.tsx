@@ -18,6 +18,8 @@ import { savePostSettings, type PostSettingsPatch } from './postSettings';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { usePostsStore } from '@/stores/postsStore';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
 const logger = createLogger('PostMenuSubmenus');
 
 /** The radio value of "no lane"; no lane id can collide with it. */
@@ -45,7 +47,7 @@ export function PostSourcesSubmenu({ sources }: { sources: PostSourceLink[] }) {
         <DropdownMenuItem
           key={source.url}
           href={source.url}
-          leading={<RiLinkM width={20} height={20} fill={theme.colors.textSecondary} />}
+          leading={toElement(Icon(RiLinkM).size('md').foreground('muted'))}
         >
           {sourceLabel(source)}
         </DropdownMenuItem>

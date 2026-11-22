@@ -2,15 +2,11 @@ import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { Screen } from '@oxy.so/bloom/screen';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@oxy.so/bloom/button';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Search } from '@oxy.so/bloom/search';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +20,19 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
 import SavedPostsList, { type SavedPost } from '@/components/saved/SavedPostsList';
 import { usePostsStore } from '@/stores/postsStore';
+
+import {
+  Button as LButton,
+  Dialog as LDialog,
+  Embed,
+  HStack,
+  Header,
+  Search as LSearch,
+  Text,
+  TextField as LTextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const PAGE_SIZE = 30;
 const SEARCH_DEBOUNCE_MS = 400;
@@ -305,7 +314,7 @@ const SavedPostsScreen: React.FC = () => {
   const listFooter = isFetchingNextPage ? (
     <FeedSkeleton count={2} />
   ) : (
-    <View style={styles.listFooterSpace} />
+    toElement(VStack().frame({ height: '2xl' }))
   );
 
   return (
@@ -315,7 +324,7 @@ const SavedPostsScreen: React.FC = () => {
         <Screen
           reselect={{ refresh: refetchSavedPosts }}
           scroll="auto"
-          header={<PageHeader title={t('screens.saved.title')} presentation="floating" />}
+          header={toElement(Header(t('screens.saved.title')).presentation('floating').inPage())}
           // The page's own action; the shell's compose FAB steps aside for it.
           primaryAction={
             canUsePrivateApi ? (
@@ -331,14 +340,15 @@ const SavedPostsScreen: React.FC = () => {
           {/* Search and folder tabs dock under the header. Creating a folder
                         is an action, not a section, so it lives in the FAB. */}
           <StickySection>
-            <View className="mx-4 my-2">
-              <Search
-                label={t('saved.searchPlaceholder', 'Search saved posts')}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onClearText={() => setSearchQuery('')}
-              />
-            </View>
+            {toElement(
+              VStack(
+                LSearch([searchQuery, setSearchQuery])
+                  .label(t('saved.searchPlaceholder', 'Search saved posts'))
+                  .onClearText(() => setSearchQuery('')),
+              )
+                .margin('horizontal', 'lg')
+                .margin('vertical', 'sm'),
+            )}
             <Tabs
               value={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)}
               onValueChange={handleFolderTabPress}
@@ -364,70 +374,68 @@ const SavedPostsScreen: React.FC = () => {
           />
         </Screen>
       </HeaderDockProvider>
-
       <Dialog
         control={newFolderControl}
         title={t('saved.createFolder', 'Create folder')}
         label={t('saved.createFolder', 'Create folder')}
       >
-        <View className="gap-4">
-          <TextField>
-            <TextFieldInput
-              label={t('saved.folderName', 'Folder name')}
-              value={newFolderName}
-              onChangeText={setNewFolderName}
-              onSubmitEditing={handleCreateFolder}
-              returnKeyType="done"
-              autoFocus
-              maxLength={100}
-            />
-          </TextField>
-
-          <View className="flex-row justify-end gap-2">
-            <Button appearance="subtle" tone="neutral" size="lg" onPress={closeNewFolder}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              disabled={!newFolderName.trim() || isCreatingFolder}
-              loading={isCreatingFolder}
-              onPress={handleCreateFolder}
-            >
-              {t('common.create', 'Create')}
-            </Button>
-          </View>
-        </View>
+        {toElement(
+          VStack(
+            LTextField([newFolderName, setNewFolderName], t('saved.folderName', 'Folder name'))
+              .onSubmit(handleCreateFolder)
+              .submitLabel('done')
+              .autoFocus()
+              .maxLength(100),
+            HStack(
+              LButton(Text(t('common.cancel', 'Cancel')))
+                .style('subtle')
+                .tint('neutral')
+                .size('lg')
+                .onPress(closeNewFolder),
+              LButton(Text(t('common.create', 'Create')))
+                .style('solid')
+                .tint('accent')
+                .size('lg')
+                .disabled(!newFolderName.trim() || isCreatingFolder)
+                .loading(isCreatingFolder)
+                .onPress(handleCreateFolder),
+            )
+              .justify('end')
+              .spacing('sm'),
+          ).spacing('lg'),
+        )}
       </Dialog>
-
-      <Dialog
-        open={showMoveModal}
-        onClose={closeMoveDialog}
-        title={t('saved.moveToFolder', 'Move to Folder')}
-        label={t('saved.moveToFolder', 'Move to Folder')}
-        maxWidth={360}
-        dismissOnBackdrop={!isMovingBookmark}
-        actions={moveDialogActions}
-      >
-        <View className="mb-3">
-          <Item
-            role="option"
-            title={t('saved.allBookmarks', 'All Bookmarks')}
-            onPress={() => handleMoveToFolder(null)}
-            disabled={isMovingBookmark}
-          />
-          {folders.map((folder) => (
-            <Item
-              key={folder}
-              role="option"
-              title={folder}
-              onPress={() => handleMoveToFolder(folder)}
-              disabled={isMovingBookmark}
-            />
-          ))}
-        </View>
-      </Dialog>
+      {toElement(
+        LDialog(
+          VStack(
+            Embed(
+              <Item
+                role="option"
+                title={t('saved.allBookmarks', 'All Bookmarks')}
+                onPress={() => handleMoveToFolder(null)}
+                disabled={isMovingBookmark}
+              />,
+            ),
+            Embed(
+              folders.map((folder) => (
+                <Item
+                  key={folder}
+                  role="option"
+                  title={folder}
+                  onPress={() => handleMoveToFolder(folder)}
+                  disabled={isMovingBookmark}
+                />
+              )),
+            ),
+          ).margin('bottom', 'md'),
+        )
+          .title(t('saved.moveToFolder', 'Move to Folder'))
+          .label(t('saved.moveToFolder', 'Move to Folder'))
+          .frame({ maxWidth: '360' })
+          .dismissOnBackdrop(!isMovingBookmark)
+          .buttons(moveDialogActions)
+          .presented([showMoveModal, () => closeMoveDialog()]),
+      )}
     </>
   );
 };

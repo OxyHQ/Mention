@@ -1,12 +1,8 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import { View } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { Button } from '@oxy.so/bloom/button';
-import { Text } from '@oxy.so/bloom/typography';
+import { Screen } from '@oxy.so/bloom/screen';
 
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { SEO } from '@/components/SEO';
@@ -15,6 +11,16 @@ import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { useStorePost } from '@/hooks/useStorePost';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * A post's public correction trail (route `/p/<id>/corrections`).
@@ -64,97 +70,124 @@ export default function PostCorrectionsScreen() {
         })}
       />
       <Screen
-        header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
+        header={toElement(
+          Header(title)
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
-        <ScreenScrollView contentContainerClassName="pb-16">
-          <Text className="px-4 pb-3 pt-1 text-[13px] text-muted-foreground">
-            {t('post.corrections.intro', {
-              defaultValue:
-                'This post has been changed since it was published. Every version it has had is listed here, oldest first.',
-            })}
-          </Text>
-
-          {isLoading ? (
-            <ListSkeleton />
-          ) : isError ? (
-            // An unreachable trail must not render as an empty one: "no
-            // corrections" over an outage would say the post was never
-            // changed, which is the opposite of what the marker promised.
-            <View className="items-center gap-3 px-4 py-10">
-              <Text className="text-center text-sm text-muted-foreground">
-                {t('post.corrections.error', {
-                  defaultValue: "Couldn't load this post's correction history.",
-                })}
-              </Text>
-              <Button onPress={() => void refetch()}>
-                {t('post.corrections.retry', { defaultValue: 'Try again' })}
-              </Button>
-            </View>
-          ) : corrections.length === 0 ? (
-            <EmptyState
-              title={t('post.corrections.empty', {
-                defaultValue: 'This post has not been corrected.',
-              })}
-              sticker="postCorrections"
-              containerStyle={{ paddingTop: 40 }}
-            />
-          ) : (
-            <>
-              {droppedVersions > 0 ? (
-                <Text className="px-4 pb-3 text-[13px] text-muted-foreground">
-                  {t('post.corrections.truncated', {
-                    count: droppedVersions,
-                    defaultValue:
-                      '{{count}} versions in between are no longer kept. The version numbers below skip them.',
+        {toElement(
+          ScrollView(
+            LText(
+              t('post.corrections.intro', {
+                defaultValue:
+                  'This post has been changed since it was published. Every version it has had is listed here, oldest first.',
+              }),
+            )
+              .padding('horizontal', 'lg')
+              .padding('bottom', 'md')
+              .padding('top', 'xs')
+              .font('sm')
+              .foreground('muted'),
+            Embed(
+              isLoading ? (
+                <ListSkeleton />
+              ) : isError ? (
+                toElement(
+                  VStack(
+                    LText(
+                      t('post.corrections.error', {
+                        defaultValue: "Couldn't load this post's correction history.",
+                      }),
+                    )
+                      .textAlign('center')
+                      .font('14')
+                      .leading('20px')
+                      .foreground('muted'),
+                    LButton(
+                      LText(t('post.corrections.retry', { defaultValue: 'Try again' })),
+                    ).onPress(() => void refetch()),
+                  )
+                    .padding('horizontal', 'lg')
+                    .padding('vertical', '4xl')
+                    .align('center')
+                    .spacing('md'),
+                )
+              ) : corrections.length === 0 ? (
+                <EmptyState
+                  title={t('post.corrections.empty', {
+                    defaultValue: 'This post has not been corrected.',
                   })}
-                </Text>
-              ) : null}
-
-              {corrections.map((correction) => (
-                <Version
-                  key={correction.revision}
-                  title={
-                    // Revision 1 is the body the post was
-                    // PUBLISHED with, and it is exempt from
-                    // retention eviction, so this is the one
-                    // label the trail can always say plainly.
-                    correction.revision === 1
-                      ? t('post.corrections.originalVersion', {
-                          defaultValue: 'As first published',
-                        })
-                      : t('post.corrections.version', {
-                          revision: correction.revision,
-                          defaultValue: 'Version {{revision}}',
-                        })
-                  }
-                  // `correctedAt` is when this body was REPLACED,
-                  // not when it was written, so the date reads
-                  // "Replaced …" — labelling it as the version's
-                  // own date would tell the reader the post said
-                  // this FROM then on, which is backwards.
-                  subtitle={t('post.corrections.replaced', {
-                    timestamp: formatFullTimestamp(correction.correctedAt),
-                    defaultValue: 'Replaced {{timestamp}}',
-                  })}
-                  text={correction.previousText}
+                  sticker="postCorrections"
+                  containerStyle={{ paddingTop: 40 }}
                 />
-              ))}
+              ) : (
+                <>
+                  {droppedVersions > 0
+                    ? toElement(
+                        LText(
+                          t('post.corrections.truncated', {
+                            count: droppedVersions,
+                            defaultValue:
+                              '{{count}} versions in between are no longer kept. The version numbers below skip them.',
+                          }),
+                        )
+                          .padding('horizontal', 'lg')
+                          .padding('bottom', 'md')
+                          .font('sm')
+                          .foreground('muted'),
+                      )
+                    : null}
 
-              {currentText ? (
-                <Version
-                  title={t('post.corrections.currentVersion', {
-                    defaultValue: 'Current version',
-                  })}
-                  subtitle={t('post.corrections.since', {
-                    timestamp: formatFullTimestamp(corrections[corrections.length - 1].correctedAt),
-                    defaultValue: 'Since {{timestamp}}',
-                  })}
-                  text={currentText}
-                />
-              ) : null}
-            </>
-          )}
-        </ScreenScrollView>
+                  {corrections.map((correction) => (
+                    <Version
+                      key={correction.revision}
+                      title={
+                        // Revision 1 is the body the post was
+                        // PUBLISHED with, and it is exempt from
+                        // retention eviction, so this is the one
+                        // label the trail can always say plainly.
+                        correction.revision === 1
+                          ? t('post.corrections.originalVersion', {
+                              defaultValue: 'As first published',
+                            })
+                          : t('post.corrections.version', {
+                              revision: correction.revision,
+                              defaultValue: 'Version {{revision}}',
+                            })
+                      }
+                      // `correctedAt` is when this body was REPLACED,
+                      // not when it was written, so the date reads
+                      // "Replaced …" — labelling it as the version's
+                      // own date would tell the reader the post said
+                      // this FROM then on, which is backwards.
+                      subtitle={t('post.corrections.replaced', {
+                        timestamp: formatFullTimestamp(correction.correctedAt),
+                        defaultValue: 'Replaced {{timestamp}}',
+                      })}
+                      text={correction.previousText}
+                    />
+                  ))}
+
+                  {currentText ? (
+                    <Version
+                      title={t('post.corrections.currentVersion', {
+                        defaultValue: 'Current version',
+                      })}
+                      subtitle={t('post.corrections.since', {
+                        timestamp: formatFullTimestamp(
+                          corrections[corrections.length - 1].correctedAt,
+                        ),
+                        defaultValue: 'Since {{timestamp}}',
+                      })}
+                      text={currentText}
+                    />
+                  ) : null}
+                </>
+              ),
+            ),
+          ).contentView((v) => v.padding('bottom', '64')),
+        )}
       </Screen>
     </>
   );
@@ -162,11 +195,14 @@ export default function PostCorrectionsScreen() {
 
 /** One entry in the trail: what it was called, when, and what it said. */
 function Version({ title, subtitle, text }: { title: string; subtitle: string; text: string }) {
-  return (
-    <View className="border-border border-t px-4 py-4">
-      <Text className="text-[15px] font-semibold text-foreground">{title}</Text>
-      <Text className="text-[13px] text-muted-foreground">{subtitle}</Text>
-      <LinkifiedText text={text} className="text-foreground mt-2 text-[15px]" />
-    </View>
+  return toElement(
+    VStack(
+      LText(title).font('md').weight('semibold').foreground('foreground'),
+      LText(subtitle).font('sm').foreground('muted'),
+      Embed(<LinkifiedText text={text} className="text-foreground mt-2 text-[15px]" />),
+    )
+      .padding('horizontal', 'lg')
+      .padding('vertical', 'lg')
+      .border('border', 'thin', 'top'),
   );
 }

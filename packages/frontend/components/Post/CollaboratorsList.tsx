@@ -1,14 +1,14 @@
 import type React from 'react';
 import { useCallback } from 'react';
-import { View, FlatList } from 'react-native';
+import { FlatList } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { ProfileCard } from '@/components/ProfileCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
+
+import { Button as LButton, Embed, Header, Icon, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface CollaboratorsListProps {
   /**
@@ -72,25 +72,23 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose,
     [handleUserPress],
   );
 
-  return (
-    <View className="flex-1 bg-background">
-      <PageHeader
-        title={title ?? t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' })}
-        safeArea={false}
-        actions={
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            leadingIcon={RiCloseLine}
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-            onPress={onClose}
-          />
-        }
-      />
-
-      <FlatList data={authors} renderItem={renderUser} keyExtractor={(item) => item.id} />
-    </View>
+  return toElement(
+    VStack(
+      Header(title ?? t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' }))
+        .safeArea(false)
+        .toolbar(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .label(t('common.close', { defaultValue: 'Close' }))
+            .onPress(onClose),
+        )
+        .inPage(),
+      Embed(<FlatList data={authors} renderItem={renderUser} keyExtractor={(item) => item.id} />),
+    )
+      .background('background')
+      .flex('1'),
   );
 };
 

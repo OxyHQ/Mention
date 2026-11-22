@@ -2,7 +2,7 @@ import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import React, { useCallback, useMemo, useState, lazy, Suspense, Fragment } from 'react';
-import { StyleSheet, View, Pressable, Text, type GestureResponderEvent } from 'react-native';
+import { StyleSheet, View, Pressable, type GestureResponderEvent } from 'react-native';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type {
   PostAttachmentDescriptor,
@@ -68,6 +68,8 @@ import { resolveReplyContextRow } from '@/utils/replyContextRow';
 import { postItemPropsEqual, type PostItemProps } from './postItemProps';
 import { USE_LANGUAGE_ROW } from '@/config';
 import { openExternalLink } from '@/utils/openExternalLink';
+
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 // Lazy load modals/sheets only when the user opens them.
 // The menu's rows pull in the whole action service graph (mute, report, lanes,
@@ -752,26 +754,34 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // gutter; repost is the outermost reason, then pinned, then reply.
   const contextRows: React.ReactNode[] = [];
   if (reposter && repostPlacement !== 'shownAbove') {
-    const repostedBy = (
-      <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-        {t('post.repostedBy', { defaultValue: 'Reposted by' })}{' '}
-        {displayNameOrHandle(
-          reposter.name?.displayName,
-          reposterHandle ? `@${reposterHandle}` : '',
-        )}
-      </Text>
+    const repostedBy = toElement(
+      RawText(
+        t('post.repostedBy', { defaultValue: 'Reposted by' }),
+        ' ',
+        displayNameOrHandle(reposter.name?.displayName, reposterHandle ? `@${reposterHandle}` : ''),
+      )
+        .foreground('muted')
+        .font('sm')
+        .weight('semibold')
+        .lines(1),
     );
     contextRows.push(
       <ProfileHoverCard key="reposted" username={reposterHandle}>
         <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-          <View className="-ml-4 mr-[3px]">
-            <RiRepeat2Line
-              width={13}
-              height={13}
-              fill="currentColor"
-              className="text-muted-foreground"
-            />
-          </View>
+          {toElement(
+            VStack(
+              Embed(
+                <RiRepeat2Line
+                  width={13}
+                  height={13}
+                  fill="currentColor"
+                  className="text-muted-foreground"
+                />,
+              ),
+            )
+              .margin('left', '-lg')
+              .margin('right', '3'),
+          )}
           {reposterHref ? (
             // A link to the BOOSTER's profile. The click stops here:
             // the row beneath it opens the ORIGINAL post, and must
@@ -838,29 +848,37 @@ const PostItemContent: React.FC<PostItemProps> = ({
             else openLikesList();
           }}
         >
-          <View className="-ml-4 mr-[3px]">
-            {isBoostSocialContext ? (
-              <RiRepeat2Line
-                width={13}
-                height={13}
-                fill="currentColor"
-                className="text-muted-foreground"
-              />
-            ) : (
-              <RiHeartFill
-                width={13}
-                height={13}
-                fill="currentColor"
-                className="text-muted-foreground"
-              />
-            )}
-          </View>
-          <Text
-            className="text-muted-foreground text-[13px] font-semibold shrink"
-            numberOfLines={1}
-          >
-            {label}
-          </Text>
+          {toElement(
+            VStack(
+              Embed(
+                isBoostSocialContext ? (
+                  <RiRepeat2Line
+                    width={13}
+                    height={13}
+                    fill="currentColor"
+                    className="text-muted-foreground"
+                  />
+                ) : (
+                  <RiHeartFill
+                    width={13}
+                    height={13}
+                    fill="currentColor"
+                    className="text-muted-foreground"
+                  />
+                ),
+              ),
+            )
+              .margin('left', '-lg')
+              .margin('right', '3'),
+          )}
+          {toElement(
+            RawText(label)
+              .foreground('muted')
+              .font('sm')
+              .weight('semibold')
+              .shrink('normal')
+              .lines(1),
+          )}
         </Pressable>,
       );
   }
@@ -871,17 +889,27 @@ const PostItemContent: React.FC<PostItemProps> = ({
         className="flex-row items-center"
         style={{ height: POST_CONTEXT_ROW_HEIGHT }}
       >
-        <View className="-ml-4 mr-[3px]">
-          <RiPushpinLine
-            width={13}
-            height={13}
-            fill="currentColor"
-            className="text-muted-foreground"
-          />
-        </View>
-        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-          {t('post.pinned', { defaultValue: 'Pinned' })}
-        </Text>
+        {toElement(
+          VStack(
+            Embed(
+              <RiPushpinLine
+                width={13}
+                height={13}
+                fill="currentColor"
+                className="text-muted-foreground"
+              />,
+            ),
+          )
+            .margin('left', '-lg')
+            .margin('right', '3'),
+        )}
+        {toElement(
+          RawText(t('post.pinned', { defaultValue: 'Pinned' }))
+            .foreground('muted')
+            .font('sm')
+            .weight('semibold')
+            .lines(1),
+        )}
       </View>,
     );
   }
@@ -911,19 +939,31 @@ const PostItemContent: React.FC<PostItemProps> = ({
     // a context-free reply read as an ordinary top-level post.
     const replyRow = (
       <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-        <View className="-ml-4 mr-[3px]">
-          <RiCornerDownRightLine
-            width={13}
-            height={13}
-            fill="currentColor"
-            className="text-muted-foreground"
-          />
-        </View>
-        <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-          {replyContextRow.label
-            ? `${t('post.replyingTo', { defaultValue: 'Replying to' })} @${replyContextRow.label}`
-            : t('post.replyingToUnknown', { defaultValue: 'Replying to a post' })}
-        </Text>
+        {toElement(
+          VStack(
+            Embed(
+              <RiCornerDownRightLine
+                width={13}
+                height={13}
+                fill="currentColor"
+                className="text-muted-foreground"
+              />,
+            ),
+          )
+            .margin('left', '-lg')
+            .margin('right', '3'),
+        )}
+        {toElement(
+          RawText(
+            replyContextRow.label
+              ? `${t('post.replyingTo', { defaultValue: 'Replying to' })} @${replyContextRow.label}`
+              : t('post.replyingToUnknown', { defaultValue: 'Replying to a post' }),
+          )
+            .foreground('muted')
+            .font('sm')
+            .weight('semibold')
+            .lines(1),
+        )}
       </View>
     );
     // The hover card previews a real handle. Without one there is nobody to
@@ -976,21 +1016,25 @@ const PostItemContent: React.FC<PostItemProps> = ({
           overrideText={languageDisplayText}
           linkCards={linkCards}
           trailingContent={
-            threadPosition && !isNested ? (
-              <Text>
-                {'\u00A0'}
-                <Text
-                  className="bg-surface text-muted-foreground rounded-full text-[11px]"
-                  accessibilityLabel={t('post.threadPosition', {
-                    defaultValue: 'Post {{index}} of {{total}} in thread',
-                    index: threadPosition.index,
-                    total: threadPosition.total,
-                  })}
-                >
-                  {` ${threadPosition.index}/${threadPosition.total} `}
-                </Text>
-              </Text>
-            ) : undefined
+            threadPosition && !isNested
+              ? toElement(
+                  RawText(
+                    ' ',
+                    RawText(` ${threadPosition.index}/${threadPosition.total} `)
+                      .background('surface')
+                      .corner('infinite')
+                      .foreground('muted')
+                      .font('11')
+                      .label(
+                        t('post.threadPosition', {
+                          defaultValue: 'Post {{index}} of {{total}} in thread',
+                          index: threadPosition.index,
+                          total: threadPosition.total,
+                        }),
+                      ),
+                  ),
+                )
+              : undefined
           }
         />
       ) : null}
@@ -1166,17 +1210,25 @@ const PostItemContent: React.FC<PostItemProps> = ({
 
               {(boostUnavailable || quoteUnavailable) && !isContentGated && (
                 <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <View className="border-border rounded-2xl border px-3 py-3">
-                    <Text className="text-muted-foreground text-[14px]">
-                      {quoteUnavailable
-                        ? t('post.quoteUnavailable', {
-                            defaultValue: 'This quoted post is unavailable',
-                          })
-                        : t('post.boostUnavailable', {
-                            defaultValue: 'This post is no longer available',
-                          })}
-                    </Text>
-                  </View>
+                  {toElement(
+                    VStack(
+                      RawText(
+                        quoteUnavailable
+                          ? t('post.quoteUnavailable', {
+                              defaultValue: 'This quoted post is unavailable',
+                            })
+                          : t('post.boostUnavailable', {
+                              defaultValue: 'This post is no longer available',
+                            }),
+                      )
+                        .foreground('muted')
+                        .font('14'),
+                    )
+                      .padding('horizontal', 'md')
+                      .padding('vertical', 'md')
+                      .border('border', 'thin')
+                      .corner('lg'),
+                  )}
                 </View>
               )}
 
@@ -1267,7 +1319,6 @@ const PostItemContent: React.FC<PostItemProps> = ({
           )}
         </View>
       </Pressable>
-
       {articleContent ? (
         <Suspense fallback={null}>
           <PostArticleModal

@@ -6,10 +6,8 @@ import { useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
 
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import {
   INTERSTITIAL_CARD_GAP,
@@ -18,6 +16,8 @@ import {
   INTERSTITIAL_SKELETON_ITEMS,
 } from './interstitialLayout';
 import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
+
+import { Button as LButton, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * The frame every recommendation band shares.
@@ -86,10 +86,14 @@ export function InterstitialShell<TItem>({
   // and it may still collapse to nothing once its suggestions land.
   const impressionRef = useInterstitialImpression(report, !isLoading && items.length > 0);
 
-  const header = (
-    <Text className="text-base leading-6 font-bold text-foreground flex-shrink" numberOfLines={1}>
-      {title}
-    </Text>
+  const header = toElement(
+    LText(title)
+      .font('16')
+      .leading('24px')
+      .weight('bold')
+      .foreground('foreground')
+      .shrink('normal')
+      .lines(1),
   );
 
   return (
@@ -103,9 +107,7 @@ export function InterstitialShell<TItem>({
         showArrows={isDesktop && !showSkeleton}
         renderControls={({ previous, next }) => (
           <Button.Group size="sm" accessibilityLabel={title}>
-            <Button onPress={handleSeeMore} accessibilityLabel={seeMoreLabel}>
-              {seeMoreLabel}
-            </Button>
+            {toElement(LButton(LText(seeMoreLabel)).onPress(handleSeeMore).label(seeMoreLabel))}
             <Button
               onPress={previous.onPress}
               disabled={previous.disabled}
@@ -165,18 +167,27 @@ export function InterstitialShell<TItem>({
 function SeeMoreCard({ label, onPress }: { label: string; onPress: () => void }) {
   const theme = useTheme();
 
-  return (
-    <PressableScale
-      onPress={onPress}
-      className="bg-surface border-border flex-1 items-center justify-center gap-2 rounded-xl border"
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <View className="bg-primary/10 h-9 w-9 items-center justify-center rounded-full">
-        <RiArrowRightLine width={18} height={18} fill={theme.colors.primary} />
-      </View>
-      <Text className="text-primary text-sm leading-6 font-semibold">{label}</Text>
-    </PressableScale>
+  return toElement(
+    VStack(
+      VStack(Icon(RiArrowRightLine).size('18').foreground('primary'))
+        .frame({ height: '36', width: '36' })
+        .background('primary/10')
+        .corner('infinite')
+        .align('center')
+        .justify('center'),
+      LText(label).foreground('primary').font('14').leading('24px').weight('semibold'),
+    )
+      .background('surface')
+      .border('border', 'thin')
+      .corner('md')
+      .flex('1')
+      .align('center')
+      .justify('center')
+      .spacing('sm')
+      .onPress(onPress)
+      .role('button')
+      .label(label)
+      .pressScale(),
   );
 }
 

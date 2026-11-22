@@ -1,9 +1,9 @@
 import { recoverChunkError } from '@/lib/chunkReload';
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text } from '@oxy.so/bloom/typography';
-import { Button } from '@oxy.so/bloom/button';
 import { logger } from '@oxy.so/core/logger';
+
+import { Button as LButton, Text as LText, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   children: React.ReactNode;
@@ -19,10 +19,10 @@ interface State {
 function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
   return (
     <View className="border-border" style={styles.container}>
-      <Text className="text-muted-foreground text-sm">This post could not be displayed.</Text>
-      <Button appearance="plain" size="sm" onPress={onRetry}>
-        Tap to retry
-      </Button>
+      {toElement(
+        LText('This post could not be displayed.').foreground('muted').font('14').leading('20px'),
+      )}
+      {toElement(LButton(LText('Tap to retry')).style('plain').size('sm').onPress(onRetry))}
     </View>
   );
 }

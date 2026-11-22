@@ -9,6 +9,8 @@ import { renderFeedRow, feedRowKey, type FeedRow } from './feedRows';
 import { recordBootMilestone } from '@/lib/webTelemetry';
 import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } from './useFeedCore';
 
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
 // Estimated row height (px) before a row is measured. Post rows vary widely
 // (text-only vs. media vs. threads), so this is only the first-paint guess; the
 // list replaces it with the real height once each row mounts. Near a typical
@@ -69,16 +71,21 @@ function EmbeddedWebFeed(props: FeedProps) {
         core.emptyState
       ) : (
         <View style={merged.contentContainerStyle}>
-          {feedRows.map((row) => (
-            <View key={feedRowKey(row)}>
-              {renderFeedRow(row, {
-                router,
-                threadLineColor: theme.colors.border,
-                feedDescriptor,
-                openPostEngagement,
-              })}
-            </View>
-          ))}
+          {feedRows.map((row) =>
+            toElement(
+              VStack(
+                Embed(
+                  renderFeedRow(row, {
+                    router,
+                    threadLineColor: theme.colors.border,
+                    feedDescriptor,
+                    openPostEngagement,
+                  }),
+                ),
+              ),
+              feedRowKey(row),
+            ),
+          )}
         </View>
       )}
       {core.footer}

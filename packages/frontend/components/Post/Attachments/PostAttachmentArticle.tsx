@@ -1,6 +1,8 @@
 import type React from 'react';
-import { TouchableOpacity, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import { cn } from '@/lib/utils';
+
+import { RawText, toElement } from '@oxy.so/bloom-language';
 
 interface PostAttachmentArticleProps {
   title?: string;
@@ -31,14 +33,18 @@ const PostAttachmentArticle: React.FC<PostAttachmentArticleProps> = ({
       onPress={onPress}
       disabled={!onPress}
     >
-      <Text className="text-foreground text-lg font-bold mb-3" numberOfLines={2}>
-        {trimmedTitle || 'Untitled article'}
-      </Text>
-      {trimmedBody ? (
-        <Text className="text-muted-foreground text-[13px] leading-[18px]" numberOfLines={3}>
-          {trimmedBody}
-        </Text>
-      ) : null}
+      {toElement(
+        RawText(trimmedTitle || 'Untitled article')
+          .foreground('foreground')
+          .font('18')
+          .leading('28px')
+          .weight('bold')
+          .margin('bottom', 'md')
+          .lines(2),
+      )}
+      {trimmedBody
+        ? toElement(RawText(trimmedBody).foreground('muted').font('sm').leading('18px').lines(3))
+        : null}
     </TouchableOpacity>
   );
 };

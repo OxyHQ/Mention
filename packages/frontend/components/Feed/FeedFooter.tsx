@@ -1,12 +1,19 @@
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
+import {
+  Button as LButton,
+  Icon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface FeedFooterProps {
   hasMore: boolean;
@@ -54,45 +61,52 @@ export const FeedFooter = memo<FeedFooterProps>(
           onPress={handleSignIn}
           activeOpacity={0.7}
         >
-          <RiLockLine size="md" fill={theme.colors.primary} />
-          <Text
-            className="text-foreground text-[15px] font-medium flex-1"
-            style={{ marginLeft: 10 }}
-          >
-            Sign in to see more
-          </Text>
-          <RiArrowRightSLine width={18} height={18} fill={theme.colors.textSecondary} />
+          {toElement(Icon(RiLockLine).size('md').foreground('primary'))}
+          {toElement(
+            RawText('Sign in to see more')
+              .foreground('foreground')
+              .font('md')
+              .weight('medium')
+              .flex('1')
+              .margin('left', '10'),
+          )}
+          {toElement(Icon(RiArrowRightSLine).size('18').foreground('muted'))}
         </TouchableOpacity>
       );
     }
 
     if (loadFailed && hasMore && hasItems && onRetryLoadMore) {
-      return (
-        <View className="items-center py-4">
-          <Button appearance="subtle" tone="neutral" onPress={onRetryLoadMore}>
-            {t('common.loadMore')}
-          </Button>
-        </View>
+      return toElement(
+        VStack(
+          LButton(LText(t('common.loadMore')))
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onRetryLoadMore),
+        )
+          .padding('vertical', 'lg')
+          .align('center'),
       );
     }
 
     if (loadOnRequest && hasMore && hasItems && !isLoadingMore && onRetryLoadMore) {
-      return (
-        <View className="items-center py-4">
-          <Button appearance="subtle" tone="neutral" onPress={onRetryLoadMore}>
-            {t('common.loadMore')}
-          </Button>
-        </View>
+      return toElement(
+        VStack(
+          LButton(LText(t('common.loadMore')))
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onRetryLoadMore),
+        )
+          .padding('vertical', 'lg')
+          .align('center'),
       );
     }
 
     if (caughtUp && hasItems && !hasMore) {
-      return (
-        <View className="items-center py-6 px-5">
-          <Text className="text-muted-foreground text-[15px] text-center">
-            {t('feed.caughtUp')}
-          </Text>
-        </View>
+      return toElement(
+        VStack(RawText(t('feed.caughtUp')).foreground('muted').font('md').textAlign('center'))
+          .padding('vertical', '2xl')
+          .padding('horizontal', 'xl')
+          .align('center'),
       );
     }
 

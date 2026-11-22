@@ -1,17 +1,12 @@
 import { useRef } from 'react';
-import {
-  Linking,
-  Pressable,
-  Text,
-  View,
-  type DimensionValue,
-  type ViewInstance,
-} from 'react-native';
+import { Linking, Text, View, type DimensionValue, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getEventUrl } from '@mention/shared-types/vibbr';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { vibbrEvents } from '@/lib/references/vibbrEvents';
+
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Every state occupies the same box, so a card never shifts the feed when it resolves. */
 export function VibbrEventCard({
@@ -44,51 +39,60 @@ export function VibbrEventCard({
       style={{ width, height }}
       className="rounded-2xl border border-border bg-card p-4 overflow-hidden"
     >
-      <Text className="text-muted-foreground text-sm">Vibbr</Text>
-      {value ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={t('vibbr.open', { defaultValue: 'Open event in Vibbr' })}
-          onPress={(event) => {
-            event.stopPropagation();
-            void Linking.openURL(getEventUrl(eventId));
-          }}
-          className="flex-1 justify-center gap-1"
-        >
-          <Text numberOfLines={2} className="text-foreground font-semibold">
-            {value.title}
-          </Text>
-          <Text numberOfLines={1} className="text-muted-foreground">
-            {[value.venueName, value.city].filter(Boolean).join(' · ') || value.organizerName}
-          </Text>
-          <Text className="text-muted-foreground">{when}</Text>
-          <Text className="text-muted-foreground">
-            {value.status === 'cancelled'
-              ? t('vibbr.cancelled', { defaultValue: 'Cancelled' })
-              : value.soldOut
-                ? t('vibbr.soldOut', { defaultValue: 'Sold out' })
-                : value.free
-                  ? t('vibbr.free', { defaultValue: 'Free' })
-                  : value.priceFrom
-                    ? new Intl.NumberFormat(i18n.language, {
-                        style: 'currency',
-                        currency: value.priceFrom.currency,
-                      }).format(Number(value.priceFrom.amount) / 100)
-                    : ''}
-          </Text>
-          <Text className="text-primary">
-            {t('vibbr.open', { defaultValue: 'Open event in Vibbr' })}
-          </Text>
-        </Pressable>
-      ) : (
-        <View className="flex-1 justify-center">
-          <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
-            {state.status === 'loading'
-              ? t('vibbr.loading', { defaultValue: 'Loading Vibbr event…' })
-              : t('vibbr.unavailable', { defaultValue: 'This Vibbr event is no longer available' })}
-          </Text>
-        </View>
-      )}
+      {toElement(RawText('Vibbr').foreground('muted').font('14').leading('20px'))}
+      {value
+        ? toElement(
+            VStack(
+              RawText(value.title).foreground('foreground').weight('semibold').lines(2),
+              RawText(
+                [value.venueName, value.city].filter(Boolean).join(' · ') || value.organizerName,
+              )
+                .foreground('muted')
+                .lines(1),
+              RawText(when).foreground('muted'),
+              RawText(
+                value.status === 'cancelled'
+                  ? t('vibbr.cancelled', { defaultValue: 'Cancelled' })
+                  : value.soldOut
+                    ? t('vibbr.soldOut', { defaultValue: 'Sold out' })
+                    : value.free
+                      ? t('vibbr.free', { defaultValue: 'Free' })
+                      : value.priceFrom
+                        ? new Intl.NumberFormat(i18n.language, {
+                            style: 'currency',
+                            currency: value.priceFrom.currency,
+                          }).format(Number(value.priceFrom.amount) / 100)
+                        : '',
+              ).foreground('muted'),
+              RawText(t('vibbr.open', { defaultValue: 'Open event in Vibbr' })).foreground(
+                'primary',
+              ),
+            )
+              .flex('1')
+              .justify('center')
+              .spacing('xs')
+              .role('link')
+              .label(t('vibbr.open', { defaultValue: 'Open event in Vibbr' }))
+              .onPress((event) => {
+                event.stopPropagation();
+                void Linking.openURL(getEventUrl(eventId));
+              }),
+          )
+        : toElement(
+            VStack(
+              Embed(
+                <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
+                  {state.status === 'loading'
+                    ? t('vibbr.loading', { defaultValue: 'Loading Vibbr event…' })
+                    : t('vibbr.unavailable', {
+                        defaultValue: 'This Vibbr event is no longer available',
+                      })}
+                </Text>,
+              ),
+            )
+              .flex('1')
+              .justify('center'),
+          )}
     </View>
   );
 }

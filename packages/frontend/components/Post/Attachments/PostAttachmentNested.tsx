@@ -1,7 +1,9 @@
 import type React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import type { HydratedPostSummary } from '@mention/shared-types';
 import type { OpenPostPanel } from '@/components/Post/postEngagementContext';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 export type NestedPostRenderer = (
   post: HydratedPostSummary,
@@ -22,10 +24,10 @@ const PostAttachmentNested: React.FC<PostAttachmentNestedProps> = ({
   renderPost,
   openPostEngagement,
 }) => {
-  return (
-    <View style={styles.nestedContainer}>
-      {renderPost(nestedPost, nestingDepth + 1, openPostEngagement)}
-    </View>
+  return toElement(
+    VStack(Embed(renderPost(nestedPost, nestingDepth + 1, openPostEngagement))).frame({
+      width: 'full',
+    }),
   );
 };
 

@@ -1,14 +1,14 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import type { ReplyPermission } from '@mention/shared-types';
 import { KnownLikersRow } from '@/components/Post/KnownLikersRow';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { POST_ITEM_SPACING } from '@/styles/shared';
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const { HPAD, SECTION_GAP } = POST_ITEM_SPACING;
 
@@ -123,64 +123,75 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
     paddingTop: SECTION_GAP,
   } as const;
 
-  return (
-    <View>
-      {/* Social proof leads the block: it sits directly under the action bar,
-          so the faces land next to the like button that produced them. It draws
-          nothing at all when the viewer follows none of the likers, so the rows
-          below simply move up. */}
-      {postId ? (
-        <KnownLikersRow
-          postId={postId}
-          onPress={onLikesPress}
-          rowStyle={[rowStyle, { paddingBottom: SECTION_GAP }]}
-        />
-      ) : null}
-
-      {timestampLabel || restrictions.length > 0 ? (
-        <View
-          className="flex-row items-center flex-wrap border-border"
-          style={[rowStyle, { paddingBottom: SECTION_GAP, gap: 6 }]}
-        >
-          {timestampLabel ? (
-            <>
-              <Text className="text-muted-foreground text-[14px]">{timestampLabel}</Text>
-              <RiGlobalLine width={14} height={14} fill={theme.colors.textSecondary} />
-            </>
-          ) : null}
-          {restrictions.map((restriction) => (
-            <View key={restriction} className="flex-row items-center" style={{ gap: 4 }}>
-              <Text className="text-muted-foreground text-[14px]">{'\u00B7'}</Text>
-              <RiLockLine width={13} height={13} fill={theme.colors.textSecondary} />
-              <Text className="text-muted-foreground text-[14px]">{restriction}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      {statsEntries.length > 0 && (
-        // No bottom padding: the post container's own `VPAD` closes the block.
-        <View
-          className="flex-row items-center flex-wrap border-border"
-          style={[rowStyle, { gap: 16 }]}
-        >
-          {statsEntries.map((stat) => (
-            <PressableScale
-              key={stat.key}
-              className="flex-row items-center"
-              style={{ gap: 4 }}
-              onPress={stat.onPress}
-              disabled={!stat.onPress}
-            >
-              <Text className="text-foreground text-[14px] font-bold">
-                {formatCompactNumber(stat.count)}
-              </Text>
-              <Text className="text-muted-foreground text-[14px]">{stat.label}</Text>
-            </PressableScale>
-          ))}
-        </View>
-      )}
-    </View>
+  return toElement(
+    VStack(
+      /* Social proof leads the block: it sits directly under the action bar,
+            so the faces land next to the like button that produced them. It draws
+            nothing at all when the viewer follows none of the likers, so the rows
+            below simply move up. */ Embed(
+        postId ? (
+          <KnownLikersRow
+            postId={postId}
+            onPress={onLikesPress}
+            rowStyle={[rowStyle, { paddingBottom: SECTION_GAP }]}
+          />
+        ) : null,
+      ),
+      Embed(
+        timestampLabel || restrictions.length > 0 ? (
+          <View
+            className="flex-row items-center flex-wrap border-border"
+            style={[rowStyle, { paddingBottom: SECTION_GAP, gap: 6 }]}
+          >
+            {timestampLabel ? (
+              <>
+                {toElement(RawText(timestampLabel).foreground('muted').font('14'))}
+                {toElement(Icon(RiGlobalLine).size('14').foreground('muted'))}
+              </>
+            ) : null}
+            {restrictions.map((restriction) =>
+              toElement(
+                HStack(
+                  RawText('·').foreground('muted').font('14'),
+                  Icon(RiLockLine).size('13').foreground('muted'),
+                  RawText(restriction).foreground('muted').font('14'),
+                )
+                  .align('center')
+                  .spacing('xs'),
+                restriction,
+              ),
+            )}
+          </View>
+        ) : null,
+      ),
+      Embed(
+        statsEntries.length > 0 && (
+          // No bottom padding: the post container's own `VPAD` closes the block.
+          <View
+            className="flex-row items-center flex-wrap border-border"
+            style={[rowStyle, { gap: 16 }]}
+          >
+            {statsEntries.map((stat) =>
+              toElement(
+                HStack(
+                  RawText(formatCompactNumber(stat.count))
+                    .foreground('foreground')
+                    .font('14')
+                    .weight('bold'),
+                  RawText(stat.label).foreground('muted').font('14'),
+                )
+                  .align('center')
+                  .spacing('xs')
+                  .onPress(stat.onPress)
+                  .disabled(!stat.onPress)
+                  .pressScale(),
+                stat.key,
+              ),
+            )}
+          </View>
+        ),
+      ),
+    ),
   );
 });
 

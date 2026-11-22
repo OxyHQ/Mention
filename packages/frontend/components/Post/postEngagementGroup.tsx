@@ -1,11 +1,11 @@
 import { lazy, Suspense, type ErrorInfo } from 'react';
 import { Screen } from '@oxy.so/bloom/screen';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { AppShellPanelDefinition } from '@oxy.so/bloom/app-shell';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { PostEngagementProvider } from './PostEngagementProvider';
 import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
 import type { PostEngagementPanel } from './postEngagementPanels';
+import { Header, toElement } from '@oxy.so/bloom-language';
 
 const EngagementList = lazy(() => import('./EngagementList'));
 const PostInsightsSheet = lazy(() => import('./PostInsightsSheet'));
@@ -115,7 +115,7 @@ export function postEngagementGroup(
             <Screen
               scroll="none"
               testID="video-replies-pending"
-              header={<PageHeader title={label} onBack={null} safeArea={false} />}
+              header={toElement(Header(label).onBack(null).safeArea(false).inPage())}
             />
           ) : null,
         },

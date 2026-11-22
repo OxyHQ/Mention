@@ -1,9 +1,6 @@
 import { useCallback } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Dialog, type DialogControlProps } from '@oxy.so/bloom/dialog';
-import { Admonition } from '@oxy.so/bloom/admonition';
-import { Button } from '@oxy.so/bloom/button';
 import {
   EXTERNAL_EMBED_SOURCES,
   externalEmbedLabels,
@@ -11,6 +8,15 @@ import {
   type ExternalEmbedsSettings,
 } from '@mention/shared-types/externalEmbeds';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
+
+import {
+  Admonition as LAdmonition,
+  Button as LButton,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface EmbedConsentDialogProps {
   control: DialogControlProps;
@@ -56,36 +62,55 @@ export function EmbedConsentDialog({ control, source, onAccept }: EmbedConsentDi
 
   return (
     <Dialog control={control} title={title} label={title}>
-      <View className="gap-4">
-        <Text className="text-base leading-snug text-foreground">
-          {t('settings.externalMedia.consentBody', {
-            source: label,
-            defaultValue: `This content is hosted by ${label}. Do you want to enable external media?`,
-          })}
-        </Text>
-
-        <Admonition type="info">
-          {t('settings.externalMedia.banner', {
-            defaultValue:
-              'External media may allow websites to collect information about you and your device. No information is sent or requested until you press the "play" button.',
-          })}
-        </Admonition>
-
-        <View className="gap-3">
-          <Button appearance="solid" tone="accent" size="lg" onPress={onShowAll}>
-            {t('settings.externalMedia.enableAll', { defaultValue: 'Enable external media' })}
-          </Button>
-          <Button appearance="subtle" tone="neutral" size="lg" onPress={onShowOne}>
-            {t('settings.externalMedia.enableOne', {
+      {toElement(
+        VStack(
+          RawText(
+            t('settings.externalMedia.consentBody', {
               source: label,
-              defaultValue: `Enable ${label} only`,
-            })}
-          </Button>
-          <Button appearance="plain" tone="neutral" size="lg" onPress={onHide}>
-            {t('settings.externalMedia.noThanks', { defaultValue: 'No thanks' })}
-          </Button>
-        </View>
-      </View>
+              defaultValue: `This content is hosted by ${label}. Do you want to enable external media?`,
+            }),
+          )
+            .font('16')
+            .leading('easy')
+            .foreground('foreground'),
+          LAdmonition(
+            LText(
+              t('settings.externalMedia.banner', {
+                defaultValue:
+                  'External media may allow websites to collect information about you and your device. No information is sent or requested until you press the "play" button.',
+              }),
+            ),
+          ).style('info'),
+          VStack(
+            LButton(
+              LText(
+                t('settings.externalMedia.enableAll', { defaultValue: 'Enable external media' }),
+              ),
+            )
+              .style('solid')
+              .tint('accent')
+              .size('lg')
+              .onPress(onShowAll),
+            LButton(
+              LText(
+                t('settings.externalMedia.enableOne', {
+                  source: label,
+                  defaultValue: `Enable ${label} only`,
+                }),
+              ),
+            )
+              .style('subtle')
+              .tint('neutral')
+              .size('lg')
+              .onPress(onShowOne),
+            LButton(LText(t('settings.externalMedia.noThanks', { defaultValue: 'No thanks' })))
+              .style('plain')
+              .tint('neutral')
+              .size('lg')
+              .onPress(onHide),
+          ).spacing('md'),
+        ).spacing('lg'),
+      )}
     </Dialog>
   );
 }

@@ -2,7 +2,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import type { Href } from '@/lib/navigation/router';
 import type React from 'react';
 import { useCallback } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable } from 'react-native';
 import { cn } from '@/lib/utils';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,8 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import type { PostJobContent } from '@mention/shared-types';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
+
+import { Badge as LBadge, Embed, HStack, RawText, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('JobCard');
 
@@ -108,37 +110,54 @@ const JobCard: React.FC<JobCardProps> = ({ job, className = 'w-[280px]' }) => {
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >
-      <View className="flex-row items-center justify-between gap-2">
-        <Text className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wide">
-          {t('post.job.label', { defaultValue: 'Job' })}
-        </Text>
-        {!isPublished ? (
-          <Badge
-            content={STATUS_LABELS[job.status] ?? job.status}
-            color={isNegativeStatus ? 'error' : 'warning'}
-            variant="subtle"
-            size="sm"
-          />
-        ) : null}
-      </View>
-
-      <Text className="text-foreground text-[15px] font-bold mt-1" numberOfLines={2}>
-        {job.title}
-      </Text>
-
+      {toElement(
+        HStack(
+          RawText(t('post.job.label', { defaultValue: 'Job' }))
+            .foreground('muted')
+            .font('11')
+            .weight('semibold')
+            .textCase('uppercase')
+            .tracking('wide'),
+          Embed(
+            !isPublished ? (
+              <Badge
+                content={STATUS_LABELS[job.status] ?? job.status}
+                color={isNegativeStatus ? 'error' : 'warning'}
+                variant="subtle"
+                size="sm"
+              />
+            ) : null,
+          ),
+        )
+          .align('center')
+          .justify('between')
+          .spacing('sm'),
+      )}
+      {toElement(
+        RawText(job.title)
+          .foreground('foreground')
+          .font('md')
+          .weight('bold')
+          .margin('top', 'xs')
+          .lines(2),
+      )}
       <Pressable onPress={openEmployer} hitSlop={tokens.hitSlop.md} className="self-start mt-0.5">
-        <Text className="text-primary text-[13px]" numberOfLines={1}>
-          {job.employerName}
-        </Text>
+        {toElement(RawText(job.employerName).foreground('primary').font('sm').lines(1))}
       </Pressable>
-
-      {metaBadges.length > 0 ? (
-        <View className="flex-row flex-wrap gap-1.5 mt-2.5">
-          {metaBadges.map((label) => (
-            <Badge key={label} content={label} color="default" variant="outlined" size="sm" />
-          ))}
-        </View>
-      ) : null}
+      {metaBadges.length > 0
+        ? toElement(
+            HStack(
+              Embed(
+                metaBadges.map((label) =>
+                  toElement(LBadge(label).color('default').style('outlined').size('sm'), label),
+                ),
+              ),
+            )
+              .wrap()
+              .spacing('6')
+              .margin('top', '10'),
+          )
+        : null}
     </Pressable>
   );
 };

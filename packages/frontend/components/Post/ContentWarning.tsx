@@ -1,9 +1,11 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { useTranslation } from 'react-i18next';
+
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   /** The content-warning summary carried on the post (e.g. Mastodon `summary`). */
@@ -35,48 +37,69 @@ const ContentWarning: React.FC<Props> = ({ text, revealed, onToggle }) => {
   const hide = t('post.contentWarningHide', { defaultValue: 'Hide' });
 
   if (revealed) {
-    return (
-      <View className="mb-1.5 flex-row items-center gap-1.5">
-        <RiAlertLine width={13} height={13} fill={theme.colors.textSecondary} />
-        <Text className="text-muted-foreground flex-shrink text-[13px]" numberOfLines={1}>
-          {text ? `${label} · ${text}` : label}
-        </Text>
-        <Pressable
-          onPress={onToggle}
-          hitSlop={tokens.hitSlop.md}
-          accessibilityRole="button"
-          accessibilityLabel={hide}
-        >
-          <Text className="text-primary text-[13px] font-semibold">{hide}</Text>
-        </Pressable>
-      </View>
+    return toElement(
+      HStack(
+        Icon(RiAlertLine).size('13').foreground('muted'),
+        RawText(text ? `${label} · ${text}` : label)
+          .foreground('muted')
+          .shrink('normal')
+          .font('sm')
+          .lines(1),
+        Embed(
+          <Pressable
+            onPress={onToggle}
+            hitSlop={tokens.hitSlop.md}
+            accessibilityRole="button"
+            accessibilityLabel={hide}
+          >
+            {toElement(RawText(hide).foreground('primary').font('sm').weight('semibold'))}
+          </Pressable>,
+        ),
+      )
+        .margin('bottom', '6')
+        .align('center')
+        .spacing('6'),
     );
   }
 
-  return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="button"
-      accessibilityLabel={text ? `${label}: ${text}. ${show}` : `${label}. ${show}`}
-      className="border-border bg-muted mt-0.5 flex-row items-center gap-3 rounded-2xl border px-3 py-3 active:opacity-80"
-    >
-      <View className="bg-background size-9 items-center justify-center rounded-full">
-        <RiAlertLine width={18} height={18} fill={theme.colors.textSecondary} />
-      </View>
-      <View className="flex-1 shrink gap-0.5">
-        <Text className="text-muted-foreground text-[12px] font-semibold uppercase tracking-wide">
-          {label}
-        </Text>
-        {text ? (
-          <Text className="text-foreground text-[15px] font-semibold" numberOfLines={3}>
-            {text}
-          </Text>
-        ) : null}
-      </View>
-      <View className="bg-primary rounded-full px-3.5 py-1.5">
-        <Text className="text-primary-foreground text-[13px] font-semibold">{show}</Text>
-      </View>
-    </Pressable>
+  return toElement(
+    HStack(
+      VStack(Icon(RiAlertLine).size('18').foreground('muted'))
+        .frame({ width: '36', height: '36' })
+        .background('background')
+        .corner('infinite')
+        .align('center')
+        .justify('center'),
+      VStack(
+        RawText(label)
+          .foreground('muted')
+          .font('xs')
+          .weight('semibold')
+          .textCase('uppercase')
+          .tracking('wide'),
+        text ? RawText(text).foreground('foreground').font('md').weight('semibold').lines(3) : null,
+      )
+        .flex('1')
+        .shrink('normal')
+        .spacing('2xs'),
+      VStack(RawText(show).foreground('onPrimary').font('sm').weight('semibold'))
+        .padding('horizontal', '14')
+        .padding('vertical', '6')
+        .background('primary')
+        .corner('infinite'),
+    )
+      .padding('horizontal', 'md')
+      .padding('vertical', 'md')
+      .background('mutedFill')
+      .border('border', 'thin')
+      .corner('lg')
+      .margin('top', '2xs')
+      .align('center')
+      .spacing('md')
+      .when('pressed', (v) => v.opacity('80'))
+      .onPress(onToggle)
+      .role('button')
+      .label(text ? `${label}: ${text}. ${show}` : `${label}. ${show}`),
   );
 };
 

@@ -26,6 +26,8 @@ import { ShareIcon } from '@oxy.so/bloom/icons/ShareIcon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
 
+import { Action, Icon, toElement } from '@oxy.so/bloom-language';
+
 // The two vote arrows are adjacent halves of ONE pill, so neither hit region
 // may grow toward the other or it swallows the other's taps.
 const UPVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 5, right: 0 };
@@ -139,21 +141,22 @@ const PostActions: React.FC<Props> = ({
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent label={t('videos.more')}>
-              <DropdownMenuItem leading={<ShareIcon size="sm" />} onPress={onShare}>
+              <DropdownMenuItem
+                leading={toElement(Icon(ShareIcon).size('sm').foreground('primary'))}
+                onPress={onShare}
+              >
                 {t('videos.share')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
           <>
-            <EngagementAction
-              icon={BookmarkIcon}
-              activeIcon={BookmarkFillIcon}
-              accessibilityLabel={t('postActions.save')}
-              count={engagement?.saves}
-              active={!!isSaved}
-              onPress={onSave}
-            />
+            {toElement(
+              Action(BookmarkIcon, t('postActions.save'), { activeIcon: BookmarkFillIcon })
+                .count(engagement?.saves)
+                .active(!!isSaved)
+                .onPress(onSave),
+            )}
             {onTranslate ? (
               <EngagementAction
                 icon={RiTranslate2}
@@ -179,13 +182,11 @@ const PostActions: React.FC<Props> = ({
                   : null)}
               />
             ) : null}
-            {onInsightsPress ? (
-              <EngagementAction
-                icon={RiBarChartBoxLine}
-                accessibilityLabel={t('postActions.insights')}
-                onPress={onInsightsPress}
-              />
-            ) : null}
+            {onInsightsPress
+              ? toElement(
+                  Action(RiBarChartBoxLine, t('postActions.insights')).onPress(onInsightsPress),
+                )
+              : null}
           </>
         )
       }
@@ -211,57 +212,40 @@ const PostActions: React.FC<Props> = ({
           />
         </EngagementGroup>
       ) : (
-        <EngagementAction
-          icon={LikeIcon}
-          activeIcon={LikeFillIcon}
-          accessibilityLabel={t('videos.like')}
-          count={likes}
-          active={!!isLiked}
-          tone="error"
-          popOnActivate
-          rollCount
-          onPress={onLike}
-        />
+        toElement(
+          Action(LikeIcon, t('videos.like'), {
+            activeIcon: LikeFillIcon,
+            pop: true,
+            rollCount: true,
+          })
+            .count(likes)
+            .active(!!isLiked)
+            .tint('error')
+            .onPress(onLike),
+        )
       )}
-      {onReply ? (
-        <EngagementAction
-          icon={ReplyIcon}
-          accessibilityLabel={t('common.reply')}
-          count={engagement?.replies}
-          onPress={onReply}
-        />
-      ) : null}
-      <EngagementAction
-        icon={RepostIcon}
-        accessibilityLabel={t('post.repostOptions')}
-        count={engagement?.boosts}
-        active={!!isBoosted}
-        tone="success"
-        onPress={onBoost}
-      />
-      {onSendInAllo ? (
-        <EngagementAction
-          icon={RiSendPlaneLine}
-          accessibilityLabel={t('videos.sendInAllo')}
-          onPress={onSendInAllo}
-        />
-      ) : null}
-      {video && (
-        <EngagementAction
-          icon={BookmarkIcon}
-          activeIcon={BookmarkFillIcon}
-          accessibilityLabel={t('postActions.save')}
-          active={!!isSaved}
-          onPress={onSave}
-        />
+      {onReply
+        ? toElement(
+            Action(ReplyIcon, t('common.reply')).count(engagement?.replies).onPress(onReply),
+          )
+        : null}
+      {toElement(
+        Action(RepostIcon, t('post.repostOptions'))
+          .count(engagement?.boosts)
+          .active(!!isBoosted)
+          .tint('success')
+          .onPress(onBoost),
       )}
-      {!video && (
-        <EngagementAction
-          icon={ShareIcon}
-          accessibilityLabel={t('videos.share')}
-          onPress={onShare}
-        />
-      )}
+      {onSendInAllo
+        ? toElement(Action(RiSendPlaneLine, t('videos.sendInAllo')).onPress(onSendInAllo))
+        : null}
+      {video &&
+        toElement(
+          Action(BookmarkIcon, t('postActions.save'), { activeIcon: BookmarkFillIcon })
+            .active(!!isSaved)
+            .onPress(onSave),
+        )}
+      {!video && toElement(Action(ShareIcon, t('videos.share')).onPress(onShare))}
     </EngagementBar>
   );
 };

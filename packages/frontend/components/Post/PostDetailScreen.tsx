@@ -1,10 +1,9 @@
 import { commerceService } from '@/services/commerceService';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
-import { View, Text, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { Button as LanguageButton, Embed, Icon } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
-import { Button } from '@oxy.so/bloom/button';
 import {
   Accordion,
   AccordionItem,
@@ -48,10 +47,20 @@ import { SEO } from '@/components/SEO';
 import { WEB_BASE_URL } from '@/config';
 import { readServerSEO } from '@/lib/seoHandoff';
 import { isPrivateMention, postAcceptsReplies } from '@/utils/postReplies';
-import { Admonition } from '@oxy.so/bloom/admonition';
 import { createLogger } from '@oxy.so/core/logger';
 import { getFollowingCachedPost } from '@/modules/mention-widgets';
 import { useAfterFirstFrame } from '@/hooks/useAfterFirstFrame';
+
+import {
+  Admonition as LAdmonition,
+  Button as LButton,
+  Embed as LEmbed,
+  Icon as LIcon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 
@@ -476,84 +485,93 @@ const PostDetailScreen = screen(function PostDetailScreen({
     if (!post) return null;
     const hasAncestors = ancestors.length > 0;
     const hasContinuations = continuations.length > 0;
-    return (
-      <View>
-        {/* A private mention says who can see it before anything else in the
-            thread; replies here stay inside the conversation (server-enforced). */}
-        {isPrivateMention(post) ? (
-          <View className="px-4 pt-3 pb-1" testID="private-mention-hint">
-            <Admonition type="info">
-              {t('privateMentions.onlyMentioned', {
-                defaultValue: 'Only visible to the people mentioned',
-              })}
-            </Admonition>
-          </View>
-        ) : null}
-        {/* Ancestor chain rendered top-to-bottom (root first) as ONE
-                    connected thread. Each ancestor draws the thread line DOWN from
-                    its avatar (`isThreadParent`) and, for every hop below the root,
-                    receives the incoming line from above (`isThreadChild`), so the
-                    line is continuous root → … → immediate parent. `attachedBelow`
-                    drops each ancestor's bottom border/padding so they connect flush
-                    with no separators between them or into the focused post. */}
-        {ancestors.map((ancestor, index) => (
+    return toElement(
+      VStack(
+        /* A private mention says who can see it before anything else in the
+                thread; replies here stay inside the conversation (server-enforced). */ isPrivateMention(
+          post,
+        )
+          ? VStack(
+              LAdmonition(
+                LText(
+                  t('privateMentions.onlyMentioned', {
+                    defaultValue: 'Only visible to the people mentioned',
+                  }),
+                ),
+              ).style('info'),
+            )
+              .padding('horizontal', 'lg')
+              .padding('top', 'md')
+              .padding('bottom', 'xs')
+              .testID('private-mention-hint')
+          : null,
+        /* Ancestor chain rendered top-to-bottom (root first) as ONE
+                        connected thread. Each ancestor draws the thread line DOWN from
+                        its avatar (`isThreadParent`) and, for every hop below the root,
+                        receives the incoming line from above (`isThreadChild`), so the
+                        line is continuous root → … → immediate parent. `attachedBelow`
+                        drops each ancestor's bottom border/padding so they connect flush
+                        with no separators between them or into the focused post. */ LEmbed(
+          ancestors.map((ancestor, index) => (
+            <PostItem
+              openPostEngagement={openPostEngagement}
+              key={String(ancestor.id ?? index)}
+              post={ancestor}
+              threadPosition={threadPositions.get(String(ancestor.id))}
+              isThreadParent
+              isThreadChild={index > 0}
+              attachedBelow
+              onReply={handleOpenReply}
+            />
+          )),
+        ),
+        /* Ancestors end at the focused avatar; no rail crosses its full-width body. */ LEmbed(
           <PostItem
             openPostEngagement={openPostEngagement}
-            key={String(ancestor.id ?? index)}
-            post={ancestor}
-            threadPosition={threadPositions.get(String(ancestor.id))}
-            isThreadParent
-            isThreadChild={index > 0}
-            attachedBelow
+            post={post}
+            threadPosition={threadPositions.get(String(post.id))}
+            isPostDetail
+            isThreadChild={hasAncestors}
+            isThreadLastChild={hasAncestors}
             onReply={handleOpenReply}
-          />
-        ))}
-
-        {/* Ancestors end at the focused avatar; no rail crosses its full-width body. */}
-        <PostItem
-          openPostEngagement={openPostEngagement}
-          post={post}
-          threadPosition={threadPositions.get(String(post.id))}
-          isPostDetail
-          isThreadChild={hasAncestors}
-          isThreadLastChild={hasAncestors}
-          onReply={handleOpenReply}
-        />
-
-        {hasContinuations && (
-          <Accordion
-            value={continuationsExpanded ? 'continuations' : undefined}
-            onValueChange={(value) => setCollapsedThreadId(value ? null : id)}
-          >
-            <AccordionItem value="continuations" className="border-0">
-              <AccordionTrigger className="px-3 py-3" textStyle={{ fontSize: 13 }}>
-                {t('post.threadContinuation', {
-                  defaultValue: 'Thread continuation ({{count}})',
-                  count: continuations.length,
-                })}
-              </AccordionTrigger>
-              <AccordionContent contentClassName="p-0">
-                {continuations.map((continuation, index) => {
-                  const isLast = index === continuations.length - 1;
-                  return (
-                    <PostItem
-                      openPostEngagement={openPostEngagement}
-                      key={String(continuation.id)}
-                      post={continuation}
-                      threadPosition={threadPositions.get(String(continuation.id))}
-                      isThreadChild={index > 0}
-                      isThreadParent={!isLast}
-                      isThreadLastChild={isLast}
-                      attachedBelow={!isLast}
-                      onReply={handleOpenReply}
-                    />
-                  );
-                })}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        )}
-      </View>
+          />,
+        ),
+        LEmbed(
+          hasContinuations && (
+            <Accordion
+              value={continuationsExpanded ? 'continuations' : undefined}
+              onValueChange={(value) => setCollapsedThreadId(value ? null : id)}
+            >
+              <AccordionItem value="continuations" className="border-0">
+                <AccordionTrigger className="px-3 py-3" textStyle={{ fontSize: 13 }}>
+                  {t('post.threadContinuation', {
+                    defaultValue: 'Thread continuation ({{count}})',
+                    count: continuations.length,
+                  })}
+                </AccordionTrigger>
+                <AccordionContent contentClassName="p-0">
+                  {continuations.map((continuation, index) => {
+                    const isLast = index === continuations.length - 1;
+                    return (
+                      <PostItem
+                        openPostEngagement={openPostEngagement}
+                        key={String(continuation.id)}
+                        post={continuation}
+                        threadPosition={threadPositions.get(String(continuation.id))}
+                        isThreadChild={index > 0}
+                        isThreadParent={!isLast}
+                        isThreadLastChild={isLast}
+                        attachedBelow={!isLast}
+                        onReply={handleOpenReply}
+                      />
+                    );
+                  })}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          ),
+        ),
+      ),
     );
   }, [
     post,
@@ -627,16 +645,29 @@ const PostDetailScreen = screen(function PostDetailScreen({
           description={t('seo.post.notFoundDescription')}
           robots="noindex,nofollow"
         />
-        <View className="flex-1 items-center justify-center px-8">
-          <RiAlertLine size="3xl" fill={theme.colors.error} />
-          <Text className="text-xl font-semibold mt-4 mb-2 text-foreground">Post Not Found</Text>
-          <Text className="text-base text-center leading-[22px] mb-6 text-muted-foreground">
-            {error || "The post you're looking for doesn't exist or has been deleted."}
-          </Text>
-          <Button size="lg" onPress={handleBack}>
-            Go Back
-          </Button>
-        </View>
+        {toElement(
+          VStack(
+            LIcon(RiAlertLine).size('3xl').foreground('error'),
+            RawText('Post Not Found')
+              .font('xl')
+              .leading('28px')
+              .weight('semibold')
+              .margin('top', 'lg')
+              .margin('bottom', 'sm')
+              .foreground('foreground'),
+            RawText(error || "The post you're looking for doesn't exist or has been deleted.")
+              .font('16')
+              .textAlign('center')
+              .leading('22px')
+              .margin('bottom', '2xl')
+              .foreground('muted'),
+            LButton(LText('Go Back')).size('lg').onPress(handleBack),
+          )
+            .padding('horizontal', '3xl')
+            .flex('1')
+            .align('center')
+            .justify('center'),
+        )}
       </>,
     );
   }

@@ -2,7 +2,6 @@ import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Pressable,
-  Text,
   View,
   StyleSheet,
   type ViewStyle,
@@ -38,6 +37,9 @@ import {
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
 import type { VideoPlayer as ExpoVideoPlayer } from 'expo-video';
+
+import { Icon, RawText, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 /**
  * Registers (or clears, on unmount) the measurable host node of an image
@@ -494,14 +496,16 @@ const PostAttachmentImage: React.FC<{
   const imageContent = (
     <View className={onPress ? undefined : boxClass} style={onPress ? styles.fullSize : boxStyle}>
       {lazyImage}
-      {hasAlt && (
-        <View
-          pointerEvents="none"
-          className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5"
-        >
-          <Text className="text-white text-[10px] font-bold">ALT</Text>
-        </View>
-      )}
+      {hasAlt &&
+        toElement(
+          VStack(RawText('ALT').foreground('white').font('2xs').weight('bold'))
+            .padding('horizontal', 'xs')
+            .padding('vertical', '2xs')
+            .background('black/60')
+            .corner('xs')
+            .position({ bottom: 'xs', left: 'xs' })
+            .allowsHitTesting(false),
+        )}
       <MediaInsetBorder style={styles.mediaBorder} />
       {overlay}
     </View>
@@ -553,15 +557,20 @@ const SensitiveMediaCover: React.FC<{ onReveal: () => void }> = ({ onReveal }) =
         experimentalBlurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
-      <View className="items-center gap-1">
-        <RiEyeOffLine size="lg" fill="#fff" />
-        <Text className="text-white text-[15px] font-semibold">
-          {t('post.sensitiveContent', { defaultValue: 'Sensitive content' })}
-        </Text>
-        <Text className="text-white/60 text-[13px]">
-          {t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' })}
-        </Text>
-      </View>
+      {toElement(
+        VStack(
+          Icon(RiEyeOffLine).size('lg').foreground(appColors.color.hexfff),
+          RawText(t('post.sensitiveContent', { defaultValue: 'Sensitive content' }))
+            .foreground('white')
+            .font('md')
+            .weight('semibold'),
+          RawText(t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' }))
+            .foreground('white/60')
+            .font('sm'),
+        )
+          .align('center')
+          .spacing('xs'),
+      )}
     </Pressable>
   );
 };

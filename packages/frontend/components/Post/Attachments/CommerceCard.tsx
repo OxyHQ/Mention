@@ -1,11 +1,13 @@
 import { useRef } from 'react';
 import { Image } from 'expo-image';
-import { Linking, Pressable, Text, View, type ViewInstance } from 'react-native';
+import { Linking, Text, View, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { commerceCards, recordCommerceHandoff } from '@/lib/references/commerceCards';
 import { cn } from '@/lib/utils';
+
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Price and availability disappear as soon as current hydration expires or fails. */
 export function CommerceCard({
@@ -42,50 +44,73 @@ export function CommerceCard({
           contentFit="cover"
         />
       ) : null}
-      <View className="p-3 gap-1">
-        <Text className="text-muted-foreground text-xs">Mercaria</Text>
-        {value ? (
-          <>
-            <Text className="text-foreground font-semibold" numberOfLines={2}>
-              {product?.title ?? collection?.title}
-            </Text>
-            {product ? (
-              <View className="flex-row items-center gap-2">
-                <Text className="text-foreground text-sm" numberOfLines={1}>
-                  {value.formatPrice?.(i18n.language)}
-                </Text>
-                {product.availability !== 'in_stock' ? (
-                  <Text className="text-muted-foreground text-xs flex-shrink" numberOfLines={1}>
-                    {product.availability === 'sold'
-                      ? t('commerce.availability.sold')
-                      : t('commerce.availability.out_of_stock')}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-            <Pressable
-              accessibilityRole="link"
-              accessibilityLabel={t('commerce.continue', { defaultValue: 'Continue on Mercaria' })}
-              onPress={(event) => {
-                event.stopPropagation();
-                if (postId) void recordCommerceHandoff(postId).catch(() => {});
-                void Linking.openURL(value.url);
-              }}
-              className="py-2"
-            >
-              <Text className="text-primary">
-                {t('commerce.continue', { defaultValue: 'Continue on Mercaria' })}
+      {toElement(
+        VStack(
+          RawText('Mercaria').foreground('muted').font('xs').leading('16px'),
+          Embed(
+            value ? (
+              <>
+                {toElement(
+                  RawText(product?.title ?? collection?.title)
+                    .foreground('foreground')
+                    .weight('semibold')
+                    .lines(2),
+                )}
+                {product
+                  ? toElement(
+                      HStack(
+                        RawText(value.formatPrice?.(i18n.language))
+                          .foreground('foreground')
+                          .font('14')
+                          .leading('20px')
+                          .lines(1),
+                        product.availability !== 'in_stock'
+                          ? RawText(
+                              product.availability === 'sold'
+                                ? t('commerce.availability.sold')
+                                : t('commerce.availability.out_of_stock'),
+                            )
+                              .foreground('muted')
+                              .font('xs')
+                              .leading('16px')
+                              .shrink('normal')
+                              .lines(1)
+                          : null,
+                      )
+                        .align('center')
+                        .spacing('sm'),
+                    )
+                  : null}
+                {toElement(
+                  VStack(
+                    RawText(
+                      t('commerce.continue', { defaultValue: 'Continue on Mercaria' }),
+                    ).foreground('primary'),
+                  )
+                    .padding('vertical', 'sm')
+                    .role('link')
+                    .label(t('commerce.continue', { defaultValue: 'Continue on Mercaria' }))
+                    .onPress((event) => {
+                      event.stopPropagation();
+                      if (postId) void recordCommerceHandoff(postId).catch(() => {});
+                      void Linking.openURL(value.url);
+                    }),
+                )}
+              </>
+            ) : (
+              <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
+                {state.status === 'loading'
+                  ? t('commerce.loading', { defaultValue: 'Checking current availability…' })
+                  : t('commerce.unavailable', {
+                      defaultValue: 'This item is currently unavailable',
+                    })}
               </Text>
-            </Pressable>
-          </>
-        ) : (
-          <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
-            {state.status === 'loading'
-              ? t('commerce.loading', { defaultValue: 'Checking current availability…' })
-              : t('commerce.unavailable', { defaultValue: 'This item is currently unavailable' })}
-          </Text>
-        )}
-      </View>
+            ),
+          ),
+        )
+          .padding('all', 'md')
+          .spacing('xs'),
+      )}
     </View>
   );
 }

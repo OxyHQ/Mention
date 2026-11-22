@@ -8,7 +8,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { View } from 'react-native';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { Trend } from '@/interfaces/Trend';
@@ -29,6 +28,7 @@ import {
   type InterstitialCardProps,
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Where the band's "See more" leads — the full trending screen. */
 const TRENDING_ROUTE = '/explore/trending';
@@ -120,35 +120,52 @@ export function TrendingTopicsInterstitial({
   );
 
   const renderItem = useCallback(
-    (trend: Trend, position: number) => (
-      <View className="bg-card border-border flex-1 justify-center overflow-hidden rounded-xl border">
-        <TrendItemRow
-          trend={trend}
-          ordinal={position + 1}
-          onPress={() => {
-            // Both endpoints, on purpose: the card click compares this card
-            // against the other card kinds, the trend click compares this surface
-            // against the other places a trend is shown.
-            reportCardEvent('click', position);
-            navigateToTrend(trend, 'interstitial', position + 1);
-          }}
-          getMenuActions={getTrendMenuActions}
-          size="large"
-        />
-      </View>
-    ),
+    (trend: Trend, position: number) =>
+      toElement(
+        VStack(
+          Embed(
+            <TrendItemRow
+              trend={trend}
+              ordinal={position + 1}
+              onPress={() => {
+                // Both endpoints, on purpose: the card click compares this card
+                // against the other card kinds, the trend click compares this surface
+                // against the other places a trend is shown.
+                reportCardEvent('click', position);
+                navigateToTrend(trend, 'interstitial', position + 1);
+              }}
+              getMenuActions={getTrendMenuActions}
+              size="large"
+            />,
+          ),
+        )
+          .background('card')
+          .border('border', 'thin')
+          .clipped()
+          .corner('md')
+          .flex('1')
+          .justify('center'),
+      ),
     [reportCardEvent, navigateToTrend, getTrendMenuActions],
   );
 
   const renderSkeleton = useCallback(
-    () => (
-      <View className="bg-card border-border rounded-xl border px-3 py-2">
-        <Skeleton.Col>
-          <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 110 }} />
-          <Skeleton.Text style={{ fontSize: 16, lineHeight: 18, width: 150 }} />
-        </Skeleton.Col>
-      </View>
-    ),
+    () =>
+      toElement(
+        VStack(
+          Embed(
+            <Skeleton.Col>
+              <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 110 }} />
+              <Skeleton.Text style={{ fontSize: 16, lineHeight: 18, width: 150 }} />
+            </Skeleton.Col>,
+          ),
+        )
+          .padding('horizontal', 'md')
+          .padding('vertical', 'sm')
+          .background('card')
+          .border('border', 'thin')
+          .corner('md'),
+      ),
     [],
   );
 

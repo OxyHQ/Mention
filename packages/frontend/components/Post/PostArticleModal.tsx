@@ -8,7 +8,6 @@ import {
   ScrollView,
   Modal,
   Platform,
-  Pressable,
   type GestureResponderEvent,
 } from 'react-native';
 import { Backdrop } from '@oxy.so/bloom/overlay';
@@ -23,6 +22,8 @@ import { articleService } from '@/services/articleService';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Portal } from '@oxy.so/bloom/portal';
 import { logger } from '@oxy.so/core/logger';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 /*
  * A full-screen reader, which Bloom's `Dialog` has no placement for (its
@@ -160,59 +161,69 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         pointerEvents="box-none"
         style={contentContainerStyle}
       >
-        <Pressable onPress={handleContentPress} style={styles.pressableContent}>
-          <View style={headerStyle} className="border-b border-border">
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              leadingIcon={RiCloseLine}
-              accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-              onPress={onClose}
-              style={styles.closeButton}
-            />
-            <Text style={[headerTitleStyle, { pointerEvents: 'none' }]} className="text-foreground">
-              {titleText}
-            </Text>
-            <View style={styles.headerRight} />
-          </View>
-
-          {isLoading ? (
-            <ScrollView style={styles.scrollView}>
-              <DetailSkeleton />
-            </ScrollView>
-          ) : (
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.content}
-              showsVerticalScrollIndicator={true}
-              bounces={true}
-            >
-              <View style={styles.articleWrapper}>
-                <LinkifiedText
-                  text={trimmedTitle || untitledText}
-                  style={articleTitleStyle}
-                  className="text-foreground"
+        {toElement(
+          VStack(
+            Embed(
+              <View style={headerStyle} className="border-b border-border">
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  iconOnly
+                  leadingIcon={RiCloseLine}
+                  accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+                  onPress={onClose}
+                  style={styles.closeButton}
                 />
-                {trimmedBody ? (
-                  <LinkifiedText
-                    text={trimmedBody}
-                    style={articleBodyStyle}
-                    className="text-muted-foreground"
-                  />
-                ) : loadError ? (
-                  <Text style={errorStyle} className="text-destructive">
-                    {loadError}
-                  </Text>
-                ) : (
-                  <Text style={articleBodyPlaceholderStyle} className="text-muted-foreground">
-                    {emptyBodyText}
-                  </Text>
-                )}
-              </View>
-            </ScrollView>
-          )}
-        </Pressable>
+                <Text
+                  style={[headerTitleStyle, { pointerEvents: 'none' }]}
+                  className="text-foreground"
+                >
+                  {titleText}
+                </Text>
+                <View style={styles.headerRight} />
+              </View>,
+            ),
+            Embed(
+              isLoading ? (
+                <ScrollView style={styles.scrollView}>
+                  <DetailSkeleton />
+                </ScrollView>
+              ) : (
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.content}
+                  showsVerticalScrollIndicator={true}
+                  bounces={true}
+                >
+                  <View style={styles.articleWrapper}>
+                    <LinkifiedText
+                      text={trimmedTitle || untitledText}
+                      style={articleTitleStyle}
+                      className="text-foreground"
+                    />
+                    {trimmedBody ? (
+                      <LinkifiedText
+                        text={trimmedBody}
+                        style={articleBodyStyle}
+                        className="text-muted-foreground"
+                      />
+                    ) : loadError ? (
+                      <Text style={errorStyle} className="text-destructive">
+                        {loadError}
+                      </Text>
+                    ) : (
+                      <Text style={articleBodyPlaceholderStyle} className="text-muted-foreground">
+                        {emptyBodyText}
+                      </Text>
+                    )}
+                  </View>
+                </ScrollView>
+              ),
+            ),
+          )
+            .grow()
+            .onPress(handleContentPress),
+        )}
       </Animated.View>
     </GestureHandlerRootView>
   );

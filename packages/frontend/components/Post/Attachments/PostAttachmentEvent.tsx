@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { Text, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { cn } from '@/lib/utils';
+
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface PostAttachmentEventProps {
   name: string;
@@ -53,34 +55,71 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
       onPress={onPress}
       appearance="outline"
     >
-      <View className="w-[60px] py-3 px-2 items-center justify-center bg-primary">
-        {day !== null && (
-          <>
-            <Text className="text-[28px] font-bold text-white leading-[32px]">{day}</Text>
-            {month && (
-              <Text className="text-[11px] font-semibold text-white uppercase mt-0.5">{month}</Text>
-            )}
-            {year && (
-              <Text className="text-[10px] font-medium text-white opacity-90 mt-0.5">{year}</Text>
-            )}
-          </>
-        )}
-      </View>
-      <View className="flex-1 p-3 justify-center">
-        <Text
-          className="text-foreground text-[15px] font-semibold mb-1 leading-5"
-          numberOfLines={2}
-        >
-          {name}
-        </Text>
-        {time && <Text className="text-muted-foreground text-xs mb-1">{time}</Text>}
-        {location && (
-          <Text className="text-muted-foreground text-[11px] mt-0.5" numberOfLines={1}>
-            <Text>{'\uD83D\uDCCD'} </Text>
-            <Text>{location}</Text>
-          </Text>
-        )}
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            day !== null && (
+              <>
+                <Text className="text-[28px] font-bold text-white leading-[32px]">{day}</Text>
+                {month &&
+                  toElement(
+                    RawText(month)
+                      .font('11')
+                      .weight('semibold')
+                      .foreground('white')
+                      .textCase('uppercase')
+                      .margin('top', '2xs'),
+                  )}
+                {year &&
+                  toElement(
+                    RawText(year)
+                      .opacity('90')
+                      .font('2xs')
+                      .weight('medium')
+                      .foreground('white')
+                      .margin('top', '2xs'),
+                  )}
+              </>
+            ),
+          ),
+        )
+          .padding('vertical', 'md')
+          .padding('horizontal', 'sm')
+          .frame({ width: '5xl' })
+          .background('primary')
+          .align('center')
+          .justify('center'),
+      )}
+      {toElement(
+        VStack(
+          RawText(name)
+            .foreground('foreground')
+            .font('md')
+            .weight('semibold')
+            .margin('bottom', 'xs')
+            .leading('20px')
+            .lines(2),
+          Embed(
+            time &&
+              toElement(
+                RawText(time).foreground('muted').font('xs').leading('16px').margin('bottom', 'xs'),
+              ),
+          ),
+          Embed(
+            location &&
+              toElement(
+                RawText(RawText('📍', ' '), RawText(location))
+                  .foreground('muted')
+                  .font('11')
+                  .margin('top', '2xs')
+                  .lines(1),
+              ),
+          ),
+        )
+          .padding('all', 'md')
+          .flex('1')
+          .justify('center'),
+      )}
     </Card>
   );
 };

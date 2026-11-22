@@ -115,6 +115,14 @@ import { resolveReplyContextRow } from '@/utils/replyContextRow';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { postItemPropsEqual, type PostItemProps } from './postItemProps';
 
+import {
+  Embed as LEmbed,
+  HStack as LHStack,
+  RawText,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
+
 /**
  * The post row written in the Bloom language: the same row as `PostItem`
  * (same tokens, sizes, spacing and colours, the same components where a piece
@@ -1463,37 +1471,49 @@ function PostRow(props: PostItemProps): Child {
 
   const identity = isCollabByline
     ? Embed(
-        <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-          <RNText
-            className="text-foreground text-[15px] font-semibold leading-tight"
-            style={SHRINK_STYLE}
-            numberOfLines={2}
-          >
-            {headerAuthors.map((a, i) => {
-              const isLast = i === headerAuthors.length - 1;
-              const separator =
-                i === 0
-                  ? ''
-                  : isLast
-                    ? bylineNamesWriter
-                      ? t('collab.by', { defaultValue: ' by ' })
-                      : t('collab.and', { defaultValue: ' and ' })
-                    : ', ';
-              return (
-                <React.Fragment key={`${a.handle || 'author'}-${i}`}>
-                  {separator}
-                  {a.href ? (
-                    <Link href={a.href} push onPress={stopAtLink} accessibilityLabel={a.firstName}>
-                      {a.firstName}
-                    </Link>
-                  ) : (
-                    <RNText>{a.firstName}</RNText>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </RNText>
-        </View>,
+        LtoElement(
+          LHStack(
+            LEmbed(
+              <RNText
+                className="text-foreground text-[15px] font-semibold leading-tight"
+                style={SHRINK_STYLE}
+                numberOfLines={2}
+              >
+                {headerAuthors.map((a, i) => {
+                  const isLast = i === headerAuthors.length - 1;
+                  const separator =
+                    i === 0
+                      ? ''
+                      : isLast
+                        ? bylineNamesWriter
+                          ? t('collab.by', { defaultValue: ' by ' })
+                          : t('collab.and', { defaultValue: ' and ' })
+                        : ', ';
+                  return (
+                    <React.Fragment key={`${a.handle || 'author'}-${i}`}>
+                      {separator}
+                      {a.href ? (
+                        <Link
+                          href={a.href}
+                          push
+                          onPress={stopAtLink}
+                          accessibilityLabel={a.firstName}
+                        >
+                          {a.firstName}
+                        </Link>
+                      ) : (
+                        LtoElement(RawText(a.firstName))
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </RNText>,
+            ),
+          )
+            .frame({ minWidth: 'none' })
+            .align('end')
+            .shrink('normal'),
+        ),
       )
     : // The whole identity line is one hover target.
       Embed((render) => (
@@ -1608,21 +1628,25 @@ function PostRow(props: PostItemProps): Child {
             overrideText={languageDisplayText}
             linkCards={linkCards}
             trailingContent={
-              threadPosition && !isNested ? (
-                <RNText>
-                  {' '}
-                  <RNText
-                    className="bg-surface text-muted-foreground rounded-full text-[11px]"
-                    accessibilityLabel={t('post.threadPosition', {
-                      defaultValue: 'Post {{index}} of {{total}} in thread',
-                      index: threadPosition.index,
-                      total: threadPosition.total,
-                    })}
-                  >
-                    {` ${threadPosition.index}/${threadPosition.total} `}
-                  </RNText>
-                </RNText>
-              ) : undefined
+              threadPosition && !isNested
+                ? LtoElement(
+                    RawText(
+                      ' ',
+                      RawText(` ${threadPosition.index}/${threadPosition.total} `)
+                        .background('surface')
+                        .corner('infinite')
+                        .foreground('muted')
+                        .font('11')
+                        .label(
+                          t('post.threadPosition', {
+                            defaultValue: 'Post {{index}} of {{total}} in thread',
+                            index: threadPosition.index,
+                            total: threadPosition.total,
+                          }),
+                        ),
+                    ),
+                  )
+                : undefined
             }
           />,
         )
@@ -1667,17 +1691,25 @@ function PostRow(props: PostItemProps): Child {
           boostUnavailable || quoteUnavailable
             ? inset(
                 Embed(
-                  <View className="border-border rounded-2xl border px-3 py-3">
-                    <RNText className="text-muted-foreground text-[14px]">
-                      {quoteUnavailable
-                        ? t('post.quoteUnavailable', {
-                            defaultValue: 'This quoted post is unavailable',
-                          })
-                        : t('post.boostUnavailable', {
-                            defaultValue: 'This post is no longer available',
-                          })}
-                    </RNText>
-                  </View>,
+                  LtoElement(
+                    LVStack(
+                      RawText(
+                        quoteUnavailable
+                          ? t('post.quoteUnavailable', {
+                              defaultValue: 'This quoted post is unavailable',
+                            })
+                          : t('post.boostUnavailable', {
+                              defaultValue: 'This post is no longer available',
+                            }),
+                      )
+                        .foreground('muted')
+                        .font('14'),
+                    )
+                      .padding('horizontal', 'md')
+                      .padding('vertical', 'md')
+                      .border('border', 'thin')
+                      .corner('lg'),
+                  ),
                 ),
               )
             : null,

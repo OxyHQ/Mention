@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { useRouter } from '@/lib/navigation/router';
 import type {
   FeedType,
@@ -24,6 +24,8 @@ import { THREAD_LINE_WIDTH, THREAD_LINE_Z_INDEX } from '@/components/Compose/com
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { useTranslation } from 'react-i18next';
 import type { OpenPostPanel } from '@/components/Post/postEngagementContext';
+
+import { RawText, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Shared feed-row model + render helpers used by BOTH the native (FlashList)
@@ -472,7 +474,13 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({
       onHoverOut={() => leaveThreadHover(hoverOwner, sliceKey)}
     >
       <ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} />
-      <Text className="text-primary text-sm font-medium">Show this thread</Text>
+      {toElement(
+        RawText('Show this thread')
+          .foreground('primary')
+          .font('14')
+          .leading('20px')
+          .weight('medium'),
+      )}
     </Pressable>
   );
 };
@@ -616,9 +624,13 @@ function MoreRepliesLink({ onPress, lineColor }: { onPress: () => void; lineColo
           ]}
         />
       )}
-      <Text className="text-primary text-sm font-medium">
-        {t('post.viewConversation', { defaultValue: 'View conversation' })}
-      </Text>
+      {toElement(
+        RawText(t('post.viewConversation', { defaultValue: 'View conversation' }))
+          .foreground('primary')
+          .font('14')
+          .leading('20px')
+          .weight('medium'),
+      )}
     </Pressable>
   );
 }

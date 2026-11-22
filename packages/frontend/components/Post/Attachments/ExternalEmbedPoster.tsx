@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
+
+import { Embed, Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { white: 'white' } });
 
 interface ExternalEmbedPosterProps {
   /** Thumbnail (link-preview image) shown behind the play button. */
@@ -66,19 +69,29 @@ export function ExternalEmbedPoster({
         />
       ) : null}
       <View className="absolute inset-0 bg-black/30" />
-      <Pressable
-        onPress={active ? undefined : onPressPlay}
-        accessibilityRole="button"
-        className="flex-1 items-center justify-center"
-      >
-        {active ? (
-          <SpinnerIcon size={36} color="white" />
-        ) : (
-          <View className="h-16 w-16 items-center justify-center rounded-full bg-black/60">
-            <RiPlayFill size="2xl" fill="white" />
-          </View>
-        )}
-      </Pressable>
+      {toElement(
+        VStack(
+          Embed(
+            active ? (
+              <SpinnerIcon size={36} color="white" />
+            ) : (
+              toElement(
+                VStack(Icon(RiPlayFill).size('2xl').foreground(appColors.color.white))
+                  .frame({ height: '64', width: '64' })
+                  .background('black/60')
+                  .corner('infinite')
+                  .align('center')
+                  .justify('center'),
+              )
+            ),
+          ),
+        )
+          .flex('1')
+          .align('center')
+          .justify('center')
+          .onPress(active ? undefined : onPressPlay)
+          .role('button'),
+      )}
     </View>
   );
 }

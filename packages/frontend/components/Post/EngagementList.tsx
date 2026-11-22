@@ -5,8 +5,6 @@ import { Screen } from '@oxy.so/bloom/screen';
 import { VirtualList } from '@oxy.so/bloom/list';
 import type { Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { feedService } from '@/services/feedService';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
@@ -16,6 +14,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@oxy.so/core/logger';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
+
+import { Button as LButton, Header, Icon, toElement } from '@oxy.so/bloom-language';
 
 /** Placeholder rows painted while the first page of engagers loads. */
 const SKELETON_ROW_COUNT = 8;
@@ -130,23 +130,20 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose, 
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={title}
-          onBack={null}
-          safeArea={false}
-          actions={
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              leadingIcon={RiCloseLine}
-              accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-              onPress={onClose}
-            />
-          }
-        />
-      }
+      header={toElement(
+        Header(title)
+          .onBack(null)
+          .safeArea(false)
+          .toolbar(
+            LButton(Icon(RiCloseLine))
+              .shape('circle')
+              .style('subtle')
+              .tint('neutral')
+              .label(t('common.close', { defaultValue: 'Close' }))
+              .onPress(onClose),
+          )
+          .inPage(),
+      )}
     >
       <VirtualList
         screen={{}}

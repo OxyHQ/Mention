@@ -5,6 +5,8 @@ import { RiExchangeLine } from '@oxy.so/bloom/icons/RiExchangeLine';
 import type { CrosspostProvenance } from '@mention/shared-types';
 import { POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
 
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
 /**
  * `Instagram · Threads` — one piece of writing that was published to two
  * networks, named on the card that renders it.
@@ -62,14 +64,20 @@ const PostCrosspostRow: React.FC<Props> = ({ crosspost }) => {
 
   return (
     <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-      <View className="-ml-4 mr-[3px]">
-        <RiExchangeLine
-          width={13}
-          height={13}
-          fill="currentColor"
-          className="text-muted-foreground"
-        />
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            <RiExchangeLine
+              width={13}
+              height={13}
+              fill="currentColor"
+              className="text-muted-foreground"
+            />,
+          ),
+        )
+          .margin('left', '-lg')
+          .margin('right', '3'),
+      )}
       <Text
         className="text-muted-foreground text-[13px] font-semibold"
         numberOfLines={1}

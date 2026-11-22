@@ -1,10 +1,12 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback } from 'react';
-import { type GestureResponderEvent, Pressable, Text, View } from 'react-native';
+import { type GestureResponderEvent, Pressable } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
+
+import { Embed, HStack, RawText, toElement } from '@oxy.so/bloom-language';
 
 const NOTICE_ICON_SIZE = 13;
 
@@ -69,20 +71,23 @@ const PostCorrectionNotice: React.FC<Props> = ({ postId, count }) => {
       accessibilityRole="link"
       accessibilityLabel={`${countLabel}. ${actionLabel}`}
     >
-      <View className="mt-1.5 flex-row items-center gap-1">
-        <RiEditBoxLine
-          width={NOTICE_ICON_SIZE}
-          height={NOTICE_ICON_SIZE}
-          fill={theme.colors.textSecondary}
-        />
-        <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
-          {countLabel}
-        </Text>
-        <Text className="text-muted-foreground text-[13px]">{'·'}</Text>
-        <Text className="text-primary text-[13px] font-semibold" numberOfLines={1}>
-          {actionLabel}
-        </Text>
-      </View>
+      {toElement(
+        HStack(
+          Embed(
+            <RiEditBoxLine
+              width={NOTICE_ICON_SIZE}
+              height={NOTICE_ICON_SIZE}
+              fill={theme.colors.textSecondary}
+            />,
+          ),
+          RawText(countLabel).foreground('muted').font('sm').lines(1),
+          RawText('·').foreground('muted').font('sm'),
+          RawText(actionLabel).foreground('primary').font('sm').weight('semibold').lines(1),
+        )
+          .margin('top', '6')
+          .align('center')
+          .spacing('xs'),
+      )}
     </Pressable>
   );
 };

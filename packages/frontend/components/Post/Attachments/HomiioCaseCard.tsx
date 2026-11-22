@@ -1,17 +1,12 @@
 import { useRef } from 'react';
-import {
-  Linking,
-  Pressable,
-  Text,
-  View,
-  type DimensionValue,
-  type ViewInstance,
-} from 'react-native';
+import { Linking, Text, View, type DimensionValue, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getHomiioCaseUrl } from '@mention/shared-types/homiio';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { homiioCases } from '@/lib/references/homiioCases';
+
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Every state occupies the same box. The public SDK has no exact address field. */
 export function HomiioCaseCard({
@@ -37,42 +32,43 @@ export function HomiioCaseCard({
       style={{ width, height }}
       className="rounded-2xl border border-border bg-card p-4 overflow-hidden"
     >
-      <Text className="text-muted-foreground text-sm">Homiio</Text>
-      {value ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={t('homiio.open', { defaultValue: 'Open case in Homiio' })}
-          onPress={(event) => {
-            event.stopPropagation();
-            void Linking.openURL(getHomiioCaseUrl(caseId));
-          }}
-          className="flex-1 justify-center gap-1"
-        >
-          <Text numberOfLines={2} className="text-foreground font-semibold">
-            {value.title}
-          </Text>
-          <Text numberOfLines={1} className="text-muted-foreground">
-            {value.area.label}
-          </Text>
-          <Text className="text-muted-foreground">
-            {new Date(value.scheduledAt).toLocaleString()}
-          </Text>
-          <Text className="text-muted-foreground">
-            {t(`homiio.status.${value.status}`, { defaultValue: value.status })}
-          </Text>
-          <Text className="text-primary">
-            {t('homiio.open', { defaultValue: 'Open case in Homiio' })}
-          </Text>
-        </Pressable>
-      ) : (
-        <View className="flex-1 justify-center">
-          <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
-            {state.status === 'loading'
-              ? t('homiio.loading', { defaultValue: 'Loading Homiio case…' })
-              : t('homiio.unavailable', { defaultValue: 'This Homiio case is unavailable' })}
-          </Text>
-        </View>
-      )}
+      {toElement(RawText('Homiio').foreground('muted').font('14').leading('20px'))}
+      {value
+        ? toElement(
+            VStack(
+              RawText(value.title).foreground('foreground').weight('semibold').lines(2),
+              RawText(value.area.label).foreground('muted').lines(1),
+              RawText(new Date(value.scheduledAt).toLocaleString()).foreground('muted'),
+              RawText(
+                t(`homiio.status.${value.status}`, { defaultValue: value.status }),
+              ).foreground('muted'),
+              RawText(t('homiio.open', { defaultValue: 'Open case in Homiio' })).foreground(
+                'primary',
+              ),
+            )
+              .flex('1')
+              .justify('center')
+              .spacing('xs')
+              .role('link')
+              .label(t('homiio.open', { defaultValue: 'Open case in Homiio' }))
+              .onPress((event) => {
+                event.stopPropagation();
+                void Linking.openURL(getHomiioCaseUrl(caseId));
+              }),
+          )
+        : toElement(
+            VStack(
+              Embed(
+                <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
+                  {state.status === 'loading'
+                    ? t('homiio.loading', { defaultValue: 'Loading Homiio case…' })
+                    : t('homiio.unavailable', { defaultValue: 'This Homiio case is unavailable' })}
+                </Text>,
+              ),
+            )
+              .flex('1')
+              .justify('center'),
+          )}
     </View>
   );
 }
