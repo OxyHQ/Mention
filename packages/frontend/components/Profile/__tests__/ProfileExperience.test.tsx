@@ -1,6 +1,10 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import type React from 'react';
-import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
+import TestRenderer, {
+  act,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 import { waitUntil } from '@/test-support/waitUntil';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Experience } from '@clarity.surf/sdk/experience';
@@ -32,13 +36,29 @@ jest.mock('@/hooks/useCachedUser', () => ({ useCachedUserSnapshot: () => undefin
 jest.mock('@/utils/userEnrichment', () => ({
   prewarmUsersByIds: jest.fn(() => Promise.resolve([])),
 }));
-jest.mock('@oxy.so/bloom/screen', () => ({ useScreenReselectHandler: () => {} }));
+jest.mock('@oxy.so/bloom/screen', () => ({
+  ...jest.requireActual('@oxy.so/bloom/screen'),
+  useScreenReselectHandler: () => {},
+}));
 jest.mock('expo-router', () => ({ Link: 'profile-link' }));
-jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: 'avatar' }));
-jest.mock('@oxy.so/bloom/button', () => ({ Button: 'button' }));
-jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'loading' }));
-jest.mock('@oxy.so/bloom/item', () => ({ Item: 'item' }));
+jest.mock('@oxy.so/bloom/avatar', () => ({
+  ...jest.requireActual('@oxy.so/bloom/avatar'),
+  Avatar: 'avatar',
+}));
+jest.mock('@oxy.so/bloom/button', () => ({
+  ...jest.requireActual('@oxy.so/bloom/button'),
+  Button: 'button',
+}));
+jest.mock('@oxy.so/bloom/loading', () => ({
+  ...jest.requireActual('@oxy.so/bloom/loading'),
+  Loading: 'loading',
+}));
+jest.mock('@oxy.so/bloom/item', () => ({
+  ...jest.requireActual('@oxy.so/bloom/item'),
+  Item: 'item',
+}));
 jest.mock('@oxy.so/bloom/dialog', () => ({
+  ...jest.requireActual('@oxy.so/bloom/dialog'),
   Dialog: 'dialog',
   useDialogControl: () =>
     require('react').useMemo(
@@ -46,13 +66,18 @@ jest.mock('@oxy.so/bloom/dialog', () => ({
       [],
     ),
 }));
-jest.mock('@oxy.so/bloom/switch', () => ({ Switch: 'switch' }));
+jest.mock('@oxy.so/bloom/switch', () => ({
+  ...jest.requireActual('@oxy.so/bloom/switch'),
+  Switch: 'switch',
+}));
 jest.mock('@oxy.so/bloom/text-field', () => ({
+  ...jest.requireActual('@oxy.so/bloom/text-field'),
   TextField: 'field',
   TextFieldInput: 'input',
   TextFieldLabel: 'label',
 }));
 jest.mock('@oxy.so/bloom/select', () => ({
+  ...jest.requireActual('@oxy.so/bloom/select'),
   Select: 'select',
   SelectContent: 'options',
   SelectItem: 'option',
@@ -94,6 +119,12 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { Item } from '@oxy.so/bloom/item';
 import { ExperienceEditor } from '../ExperienceEditor';
 import type { Organization } from '@oxy.so/contracts';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const entry: Experience = {
   id: 'role',
@@ -136,7 +167,7 @@ async function render(element: React.ReactElement) {
   });
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>{element}</QueryClientProvider>,
+      themed(<QueryClientProvider client={client}>{element}</QueryClientProvider>),
     );
   });
   await settle();
@@ -144,6 +175,10 @@ async function render(element: React.ReactElement) {
 const rendered = () => JSON.stringify(renderer.toJSON());
 function button(label: string) {
   return renderer.root.findAllByType('button').find((node) => node.props.children === label);
+}
+/** A Bloom input's change: `onValueChange` as the language hands it, or `onChangeText` from JSX. */
+function changeOf(node: ReactTestInstance): (text: string) => void {
+  return node.props.onValueChange ?? node.props.onChangeText;
 }
 function input(label: string) {
   return renderer.root.findAllByType('input').find((node) => node.props.label === label)!;
@@ -230,9 +265,9 @@ describe('experience visibility and editing', () => {
     expect(experienceService.create).not.toHaveBeenCalled();
     expect(JSON.stringify(renderer.toJSON())).toContain('Enter a title');
     act(() => {
-      input('Title *').props.onChangeText('Engineer');
-      input('Company or organization *').props.onChangeText('Apple');
-      input('Start date *').props.onChangeText('2023-02');
+      changeOf(input('Title *'))('Engineer');
+      changeOf(input('Company or organization *'))('Apple');
+      changeOf(input('Start date *'))('2023-02');
       renderer.root.find((node) => node.type === 'switch').props.onCheckedChange(false);
     });
     await act(async () => {
@@ -242,10 +277,10 @@ describe('experience visibility and editing', () => {
       renderer.root.findAll((node) => String(node.type) === 'item' && node.props.title === 'Apple');
     await waitUntil(() => apple().length > 0, 'Apple in the employer search');
     act(() => apple()[0].props.onPress());
-    act(() => input('End date *').props.onChangeText('2022-10'));
+    act(() => changeOf(input('End date *'))('2022-10'));
     await press('Save');
     expect(experienceService.create).not.toHaveBeenCalled();
-    act(() => input('End date *').props.onChangeText('2024-10'));
+    act(() => changeOf(input('End date *'))('2024-10'));
     await press('Save');
     await waitUntil(() => onSaved.mock.calls.length > 0, 'the saved role');
     expect(experienceService.create).toHaveBeenCalledWith(
@@ -263,7 +298,7 @@ describe('experience visibility and editing', () => {
     await render(<ProfileExperience profileId="person" isOwnProfile />);
     await waitUntil(() => button('Edit') !== undefined, 'the Edit button');
     await press('Edit');
-    act(() => input('Title *').props.onChangeText('Lead Designer'));
+    act(() => changeOf(input('Title *'))('Lead Designer'));
     await press('Save');
     await waitUntil(
       () => jest.mocked(experienceService.list).mock.calls.length === 2,
@@ -294,7 +329,7 @@ describe('experience visibility and editing', () => {
       renderer.root
         .findAll((node) => node.props.accessibilityRole === 'alert')
         .some((node) => String(node.props.children).includes('Your changes could not be saved'));
-    act(() => input('Title *').props.onChangeText('Lead Designer'));
+    act(() => changeOf(input('Title *'))('Lead Designer'));
     await press('Save');
     await waitUntil(alerts, 'the save error');
     expect(input('Title *').props.value).toBe('Lead Designer');
@@ -501,9 +536,9 @@ describe('central employer identity', () => {
     mockAuth.oxyServices.organizations.search.mockResolvedValue({ items: [], nextCursor: null });
     await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
     act(() => {
-      input('Title *').props.onChangeText('Engineer');
-      input('Start date *').props.onChangeText('2024-01');
-      input('Company or organization *').props.onChangeText(' Example ');
+      changeOf(input('Title *'))('Engineer');
+      changeOf(input('Start date *'))('2024-01');
+      changeOf(input('Company or organization *'))(' Example ');
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
@@ -542,7 +577,7 @@ describe('central employer identity', () => {
   it('rejects an invalid website without creating an organization', async () => {
     mockAuth.oxyServices.organizations.search.mockResolvedValue({ items: [], nextCursor: null });
     await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
-    act(() => input('Company or organization *').props.onChangeText('Example'));
+    act(() => changeOf(input('Company or organization *'))('Example'));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
     });
@@ -557,7 +592,7 @@ describe('central employer identity', () => {
   it('does not create an organization when a paused request resumes in another session', async () => {
     mockAuth.oxyServices.organizations.search.mockResolvedValue({ items: [], nextCursor: null });
     await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
-    act(() => input('Company or organization *').props.onChangeText('Example'));
+    act(() => changeOf(input('Company or organization *'))('Example'));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
     });
@@ -590,7 +625,7 @@ describe('central employer identity', () => {
   it('does not offer directory creation during a search outage', async () => {
     mockAuth.oxyServices.organizations.search.mockRejectedValue(new Error('offline'));
     await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
-    act(() => input('Company or organization *').props.onChangeText('Example'));
+    act(() => changeOf(input('Company or organization *'))('Example'));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
     });
@@ -604,7 +639,7 @@ describe('central employer identity', () => {
       nextCursor: 'repeat',
     });
     await render(<ExperienceEditor ownerId="person" onClose={jest.fn()} onSaved={jest.fn()} />);
-    act(() => input('Company or organization *').props.onChangeText('Example'));
+    act(() => changeOf(input('Company or organization *'))('Example'));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 350));
     });
@@ -636,20 +671,20 @@ it('withholds unrated history until current supervision permits it and hides cac
   expect(mockAuth.oxyServices.organizations.batch).not.toHaveBeenCalled();
   mockSupervision.ready = true;
   await act(async () => {
-    renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
+    renderer.update(themed(<QueryClientProvider client={client}>{element()}</QueryClientProvider>));
   });
   await waitUntil(() => rendered().includes('Designer'), 'the role once supervision permits it');
   expect(button('Add experience')).toBeDefined();
   mockSupervision.supervised = true;
   await act(async () => {
-    renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
+    renderer.update(themed(<QueryClientProvider client={client}>{element()}</QueryClientProvider>));
   });
   expect(JSON.stringify(renderer.toJSON())).not.toContain('Designer');
   expect(button('Add experience')).toBeUndefined();
   expect(renderer.root.findByType(EmptyState).props.title).toBe('Unavailable for this account');
   mockSupervision.isError = true;
   await act(async () => {
-    renderer.update(<QueryClientProvider client={client}>{element()}</QueryClientProvider>);
+    renderer.update(themed(<QueryClientProvider client={client}>{element()}</QueryClientProvider>));
   });
   expect(JSON.stringify(renderer.toJSON())).not.toContain('Designer');
   expect(renderer.root.findByType(EmptyState).props.error.title).toBe(
@@ -671,7 +706,7 @@ it('manages its own roles using minimal employer identities and never loads the 
   expect(renderer.root.findAllByType(Avatar).every((avatar) => !avatar.props.source)).toBe(true);
   await press('Add experience');
   await act(async () => {
-    input('Company or organization *').props.onChangeText('Apple');
+    changeOf(input('Company or organization *'))('Apple');
   });
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 330));
@@ -692,8 +727,8 @@ it('manages its own roles using minimal employer identities and never loads the 
     companies()[0].props.onPress();
   });
   await act(async () => {
-    input('Title *').props.onChangeText('Researcher');
-    input('Start date *').props.onChangeText('2024-01');
+    changeOf(input('Title *'))('Researcher');
+    changeOf(input('Start date *'))('2024-01');
   });
   await press('Save');
   await waitUntil(
