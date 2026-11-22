@@ -1,11 +1,11 @@
 import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 import { useRouter, Redirect } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
@@ -62,6 +62,13 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** The tab strip on the screen's surface, ruled off below (`flex-row items-center border-b`). */
+const TAB_BAR = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderBottomWidth: 1,
+} satisfies ViewStyle;
 
 interface ChannelProfileProps {
   username: string;
@@ -124,6 +131,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   // The tab row pins over the scrolling channel feed, so it paints the colour
   // of the column it is in rather than naming `card`.
   const surfaceFill = useSurfaceFill();
+  const colorTokens = useColorTokens();
 
   const seoPolicy = useProfileSEOPolicy(
     profileData?.privacy?.profileVisibility,
@@ -415,10 +423,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 
   const tabBar = useMemo(
     () => (
-      <View
-        className="flex-row items-center border-b border-border"
-        style={{ backgroundColor: surfaceFill }}
-      >
+      <View style={[TAB_BAR, { borderColor: colorTokens.border, backgroundColor: surfaceFill }]}>
         {toElement(
           VStack(
             LTabs(
@@ -441,7 +446,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         )}
       </View>
     ),
-    [activeDescriptor?.key, onTabPress, surfaceFill, tabDescriptors, username],
+    [activeDescriptor?.key, colorTokens, onTabPress, surfaceFill, tabDescriptors, username],
   );
 
   const headerActions = (

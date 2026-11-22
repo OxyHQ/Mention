@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { RawText, toElement } from '@oxy.so/bloom-language';
 import { useTranslation } from 'react-i18next';
 import { useProfileLinkMentions } from '@/hooks/useProfileLinkMentions';
 import { reconcileMentionData, type MentionData } from '@/utils/mentions';
@@ -80,31 +81,39 @@ const ComposeMentionSummary = memo<ComposeMentionSummaryProps>(({ texts, mention
     return null;
   }
 
+  // The rows keep React Native views: their column and row gaps differ, and
+  // the language's stack has one spacing.
   return (
     <View style={styles.container}>
-      <Text className="text-muted-foreground" style={styles.label}>
-        {isPrivate
-          ? t('compose.mentions.onlyVisibleTo', { defaultValue: 'Only visible to' })
-          : t('compose.mentions.willMention', {
-              defaultValue: 'This post will mention',
-            })}
-      </Text>
+      {toElement(
+        RawText(
+          isPrivate
+            ? t('compose.mentions.onlyVisibleTo', { defaultValue: 'Only visible to' })
+            : t('compose.mentions.willMention', {
+                defaultValue: 'This post will mention',
+              }),
+        )
+          .foreground('muted')
+          .font('sm'),
+      )}
       <View style={styles.handles}>
-        {recipients.map((recipient) => (
-          <Text
-            key={recipient.userId}
-            className="text-primary"
-            style={styles.handle}
-            numberOfLines={1}
-          >
-            @{recipient.username}
-          </Text>
-        ))}
-        {isResolving ? (
-          <Text className="text-muted-foreground" style={styles.label}>
-            {t('compose.mentions.checkingLinks', { defaultValue: 'checking links…' })}
-          </Text>
-        ) : null}
+        {recipients.map((recipient) =>
+          toElement(
+            RawText('@', recipient.username)
+              .foreground('primary')
+              .font('sm')
+              .weight('semibold')
+              .lines(1),
+            recipient.userId,
+          ),
+        )}
+        {isResolving
+          ? toElement(
+              RawText(t('compose.mentions.checkingLinks', { defaultValue: 'checking links…' }))
+                .foreground('muted')
+                .font('sm'),
+            )
+          : null}
       </View>
     </View>
   );
@@ -121,9 +130,6 @@ const styles = StyleSheet.create({
     rowGap: 2,
     paddingTop: 6,
   },
-  label: {
-    fontSize: 13,
-  },
   handles: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -131,10 +137,6 @@ const styles = StyleSheet.create({
     columnGap: 6,
     rowGap: 2,
     flexShrink: 1,
-  },
-  handle: {
-    fontSize: 13,
-    fontWeight: '600',
   },
 });
 

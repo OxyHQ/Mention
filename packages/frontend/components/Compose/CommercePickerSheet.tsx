@@ -1,7 +1,7 @@
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
-import { FlatList } from 'react-native';
+import { FlatList, type ViewStyle } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +21,9 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** The sheet's list stops growing at 340pt (`max-h-[340px]`): the catalog scroll inside it. */
+const LIST_STYLE = { maxHeight: 340 } satisfies ViewStyle;
 
 export default function CommercePickerSheet({
   accountId,
@@ -111,7 +114,7 @@ export default function CommercePickerSheet({
           <FlatList
             data={rows}
             keyExtractor={(item) => commerceReferenceKey(item.ref)}
-            className="max-h-[340px]"
+            style={LIST_STYLE}
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) =>
               toElement(

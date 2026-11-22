@@ -9,12 +9,13 @@ import {
   ScrollView,
   Platform,
   type ScrollViewInstance,
+  type ViewStyle,
 } from 'react-native';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOJI_CATEGORIES, MAX_RECENT_EMOJIS } from '@/utils/emojiData';
-import { cn } from '@/lib/utils';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 
 import {
   Button as LButton,
@@ -24,6 +25,7 @@ import {
   Icon,
   RawText,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 
@@ -37,6 +39,7 @@ interface EmojiPickerSheetProps {
 
 const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEmoji }) => {
   const { t } = useTranslation();
+  const colorTokens = useColorTokens();
   const [activeCategory, setActiveCategory] = useState('smileys');
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const scrollViewRef = useRef<ScrollViewInstance>(null);
@@ -105,99 +108,119 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
     sectionOffsets.current[categoryId] = y;
   }, []);
 
-  return (
-    <View className="flex-1 min-h-[350px] bg-background">
-      {toElement(
-        Header(t('compose.emoji.title', { defaultValue: 'Emojis' }))
-          .safeArea(false)
-          .toolbar(
-            LButton(Icon(RiCloseLine))
-              .shape('circle')
-              .style('subtle')
-              .tint('neutral')
-              .onPress(onClose)
-              .label(t('common.close', { defaultValue: 'Close' })),
-          )
-          .inPage(),
-      )}
-      {/* Category tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 8, gap: 4 }}
-        className="border-b border-border max-h-[48px]"
-      >
-        {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat.id}
-            className={cn(
-              'px-2.5 py-2.5 border-b-2 border-transparent',
-              activeCategory === cat.id && 'border-primary',
-            )}
-            onPress={() => handleCategoryPress(cat.id)}
-          >
-            {toElement(RawText(cat.icon).font('xl').leading('28px'))}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      {/* Emoji grid */}
-      <ScrollView
-        ref={scrollViewRef}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 16 }}
-      >
-        {categories.map((cat) => {
-          const rows = chunk(cat.emojis, NUM_COLUMNS);
-          return (
-            <View
+  return toElement(
+    VStack(
+      Header(t('compose.emoji.title', { defaultValue: 'Emojis' }))
+        .safeArea(false)
+        .toolbar(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(onClose)
+            .label(t('common.close', { defaultValue: 'Close' })),
+        )
+        .inPage(),
+      // Category tabs
+      Embed(
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 8, gap: 4 }}
+          style={[TABS, { borderColor: colorTokens.border }]}
+        >
+          {categories.map((cat) => (
+            <TouchableOpacity
               key={cat.id}
-              onLayout={(e) => handleSectionLayout(cat.id, e.nativeEvent.layout.y)}
+              style={[
+                TAB,
+                { borderColor: activeCategory === cat.id ? colorTokens.primary : TRANSPARENT },
+              ]}
+              onPress={() => handleCategoryPress(cat.id)}
             >
-              {toElement(
-                VStack(
-                  RawText(cat.name)
-                    .font('sm')
-                    .weight('semibold')
-                    .textCase('uppercase')
-                    .tracking('wide')
-                    .foreground('muted'),
-                )
-                  .padding('horizontal', 'lg')
-                  .padding('top', 'md')
-                  .padding('bottom', '6'),
-              )}
-              {rows.map((row, rowIndex) =>
-                toElement(
-                  HStack(
-                    Embed(
-                      row.map((emoji, colIndex) => (
-                        <TouchableOpacity
-                          key={`${cat.id}-${rowIndex}-${colIndex}`}
-                          style={styles.emojiCell}
-                          onPress={() => handleEmojiPress(emoji)}
-                          activeOpacity={0.6}
-                        >
-                          <Text style={styles.emojiText}>{emoji}</Text>
-                        </TouchableOpacity>
-                      )),
-                    ),
-                    /* Fill remaining cells to maintain grid alignment */ Embed(
-                      row.length < NUM_COLUMNS &&
-                        Array.from({ length: NUM_COLUMNS - row.length }).map((_, i) => (
-                          <View key={`pad-${i}`} style={styles.emojiCell} />
+              {toElement(RawText(cat.icon).font('xl').leading('28px'))}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>,
+      ),
+      // Emoji grid
+      Embed(
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 16 }}
+        >
+          {categories.map((cat) => {
+            const rows = chunk(cat.emojis, NUM_COLUMNS);
+            return (
+              <View
+                key={cat.id}
+                onLayout={(e) => handleSectionLayout(cat.id, e.nativeEvent.layout.y)}
+              >
+                {toElement(
+                  VStack(
+                    RawText(cat.name)
+                      .font('sm')
+                      .weight('semibold')
+                      .textCase('uppercase')
+                      .tracking('wide')
+                      .foreground('muted'),
+                  )
+                    .padding('horizontal', 'lg')
+                    .padding('top', 'md')
+                    .padding('bottom', '6'),
+                )}
+                {rows.map((row, rowIndex) =>
+                  toElement(
+                    HStack(
+                      Embed(
+                        row.map((emoji, colIndex) => (
+                          <TouchableOpacity
+                            key={`${cat.id}-${rowIndex}-${colIndex}`}
+                            style={styles.emojiCell}
+                            onPress={() => handleEmojiPress(emoji)}
+                            activeOpacity={0.6}
+                          >
+                            <Text style={styles.emojiText}>{emoji}</Text>
+                          </TouchableOpacity>
                         )),
-                    ),
-                  ).padding('horizontal', 'sm'),
-                  rowIndex,
-                ),
-              )}
-            </View>
-          );
-        })}
-      </ScrollView>
-    </View>
+                      ),
+                      /* Fill remaining cells to maintain grid alignment */ Embed(
+                        row.length < NUM_COLUMNS &&
+                          Array.from({ length: NUM_COLUMNS - row.length }).map((_, i) => (
+                            <View key={`pad-${i}`} style={styles.emojiCell} />
+                          )),
+                      ),
+                    ).padding('horizontal', 'sm'),
+                    rowIndex,
+                  ),
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>,
+      ),
+    )
+      .flex('1')
+      .frame({ minHeight: sheetTokens.space.minHeight })
+      .background('background'),
   );
 };
+
+/** The sheet's floor (`min-h-[350px]`): the grid has room before the emoji load. */
+const sheetTokens = defineTokens({ space: { minHeight: 350 } });
+/** Tailwind's 2.5 step, off Bloom's space scale. */
+const SPACE_10 = 10;
+/** Tailwind's `border-transparent`. */
+const TRANSPARENT = '#0000';
+/** The category strip (`border-b max-h-[48px]`), one line of glyphs. */
+const TABS = { borderBottomWidth: 1, maxHeight: 48 } satisfies ViewStyle;
+/** A category: its glyph over an underline (`px-2.5 py-2.5 border-b-2`). */
+const TAB = {
+  paddingHorizontal: SPACE_10,
+  paddingVertical: SPACE_10,
+  borderBottomWidth: 2,
+} satisfies ViewStyle;
 
 const styles = StyleSheet.create({
   emojiCell: {

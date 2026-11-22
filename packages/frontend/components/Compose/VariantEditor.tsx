@@ -1,11 +1,10 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, type ReactNode, type Ref } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View, type ViewStyle } from 'react-native';
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Loading } from '@oxy.so/bloom/loading';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -19,7 +18,7 @@ import type { ComposeVariantItem } from '@/utils/composeVariants';
 import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD } from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
-import { Embed, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Icon, Loading, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface VariantEditorProps {
   /** `MAIN_ITEM_ID` for the main post, or the thread item's id. */
@@ -102,6 +101,7 @@ const VariantEditor = memo(function VariantEditor({
 }: VariantEditorProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const colorTokens = useColorTokens();
   const language = describeContentLanguage(tag);
 
   const handleMentionValueChange = useCallback(
@@ -137,7 +137,6 @@ const VariantEditor = memo(function VariantEditor({
             Embed(
               <MentionTextInput
                 ref={textInputRef}
-                className="text-foreground"
                 style={styles.textInput}
                 placeholder={t('compose.languages.variantPlaceholder', {
                   defaultValue: 'Write this post in {{language}}',
@@ -162,17 +161,12 @@ const VariantEditor = memo(function VariantEditor({
                 onPress={handleTranslate}
                 disabled={!canTranslate}
                 activeOpacity={0.75}
-                className="flex-row items-center gap-1.5 self-start px-3 py-1.5 rounded-full border mt-2"
-                style={{ borderColor: theme.colors.border, opacity: canTranslate ? 1 : 0.5 }}
+                style={[
+                  TRANSLATE,
+                  { borderColor: theme.colors.border, opacity: canTranslate ? 1 : 0.5 },
+                ]}
               >
-                {isTranslating ? (
-                  <Loading
-                    className="text-primary"
-                    variant="inline"
-                    size="sm"
-                    style={loadingStyle}
-                  />
-                ) : null}
+                {isTranslating ? toElement(Loading().style('inline').size('sm')) : null}
                 {toElement(
                   RawText(t('compose.languages.translate', { defaultValue: 'Translate with AI' }))
                     .font('sm')
@@ -199,8 +193,10 @@ const VariantEditor = memo(function VariantEditor({
                   {(ownMedia ?? sharedMedia).map((media) => (
                     <View
                       key={media.id}
-                      className="border-border bg-muted"
-                      style={styles.mediaCard}
+                      style={[
+                        { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
+                        styles.mediaCard,
+                      ]}
                     >
                       <ComposeMediaPreview
                         type={media.type}
@@ -225,8 +221,7 @@ const VariantEditor = memo(function VariantEditor({
                       {ownMedia ? (
                         <TouchableOpacity
                           onPress={() => onRemoveOwnMedia(itemId, media.id)}
-                          className="bg-card"
-                          style={styles.mediaRemove}
+                          style={[{ backgroundColor: colorTokens.card }, styles.mediaRemove]}
                           hitSlop={tokens.hitSlop.sm}
                         >
                           {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
@@ -238,8 +233,7 @@ const VariantEditor = memo(function VariantEditor({
                     <TouchableOpacity
                       onPress={handlePickOwnMedia}
                       activeOpacity={0.75}
-                      className="items-center justify-center border border-dashed border-border rounded-[15px]"
-                      style={styles.mediaAddCard}
+                      style={[MEDIA_ADD, { borderColor: colorTokens.border }, styles.mediaAddCard]}
                     >
                       {toElement(Icon(RiAddLine).size('md').foreground('muted'))}
                       {toElement(
@@ -285,8 +279,10 @@ const VariantEditor = memo(function VariantEditor({
                 item.article ? (
                   <>
                     <TouchableOpacity
-                      className="border-border bg-muted"
-                      style={styles.articleCard}
+                      style={[
+                        { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
+                        styles.articleCard,
+                      ]}
                       activeOpacity={0.85}
                       onPress={handleArticlePress}
                     >
@@ -341,7 +337,26 @@ const VariantEditor = memo(function VariantEditor({
   );
 });
 
-const loadingStyle = { flex: undefined };
+/** Translate with AI: an outlined pill under the text (`flex-row items-center gap-1.5 self-start px-3 py-1.5 rounded-full border mt-2`). */
+const TRANSLATE = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  alignSelf: 'flex-start',
+  paddingHorizontal: tokens.space.md,
+  paddingVertical: 6,
+  borderRadius: Number.MAX_SAFE_INTEGER, // Tailwind's `rounded-full` as it drew
+  borderWidth: 1,
+  marginTop: tokens.space.sm,
+} satisfies ViewStyle;
+/** Add an image: a dashed slot beside the images (`items-center justify-center border border-dashed rounded-[15px]`). */
+const MEDIA_ADD = {
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderWidth: 1,
+  borderStyle: 'dashed',
+  borderRadius: 15,
+} satisfies ViewStyle;
 
 const styles = StyleSheet.create({
   container: {

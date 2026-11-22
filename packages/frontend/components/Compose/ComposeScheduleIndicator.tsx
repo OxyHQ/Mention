@@ -1,9 +1,8 @@
 import { memo } from 'react';
-import { Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { formatTimeAgo } from '@/utils/dateUtils';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface ComposeScheduleIndicatorProps {
   /**
@@ -50,21 +49,18 @@ const ComposeScheduleIndicator = memo<ComposeScheduleIndicatorProps>(
 
     return toElement(
       VStack(
-        /* The SAME classes `PostHeader` gives the label this stands in for, so
-              the row does not change shape when a time is picked. Never a
-              hand-built `${theme.colors.primary}1A`: the accent roles resolve to
-              `rgb(...)`, so appending hex alpha yields a string react-native-web
-              reads back as FULLY OPAQUE. */ Embed(
-          <Text
-            className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
-            style={{ opacity: disabled ? 0.5 : 1 }}
-          >
-            {/* Read from the same helper `PostHeader` uses for a dateless row, so
-        the unscheduled word here and the one a box would otherwise show
-        cannot drift apart. */}
-            {'·'} {scheduledLabel ?? formatTimeAgo('')}
-          </Text>,
-        ),
+        // The SAME look `PostHeader` gives the label this stands in for, so the
+        // row does not change shape when a time is picked. Never a hand-built
+        // `${theme.colors.primary}1A`: the accent roles resolve to `rgb(...)`, so
+        // appending hex alpha yields a string react-native-web reads back as FULLY
+        // OPAQUE. The unscheduled word is read from the same helper `PostHeader`
+        // uses for a dateless row, so the two cannot drift apart.
+        RawText('·', ' ', scheduledLabel ?? formatTimeAgo(''))
+          .foreground('muted')
+          .font('md')
+          .leading('close')
+          .noWrap()
+          .opacity(disabled ? 'half' : 'opaque'),
       )
         .shrink('never')
         .onPress(() => {

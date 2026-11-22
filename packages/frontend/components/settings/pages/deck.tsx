@@ -2,7 +2,9 @@ import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { useDeckSettings } from '@/components/deck/deckSettings';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { Text } from 'react-native';
+import { Text, type TextStyle } from 'react-native';
+import { tokens } from '@oxy.so/bloom/styles';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 
 import {
   Embed,
@@ -13,8 +15,16 @@ import {
   toElement,
 } from '@oxy.so/bloom-language';
 
+/** Where the workspace is saved, under its settings (`text-sm px-4`). */
+const STATUS = {
+  fontSize: 14,
+  lineHeight: 20,
+  paddingHorizontal: tokens.space.lg,
+} satisfies TextStyle;
+
 export default function DeckSettingsPage() {
   const { t } = useTranslation();
+  const colorTokens = useColorTokens();
   const available = useDeckAvailable();
   const homeScreen = useDeckSettings((state) => state.homeScreen === true);
   const setHomeScreen = useDeckSettings((state) => state.setHomeScreen);
@@ -64,7 +74,11 @@ export default function DeckSettingsPage() {
           ),
       ),
       Embed(
-        <Text className="text-muted-foreground text-sm px-4" accessibilityLiveRegion="polite">
+        // A live region, which the language's text has no modifier for.
+        <Text
+          style={[STATUS, { color: colorTokens.mutedForeground }]}
+          accessibilityLiveRegion="polite"
+        >
           {!user?.id
             ? t(
                 'deck.workspace.anonymous',

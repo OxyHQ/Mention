@@ -1,14 +1,13 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useRef } from 'react';
 import {
-  Text,
   TouchableOpacity,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
   type TextInputInstance,
 } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { Card } from '@oxy.so/bloom/card';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -41,7 +40,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
   style,
   autoFocus = false,
 }) => {
-  const theme = useTheme();
+  const colorTokens = useColorTokens();
   const { t } = useTranslation();
   const pollTitleInputRef = useRef<TextInputInstance | null>(null);
 
@@ -64,7 +63,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
             .align('center')
             .spacing('6'),
           Embed(
-            <TouchableOpacity onPress={onRemove} className="p-1" hitSlop={tokens.hitSlop.md}>
+            <TouchableOpacity onPress={onRemove} style={REMOVE} hitSlop={tokens.hitSlop.md}>
               {toElement(Icon(RiCloseLine).size('18').foreground('muted'))}
             </TouchableOpacity>,
           ),
@@ -117,7 +116,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                   <InputGroupAddon>
                     <TouchableOpacity
                       onPress={() => onRemoveOption(index)}
-                      className="p-1"
+                      style={REMOVE}
                       hitSlop={tokens.hitSlop.md}
                       accessibilityRole="button"
                       accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
@@ -135,7 +134,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
       )}
       {pollOptions.length < 4 && (
         <TouchableOpacity
-          className="flex-row items-center gap-2 py-2.5 px-3 rounded-[10px] border-[1.5px] border-dashed border-border mb-1.5"
+          style={[ADD_OPTION, { borderColor: colorTokens.border }]}
           onPress={onAddOption}
           activeOpacity={0.7}
         >
@@ -156,12 +155,38 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
           )}
         </TouchableOpacity>
       )}
-      <Text style={{ fontSize: 11, marginTop: 2, marginLeft: 2, color: theme.colors.textTertiary }}>
-        {pollOptions.length === 2 ? t('compose.poll.addMoreOptions') : t('compose.poll.minOptions')}
-      </Text>
+      {toElement(
+        RawText(
+          pollOptions.length === 2
+            ? t('compose.poll.addMoreOptions')
+            : t('compose.poll.minOptions'),
+        )
+          .font('11')
+          .margin('top', '2xs')
+          .margin('left', '2xs')
+          .foreground('textTertiary'),
+      )}
     </Card>
   );
 };
+
+/** A remove control's room around its glyph (`p-1`). */
+const REMOVE = { padding: tokens.space.xs } satisfies ViewStyle;
+/** Tailwind's 2.5 and 1.5 steps, off Bloom's space scale. */
+const SPACE_10 = 10;
+const SPACE_6 = 6;
+/** Add an option: a dashed outline of the row it adds (`flex-row items-center gap-2 py-2.5 px-3 rounded-[10px] border-[1.5px] border-dashed mb-1.5`). */
+const ADD_OPTION = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: tokens.space.sm,
+  paddingVertical: SPACE_10,
+  paddingHorizontal: tokens.space.md,
+  borderRadius: SPACE_10,
+  borderWidth: 1.5,
+  borderStyle: 'dashed',
+  marginBottom: SPACE_6,
+} satisfies ViewStyle;
 
 const styles = StyleSheet.create({
   pollCreator: {

@@ -2,14 +2,20 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import { TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import {
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AccountKind, AvatarCharacter } from '@oxy.so/contracts';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
@@ -48,7 +54,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
   disabled,
 }) => {
   const { t } = useTranslation();
-  const { colors } = useTheme();
+  const colorTokens = useColorTokens();
   const { oxyServices, user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CollaboratorUser[]>([]);
@@ -188,7 +194,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                 Icon(RiSearchLine).size('18').foreground('muted'),
                 Embed(
                   <TextInput
-                    className="flex-1 text-foreground text-[15px]"
+                    style={[SEARCH_INPUT, { color: colorTokens.foreground }]}
                     placeholder={t('collab.searchPlaceholder', {
                       defaultValue: 'Search people to collaborate with',
                     })}
@@ -240,10 +246,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                         : undefined
                     }
                     renderItem={({ item }) => (
-                      <TouchableOpacity
-                        className="flex-row items-center px-3 py-2 gap-3"
-                        onPress={() => addUser(item)}
-                      >
+                      <TouchableOpacity style={RESULT_ROW} onPress={() => addUser(item)}>
                         <AccountAvatar
                           account={item}
                           source={item.avatar}
@@ -280,8 +283,20 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  loadingRow: { padding: 12, alignItems: 'center' },
-});
+/** The search field takes the row's room (`flex-1 text-[15px]`). */
+const SEARCH_INPUT = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  fontSize: 15,
+} satisfies TextStyle;
+/** A result: avatar and names in a row (`flex-row items-center px-3 py-2 gap-3`). */
+const RESULT_ROW = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: tokens.space.md,
+  paddingVertical: tokens.space.sm,
+  gap: tokens.space.md,
+} satisfies ViewStyle;
 
 export default CollaboratorPicker;

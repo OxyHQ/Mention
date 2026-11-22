@@ -147,9 +147,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.contrast50 }]} />
         )}
-        {isUploading && (
-          <View style={styles.uploading}>{toElement(Loading().size('sm'))}</View>
-        )}
+        {isUploading && <View style={styles.uploading}>{toElement(Loading().size('sm'))}</View>}
       </TouchableOpacity>
     );
   };
@@ -254,7 +252,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gifItem: {
-
     flex: 1,
     aspectRatio: 1,
     overflow: 'hidden',

@@ -1,8 +1,7 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import { useMemo, useEffect } from 'react';
-import { Text, TouchableOpacity, ScrollView } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
+import { TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
@@ -20,10 +19,16 @@ import {
   Header,
   Icon,
   RawText,
+  Text as LText,
   TextField,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** A source: its fields stacked in the card (`p-3 gap-2.5`). */
+const SOURCE_CARD = { padding: tokens.space.md, gap: 10 } satisfies ViewStyle;
+/** A remove control's room around its glyph (`p-1`). */
+const REMOVE = { padding: tokens.space.xs } satisfies ViewStyle;
 
 type SourceField = 'title' | 'url';
 
@@ -81,25 +86,29 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
             .label(t('common.close', { defaultValue: 'Close' })),
         )
         .inPage(),
-      Embed(
-        <Text
-          className="text-[13px] text-muted-foreground mt-3 mb-3 px-4"
-          style={{ lineHeight: 18 }}
-        >
-          {t('compose.sources.help', {
-            defaultValue: 'Share links to help readers verify your post.',
-          })}
-        </Text>,
-      ),
-      Embed(
-        hasInvalidSources && (
-          <Text className="text-xs mb-3 px-4" style={{ color: theme.colors.error || '#ff4d4f' }}>
-            {t('compose.sources.linksInvalid', {
+      RawText(
+        t('compose.sources.help', {
+          defaultValue: 'Share links to help readers verify your post.',
+        }),
+      )
+        .font('sm')
+        .foreground('muted')
+        .margin('top', 'md')
+        .margin('bottom', 'md')
+        .padding('horizontal', 'lg')
+        .leading('18px'),
+      hasInvalidSources
+        ? RawText(
+            t('compose.sources.linksInvalid', {
               defaultValue: 'Please fix the highlighted links before posting.',
-            })}
-          </Text>
-        ),
-      ),
+            }),
+          )
+            .font('xs')
+            .leading('16px')
+            .margin('bottom', 'md')
+            .padding('horizontal', 'lg')
+            .foreground('error')
+        : null,
       Embed(
         <ScrollView
           contentContainerStyle={{ paddingBottom: 32 }}
@@ -135,12 +144,10 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                         appearance="outline"
                         elevation="none"
                         radius="radius-12"
-                        className="p-3 gap-2.5"
-                        style={
-                          isUrlInvalid
-                            ? { borderColor: theme.colors.error || '#ff4d4f' }
-                            : undefined
-                        }
+                        style={[
+                          SOURCE_CARD,
+                          isUrlInvalid && { borderColor: theme.colors.error || '#ff4d4f' },
+                        ]}
                       >
                         {toElement(
                           HStack(
@@ -159,7 +166,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                             Embed(
                               <TouchableOpacity
                                 onPress={() => onRemove(source.id)}
-                                className="p-1"
+                                style={REMOVE}
                                 hitSlop={tokens.hitSlop.md}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
@@ -219,21 +226,20 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
           )}
         </ScrollView>,
       ),
-      Embed(
-        sources.length > 0 && (
-          <Button
-            className="mt-3 mx-4"
-            appearance="subtle"
-            tone="neutral"
-            size="lg"
-            leadingIcon={RiAddLine}
-            onPress={onAdd}
-            disabled={!canAddMore}
-          >
-            {t('compose.sources.addAnother', { defaultValue: 'Add another source' })}
-          </Button>
-        ),
-      ),
+      sources.length > 0
+        ? LButton(
+            Icon(RiAddLine),
+            LText(t('compose.sources.addAnother', { defaultValue: 'Add another source' })),
+          )
+            .style('subtle')
+            .tint('neutral')
+            .size('lg')
+            .onPress(onAdd)
+            .disabled(!canAddMore)
+            .margin('horizontal', 'lg')
+            // The web's button never drew its top margin; native's did.
+            .when('native', (v) => v.margin('top', 'md'))
+        : null,
       !canAddMore
         ? RawText(t('compose.sources.limit', { defaultValue: 'You can add up to 5 sources' }))
             .padding('horizontal', 'lg')

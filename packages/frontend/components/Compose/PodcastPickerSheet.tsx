@@ -1,6 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { FlatList, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
@@ -18,6 +18,9 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** The sheet's list stops growing at 340pt (`max-h-[340px]`): the results scroll inside it. */
+const LIST_STYLE = { maxHeight: 340 } satisfies ViewStyle;
 
 interface PodcastSearchResult {
   syraPodcastId: string;
@@ -59,12 +62,15 @@ const PodcastResultRow = memo(function PodcastResultRow({
               transition={120}
             />
           ) : (
-            <View
-              className="rounded-md bg-muted items-center justify-center"
-              style={{ width: 40, height: 40 }}
-            >
-              {toElement(Icon(RiMic2Line).size('md').foreground('muted'))}
-            </View>
+            toElement(
+              VStack(Icon(RiMic2Line).size('md').foreground('muted'))
+                .frame({ width: '4xl', height: '4xl' })
+                .background('mutedFill')
+                // The app's `rounded-md` (its radius less 2px) reached only the web.
+                .when('web', (v) => v.corner('14'))
+                .align('center')
+                .justify('center'),
+            )
           ),
         ),
       ),
@@ -147,7 +153,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
               data={search.results}
               keyExtractor={(item) => item.syraPodcastId}
               renderItem={({ item }) => <PodcastResultRow result={item} onSelect={handleSelect} />}
-              className="max-h-[340px]"
+              style={LIST_STYLE}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               onEndReached={search.loadMore}

@@ -1,6 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
-import { FlatList } from 'react-native';
+import { FlatList, type ViewStyle } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
@@ -12,6 +12,9 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { JobAttachmentData } from '@/hooks/useJobAttachmentManager';
 import { Embed, RawText, Row, VStack, toElement } from '@oxy.so/bloom-language';
+
+/** The sheet's list stops growing at 340pt (`max-h-[340px]`): the jobs scroll inside it. */
+const LIST_STYLE = { maxHeight: 340 } satisfies ViewStyle;
 
 const STATUS_TONE: Record<
   MentionJobStatus,
@@ -137,7 +140,7 @@ const JobPickerSheet = memo(function JobPickerSheet({
                     ),
                 )
               }
-              className="max-h-[340px]"
+              style={LIST_STYLE}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             />

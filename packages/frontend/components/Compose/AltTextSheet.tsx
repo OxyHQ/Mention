@@ -1,14 +1,26 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Text, Image, ScrollView, TouchableOpacity } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
+import { Image, ScrollView, TouchableOpacity, type ImageStyle, type ViewStyle } from 'react-native';
+import { tokens } from '@oxy.so/bloom/styles';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { Textarea } from '@oxy.so/bloom/textarea';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { tokenAlpha, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { describeContentLanguage } from '@/constants/contentLanguages';
-import { Button as LButton, Embed, Header, Icon, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Card as LCard,
+  Embed,
+  Header,
+  Icon,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+
+/** Tailwind's `rounded-full` as it drew: a pill at any size. */
+const ROUNDED_FULL = Number.MAX_SAFE_INTEGER;
 
 /** Matches the backend cap on `content.media[].alt`. */
 const ALT_MAX_LENGTH = 2000;
@@ -52,6 +64,8 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
   onClose,
 }) => {
   const theme = useTheme();
+  const colorTokens = useColorTokens();
+
   const { t } = useTranslation();
 
   const tags = useMemo(
@@ -100,23 +114,35 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text className="text-[13px] text-muted-foreground mt-3 mb-3 px-4" style={helpTextStyle}>
-            {t('compose.altText.help', {
-              defaultValue:
-                'Describe this image for people who are blind or have low vision, and to add context for everyone.',
-            })}
-          </Text>
+          {toElement(
+            RawText(
+              t('compose.altText.help', {
+                defaultValue:
+                  'Describe this image for people who are blind or have low vision, and to add context for everyone.',
+              }),
+            )
+              .font('sm')
+              .foreground('muted')
+              .margin('top', 'md')
+              .margin('bottom', 'md')
+              .padding('horizontal', 'lg')
+              .leading('18px'),
+          )}
 
-          {imageUrl ? (
-            <Card appearance="outline" elevation="none" radius="radius-16" className="mx-4 mb-3">
-              <Image
-                source={{ uri: imageUrl }}
-                className="w-full"
-                style={previewStyle}
-                resizeMode="cover"
-              />
-            </Card>
-          ) : null}
+          {imageUrl
+            ? toElement(
+                LCard(
+                  Embed(
+                    <Image source={{ uri: imageUrl }} style={previewStyle} resizeMode="cover" />,
+                  ),
+                )
+                  .style('outline')
+                  .elevation('none')
+                  .radius('lg')
+                  .margin('horizontal', 'lg')
+                  .margin('bottom', 'md'),
+              )
+            : null}
 
           {tags.length > 1 ? (
             <ScrollView
@@ -142,17 +168,18 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
                     // react-native-web renders as the OPAQUE token — measured here
                     // at contrast 1.00, primary text on primary, the language name
                     // fully invisible.
-                    className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border ${
-                      isActive ? 'bg-primary/10' : ''
-                    }`}
-                    style={{ borderColor: isActive ? theme.colors.primary : theme.colors.border }}
+                    style={[
+                      tabStyle,
+                      isActive && { backgroundColor: tokenAlpha(colorTokens.primary, 0.1) },
+                      { borderColor: isActive ? theme.colors.primary : theme.colors.border },
+                    ]}
                   >
-                    <Text
-                      className={`text-[13px] font-semibold ${isActive ? 'text-primary' : ''}`}
-                      style={isActive ? undefined : { color: theme.colors.textSecondary }}
-                    >
-                      {describeContentLanguage(tag).nativeName}
-                    </Text>
+                    {toElement(
+                      RawText(describeContentLanguage(tag).nativeName)
+                        .font('sm')
+                        .weight('semibold')
+                        .foreground(isActive ? 'primary' : 'muted'),
+                    )}
                     {hasAlt
                       ? toElement(
                           VStack()
@@ -184,11 +211,12 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
           />
         </ScrollView>,
       ),
-      Embed(
-        <Button className="mt-2 mx-4" size="lg" onPress={handleSave}>
-          {t('common.done', { defaultValue: 'Done' })}
-        </Button>,
-      ),
+      LButton(LText(t('common.done', { defaultValue: 'Done' })))
+        .size('lg')
+        .onPress(handleSave)
+        .margin('horizontal', 'lg')
+        // The web's button never drew its top margin; native's did.
+        .when('native', (v) => v.margin('top', 'sm')),
     )
       .padding('bottom', '2xl')
       .background('background')
@@ -197,8 +225,20 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
 };
 
 const scrollContentStyle = { paddingBottom: 24 };
-const helpTextStyle = { lineHeight: 18 };
-const previewStyle = { aspectRatio: 16 / 9 };
+/** Tailwind's `w-full` on the preview, at the picture's own ratio. */
+const previewStyle = { width: '100%', aspectRatio: 16 / 9 } satisfies ImageStyle;
+/** A language tab: a pill of its name (`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border`). */
+/** Tailwind's 1.5 step, off Bloom's space scale. */
+const SPACE_6 = 6;
+const tabStyle = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: SPACE_6,
+  paddingHorizontal: tokens.space.md,
+  paddingVertical: SPACE_6,
+  borderRadius: ROUNDED_FULL,
+  borderWidth: 1,
+} satisfies ViewStyle;
 const textareaStyle = { marginHorizontal: 16 };
 const tabsContentStyle = { gap: 8, paddingHorizontal: 16, paddingBottom: 12 };
 

@@ -19,7 +19,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
-import { Image } from 'react-native';
+import { Image, type ImageStyle } from 'react-native';
 
 import {
   Button as LButton,
@@ -33,6 +33,9 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** The instance's logo (`w-12 h-12`). */
+const LOGO = { width: 48, height: 48 } satisfies ImageStyle;
 
 export default function AboutScreen() {
   const { t } = useTranslation();
@@ -94,7 +97,7 @@ export default function AboutScreen() {
               INSTANCE_LOGO_URL ? (
                 <Image
                   source={{ uri: INSTANCE_LOGO_URL }}
-                  className="w-12 h-12"
+                  style={LOGO}
                   resizeMode="contain"
                   accessibilityLabel={INSTANCE_NAME}
                 />
