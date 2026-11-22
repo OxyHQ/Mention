@@ -11,7 +11,7 @@ import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { AccountBadge } from '@/components/AccountBadge';
 import type { UserNameProps } from '@/components/Profile/types';
 
-import { RawText, toElement } from '@oxy.so/bloom-language';
+import { Embed, RawText, toElement } from '@oxy.so/bloom-language';
 
 const UserName: React.FC<UserNameProps> = ({
   name,
@@ -33,16 +33,19 @@ const UserName: React.FC<UserNameProps> = ({
   handleTrailing,
 }) => {
   const theme = useTheme();
-  const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
+  const nameStyle = [
+    { color: theme.colors.text },
+    styles.name,
+    variant === 'small' && styles.nameSmall,
+    style?.name,
+  ];
 
   // Opt-in centered layout (default `'start'` keeps every existing caller
   // byte-unchanged): center the name row + handle line for a stacked, centered
-  // profile header. All alignment is expressed via NativeWind classes.
+  // profile header. What the classes drew comes first, the caller's style after.
   const isCentered = align === 'center';
-  const nameRowClassName = isCentered ? 'gap-1 justify-center' : 'gap-1';
-  const handleClassName = isCentered
-    ? 'text-muted-foreground text-center'
-    : 'text-muted-foreground';
+  const handleInk = { color: theme.colors.textSecondary };
+  const handleLook = isCentered ? [handleInk, styles.centeredText] : handleInk;
 
   const handleCopyHandle = useCallback(async () => {
     if (!handle) return;
@@ -89,8 +92,7 @@ const UserName: React.FC<UserNameProps> = ({
       const { marginBottom: handleMarginBottom, ...handleTextStyle } = flatHandle;
       const handleText = (
         <Text
-          className={handleClassName}
-          style={[handleTextStyle, styles.handleShrink]}
+          style={[handleLook, handleTextStyle, styles.handleShrink]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
@@ -99,8 +101,8 @@ const UserName: React.FC<UserNameProps> = ({
       );
       handleLineNode = (
         <View
-          className={isCentered ? 'gap-2 justify-center' : 'gap-2'}
           style={[
+            isCentered ? styles.trailingGapCentered : styles.trailingGap,
             styles.handleTrailingRow,
             handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null,
           ]}
@@ -123,8 +125,7 @@ const UserName: React.FC<UserNameProps> = ({
       handleLineNode = (
         <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
           <Text
-            className={handleClassName}
-            style={[styles.handle, style?.handle]}
+            style={[handleLook, styles.handle, style?.handle]}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
@@ -135,8 +136,7 @@ const UserName: React.FC<UserNameProps> = ({
     } else {
       handleLineNode = (
         <Text
-          className={handleClassName}
-          style={[styles.handle, style?.handle]}
+          style={[handleLook, styles.handle, style?.handle]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
@@ -153,33 +153,36 @@ const UserName: React.FC<UserNameProps> = ({
   // name inside a pressable row must not also press the row.
   const nameText = (
     <Text
-      className="text-foreground"
       style={nameStyle}
       numberOfLines={1}
       ellipsizeMode="tail"
       role={asHeading ? 'heading' : undefined}
     >
-      {href ? (
-        <Link
-          href={href}
-          push
-          asChild
-          onPress={(event) => {
-            event.stopPropagation();
-            onPress?.();
-          }}
-        >
-          {toElement(RawText(primaryText))}
-        </Link>
-      ) : (
-        primaryText
-      )}
+      {href
+        ? // The link's child is the text's own host (Embed's render), so `asChild` hands it the
+          // href, role and press: a boundary component in between would drop them.
+          toElement(
+            Embed((render) => (
+              <Link
+                href={href}
+                push
+                asChild
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onPress?.();
+                }}
+              >
+                {render(RawText(primaryText))}
+              </Link>
+            )),
+          )
+        : primaryText}
     </Text>
   );
 
   const inner = (
     <>
-      <View className={nameRowClassName} style={styles.nameRow}>
+      <View style={[isCentered ? styles.nameGapCentered : styles.nameGap, styles.nameRow]}>
         {primaryText != null && nameText}
         {/* The badge is always VERIFIED_BADGE_COLOR, never a theme role. It used to take
                     `text-primary`, which a profile scopes to the PROFILE OWNER's
@@ -231,16 +234,18 @@ const UserName: React.FC<UserNameProps> = ({
   );
 
   return (
-    <View
-      className={isCentered ? 'items-center' : undefined}
-      style={[styles.container, style?.container]}
-    >
-      {inner}
-    </View>
+    <View style={[isCentered && styles.centered, styles.container, style?.container]}>{inner}</View>
   );
 };
 
 const styles = StyleSheet.create({
+  // What the alignment classes drew (`items-center`, `gap-1`, `gap-2`, `justify-center`, `text-center`).
+  centered: { alignItems: 'center' },
+  centeredText: { textAlign: 'center' },
+  nameGap: { gap: 4 },
+  nameGapCentered: { gap: 4, justifyContent: 'center' },
+  trailingGap: { gap: 8 },
+  trailingGapCentered: { gap: 8, justifyContent: 'center' },
   container: {
     flexDirection: 'column',
     minWidth: 0,

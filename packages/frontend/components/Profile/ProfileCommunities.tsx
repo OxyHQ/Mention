@@ -1,10 +1,27 @@
 import { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Image } from 'react-native';
+import { Image, type ImageStyle, TouchableOpacity, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCommunitiesProps, Community } from './types';
 
-import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, RawText, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+
+/** A community's icon is a 100pt square. */
+const card = defineTokens({ space: { icon: 100 } });
+// What the classes drew, as plain objects (inline, as the classes were).
+const ICON_IMAGE_STYLE: ImageStyle = {
+  flexGrow: 1,
+  flexShrink: 1,
+  flexBasis: '0%',
+  overflow: 'hidden',
+};
+const VIEW_BUTTON_STYLE: ViewStyle = {
+  alignSelf: 'center',
+  width: '100%',
+  marginTop: 10,
+  paddingHorizontal: 16,
+  paddingVertical: 6,
+};
 
 /**
  * Profile communities section
@@ -49,17 +66,20 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
   return toElement(
     VStack(
       HStack(
-        Embed(
-          community.icon && (
-            <View className="rounded-lg overflow-hidden" style={{ width: 100, height: 100 }}>
-              <Image
-                source={{ uri: community.icon }}
-                resizeMode="cover"
-                className="flex-1 overflow-hidden"
-              />
-            </View>
-          ),
-        ),
+        community.icon
+          ? VStack(
+              Embed(
+                <Image
+                  source={{ uri: community.icon }}
+                  resizeMode="cover"
+                  style={ICON_IMAGE_STYLE}
+                />,
+              ),
+            )
+              .frame({ width: card.space.icon, height: card.space.icon })
+              .corner('lg')
+              .clipped()
+          : null,
         VStack(
           RawText(community.name)
             .foreground('foreground')
@@ -67,48 +87,42 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
             .leading('normal')
             .weight('bold')
             .margin('bottom', 'xs'),
-          Embed(
-            community.description && (
-              <Text className="text-muted-foreground text-sm mb-2" style={{ lineHeight: 18 }}>
-                {community.description}
-              </Text>
-            ),
-          ),
-          Embed(
-            community.memberCount &&
-              toElement(
-                HStack(
-                  RawText(
-                    t('profile.memberCount', {
-                      count: community.memberCount,
-                      defaultValue: `${community.memberCount} Members`,
-                    }),
-                  )
-                    .foreground('muted')
-                    .font('sm'),
+          community.description
+            ? RawText(community.description)
+                .foreground('muted')
+                .font('14')
+                .leading('18px')
+                .margin('bottom', 'sm')
+            : null,
+          community.memberCount
+            ? HStack(
+                RawText(
+                  t('profile.memberCount', {
+                    count: community.memberCount,
+                    defaultValue: `${community.memberCount} Members`,
+                  }),
                 )
-                  .align('center')
-                  .margin('bottom', 'md'),
-              ),
-          ),
+                  .foreground('muted')
+                  .font('sm'),
+              )
+                .align('center')
+                .margin('bottom', 'md')
+            : null,
         ).flex('1'),
       )
         .margin('bottom', 'md')
         .spacing('md'),
-      Embed(
-        <TouchableOpacity
-          className="self-center w-full mt-2.5 px-4 py-1.5"
-          onPress={handleViewPress}
-        >
-          {toElement(
+      Embed((render) => (
+        <TouchableOpacity style={VIEW_BUTTON_STYLE} onPress={handleViewPress}>
+          {render(
             RawText(t('profile.view'))
               .foreground('primary')
               .font('md')
               .weight('semibold')
               .textAlign('center'),
           )}
-        </TouchableOpacity>,
-      ),
+        </TouchableOpacity>
+      )),
     )
       .padding('all', 'md')
       .background('mutedFill')
