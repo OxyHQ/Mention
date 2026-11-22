@@ -4,7 +4,7 @@ import { createTokenStyles } from '@oxy.so/bloom/theme';
 import PollCard from '../PollCard';
 import { IS_DEVELOPMENT } from '@/config';
 
-import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const webGrabCursorStyle: ViewStyle | null =
   Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
@@ -23,10 +23,20 @@ const styles = StyleSheet.create({
   cell: { width: 280 },
 });
 
-// The static fallbacks' frame: a 15pt corner, which no corner token has.
+// The static fallbacks' frame (a 15pt corner, which no corner token has) and
+// their option rows: React Native's views over one token style, as the row-cost
+// harness mounts a poll row (a language stack per option is a component more).
 const useFrameStyles = createTokenStyles((t) => ({
   frame: { borderWidth: 1, borderColor: t.border, borderRadius: 15, overflow: 'hidden' },
   missing: { backgroundColor: t.muted, padding: 16, borderRadius: 15 },
+  option: {
+    backgroundColor: t.card,
+    borderWidth: 1,
+    borderColor: t.border,
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
 }));
 
 const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({
@@ -58,14 +68,12 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({
               .leading('normal')
               .weight('bold')
               .margin('bottom', 'md'),
-            pollData.options?.map((option: string, optIdx: number) =>
-              VStack(RawText(option).foreground('foreground').font('14').leading('20px'))
-                .padding('all', 'md')
-                .background('card')
-                .border('border', 'thin')
-                .corner('lg')
-                .margin('bottom', 'sm')
-                .id(optIdx),
+            Embed(
+              pollData.options?.map((option: string, optIdx: number) => (
+                <View key={optIdx} style={frameStyles.option}>
+                  {toElement(RawText(option).foreground('foreground').font('14').leading('20px'))}
+                </View>
+              )),
             ),
           )
             .padding('all', 'lg')

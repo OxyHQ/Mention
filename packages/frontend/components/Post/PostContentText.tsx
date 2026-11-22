@@ -11,8 +11,8 @@ import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostTextExpansion } from '@/hooks/useExpandableText';
 import { type PostLinkCard, withoutCardLinks } from '@/utils/postLinkCards';
 import { useTranslation } from 'react-i18next';
-
-import { Embed, RawText, toElement } from '@oxy.so/bloom-language';
+import { Text } from 'react-native';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface Props {
   content?: string | PostContent;
@@ -69,6 +69,7 @@ const PostContentText: React.FC<Props> = ({
   );
   const expandInline = postReadMoreAction === 'expandInline';
   const expansion = usePostTextExpansion(postId);
+  const bodyStyles = useBodyStyles();
   // Only the inline-expand setting shows a body expanded; turning it off folds
   // every post back without forgetting which ones the reader opened.
   const isExpanded = expandInline && expansion.isExpanded;
@@ -88,38 +89,42 @@ const PostContentText: React.FC<Props> = ({
     ) : null;
 
   // The body's text: the markdown's runs (links and mentions among them) as
-  // spans of one React Native text, in the larger reading size on a detail page.
-  return toElement(
-    RawText(
-      Embed(
-        <InlineMarkdown
-          nodes={isExpanded ? parsed.nodes : preview.nodes}
-          onLinkPress={openExternalLink}
-          renderText={(text) => <LinkifiedText inline text={text} />}
-          renderLink={({ url, label, children }) => {
-            const mention = postMentionForLink(parsed.mentions, url, label);
-            return mention ? (
-              <MentionTextLink
-                destination={mention.value}
-                label={children}
-                unverified={mention.unverified}
-              />
-            ) : undefined;
-          }}
-          suffix={
-            <>
-              {suffix}
-              {trailingContent}
-            </>
-          }
-        />,
-      ),
-    )
-      .foreground('foreground')
-      .font(detail ? 'lg' : 'md')
-      .leading(detail ? '22px' : '20px'),
+  // spans of one React Native text, in the larger reading size on a detail
+  // page. React Native's Text over one token style rather than a language
+  // text: the feed's hottest leaf, it reads the theme once and adds no
+  // component to the row.
+  return (
+    <Text style={detail ? bodyStyles.detail : bodyStyles.body}>
+      <InlineMarkdown
+        nodes={isExpanded ? parsed.nodes : preview.nodes}
+        onLinkPress={openExternalLink}
+        renderText={(text) => <LinkifiedText inline text={text} />}
+        renderLink={({ url, label, children }) => {
+          const mention = postMentionForLink(parsed.mentions, url, label);
+          return mention ? (
+            <MentionTextLink
+              destination={mention.value}
+              label={children}
+              unverified={mention.unverified}
+            />
+          ) : undefined;
+        }}
+        suffix={
+          <>
+            {suffix}
+            {trailingContent}
+          </>
+        }
+      />
+    </Text>
   );
 };
+
+// The body in the foreground ink: 15/20, or 17/22 on a detail page.
+const useBodyStyles = createTokenStyles((t) => ({
+  body: { color: t.foreground, fontSize: 15, lineHeight: 20 },
+  detail: { color: t.foreground, fontSize: 17, lineHeight: 22 },
+}));
 
 /** The truncated body's continuation link, after its last word. */
 const READ_MORE = ' Read more';
