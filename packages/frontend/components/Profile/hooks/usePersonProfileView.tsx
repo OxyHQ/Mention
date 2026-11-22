@@ -5,14 +5,12 @@ import { useOpenInAllo } from '@/hooks/useOpenInAllo';
 import { alloDirectMessageLinks } from '@oxy.so/allo-sdk/links';
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
-import { Text, View } from 'react-native';
 import type { Href } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { FollowButton as OxyFollowButton } from '@/components/FollowButton';
 import type { FeedType } from '@mention/shared-types';
-import { Badge } from '@oxy.so/bloom/badge';
 
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiFlowerLine } from '@oxy.so/bloom/icons/RiFlowerLine';
@@ -70,6 +68,17 @@ import { useOperatesAccount } from './useOperatesAccount';
 import { useJustFollowed } from './useJustFollowed';
 import { useSubscription } from './useSubscription';
 import { schemaOrgEntityType } from '@/lib/profileSchemaOrg';
+
+import {
+  Badge as LBadge,
+  Button as LButton,
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** Feed types cleared from the local store when a profile turns out to be private. */
 const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts', 'mentions'];
@@ -429,13 +438,22 @@ export function usePersonProfileView({
     // Passive "Follows you" tag inline to the right of the @handle when this
     // profile follows the viewer. Never shown on the viewer's own profile.
     const followsYouTag =
-      !isOwnProfile && currentUser?.id && profileData.followsYou ? (
-        <View className="bg-muted px-2 py-0.5 rounded-full">
-          <Text className="text-muted-foreground text-xs font-medium" numberOfLines={1}>
-            {t('profile.followsYou', { defaultValue: 'Follows you' })}
-          </Text>
-        </View>
-      ) : undefined;
+      !isOwnProfile && currentUser?.id && profileData.followsYou
+        ? toElement(
+            VStack(
+              RawText(t('profile.followsYou', { defaultValue: 'Follows you' }))
+                .foreground('muted')
+                .font('xs')
+                .leading('16px')
+                .weight('medium')
+                .lines(1),
+            )
+              .padding('horizontal', 'sm')
+              .padding('vertical', '2xs')
+              .background('mutedFill')
+              .corner('infinite'),
+          )
+        : undefined;
     return (
       <>
         <ProfileHeader
@@ -490,80 +508,97 @@ export function usePersonProfileView({
             ) : undefined
           }
         />
-        <View>
-          <UserName
-            name={profileData.design.displayName}
-            handle={profileData.username}
-            verified={profileData.verified}
-            isFederated={profileData.isFederated}
-            kind={profileData.kind}
-            // The profile is the ONE surface that opts the marker in: a reader
-            // here has room for the answer, and the identity line is not itself
-            // a link to somewhere else.
-            onExplainNetwork={showFediverseInfo}
-            copyableHandle
-            asHeading
-            variant="default"
-            style={userNameStyle}
-            handleTrailing={followsYouTag}
-          />
-          {/* Non-personal accounts route here too — an organization, a project
-              or a bot is a `person`-FAMILY url (only `channel` gets `/c/`), and
-              all four kinds carry categories. A personal account never has any,
-              so this renders nothing for the overwhelming majority of
-              profiles. */}
-          <AccountCategoryLine accountCategories={profileData.accountCategories} align="start" />
-          {/* A community's page is a remote profile like any other; this says
-              what it is — a forum its members post into, which the follow
-              button joins. */}
-          {profileData.kind === 'community' && (
-            <View className="flex-row mb-3">
-              <Badge
-                content={t('profile.communityLabel')}
-                icon={RiGroupLine}
-                size="label-small"
-                variant="subtle"
-              />
-            </View>
-          )}
-          {/* A community takes posts from here, hosted here or remote; one hosted
-              here also says who moderates it. */}
-          {communitiesPreview && profileData.kind === 'community' && profileData.id && (
-            <CommunityPanel
-              communityId={profileData.id}
-              username={profileData.username}
-              hosted={isMentionCommunity(profileData)}
-            />
-          )}
-          {profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />}
-          {/* What a federated account's origin says about it: kept in memory of
-              someone who died, or approving each follower. */}
-          {(profileData.memorial || profileData.locked) && (
-            <View className="flex-row flex-wrap gap-2 mb-3">
-              {profileData.memorial && (
-                <Badge
-                  content={t('profile.memorial')}
-                  icon={RiFlowerLine}
-                  size="label-small"
-                  variant="subtle"
+        {toElement(
+          VStack(
+            Embed(
+              <UserName
+                name={profileData.design.displayName}
+                handle={profileData.username}
+                verified={profileData.verified}
+                isFederated={profileData.isFederated}
+                kind={profileData.kind}
+                // The profile is the ONE surface that opts the marker in: a reader
+                // here has room for the answer, and the identity line is not itself
+                // a link to somewhere else.
+                onExplainNetwork={showFediverseInfo}
+                copyableHandle
+                asHeading
+                variant="default"
+                style={userNameStyle}
+                handleTrailing={followsYouTag}
+              />,
+            ),
+            /* Non-personal accounts route here too — an organization, a project
+                      or a bot is a `person`-FAMILY url (only `channel` gets `/c/`), and
+                      all four kinds carry categories. A personal account never has any,
+                      so this renders nothing for the overwhelming majority of
+                      profiles. */ Embed(
+              <AccountCategoryLine
+                accountCategories={profileData.accountCategories}
+                align="start"
+              />,
+            ),
+            /* A community's page is a remote profile like any other; this says
+                      what it is — a forum its members post into, which the follow
+                      button joins. */ profileData.kind === 'community'
+              ? HStack(
+                  LBadge(t('profile.communityLabel'))
+                    .icon(RiGroupLine)
+                    .size('label-small')
+                    .style('subtle'),
+                ).margin('bottom', 'md')
+              : null,
+            /* A community takes posts from here, hosted here or remote; one hosted
+                      here also says who moderates it. */ Embed(
+              communitiesPreview && profileData.kind === 'community' && profileData.id && (
+                <CommunityPanel
+                  communityId={profileData.id}
+                  username={profileData.username}
+                  hosted={isMentionCommunity(profileData)}
                 />
-              )}
-              {profileData.locked && (
-                <Badge
-                  content={t('profile.locked')}
-                  icon={RiLockLine}
-                  size="label-small"
-                  variant="subtle"
-                />
-              )}
-            </View>
-          )}
-          {isPrivate && (
-            <View className="flex-row items-center gap-2 flex-wrap">
-              <PrivateBadge privacySettings={profileData.privacy} />
-            </View>
-          )}
-        </View>
+              ),
+            ),
+            Embed(profileData.movedTo && <ProfileMovedNotice movedTo={profileData.movedTo} />),
+            /* What a federated account's origin says about it: kept in memory of
+                      someone who died, or approving each follower. */ Embed(
+              (profileData.memorial || profileData.locked) &&
+                toElement(
+                  HStack(
+                    Embed(
+                      profileData.memorial &&
+                        toElement(
+                          LBadge(t('profile.memorial'))
+                            .icon(RiFlowerLine)
+                            .size('label-small')
+                            .style('subtle'),
+                        ),
+                    ),
+                    Embed(
+                      profileData.locked &&
+                        toElement(
+                          LBadge(t('profile.locked'))
+                            .icon(RiLockLine)
+                            .size('label-small')
+                            .style('subtle'),
+                        ),
+                    ),
+                  )
+                    .wrap()
+                    .spacing('sm')
+                    .margin('bottom', 'md'),
+                ),
+            ),
+            Embed(
+              isPrivate &&
+                toElement(
+                  HStack(Embed(<PrivateBadge privacySettings={profileData.privacy} />))
+                    .align('center')
+                    .spacing('sm')
+                    .wrap(),
+                ),
+            ),
+          ),
+        )}
       </>
     );
   }, [
@@ -585,28 +620,32 @@ export function usePersonProfileView({
 
   const summary = useMemo(() => {
     if (!profileData) return null;
-    return (
-      <View>
-        <ProfileContent
-          profileData={profileData}
-          isOwnProfile={isOwnProfile}
-          isPrivate={isPrivate}
-          followingCount={followingCount}
-          followerCount={followerCount}
-          reputationTotal={reputationTotal}
-          profileHandle={handle}
-          identity={identity}
-          showReplies={profileTabsForAccountKind(profileData.kind).includes('replies')}
-          aboutHref={`/@${handle}/about`}
-          followingHref={`/@${handle}/following`}
-          followersHref={`/@${handle}/followers`}
-          onPostsPress={handlePostsPress}
-          onBoostsPress={handleBoostsPress}
-          onRepliesPress={handleRepliesPress}
-          onLayout={chrome.setContentHeight}
-        />
-        {!isOwnProfile && <SuggestedUsers visible={justFollowed} sourceUserId={profileData.id} />}
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <ProfileContent
+            profileData={profileData}
+            isOwnProfile={isOwnProfile}
+            isPrivate={isPrivate}
+            followingCount={followingCount}
+            followerCount={followerCount}
+            reputationTotal={reputationTotal}
+            profileHandle={handle}
+            identity={identity}
+            showReplies={profileTabsForAccountKind(profileData.kind).includes('replies')}
+            aboutHref={`/@${handle}/about`}
+            followingHref={`/@${handle}/following`}
+            followersHref={`/@${handle}/followers`}
+            onPostsPress={handlePostsPress}
+            onBoostsPress={handleBoostsPress}
+            onRepliesPress={handleRepliesPress}
+            onLayout={chrome.setContentHeight}
+          />,
+        ),
+        Embed(
+          !isOwnProfile && <SuggestedUsers visible={justFollowed} sourceUserId={profileData.id} />,
+        ),
+      ),
     );
   }, [
     chrome.setContentHeight,
@@ -626,51 +665,58 @@ export function usePersonProfileView({
 
   const headerActions = (
     <>
-      {!isOwnProfile && profileData && (
-        <Button
-          appearance="outline"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiSparklingLine}
-          onPress={() => askAlia(undefined, { text: t('profile.askAlia.prompt', { handle }) })}
-          accessibilityLabel={t('profile.actions.askAlia', {
-            handle,
-            defaultValue: 'Ask Alia about @{{handle}}',
-          })}
-        />
-      )}
-      <Button.Group testID="profile-header-actions">
-        {isFederated && (
-          <Button
-            iconOnly
-            leadingIcon={RiExternalLinkLine}
-            onPress={handleOpenOnInstance}
-            accessibilityLabel={t('profile.actions.openOnInstance', {
-              handle,
-              defaultValue: 'Open @{{handle}} on their home instance',
-            })}
-          />
+      {!isOwnProfile &&
+        profileData &&
+        toElement(
+          LButton(Icon(RiSparklingLine))
+            .shape('circle')
+            .style('outline')
+            .tint('neutral')
+            .onPress(() => askAlia(undefined, { text: t('profile.askAlia.prompt', { handle }) }))
+            .label(
+              t('profile.actions.askAlia', {
+                handle,
+                defaultValue: 'Ask Alia about @{{handle}}',
+              }),
+            ),
         )}
+      <Button.Group testID="profile-header-actions">
+        {isFederated &&
+          toElement(
+            LButton(Icon(RiExternalLinkLine))
+              .shape('circle')
+              .onPress(handleOpenOnInstance)
+              .label(
+                t('profile.actions.openOnInstance', {
+                  handle,
+                  defaultValue: 'Open @{{handle}} on their home instance',
+                }),
+              ),
+          )}
 
-        <Button
-          iconOnly
-          leadingIcon={RiUpload2Line}
-          onPress={handleShare}
-          accessibilityLabel={t('profile.actions.share', {
-            handle,
-            defaultValue: "Share @{{handle}}'s profile",
-          })}
-        />
+        {toElement(
+          LButton(Icon(RiUpload2Line))
+            .shape('circle')
+            .onPress(handleShare)
+            .label(
+              t('profile.actions.share', {
+                handle,
+                defaultValue: "Share @{{handle}}'s profile",
+              }),
+            ),
+        )}
         {!isOwnProfile && canUsePrivateApi && (
           <ProfileMoreMenu profileData={profileData} viewerOperatesAccount={operatesThisAccount}>
-            <Button
-              iconOnly
-              leadingIcon={RiMoreFill}
-              accessibilityLabel={t('profile.actions.more', {
-                handle,
-                defaultValue: 'More options for @{{handle}}',
-              })}
-            />
+            {toElement(
+              LButton(Icon(RiMoreFill))
+                .shape('circle')
+                .label(
+                  t('profile.actions.more', {
+                    handle,
+                    defaultValue: 'More options for @{{handle}}',
+                  }),
+                ),
+            )}
           </ProfileMoreMenu>
         )}
       </Button.Group>

@@ -11,6 +11,8 @@ import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { AccountBadge } from '@/components/AccountBadge';
 import type { UserNameProps } from '@/components/Profile/types';
 
+import { RawText, toElement } from '@oxy.so/bloom-language';
+
 const UserName: React.FC<UserNameProps> = ({
   name,
   handle,
@@ -167,7 +169,7 @@ const UserName: React.FC<UserNameProps> = ({
             onPress?.();
           }}
         >
-          <Text>{primaryText}</Text>
+          {toElement(RawText(primaryText))}
         </Link>
       ) : (
         primaryText

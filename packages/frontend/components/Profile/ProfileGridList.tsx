@@ -5,6 +5,8 @@ import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import { VirtualList } from '@oxy.so/bloom/list';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
 
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
 export type {
   ProfileGridEntry,
   ProfileGridListProps,
@@ -114,7 +116,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   const renderVirtualizedRow = useCallback(
     ({ item }: { item: ProfileGridRow<T> }) => {
       if (item.kind === 'auxiliary') {
-        return <View className="w-full">{item.element}</View>;
+        return toElement(VStack(Embed(item.element)).frame({ width: 'full' }));
       }
       return (
         <View

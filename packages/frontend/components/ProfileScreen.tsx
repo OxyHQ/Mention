@@ -1,10 +1,9 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter, Redirect, type Href } from '@/lib/navigation/router';
-
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+
 import {
   ProfileShell,
   ProfileTabBarRow,
@@ -13,6 +12,7 @@ import {
   type ProfileScreenProps,
   type ProfileTabDescriptor,
 } from './Profile';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * ONE PERSON's profile page, at `/@<handle>` — the NATIVE composition.
@@ -110,22 +110,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 stacking context and trap the sticky header chrome below the
                 panel's bleed-mask/border overlays (see ProfileShell's root for
                 the full rationale). No effect on native. */}
-      <View className="flex-1 web:z-auto">
-        {view.seo}
-        <ProfileShell
-          chrome={view.chrome}
-          loading={view.loading}
-          profileData={view.profileData}
-          notFound={view.notFound}
-          onRetry={view.refresh}
-          banner={{ uri: view.bannerUri }}
-          headerActions={view.headerActions}
-          summary={view.summary}
-          tabBar={tabBar}
-          tabs={view.tabs}
-          isRootTab={isRootTab}
-        />
-      </View>
+      {toElement(
+        VStack(
+          Embed(view.seo),
+          Embed(
+            <ProfileShell
+              chrome={view.chrome}
+              loading={view.loading}
+              profileData={view.profileData}
+              notFound={view.notFound}
+              onRetry={view.refresh}
+              banner={{ uri: view.bannerUri }}
+              headerActions={view.headerActions}
+              summary={view.summary}
+              tabBar={tabBar}
+              tabs={view.tabs}
+              isRootTab={isRootTab}
+            />,
+          ),
+        )
+          .flex('1')
+          .when('web', (v) => v.zIndex('auto')),
+      )}
     </>
   );
 };

@@ -13,6 +13,8 @@ import {
 } from './ProfilePageHeader';
 import { LAYOUT } from './types';
 
+import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
+
 /**
  * Loading skeleton for the profile screen.
  *
@@ -79,66 +81,94 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
     return (
       <Skeleton.Region className="w-full">
         <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
-          <View className="px-4 pb-4">
-            {/* Centred masthead — avatar, then name, then handle. The margins
-                are `ChannelHeader`'s own: the name Text carries `marginTop: 12,
-                marginBottom: 4` and the handle sits straight under it, so the
-                placeholders repeat those as `mt-3` / `mb-1` rather than a
-                rhythm of their own.
-                Each bar is drawn SHORTER than the line it stands in — a
-                full-height slab reads as a block, not a line — so it is centred
-                inside a wrapper of the line's TRUE height: `h-7` (28px) for the
-                24px display name, `h-5` (20px) for the 15px/20 handle. Measured
-                in a browser: without the wrappers the masthead came out 12px
-                short and everything below it, the follow control and the tab
-                strip included, sat 12px high and jumped when the data landed —
-                which is the exact defect a skeleton exists to prevent. */}
-            <View className="items-center w-full">
-              <Skeleton.Circle
-                size={CHANNEL_AVATAR_SIZE}
-                style={{ borderWidth: CHANNEL_AVATAR_RING, borderColor: surfaceFill }}
-              />
-              <View className="mt-3 mb-1 h-7 justify-center">
-                <Skeleton.Box width={180} height={22} borderRadius={6} />
-              </View>
-              <View className="h-5 justify-center">
-                <Skeleton.Box width={110} height={14} borderRadius={6} />
-              </View>
-            </View>
+          {toElement(
+            VStack(
+              /* Centred masthead — avatar, then name, then handle. The margins
+                          are `ChannelHeader`'s own: the name Text carries `marginTop: 12,
+                          marginBottom: 4` and the handle sits straight under it, so the
+                          placeholders repeat those as `mt-3` / `mb-1` rather than a
+                          rhythm of their own.
+                          Each bar is drawn SHORTER than the line it stands in — a
+                          full-height slab reads as a block, not a line — so it is centred
+                          inside a wrapper of the line's TRUE height: `h-7` (28px) for the
+                          24px display name, `h-5` (20px) for the 15px/20 handle. Measured
+                          in a browser: without the wrappers the masthead came out 12px
+                          short and everything below it, the follow control and the tab
+                          strip included, sat 12px high and jumped when the data landed —
+                          which is the exact defect a skeleton exists to prevent. */ VStack(
+                Embed(
+                  <Skeleton.Circle
+                    size={CHANNEL_AVATAR_SIZE}
+                    style={{ borderWidth: CHANNEL_AVATAR_RING, borderColor: surfaceFill }}
+                  />,
+                ),
+                VStack(Embed(<Skeleton.Box width={180} height={22} borderRadius={6} />))
+                  .frame({ height: '28' })
+                  .margin('top', 'md')
+                  .margin('bottom', 'xs')
+                  .justify('center'),
+                VStack(Embed(<Skeleton.Box width={110} height={14} borderRadius={6} />))
+                  .frame({ height: 'xl' })
+                  .justify('center'),
+              )
+                .frame({ width: 'full' })
+                .align('center'),
+              /* Follow button — the whole action row, and the last element of the
+                          centred masthead; a channel has no poke and no self view. */ HStack(
+                Embed(<Skeleton.Box width={92} height={36} borderRadius={999} />),
+              )
+                .margin('top', 'lg')
+                .margin('bottom', 'lg')
+                .justify('center'),
+              VStack(
+                Embed(<Skeleton.Box width="92%" height={14} borderRadius={6} />),
+                Embed(<Skeleton.Box width="78%" height={14} borderRadius={6} />),
+              )
+                .margin('bottom', 'md')
+                .spacing('sm'),
+              Embed(
+                <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
+                  <Skeleton.Box width={110} height={15} borderRadius={6} />
+                  <Skeleton.Box width={150} height={15} borderRadius={6} />
+                </View>,
+              ),
+              Embed(
+                <View className="flex-row flex-wrap gap-x-4 gap-y-2">
+                  {CHANNEL_STAT_CHIP_WIDTHS.map((width, index) => (
+                    <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
+                  ))}
+                </View>,
+              ),
+            )
+              .padding('horizontal', 'lg')
+              .padding('bottom', 'lg'),
+          )}
 
-            {/* Follow button — the whole action row, and the last element of the
-                centred masthead; a channel has no poke and no self view. */}
-            <View className="mt-4 mb-4 flex-row justify-center">
-              <Skeleton.Box width={92} height={36} borderRadius={999} />
-            </View>
-
-            <View className="mb-3 gap-2">
-              <Skeleton.Box width="92%" height={14} borderRadius={6} />
-              <Skeleton.Box width="78%" height={14} borderRadius={6} />
-            </View>
-
-            <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
-              <Skeleton.Box width={110} height={15} borderRadius={6} />
-              <Skeleton.Box width={150} height={15} borderRadius={6} />
-            </View>
-
-            <View className="flex-row flex-wrap gap-x-4 gap-y-2">
-              {CHANNEL_STAT_CHIP_WIDTHS.map((width, index) => (
-                <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
-              ))}
-            </View>
-          </View>
-
-          <View className="border-b border-border flex-row">
-            {CHANNEL_TAB_CHIP_WIDTHS.map((width, index) => (
-              <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
-                <Skeleton.Box width={width} height={14} borderRadius={6} />
-                {index === 0 && (
-                  <View className="absolute bottom-0 left-3 right-3 h-0.5 rounded-t bg-primary" />
-                )}
-              </View>
-            ))}
-          </View>
+          {toElement(
+            HStack(
+              Embed(
+                CHANNEL_TAB_CHIP_WIDTHS.map((width, index) =>
+                  toElement(
+                    VStack(
+                      Embed(<Skeleton.Box width={width} height={14} borderRadius={6} />),
+                      index === 0
+                        ? VStack()
+                            .frame({ height: '2xs' })
+                            .background('primary')
+                            .corner('xs', 'top')
+                            .position({ bottom: 'none', left: 'md', right: 'md' })
+                        : null,
+                    )
+                      .padding('vertical', '10')
+                      .padding('horizontal', 'md')
+                      .frame({ minWidth: '5xl' })
+                      .align('center'),
+                    index,
+                  ),
+                ),
+              ),
+            ).border('border', 'thin', 'bottom'),
+          )}
 
           <FeedSkeleton count={FEED_ROW_COUNT} />
         </View>
@@ -162,30 +192,48 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
         }}
       >
         {/* Header row: avatar rising into the banner + action placeholders. */}
-        <View className="flex-row justify-between items-end mb-2.5">
-          <Skeleton.Circle
-            size={AVATAR_SIZE}
-            style={{ borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill }}
-          />
-          <View className="flex-row items-center gap-3">
-            <Skeleton.Box width={92} height={36} borderRadius={999} />
-            <Skeleton.Circle size={40} />
-          </View>
-        </View>
+        {toElement(
+          HStack(
+            Embed(
+              <Skeleton.Circle
+                size={AVATAR_SIZE}
+                style={{ borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill }}
+              />,
+            ),
+            HStack(
+              Embed(<Skeleton.Box width={92} height={36} borderRadius={999} />),
+              Embed(<Skeleton.Circle size={40} />),
+            )
+              .align('center')
+              .spacing('md'),
+          )
+            .justify('between')
+            .align('end')
+            .margin('bottom', '10'),
+        )}
 
         {/* Display name (fontSize 24) + handle (fontSize 15). */}
-        <View className="mt-2.5 mb-1">
-          <Skeleton.Box width="55%" height={22} borderRadius={6} />
-        </View>
-        <View className="mb-3">
-          <Skeleton.Box width="32%" height={14} borderRadius={6} />
-        </View>
+        {toElement(
+          VStack(Embed(<Skeleton.Box width="55%" height={22} borderRadius={6} />))
+            .margin('top', '10')
+            .margin('bottom', 'xs'),
+        )}
+        {toElement(
+          VStack(Embed(<Skeleton.Box width="32%" height={14} borderRadius={6} />)).margin(
+            'bottom',
+            'md',
+          ),
+        )}
 
         {/* Bio (two lines). */}
-        <View className="mb-3 gap-2">
-          <Skeleton.Box width="92%" height={14} borderRadius={6} />
-          <Skeleton.Box width="78%" height={14} borderRadius={6} />
-        </View>
+        {toElement(
+          VStack(
+            Embed(<Skeleton.Box width="92%" height={14} borderRadius={6} />),
+            Embed(<Skeleton.Box width="78%" height={14} borderRadius={6} />),
+          )
+            .margin('bottom', 'md')
+            .spacing('sm'),
+        )}
 
         {/* Meta row (location · joined). */}
         <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
@@ -200,20 +248,29 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
           ))}
         </View>
       </CoverHeader>
-
       {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
           min-60 cells) with an active-indicator hint under the first tab. */}
       <View className="border-b border-border flex-row" style={{ backgroundColor: surfaceFill }}>
-        {TAB_CHIP_WIDTHS.map((width, index) => (
-          <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
-            <Skeleton.Box width={width} height={14} borderRadius={6} />
-            {index === 0 && (
-              <View className="absolute bottom-0 left-3 right-3 h-0.5 rounded-t bg-primary" />
-            )}
-          </View>
-        ))}
+        {TAB_CHIP_WIDTHS.map((width, index) =>
+          toElement(
+            VStack(
+              Embed(<Skeleton.Box width={width} height={14} borderRadius={6} />),
+              index === 0
+                ? VStack()
+                    .frame({ height: '2xs' })
+                    .background('primary')
+                    .corner('xs', 'top')
+                    .position({ bottom: 'none', left: 'md', right: 'md' })
+                : null,
+            )
+              .padding('vertical', '10')
+              .padding('horizontal', 'md')
+              .frame({ minWidth: '5xl' })
+              .align('center'),
+            index,
+          ),
+        )}
       </View>
-
       {/* Placeholder feed rows below the tab bar. */}
       <FeedSkeleton count={FEED_ROW_COUNT} />
     </Skeleton.Region>

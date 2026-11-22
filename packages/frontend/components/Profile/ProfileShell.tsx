@@ -20,6 +20,8 @@ import { shouldFeedOwnProfileScroll, shouldGridOwnProfileScroll } from './types'
 import type { ProfileTabsProps } from './types';
 import type { ProfileChrome } from './hooks/useProfileChrome';
 
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
 const IS_WEB = Platform.OS === 'web';
 
 export interface ProfileShellProps {
@@ -225,14 +227,20 @@ function ProfileShellBody({
       ) : (
         <>
           {nativeListOwnsScroll && tabs ? (
-            <View className="min-h-0 flex-1">
-              <ProfileTabs
-                {...tabs}
-                listOwnsScroll
-                listContentHeaderComponent={listHeader}
-                listStickyHeaderComponent={stickyTabs}
-              />
-            </View>
+            toElement(
+              VStack(
+                Embed(
+                  <ProfileTabs
+                    {...tabs}
+                    listOwnsScroll
+                    listContentHeaderComponent={listHeader}
+                    listStickyHeaderComponent={stickyTabs}
+                  />,
+                ),
+              )
+                .frame({ minHeight: 'none' })
+                .flex('1'),
+            )
           ) : (
             <VirtualList
               screen={{}}

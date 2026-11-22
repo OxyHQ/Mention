@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import {
   useFollowedTopics,
@@ -11,10 +10,11 @@ import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { topicFollowUri } from '@/services/followGraph';
 import { topicService } from '@/services/topicService';
 import { Button } from '@oxy.so/bloom/button';
-import { Muted } from '@oxy.so/bloom/typography';
 import type { TopicData } from '@oxy.so/core';
 import { resolveFollowPrimaryAction, useAuth, useFollowTarget } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
+
+import { Button as LButton, Embed, HStack, Text, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * The topic grid where selecting a chip FOLLOWS the topic in the user-owned
@@ -58,66 +58,76 @@ export function TopicPicker({ query }: { query: string }) {
 
   // Messages share the chips' inset, so every line of this picker starts on one edge.
   if (catalogue.isError) {
-    return (
-      <View className="gap-3 px-4 py-4">
-        <Muted>{t('settings.interests.loadError')}</Muted>
-        <Button
-          size="sm"
-          appearance="subtle"
-          tone="neutral"
-          onPress={() => void catalogue.refetch()}
-        >
-          {t('common.retry')}
-        </Button>
-      </View>
+    return toElement(
+      VStack(
+        Text(t('settings.interests.loadError')).textStyle('muted'),
+        LButton(Text(t('common.retry')))
+          .size('sm')
+          .style('subtle')
+          .tint('neutral')
+          .onPress(() => void catalogue.refetch()),
+      )
+        .padding('horizontal', 'lg')
+        .padding('vertical', 'lg')
+        .spacing('md'),
     );
   }
 
   if (topics.length === 0) {
-    return (
-      <View className="px-4 py-4">
-        <Muted>
-          {trimmedQuery.length > 0
+    return toElement(
+      VStack(
+        Text(
+          trimmedQuery.length > 0
             ? t('settings.interests.noMatches', {
                 query: trimmedQuery,
                 defaultValue: 'No topics match “{{query}}”.',
               })
             : t('settings.interests.noTopics', {
                 defaultValue: 'No topics are available yet.',
-              })}
-        </Muted>
-      </View>
+              }),
+        ).textStyle('muted'),
+      )
+        .padding('horizontal', 'lg')
+        .padding('vertical', 'lg'),
     );
   }
 
-  return (
-    <View>
-      {canUsePrivateApi ? null : (
-        <View className="px-4 pt-4">
-          <Muted>{t('settings.interests.signInRequired')}</Muted>
-          <Muted>{t('settings.interests.signInRequiredDesc')}</Muted>
-        </View>
-      )}
-      {unavailable.size > 0 ? (
-        <View className="px-4 pt-4">
-          <Muted>{t('settings.interests.followUnavailable')}</Muted>
-        </View>
-      ) : null}
-      <View className="flex-row flex-wrap gap-2 px-4 py-4">
-        {topics.map((topic) => (
-          <TopicChip
-            key={topic.slug}
-            topic={topic}
-            seeded={followed.byUri.get(topicFollowUri(topic.slug))}
-            // Until the sweep lands, a chip cannot tell "not followed" from "not
-            // asked yet", and offering to follow something already followed is
-            // the one mistake this grid must not make.
-            followsReady={followed.isReady}
-            onUnavailable={markUnavailable}
-          />
-        ))}
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      canUsePrivateApi
+        ? null
+        : VStack(
+            Text(t('settings.interests.signInRequired')).textStyle('muted'),
+            Text(t('settings.interests.signInRequiredDesc')).textStyle('muted'),
+          )
+            .padding('horizontal', 'lg')
+            .padding('top', 'lg'),
+      unavailable.size > 0
+        ? VStack(Text(t('settings.interests.followUnavailable')).textStyle('muted'))
+            .padding('horizontal', 'lg')
+            .padding('top', 'lg')
+        : null,
+      HStack(
+        Embed(
+          topics.map((topic) => (
+            <TopicChip
+              key={topic.slug}
+              topic={topic}
+              seeded={followed.byUri.get(topicFollowUri(topic.slug))}
+              // Until the sweep lands, a chip cannot tell "not followed" from "not
+              // asked yet", and offering to follow something already followed is
+              // the one mistake this grid must not make.
+              followsReady={followed.isReady}
+              onUnavailable={markUnavailable}
+            />
+          )),
+        ),
+      )
+        .padding('horizontal', 'lg')
+        .padding('vertical', 'lg')
+        .wrap()
+        .spacing('sm'),
+    ),
   );
 }
 

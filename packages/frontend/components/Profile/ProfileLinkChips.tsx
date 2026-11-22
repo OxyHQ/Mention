@@ -1,10 +1,8 @@
 import { memo, useCallback, useState } from 'react';
-import { View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { CappedChipRow, Chip } from '@oxy.so/bloom/chip';
-import { Item } from '@oxy.so/bloom/item';
 import { RiArrowRightUpLine } from '@oxy.so/bloom/icons/RiArrowRightUpLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
@@ -15,6 +13,8 @@ import { api } from '@/utils/api';
 import { presentSheet } from '@/utils/sheet';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { prettifyUrl } from '@/utils/prettifyUrl';
+
+import { Embed, Icon, Row, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Pills shown before the rest fold behind a "+N" pill (two lines, as on Bluesky). */
 const MAX_LINES = 2;
@@ -68,7 +68,7 @@ function LinkIcon({ link }: { link: ProfileLink }) {
   const { colors } = useTheme();
   const [failed, setFailed] = useState(false);
   if (!link.faviconUrl || failed) {
-    return <RiLink size="sm" fill={colors.textSecondary} />;
+    return toElement(Icon(RiLink).size('sm').foreground('muted'));
   }
   return (
     <Image
@@ -91,26 +91,26 @@ function LinkActionsSheet({ link, onOpen, onClose }: LinkActionsSheetProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
 
-  return (
-    <View className="bg-background px-4 pt-3 pb-2">
-      <Item
-        leading={<RiExternalLinkLine size="md" fill={colors.textSecondary} />}
-        title={t('common.open', 'Open')}
-        subtitle={link.url}
-        onPress={() => {
+  return toElement(
+    VStack(
+      Row(t('common.open', 'Open'))
+        .leadingView(Icon(RiExternalLinkLine).size('md').foreground('muted'))
+        .subtitle(link.url)
+        .onPress(() => {
           onOpen(link.url);
           onClose();
-        }}
-      />
-      <Item
-        leading={<RiLink size="md" fill={colors.textSecondary} />}
-        title={t('postActions.copyLink', 'Copy link')}
-        onPress={() => {
+        }),
+      Row(t('postActions.copyLink', 'Copy link'))
+        .leadingView(Icon(RiLink).size('md').foreground('muted'))
+        .onPress(() => {
           void Clipboard.setStringAsync(link.url);
           onClose();
-        }}
-      />
-    </View>
+        }),
+    )
+      .padding('horizontal', 'lg')
+      .padding('top', 'md')
+      .padding('bottom', 'sm')
+      .background('background'),
   );
 }
 
@@ -140,38 +140,40 @@ export const ProfileLinkChips = memo(function ProfileLinkChips({
     return null;
   }
 
-  return (
-    <View className="mb-3">
-      <CappedChipRow maxLines={MAX_LINES} accessibilityLabel={t('profile.links.title', 'Links')}>
-        {links.map((link) => {
-          const support = supportProviderOf(link.url);
-          const label = support
-            ? t('profile.links.supportOn', {
-                provider: support.name,
-                defaultValue: 'Support on {{provider}}',
-              })
-            : chipLabel(link);
-          return (
-            <Chip
-              key={link.id}
-              size="md"
-              variant={support ? 'solid' : 'subtle'}
-              color={support ? 'success' : undefined}
-              leading={<LinkIcon link={link} />}
-              endIcon={<OutboundArrow support={support !== null} />}
-              accessibilityLabel={label}
-              onPress={() => open(link.url)}
-              onLongPress={() =>
-                void presentSheet((surface) => (
-                  <LinkActionsSheet link={link} onOpen={open} onClose={() => surface.dismiss()} />
-                ))
-              }
-            >
-              {label}
-            </Chip>
-          );
-        })}
-      </CappedChipRow>
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        <CappedChipRow maxLines={MAX_LINES} accessibilityLabel={t('profile.links.title', 'Links')}>
+          {links.map((link) => {
+            const support = supportProviderOf(link.url);
+            const label = support
+              ? t('profile.links.supportOn', {
+                  provider: support.name,
+                  defaultValue: 'Support on {{provider}}',
+                })
+              : chipLabel(link);
+            return (
+              <Chip
+                key={link.id}
+                size="md"
+                variant={support ? 'solid' : 'subtle'}
+                color={support ? 'success' : undefined}
+                leading={<LinkIcon link={link} />}
+                endIcon={<OutboundArrow support={support !== null} />}
+                accessibilityLabel={label}
+                onPress={() => open(link.url)}
+                onLongPress={() =>
+                  void presentSheet((surface) => (
+                    <LinkActionsSheet link={link} onOpen={open} onClose={() => surface.dismiss()} />
+                  ))
+                }
+              >
+                {label}
+              </Chip>
+            );
+          })}
+        </CappedChipRow>,
+      ),
+    ).margin('bottom', 'md'),
   );
 });

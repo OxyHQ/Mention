@@ -1,11 +1,9 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import { Field } from '@oxy.so/bloom/field';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Item } from '@oxy.so/bloom/item';
@@ -13,14 +11,25 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { accountNameMaxLength, getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useRefreshJoinedCommunitiesAfterCreate } from '@/hooks/useCommunities';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { profileBasePath, profileRouteFamily } from '@/components/Profile/profileRoute';
 import type { OperatedAccountKind } from './OperatedAccountSettingsScreen';
+
+import {
+  Embed,
+  Field as LField,
+  Header,
+  RawText,
+  Row,
+  ScrollView,
+  TextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * The accounts of one member-operated kind you operate, and the one place to
@@ -136,86 +145,106 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
   return (
     <Screen
       reselect={{ refresh: refetch }}
-      header={
-        <PageHeader title={copy.title} backLabel={t('common.back', { defaultValue: 'Back' })} />
-      }
+      header={toElement(
+        Header(copy.title)
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      )}
     >
       <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>
-        <ScreenScrollView contentContainerClassName="pb-10">
-          <View className="px-4 pt-4 pb-2">
-            <Text className="text-foreground text-lg font-bold">{copy.createTitle}</Text>
-            <Text className="text-muted-foreground text-[13px] mt-1">{copy.createSubtitle}</Text>
-          </View>
-
-          <View className="px-4 gap-3">
-            <Field
-              error={
+        {toElement(
+          ScrollView(
+            VStack(
+              RawText(copy.createTitle)
+                .foreground('foreground')
+                .font('18')
+                .leading('28px')
+                .weight('bold'),
+              RawText(copy.createSubtitle).foreground('muted').font('sm').margin('top', 'xs'),
+            )
+              .padding('horizontal', 'lg')
+              .padding('top', 'lg')
+              .padding('bottom', 'sm'),
+            VStack(
+              LField(
+                undefined,
+                Embed(
+                  <InputGroup>
+                    <InputGroupAddon>@</InputGroupAddon>
+                    <TextFieldInput
+                      label={copy.handleLabel}
+                      placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
+                      value={handle}
+                      onChangeText={setHandle}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </InputGroup>,
+                ),
+              ).error(
                 handleError
                   ? t('channels.handleInvalid', {
                       defaultValue: '3–30 characters: letters, numbers, _ or -',
                     })
-                  : null
-              }
-            >
-              <InputGroup>
-                <InputGroupAddon>@</InputGroupAddon>
-                <TextFieldInput
-                  label={copy.handleLabel}
-                  placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
-                  value={handle}
-                  onChangeText={setHandle}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </InputGroup>
-            </Field>
-
-            <TextFieldInput
-              label={copy.titleLabel}
-              placeholder={copy.titleLabel}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={accountNameMaxLength(kind)}
-            />
-
-            <Item
-              onPress={canCreate && !createMutation.isPending ? createMutation.mutate : undefined}
-              disabled={!canCreate || createMutation.isPending}
-              title={
-                createMutation.isPending
-                  ? t('channels.creating', { defaultValue: 'Creating…' })
-                  : copy.create
-              }
-            />
-          </View>
-
-          <View className="px-4 pt-8 pb-2">
-            <Text className="text-foreground text-lg font-bold">{copy.yours}</Text>
-          </View>
-
-          {isLoading ? (
-            <View className="py-8">
-              <ListSkeleton />
-            </View>
-          ) : ofKind.length === 0 ? (
-            <Text className="text-muted-foreground text-[14px] px-4 py-3">{copy.none}</Text>
-          ) : (
-            ofKind.map((account) => {
-              const accountHandle = getNormalizedUserHandle(account.account) ?? '';
-              return (
+                  : null,
+              ),
+              TextField([title, setTitle], copy.titleLabel)
+                .placeholder(copy.titleLabel)
+                .maxLength(accountNameMaxLength(kind)),
+              Embed(
                 <Item
-                  key={account.accountId}
-                  onPress={() => openAccount(account)}
-                  title={displayNameOrHandle(
-                    account.account.name?.displayName,
-                    accountHandle ? `@${accountHandle}` : '',
-                  )}
-                  subtitle={accountHandle ? `@${accountHandle}` : undefined}
-                />
-              );
-            })
-          )}
-        </ScreenScrollView>
+                  onPress={
+                    canCreate && !createMutation.isPending ? createMutation.mutate : undefined
+                  }
+                  disabled={!canCreate || createMutation.isPending}
+                  title={
+                    createMutation.isPending
+                      ? t('channels.creating', { defaultValue: 'Creating…' })
+                      : copy.create
+                  }
+                />,
+              ),
+            )
+              .padding('horizontal', 'lg')
+              .spacing('md'),
+            VStack(
+              RawText(copy.yours)
+                .foreground('foreground')
+                .font('18')
+                .leading('28px')
+                .weight('bold'),
+            )
+              .padding('horizontal', 'lg')
+              .padding('top', '3xl')
+              .padding('bottom', 'sm'),
+            Embed(
+              isLoading
+                ? toElement(VStack(Embed(<ListSkeleton />)).padding('vertical', '3xl'))
+                : ofKind.length === 0
+                  ? toElement(
+                      RawText(copy.none)
+                        .padding('horizontal', 'lg')
+                        .padding('vertical', 'md')
+                        .foreground('muted')
+                        .font('14'),
+                    )
+                  : ofKind.map((account) => {
+                      const accountHandle = getNormalizedUserHandle(account.account) ?? '';
+                      return toElement(
+                        Row(
+                          displayNameOrHandle(
+                            account.account.name?.displayName,
+                            accountHandle ? `@${accountHandle}` : '',
+                          ),
+                        )
+                          .onPress(() => openAccount(account))
+                          .subtitle(accountHandle ? `@${accountHandle}` : undefined),
+                        account.accountId,
+                      );
+                    }),
+            ),
+          ).contentView((v) => v.padding('bottom', '4xl')),
+        )}
       </SignInRequired>
     </Screen>
   );

@@ -4,18 +4,18 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
+import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { AccountSettings, type AccountSettingsProps } from '@oxy.so/services/screens';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
-
 import { EmptyState } from '@/components/common/EmptyState';
+
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { ChannelBylineSettings } from './ChannelBylineSettings';
 import { CommunityModerationSettings } from './CommunityModerationSettings';
 import { useOperatedAccountArchive } from './useOperatedAccountArchive';
+import { Embed, Header, ScrollView, toElement } from '@oxy.so/bloom-language';
 
 /** The member-operated account kinds (`isMemberOperatedKind`) Mention manages. */
 export type OperatedAccountKind = 'channel' | 'community';
@@ -108,17 +108,20 @@ export function OperatedAccountSettingsScreen({
   }
 
   if (Platform.OS === 'web' && kind === 'community') {
-    return <ScreenScrollView showsVerticalScrollIndicator={false}>{body}</ScreenScrollView>;
+    return toElement(ScrollView(Embed(body)).scrollIndicators('hidden', 'vertical'));
   }
 
   return (
     <Screen
       scroll={Platform.OS === 'web' ? 'auto' : 'content'}
-      header={
-        <PageHeader title={copy.title} onBack={() => back?.()} backLabel={t('common.back')} />
-      }
+      header={toElement(
+        Header(copy.title)
+          .onBack(() => back?.())
+          .backLabel(t('common.back'))
+          .inPage(),
+      )}
     >
-      <ScreenScrollView showsVerticalScrollIndicator={false}>{body}</ScreenScrollView>
+      {toElement(ScrollView(Embed(body)).scrollIndicators('hidden', 'vertical'))}
     </Screen>
   );
 }

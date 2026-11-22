@@ -25,6 +25,8 @@ import {
 } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
 const APP_URL = 'https://mention.earth';
 
 /** Placeholder rows painted while the first page of recommendations loads. */
@@ -111,9 +113,12 @@ function ProfileDiscoveryList({
 
   // The next page's skeleton; the list itself asks for that page (`onEndReached`).
   const renderFooter = useCallback(
-    () => (
-      <View style={styles.footer}>{isFetchingNextPage ? <ListSkeleton count={2} /> : null}</View>
-    ),
+    () =>
+      toElement(
+        VStack(Embed(isFetchingNextPage ? <ListSkeleton count={2} /> : null))
+          .padding('vertical', 'lg')
+          .align('center'),
+      ),
     [isFetchingNextPage],
   );
 
@@ -168,14 +173,20 @@ function ProfileDiscoveryList({
             <View className="bg-primary" style={styles.inviteIconContainer}>
               <RiGroupFill width={18} fill={theme.colors.card} />
             </View>
-            <View style={styles.inviteContent}>
-              <Text className="leading-6 text-foreground" style={styles.inviteTitle}>
-                {t('settings.inviteContacts.inviteBannerTitle')}
-              </Text>
-              <Text className="leading-6 text-muted-foreground" style={styles.inviteSubtitle}>
-                {t('settings.inviteContacts.inviteBannerSubtitle')}
-              </Text>
-            </View>
+            {toElement(
+              VStack(
+                Embed(
+                  <Text className="leading-6 text-foreground" style={styles.inviteTitle}>
+                    {t('settings.inviteContacts.inviteBannerTitle')}
+                  </Text>,
+                ),
+                Embed(
+                  <Text className="leading-6 text-muted-foreground" style={styles.inviteSubtitle}>
+                    {t('settings.inviteContacts.inviteBannerSubtitle')}
+                  </Text>,
+                ),
+              ).grow(),
+            )}
             <RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
@@ -194,11 +205,11 @@ function ProfileDiscoveryList({
   // The first load paints the row skeletons (the list header stays put), so the
   // tab never swaps a centered spinner for a list and reflows.
   if (loading && recommendations.length === 0) {
-    return (
-      <View className="flex-1">
-        {listHeader}
-        <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
-      </View>
+    return toElement(
+      VStack(
+        Embed(listHeader),
+        Embed(<ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />),
+      ).flex('1'),
     );
   }
 
@@ -214,30 +225,37 @@ function ProfileDiscoveryList({
     );
   }
 
-  return (
-    <View className="flex-1" style={styles.container}>
-      <VirtualList
-        screen={{}}
-        data={recommendations}
-        renderItem={renderUser}
-        keyExtractor={(item: ProfileData) => item.id || item.username || ''}
-        ListHeaderComponent={listHeader}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={<EmptyState title={emptyTitle} sticker="connectionsRecommendations" />}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        removeClippedSubviews={false}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        initialNumToRender={10}
-        recycleItems={true}
-        maintainVisibleContentPosition={true}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        refreshing={isRefetching}
-        onRefresh={refetch}
-      />
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        <VirtualList
+          screen={{}}
+          data={recommendations}
+          renderItem={renderUser}
+          keyExtractor={(item: ProfileData) => item.id || item.username || ''}
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={
+            <EmptyState title={emptyTitle} sticker="connectionsRecommendations" />
+          }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          removeClippedSubviews={false}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          initialNumToRender={10}
+          recycleItems={true}
+          maintainVisibleContentPosition={true}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          refreshing={isRefetching}
+          onRefresh={refetch}
+        />,
+      ),
+    )
+      .frame({ minHeight: 'none' })
+      .flex('1')
+      .grow(),
   );
 }
 

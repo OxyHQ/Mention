@@ -1,8 +1,8 @@
 import { memo } from 'react';
-import { Text } from 'react-native';
-
 import { useAccountCategoryLabel } from '@/hooks/useAccountCategoryLabel';
+
 import { primaryAccountCategoryId } from '@/utils/accountCategories';
+import { RawText, toElement } from '@oxy.so/bloom-language';
 
 interface AccountCategoryLineProps {
   /** The account's categories, in stored order — element 0 is the primary. */
@@ -43,16 +43,12 @@ export const AccountCategoryLine = memo(function AccountCategoryLine({
   const primary = primaryAccountCategoryId(accountCategories);
   if (primary === null) return null;
 
-  return (
-    <Text
-      className={
-        align === 'center'
-          ? 'text-muted-foreground text-[13px] text-center mt-1'
-          : 'text-muted-foreground text-[13px] mb-3'
-      }
-      numberOfLines={1}
-    >
-      {categoryLabel(primary)}
-    </Text>
+  return toElement(
+    RawText(categoryLabel(primary))
+      .foreground('muted')
+      .font('sm')
+      .when(align === 'center', (v) => v.textAlign('center').margin('top', 'xs'))
+      .when(!(align === 'center'), (v) => v.margin('bottom', 'md'))
+      .lines(1),
   );
 });

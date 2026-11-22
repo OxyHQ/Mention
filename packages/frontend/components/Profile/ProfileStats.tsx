@@ -1,9 +1,11 @@
 import { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
+
+import { Embed, HStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Profile statistics component
@@ -36,80 +38,94 @@ export const ProfileStats = memo(function ProfileStats({
     if (followersHref) router.push(followersHref);
   }, [followersHref, router]);
 
-  return (
-    <View className="gap-2.5" style={styles.container}>
-      {followingCount !== undefined && (
-        <TouchableOpacity
-          className="gap-1"
-          style={styles.statItem}
-          onPress={handleFollowingPress}
-          disabled={!followingHref}
-        >
+  return toElement(
+    HStack(
+      Embed(
+        followingCount !== undefined && (
+          <TouchableOpacity
+            className="gap-1"
+            style={styles.statItem}
+            onPress={handleFollowingPress}
+            disabled={!followingHref}
+          >
+            <Text className="text-foreground" style={styles.statNumber}>
+              {formatCompactNumber(followingCount)}
+            </Text>
+            <Text className="text-muted-foreground" style={styles.statLabel}>
+              {t('profile.following')}
+            </Text>
+          </TouchableOpacity>
+        ),
+      ),
+      Embed(
+        followerCount !== undefined && (
+          <TouchableOpacity
+            className="gap-1"
+            style={styles.statItem}
+            onPress={handleFollowersPress}
+            disabled={!followersHref}
+          >
+            <Text className="text-foreground" style={styles.statNumber}>
+              {formatCompactNumber(followerCount)}
+            </Text>
+            <Text className="text-muted-foreground" style={styles.statLabel}>
+              {t(accountKind === 'community' ? 'profile.members' : 'profile.followers')}
+            </Text>
+          </TouchableOpacity>
+        ),
+      ),
+      Embed(
+        <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onPostsPress}>
           <Text className="text-foreground" style={styles.statNumber}>
-            {formatCompactNumber(followingCount)}
+            {formatCompactNumber(postsCount ?? 0)}
           </Text>
           <Text className="text-muted-foreground" style={styles.statLabel}>
-            {t('profile.following')}
+            {t('profile.stats.posts', { count: postsCount ?? 0 })}
           </Text>
-        </TouchableOpacity>
-      )}
-
-      {followerCount !== undefined && (
-        <TouchableOpacity
-          className="gap-1"
-          style={styles.statItem}
-          onPress={handleFollowersPress}
-          disabled={!followersHref}
-        >
+        </TouchableOpacity>,
+      ),
+      Embed(
+        <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onBoostsPress}>
           <Text className="text-foreground" style={styles.statNumber}>
-            {formatCompactNumber(followerCount)}
+            {formatCompactNumber(boostsCount ?? 0)}
           </Text>
           <Text className="text-muted-foreground" style={styles.statLabel}>
-            {t(accountKind === 'community' ? 'profile.members' : 'profile.followers')}
+            {t('profile.stats.boosts', { count: boostsCount ?? 0 })}
           </Text>
-        </TouchableOpacity>
-      )}
-
-      <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onPostsPress}>
-        <Text className="text-foreground" style={styles.statNumber}>
-          {formatCompactNumber(postsCount ?? 0)}
-        </Text>
-        <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.stats.posts', { count: postsCount ?? 0 })}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onBoostsPress}>
-        <Text className="text-foreground" style={styles.statNumber}>
-          {formatCompactNumber(boostsCount ?? 0)}
-        </Text>
-        <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.stats.boosts', { count: boostsCount ?? 0 })}
-        </Text>
-      </TouchableOpacity>
-
-      {showReplies && (
-        <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onRepliesPress}>
-          <Text className="text-foreground" style={styles.statNumber}>
-            {formatCompactNumber(repliesCount ?? 0)}
-          </Text>
-          <Text className="text-muted-foreground" style={styles.statLabel}>
-            {t('profile.stats.replies', { count: repliesCount ?? 0 })}
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {reputationTotal !== undefined && (
-        <View className="gap-1" style={styles.statItem}>
-          <Text className="text-foreground" style={styles.statNumber}>
-            {reputationTotal === null ? '--' : formatCompactNumber(reputationTotal)}
-          </Text>
-          <Text className="text-muted-foreground" style={styles.statLabel}>
-            {t('profile.stats.reputation')}
-          </Text>
-        </View>
-      )}
-    </View>
+        </TouchableOpacity>,
+      ),
+      Embed(
+        showReplies && (
+          <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onRepliesPress}>
+            <Text className="text-foreground" style={styles.statNumber}>
+              {formatCompactNumber(repliesCount ?? 0)}
+            </Text>
+            <Text className="text-muted-foreground" style={styles.statLabel}>
+              {t('profile.stats.replies', { count: repliesCount ?? 0 })}
+            </Text>
+          </TouchableOpacity>
+        ),
+      ),
+      reputationTotal !== undefined
+        ? HStack(
+            Embed(
+              <Text className="text-foreground" style={styles.statNumber}>
+                {reputationTotal === null ? '--' : formatCompactNumber(reputationTotal)}
+              </Text>,
+            ),
+            Embed(
+              <Text className="text-muted-foreground" style={styles.statLabel}>
+                {t('profile.stats.reputation')}
+              </Text>,
+            ),
+          )
+            .spacing('xs')
+            .align('center')
+        : null,
+    )
+      .spacing('10')
+      .wrap()
+      .margin('bottom', 'md'),
   );
 });
 

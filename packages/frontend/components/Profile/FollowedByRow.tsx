@@ -1,12 +1,12 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
-import { Pressable, Text } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useMutualFollowers } from '@/hooks/useMutualFollowers';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { Embed, HStack, RawText, toElement } from '@oxy.so/bloom-language';
 
 interface FollowedByRowProps {
   /** Id of the profile being viewed. */
@@ -80,23 +80,24 @@ export const FollowedByRow = memo(function FollowedByRow({
     });
   }
 
-  return (
-    <Pressable
-      className="flex-row items-center gap-2 mb-3"
-      onPress={() => router.push(`/@${username}/in-common`)}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <AccountAvatarGroup
-        items={avatarItems}
-        size={20}
-        max={3}
-        total={total}
-        variant={MEDIA_VARIANT_AVATAR}
-      />
-      <Text className="text-muted-foreground text-[15px] shrink" numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
+  return toElement(
+    HStack(
+      Embed(
+        <AccountAvatarGroup
+          items={avatarItems}
+          size={20}
+          max={3}
+          total={total}
+          variant={MEDIA_VARIANT_AVATAR}
+        />,
+      ),
+      RawText(label).foreground('muted').font('md').shrink('normal').lines(1),
+    )
+      .align('center')
+      .spacing('sm')
+      .margin('bottom', 'md')
+      .onPress(() => router.push(`/@${username}/in-common`))
+      .role('button')
+      .label(label),
   );
 });

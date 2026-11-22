@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Image, type ImageProps } from 'expo-image';
 import { Dialog, useDialogControl, useDialogFrame } from '@oxy.so/bloom/dialog';
 import { Button } from '@oxy.so/bloom/button';
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 type SheetStep = 0 | 1 | 2;
 
@@ -201,52 +201,71 @@ function FediverseInfoSteps({
 
   return (
     <>
-      <View className="items-center gap-4 py-4">
-        {/* The artwork is transparent line art and sits DIRECTLY on the sheet's
-            own surface — no card, plate or fill behind it, in either theme. Each
-            file is fitted to one shared canvas by its visible-ink box, so the
-            three subjects come out the same size and this slot never changes
-            shape as the steps advance.
+      {toElement(
+        VStack(
+          /* The artwork is transparent line art and sits DIRECTLY on the sheet's
+                  own surface — no card, plate or fill behind it, in either theme. Each
+                  file is fitted to one shared canvas by its visible-ink box, so the
+                  three subjects come out the same size and this slot never changes
+                  shape as the steps advance.
 
-            `aria-hidden` covers all three platforms in one prop (RN maps it onto
-            `accessibilityElementsHidden` and `importantForAccessibility`,
-            react-native-web emits the DOM attribute): the art restates the step's
-            title and body and adds nothing a screen reader should hear. Every
-            step still reads completely with images off.
+                  `aria-hidden` covers all three platforms in one prop (RN maps it onto
+                  `accessibilityElementsHidden` and `importantForAccessibility`,
+                  react-native-web emits the DOM attribute): the art restates the step's
+                  title and body and adds nothing a screen reader should hear. Every
+                  step still reads completely with images off.
 
-            No `transition`: the step change is ONE animation and Bloom's dialog
-            morph owns it. expo-image's own cross-fade is a second animation over
-            the same swap, and it does not run in step with the first — measured
-            in a browser, it pushed the new art's first paint from 64ms to 300ms
-            after the tap, i.e. past the end of the panel's 260ms reshape, so the
-            picture arrived visibly after the words and the panel had already
-            finished resizing around it. */}
-        <Image
-          aria-hidden
-          source={STEP_KEYS[step].art}
-          className="w-full h-[168px]"
-          contentFit="contain"
-          alt=""
-        />
-        <Text className="text-foreground text-xl font-bold text-center">
-          {t(STEP_KEYS[step].title)}
-        </Text>
-        <Text className="text-muted-foreground text-base leading-6 text-center">
-          {t(STEP_KEYS[step].body)}
-        </Text>
-      </View>
-
-      <View className="flex-row items-center justify-center gap-2 py-4">
-        {STEP_KEYS.map((entry, index) => (
-          <View
-            key={entry.title}
-            className={
-              index === step ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-border'
-            }
-          />
-        ))}
-      </View>
-
+                  No `transition`: the step change is ONE animation and Bloom's dialog
+                  morph owns it. expo-image's own cross-fade is a second animation over
+                  the same swap, and it does not run in step with the first — measured
+                  in a browser, it pushed the new art's first paint from 64ms to 300ms
+                  after the tap, i.e. past the end of the panel's 260ms reshape, so the
+                  picture arrived visibly after the words and the panel had already
+                  finished resizing around it. */ Embed(
+            <Image
+              aria-hidden
+              source={STEP_KEYS[step].art}
+              className="w-full h-[168px]"
+              contentFit="contain"
+              alt=""
+            />,
+          ),
+          RawText(t(STEP_KEYS[step].title))
+            .foreground('foreground')
+            .font('xl')
+            .leading('28px')
+            .weight('bold')
+            .textAlign('center'),
+          RawText(t(STEP_KEYS[step].body))
+            .foreground('muted')
+            .font('16')
+            .leading('24px')
+            .textAlign('center'),
+        )
+          .padding('vertical', 'lg')
+          .align('center')
+          .spacing('lg'),
+      )}
+      {toElement(
+        HStack(
+          Embed(
+            STEP_KEYS.map((entry, index) =>
+              toElement(
+                VStack()
+                  .frame({ width: 'sm', height: 'sm' })
+                  .corner('infinite')
+                  .when(index === step, (v) => v.background('primary'))
+                  .when(!(index === step), (v) => v.background('border')),
+                entry.title,
+              ),
+            ),
+          ),
+        )
+          .padding('vertical', 'lg')
+          .align('center')
+          .justify('center')
+          .spacing('sm'),
+      )}
       {/* One navigation row: the way back on the left, the way forward on the
           right, matching both the reading order and the direction the progress
           dots advance in.
@@ -260,20 +279,34 @@ function FediverseInfoSteps({
 
           These are Bloom Buttons as they come — a variant and a layout class,
           no wrapper element. */}
-      <View className="flex-row items-center gap-3">
-        <Button
-          appearance="plain"
-          tone="neutral"
-          size="lg"
-          className="shrink"
-          onPress={onSecondary}
-        >
-          {secondaryLabel}
-        </Button>
-        <Button appearance="solid" tone="accent" size="lg" className="flex-1" onPress={onPrimary}>
-          {primaryLabel}
-        </Button>
-      </View>
+      {toElement(
+        HStack(
+          Embed(
+            <Button
+              appearance="plain"
+              tone="neutral"
+              size="lg"
+              className="shrink"
+              onPress={onSecondary}
+            >
+              {secondaryLabel}
+            </Button>,
+          ),
+          Embed(
+            <Button
+              appearance="solid"
+              tone="accent"
+              size="lg"
+              className="flex-1"
+              onPress={onPrimary}
+            >
+              {primaryLabel}
+            </Button>,
+          ),
+        )
+          .align('center')
+          .spacing('md'),
+      )}
     </>
   );
 }

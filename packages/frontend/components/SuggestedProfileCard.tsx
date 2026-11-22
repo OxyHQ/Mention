@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { FollowButton } from '@/components/FollowButton';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
@@ -9,6 +9,8 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { useResolvedProfileIdentity, type ProfileCardData } from './ProfileCard';
 import UserName from './UserName';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 const AVATAR_SIZE = 64;
 
@@ -67,50 +69,60 @@ export function SuggestedProfileCard({
   const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
   const bio = resolved.description?.trim();
 
-  return (
-    <View className="bg-card border-border flex-1 gap-3 rounded-xl border p-3">
-      <PressableScale
-        onPress={press}
-        disabled={!press}
-        accessibilityRole={press ? 'link' : undefined}
-        className="flex-1 items-center gap-2"
-      >
-        <AccountAvatar
-          account={resolved}
-          source={resolved.avatar || undefined}
-          size={AVATAR_SIZE}
-          variant={MEDIA_VARIANT_AVATAR}
-          verified={resolved.verified}
-          placeholderColor={getUserPlaceholderColor(resolved)}
-        />
-        <UserName
-          name={nameLabel}
-          handle={handle || undefined}
-          verified={resolved.verified}
-          isFederated={resolved.isFederated}
-          kind={resolved.kind}
-          isAgent={resolved.isAgent}
-          isAutomated={resolved.isAutomated}
-          align="center"
-          style={IDENTITY_STYLE}
-        />
-        <Text
-          className="text-muted-foreground text-center text-[13px]"
-          style={styles.bio}
-          numberOfLines={BIO_LINES}
+  return toElement(
+    VStack(
+      Embed(
+        <PressableScale
+          onPress={press}
+          disabled={!press}
+          accessibilityRole={press ? 'link' : undefined}
+          className="flex-1 items-center gap-2"
         >
-          {bio ?? ''}
-        </Text>
-      </PressableScale>
-      <FollowButton
-        userId={resolved.id}
-        username={handle || undefined}
-        size="sm"
-        style={styles.followButton}
-        onFollowChange={onFollowChange}
-      />
-      {accessory}
-    </View>
+          <AccountAvatar
+            account={resolved}
+            source={resolved.avatar || undefined}
+            size={AVATAR_SIZE}
+            variant={MEDIA_VARIANT_AVATAR}
+            verified={resolved.verified}
+            placeholderColor={getUserPlaceholderColor(resolved)}
+          />
+          <UserName
+            name={nameLabel}
+            handle={handle || undefined}
+            verified={resolved.verified}
+            isFederated={resolved.isFederated}
+            kind={resolved.kind}
+            isAgent={resolved.isAgent}
+            isAutomated={resolved.isAutomated}
+            align="center"
+            style={IDENTITY_STYLE}
+          />
+          <Text
+            className="text-muted-foreground text-center text-[13px]"
+            style={styles.bio}
+            numberOfLines={BIO_LINES}
+          >
+            {bio ?? ''}
+          </Text>
+        </PressableScale>,
+      ),
+      Embed(
+        <FollowButton
+          userId={resolved.id}
+          username={handle || undefined}
+          size="sm"
+          style={styles.followButton}
+          onFollowChange={onFollowChange}
+        />,
+      ),
+      Embed(accessory),
+    )
+      .padding('all', 'md')
+      .background('card')
+      .border('border', 'thin')
+      .corner('md')
+      .flex('1')
+      .spacing('md'),
   );
 }
 
@@ -119,20 +131,29 @@ export function SuggestedProfileCard({
  * geometry, so the row never shifts when the real tiles land.
  */
 export function SuggestedProfileCardSkeleton() {
-  return (
-    <View className="bg-card border-border gap-3 rounded-xl border p-3">
-      <View className="items-center gap-2">
-        <Skeleton.Circle size={AVATAR_SIZE} />
-        <Skeleton.Text style={[IDENTITY_STYLE.name, { width: 110 }]} />
-        <Skeleton.Text style={[IDENTITY_STYLE.handle, { width: 80 }]} />
-        <Skeleton.Col
-          style={{ gap: 0, alignItems: 'center', minHeight: BIO_LINES * BIO_LINE_HEIGHT }}
-        >
-          <Skeleton.Text style={{ width: 130, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />
-          <Skeleton.Text style={{ width: 90, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />
-        </Skeleton.Col>
-      </View>
-      <Skeleton.Pill size={32} style={{ alignSelf: 'stretch' }} />
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        Embed(<Skeleton.Circle size={AVATAR_SIZE} />),
+        Embed(<Skeleton.Text style={[IDENTITY_STYLE.name, { width: 110 }]} />),
+        Embed(<Skeleton.Text style={[IDENTITY_STYLE.handle, { width: 80 }]} />),
+        Embed(
+          <Skeleton.Col
+            style={{ gap: 0, alignItems: 'center', minHeight: BIO_LINES * BIO_LINE_HEIGHT }}
+          >
+            <Skeleton.Text style={{ width: 130, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />
+            <Skeleton.Text style={{ width: 90, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />
+          </Skeleton.Col>,
+        ),
+      )
+        .align('center')
+        .spacing('sm'),
+      Embed(<Skeleton.Pill size={32} style={{ alignSelf: 'stretch' }} />),
+    )
+      .padding('all', 'md')
+      .background('card')
+      .border('border', 'thin')
+      .corner('md')
+      .spacing('md'),
   );
 }

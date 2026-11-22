@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -7,6 +7,8 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiFlowerLine } from '@oxy.so/bloom/icons/RiFlowerLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import type { ProfileMetaProps } from './types';
+
+import { HStack, Icon, RawText, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Profile metadata component
@@ -41,13 +43,15 @@ export const ProfileMeta = memo(function ProfileMeta({
 
   return (
     <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
-      {hasLocation && (
-        <View className="flex-row items-center gap-1">
-          <RiMapPinLine width={16} height={16} fill={colors.textSecondary} />
-          <Text className="text-muted-foreground text-[15px]">{location}</Text>
-        </View>
-      )}
-
+      {hasLocation &&
+        toElement(
+          HStack(
+            Icon(RiMapPinLine).size('sm').foreground('muted'),
+            RawText(location).foreground('muted').font('md'),
+          )
+            .align('center')
+            .spacing('xs'),
+        )}
       {createdAt && (
         <TouchableOpacity
           className="flex-row items-center gap-1"
@@ -55,13 +59,13 @@ export const ProfileMeta = memo(function ProfileMeta({
           disabled={!aboutHref}
           activeOpacity={0.7}
         >
-          <RiFlowerLine width={16} height={16} fill={colors.textSecondary} />
-          <Text className="text-muted-foreground text-[15px]">
-            {t('profile.joined')} {formatJoinDate(createdAt)}
-          </Text>
-          {aboutHref ? (
-            <RiArrowRightSLine width={16} height={16} fill={colors.textSecondary} />
-          ) : null}
+          {toElement(Icon(RiFlowerLine).size('sm').foreground('muted'))}
+          {toElement(
+            RawText(t('profile.joined'), ' ', formatJoinDate(createdAt))
+              .foreground('muted')
+              .font('md'),
+          )}
+          {aboutHref ? toElement(Icon(RiArrowRightSLine).size('sm').foreground('muted')) : null}
         </TouchableOpacity>
       )}
     </View>

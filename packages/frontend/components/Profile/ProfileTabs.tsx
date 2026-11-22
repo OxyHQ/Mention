@@ -1,7 +1,7 @@
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { lazy, memo, Suspense } from 'react';
-import { View, Text, Platform } from 'react-native';
+import { View, Platform } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -39,6 +39,8 @@ import { useReselectReloadKey } from '@/hooks/useReselectReloadKey';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { pinnedPostQueryOptions } from './pinnedPostQuery';
 import { LazyProfileShop } from '@/components/sharedRouteScreens';
+
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const ProfileExperience = lazy(() =>
   import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
@@ -117,12 +119,26 @@ export const ProfileTabs = memo(function ProfileTabs({
     return (
       <View className="items-center justify-center p-8" style={{ minHeight: 200 }}>
         <RiLockLine size="3xl" fill={theme.colors.textSecondary} style={{ marginBottom: 16 }} />
-        <Text className="text-foreground text-lg font-semibold text-center mb-2">
-          {t('profile.private.message', { defaultValue: 'This profile is private' })}
-        </Text>
-        <Text className="text-muted-foreground text-sm text-center">
-          {t('profile.private.subtext', { defaultValue: 'Follow this account to see their posts' })}
-        </Text>
+        {toElement(
+          RawText(t('profile.private.message', { defaultValue: 'This profile is private' }))
+            .foreground('foreground')
+            .font('18')
+            .leading('28px')
+            .weight('semibold')
+            .textAlign('center')
+            .margin('bottom', 'sm'),
+        )}
+        {toElement(
+          RawText(
+            t('profile.private.subtext', {
+              defaultValue: 'Follow this account to see their posts',
+            }),
+          )
+            .foreground('muted')
+            .font('14')
+            .leading('20px')
+            .textAlign('center'),
+        )}
       </View>
     );
   }
@@ -270,28 +286,29 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  return (
-    <View>
-      {/* The pinned post is the feed's LEADING element, not a sibling above it:
-          the two requests race and the loser used to shove the column down
-          (#1216). The feed waits for it (`leadingPending`), so both appear
-          together.
-          bounded-feed: on native this path is reached only by a private
-          profile the viewer does not own, and that feed is empty. */}
-      <Feed
-        type={tab as FeedType}
-        userId={laneId ? undefined : profileId}
-        filters={laneFilters}
-        hideHeader={true}
-        scrollEnabled={IS_WEB ? undefined : false}
-        listLeadingComponent={pinnedPostElement}
-        leadingPostId={pinnedPost?.id}
-        leadingPending={canLoadPinnedPost && pinnedPostQuery.isPending}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        onRefresh={refreshProfileSurface}
-        reloadKey={feedReloadKey}
-      />
-    </View>
+  return toElement(
+    VStack(
+      /* The pinned post is the feed's LEADING element, not a sibling above it:
+            the two requests race and the loser used to shove the column down
+            (#1216). The feed waits for it (`leadingPending`), so both appear
+            together.
+            bounded-feed: on native this path is reached only by a private
+            profile the viewer does not own, and that feed is empty. */ Embed(
+        <Feed
+          type={tab as FeedType}
+          userId={laneId ? undefined : profileId}
+          filters={laneFilters}
+          hideHeader={true}
+          scrollEnabled={IS_WEB ? undefined : false}
+          listLeadingComponent={pinnedPostElement}
+          leadingPostId={pinnedPost?.id}
+          leadingPending={canLoadPinnedPost && pinnedPostQuery.isPending}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          onRefresh={refreshProfileSurface}
+          reloadKey={feedReloadKey}
+        />,
+      ),
+    ),
   );
 });
 
@@ -388,40 +405,44 @@ const ProfileFeeds = memo(function ProfileFeeds({
     );
   }
 
-  return (
-    <View className="p-4 gap-3">
-      {feeds.map((feed) => {
-        // A feed generator (synced Bluesky feed) opens through the MTN engine via
-        // its descriptor; a native custom feed uses FeedCard's default `/feeds/:id`.
-        const descriptor = feed.descriptor;
-        return (
-          <FeedCard
-            key={feed.id || feed._id}
-            onPress={
-              descriptor
-                ? () =>
-                    router.push({
-                      pathname: '/feeds/view',
-                      params: { descriptor, title: feed.title ?? '' },
-                    })
-                : undefined
-            }
-            feed={{
-              id: String(feed.id || feed._id),
-              displayName: feed.title || 'Untitled',
-              description: feed.description,
-              avatar: feed.avatar,
-              memberCount: feed.memberCount ?? (feed.memberOxyUserIds || []).length,
-              topicCount: feed.topicCount ?? (feed.keywords || []).length,
-              memberAvatars: feed.memberAvatars || [],
-              memberProfiles: feed.memberProfiles,
-              creator: feed.owner,
-              likeCount: feed.likeCount,
-            }}
-          />
-        );
-      })}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        feeds.map((feed) => {
+          // A feed generator (synced Bluesky feed) opens through the MTN engine via
+          // its descriptor; a native custom feed uses FeedCard's default `/feeds/:id`.
+          const descriptor = feed.descriptor;
+          return (
+            <FeedCard
+              key={feed.id || feed._id}
+              onPress={
+                descriptor
+                  ? () =>
+                      router.push({
+                        pathname: '/feeds/view',
+                        params: { descriptor, title: feed.title ?? '' },
+                      })
+                  : undefined
+              }
+              feed={{
+                id: String(feed.id || feed._id),
+                displayName: feed.title || 'Untitled',
+                description: feed.description,
+                avatar: feed.avatar,
+                memberCount: feed.memberCount ?? (feed.memberOxyUserIds || []).length,
+                topicCount: feed.topicCount ?? (feed.keywords || []).length,
+                memberAvatars: feed.memberAvatars || [],
+                memberProfiles: feed.memberProfiles,
+                creator: feed.owner,
+                likeCount: feed.likeCount,
+              }}
+            />
+          );
+        }),
+      ),
+    )
+      .padding('all', 'lg')
+      .spacing('md'),
   );
 });
 
@@ -476,30 +497,35 @@ const ProfileJobs = memo(function ProfileJobs({
     return <ListSkeleton />;
   }
 
-  return (
-    <View className="p-4 gap-3">
-      {(isOwnProfile || viewerOperatesAccount) && (
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          size="sm"
-          style={{ alignSelf: 'flex-start' }}
-          onPress={() => router.push('/jobs/mine')}
-        >
-          {t('profile.jobs.manage', { defaultValue: 'Manage jobs' })}
-        </Button>
-      )}
-
-      {jobs.length === 0 ? (
-        <EmptyState
-          title={t('profile.jobs.empty', { defaultValue: 'No jobs yet' })}
-          sticker="profileJobs"
-          containerStyle={{ minHeight: 200 }}
-        />
-      ) : (
-        jobs.map((job) => <OrganizationJobRow key={job.id} job={job} />)
-      )}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        (isOwnProfile || viewerOperatesAccount) && (
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            size="sm"
+            style={{ alignSelf: 'flex-start' }}
+            onPress={() => router.push('/jobs/mine')}
+          >
+            {t('profile.jobs.manage', { defaultValue: 'Manage jobs' })}
+          </Button>
+        ),
+      ),
+      Embed(
+        jobs.length === 0 ? (
+          <EmptyState
+            title={t('profile.jobs.empty', { defaultValue: 'No jobs yet' })}
+            sticker="profileJobs"
+            containerStyle={{ minHeight: 200 }}
+          />
+        ) : (
+          jobs.map((job) => <OrganizationJobRow key={job.id} job={job} />)
+        ),
+      ),
+    )
+      .padding('all', 'lg')
+      .spacing('md'),
   );
 });
 
@@ -547,12 +573,10 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
   });
 
   if (loading) {
-    return (
-      <View className="p-4 gap-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <StarterPackCardSkeleton key={i} />
-        ))}
-      </View>
+    return toElement(
+      VStack(Embed(Array.from({ length: 3 }).map((_, i) => <StarterPackCardSkeleton key={i} />)))
+        .padding('all', 'lg')
+        .spacing('md'),
     );
   }
 
@@ -566,16 +590,20 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
     );
   }
 
-  return (
-    <View className="p-4 gap-3">
-      {packs.map((pack) => (
-        <StarterPackCard
-          key={pack.id}
-          pack={pack}
-          onPress={() => router.push(`/starter-packs/${pack.id}`)}
-        />
-      ))}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        packs.map((pack) => (
+          <StarterPackCard
+            key={pack.id}
+            pack={pack}
+            onPress={() => router.push(`/starter-packs/${pack.id}`)}
+          />
+        )),
+      ),
+    )
+      .padding('all', 'lg')
+      .spacing('md'),
   );
 });
 
@@ -641,11 +669,15 @@ const ProfileLists = memo(function ProfileLists({
     );
   }
 
-  return (
-    <View className="p-4 gap-3">
-      {lists.map((list) => (
-        <ListCard key={list.id} list={list} onPress={() => router.push(`/lists/${list.id}`)} />
-      ))}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        lists.map((list) => (
+          <ListCard key={list.id} list={list} onPress={() => router.push(`/lists/${list.id}`)} />
+        )),
+      ),
+    )
+      .padding('all', 'lg')
+      .spacing('md'),
   );
 });

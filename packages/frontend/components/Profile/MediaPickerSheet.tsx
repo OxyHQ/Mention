@@ -9,7 +9,6 @@ import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Item } from '@oxy.so/bloom/item';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -23,6 +22,7 @@ import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCata
 import { createLogger } from '@oxy.so/core/logger';
 import { formatDuration } from '@/utils/formatDuration';
 import { SongPreviewButton } from './SongPreviewButton';
+import { Embed, HStack, Icon, RawText, Row, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('MediaPickerSheet');
 
@@ -126,43 +126,45 @@ const SongResultRow = memo(function SongResultRow({
     preview.toggle();
   }, [onSelect, result, preview]);
 
-  return (
-    <Item
-      selected={isSelected}
-      onPress={handlePress}
-      title={result.title}
-      subtitle={result.artist}
-      leading={
-        result.artworkUrl ? (
-          <Image
-            source={{ uri: result.artworkUrl }}
-            style={{ width: 40, height: 40, borderRadius: 6 }}
-            contentFit="cover"
-            transition={120}
-          />
-        ) : (
-          <View
-            className="rounded-md bg-muted items-center justify-center"
-            style={{ width: 40, height: 40 }}
-          >
-            <RiMusic2Line size="md" fill={colors.textSecondary} />
-          </View>
-        )
-      }
-      trailing={
-        result.previewUrl ? (
-          <SongPreviewButton
-            isPlaying={preview.isPlaying}
-            isLoading={preview.isLoading}
-            onPress={handlePress}
-            size="sm"
-            accessibilityLabel={
-              preview.isPlaying ? t('profile.media.song.pause') : t('profile.media.song.play')
-            }
-          />
-        ) : undefined
-      }
-    />
+  return toElement(
+    Row(result.title)
+      .selected(isSelected)
+      .onPress(handlePress)
+      .subtitle(result.artist)
+      .leadingView(
+        Embed(
+          result.artworkUrl ? (
+            <Image
+              source={{ uri: result.artworkUrl }}
+              style={{ width: 40, height: 40, borderRadius: 6 }}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <View
+              className="rounded-md bg-muted items-center justify-center"
+              style={{ width: 40, height: 40 }}
+            >
+              {toElement(Icon(RiMusic2Line).size('md').foreground('muted'))}
+            </View>
+          ),
+        ),
+      )
+      .trailing(
+        Embed(
+          result.previewUrl ? (
+            <SongPreviewButton
+              isPlaying={preview.isPlaying}
+              isLoading={preview.isLoading}
+              onPress={handlePress}
+              size="sm"
+              accessibilityLabel={
+                preview.isPlaying ? t('profile.media.song.pause') : t('profile.media.song.play')
+              }
+            />
+          ) : undefined,
+        ),
+      ),
   );
 });
 
@@ -182,30 +184,30 @@ const PodcastResultRow = memo(function PodcastResultRow({
     onSelect(result);
   }, [onSelect, result]);
 
-  return (
-    <Item
-      selected={isSelected}
-      onPress={handlePress}
-      title={result.title}
-      subtitle={result.author}
-      leading={
-        result.artworkUrl ? (
-          <Image
-            source={{ uri: result.artworkUrl }}
-            style={{ width: 40, height: 40, borderRadius: 6 }}
-            contentFit="cover"
-            transition={120}
-          />
-        ) : (
-          <View
-            className="rounded-md bg-muted items-center justify-center"
-            style={{ width: 40, height: 40 }}
-          >
-            <RiMic2Line size="md" fill={colors.textSecondary} />
-          </View>
-        )
-      }
-    />
+  return toElement(
+    Row(result.title)
+      .selected(isSelected)
+      .onPress(handlePress)
+      .subtitle(result.author)
+      .leadingView(
+        Embed(
+          result.artworkUrl ? (
+            <Image
+              source={{ uri: result.artworkUrl }}
+              style={{ width: 40, height: 40, borderRadius: 6 }}
+              contentFit="cover"
+              transition={120}
+            />
+          ) : (
+            <View
+              className="rounded-md bg-muted items-center justify-center"
+              style={{ width: 40, height: 40 }}
+            >
+              {toElement(Icon(RiMic2Line).size('md').foreground('muted'))}
+            </View>
+          ),
+        ),
+      ),
   );
 });
 
@@ -354,296 +356,389 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
   const isSongTab = tab === 'song';
   const activeSearch = isSongTab ? songSearch : podcastSearch;
 
-  return (
-    <View className="bg-background px-4 pt-3 pb-2">
-      <Text className="text-foreground text-lg font-bold mb-3">{t('profile.media.title')}</Text>
-
-      {/* SONG / PODCAST toggle */}
-      <View className="flex-row p-1 rounded-full bg-muted mb-3">
-        <Pressable
-          onPress={() => switchTab('song')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: isSongTab }}
-          accessibilityLabel={t('profile.media.tabSong')}
-          className="flex-1 py-2 rounded-full items-center justify-center"
-          style={{ backgroundColor: isSongTab ? colors.background : 'transparent' }}
-        >
-          <Text
-            className="text-[14px] font-semibold"
-            style={{ color: isSongTab ? colors.text : colors.textSecondary }}
-          >
-            {t('profile.media.tabSong')}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => switchTab('podcast')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: !isSongTab }}
-          accessibilityLabel={t('profile.media.tabPodcast')}
-          className="flex-1 py-2 rounded-full items-center justify-center"
-          style={{ backgroundColor: !isSongTab ? colors.background : 'transparent' }}
-        >
-          <Text
-            className="text-[14px] font-semibold"
-            style={{ color: !isSongTab ? colors.text : colors.textSecondary }}
-          >
-            {t('profile.media.tabPodcast')}
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Search input — mirrors GifPickerSheet's styled search row. */}
-      <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-muted gap-2.5">
-        <RiSearchLine size="sm" fill={colors.textSecondary} />
-        <TextInput
-          className="flex-1 text-[15px] text-foreground"
-          placeholder={
-            isSongTab
-              ? t('profile.media.song.searchPlaceholder')
-              : t('profile.media.podcast.searchPlaceholder')
-          }
-          placeholderTextColor={colors.textTertiary}
-          value={query}
-          onChangeText={setQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-        {query.length > 0 && (
+  return toElement(
+    VStack(
+      RawText(t('profile.media.title'))
+        .foreground('foreground')
+        .font('18')
+        .leading('28px')
+        .weight('bold')
+        .margin('bottom', 'md'),
+      /* SONG / PODCAST toggle */ HStack(
+        Embed(
           <Pressable
-            onPress={() => setQuery('')}
+            onPress={() => switchTab('song')}
             accessibilityRole="button"
-            accessibilityLabel={t('profile.media.clearSearch')}
-            hitSlop={tokens.hitSlop.md}
+            accessibilityState={{ selected: isSongTab }}
+            accessibilityLabel={t('profile.media.tabSong')}
+            className="flex-1 py-2 rounded-full items-center justify-center"
+            style={{ backgroundColor: isSongTab ? colors.background : 'transparent' }}
           >
-            <RiCloseCircleLine size="sm" fill={colors.textSecondary} />
-          </Pressable>
-        )}
-      </View>
-
-      {/* Results */}
-      <View className="mt-2 min-h-[120px]">
-        {activeSearch.isLoading ? (
-          <MediaGridSkeleton />
-        ) : activeSearch.isError ? (
-          <Text className="text-muted-foreground text-[15px] text-center py-10">
-            {isSongTab
-              ? t('profile.media.song.searchError')
-              : t('profile.media.podcast.searchError')}
-          </Text>
-        ) : !activeSearch.hasQuery ? (
-          <Text className="text-muted-foreground text-[15px] text-center py-10">
-            {isSongTab ? t('profile.media.song.searchHint') : t('profile.media.podcast.searchHint')}
-          </Text>
-        ) : isSongTab ? (
-          songSearch.results.length === 0 ? (
-            <View className="items-center justify-center py-10 gap-2">
-              <RiSearchLine size="2xl" fill={colors.textSecondary} />
-              <Text className="text-muted-foreground text-[15px]">
-                {t('profile.media.song.empty')}
-              </Text>
-            </View>
+            <Text
+              className="text-[14px] font-semibold"
+              style={{ color: isSongTab ? colors.text : colors.textSecondary }}
+            >
+              {t('profile.media.tabSong')}
+            </Text>
+          </Pressable>,
+        ),
+        Embed(
+          <Pressable
+            onPress={() => switchTab('podcast')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !isSongTab }}
+            accessibilityLabel={t('profile.media.tabPodcast')}
+            className="flex-1 py-2 rounded-full items-center justify-center"
+            style={{ backgroundColor: !isSongTab ? colors.background : 'transparent' }}
+          >
+            <Text
+              className="text-[14px] font-semibold"
+              style={{ color: !isSongTab ? colors.text : colors.textSecondary }}
+            >
+              {t('profile.media.tabPodcast')}
+            </Text>
+          </Pressable>,
+        ),
+      )
+        .padding('all', 'xs')
+        .background('mutedFill')
+        .corner('infinite')
+        .margin('bottom', 'md'),
+      /* Search input — mirrors GifPickerSheet's styled search row. */ HStack(
+        Icon(RiSearchLine).size('sm').foreground('muted'),
+        Embed(
+          <TextInput
+            className="flex-1 text-[15px] text-foreground"
+            placeholder={
+              isSongTab
+                ? t('profile.media.song.searchPlaceholder')
+                : t('profile.media.podcast.searchPlaceholder')
+            }
+            placeholderTextColor={colors.textTertiary}
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />,
+        ),
+        Embed(
+          query.length > 0 && (
+            <Pressable
+              onPress={() => setQuery('')}
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.media.clearSearch')}
+              hitSlop={tokens.hitSlop.md}
+            >
+              {toElement(Icon(RiCloseCircleLine).size('sm').foreground('muted'))}
+            </Pressable>
+          ),
+        ),
+      )
+        .padding('horizontal', 'md')
+        .padding('vertical', '10')
+        .background('mutedFill')
+        .corner('md')
+        .align('center')
+        .spacing('10'),
+      /* Results */ VStack(
+        Embed(
+          activeSearch.isLoading ? (
+            <MediaGridSkeleton />
+          ) : activeSearch.isError ? (
+            toElement(
+              RawText(
+                isSongTab
+                  ? t('profile.media.song.searchError')
+                  : t('profile.media.podcast.searchError'),
+              )
+                .padding('vertical', '4xl')
+                .foreground('muted')
+                .font('md')
+                .textAlign('center'),
+            )
+          ) : !activeSearch.hasQuery ? (
+            toElement(
+              RawText(
+                isSongTab
+                  ? t('profile.media.song.searchHint')
+                  : t('profile.media.podcast.searchHint'),
+              )
+                .padding('vertical', '4xl')
+                .foreground('muted')
+                .font('md')
+                .textAlign('center'),
+            )
+          ) : isSongTab ? (
+            songSearch.results.length === 0 ? (
+              toElement(
+                VStack(
+                  Icon(RiSearchLine).size('2xl').foreground('muted'),
+                  RawText(t('profile.media.song.empty')).foreground('muted').font('md'),
+                )
+                  .padding('vertical', '4xl')
+                  .align('center')
+                  .justify('center')
+                  .spacing('sm'),
+              )
+            ) : (
+              <FlatList
+                data={songSearch.results}
+                keyExtractor={(item) => item.syraTrackId}
+                renderItem={({ item }) => (
+                  <SongResultRow
+                    result={item}
+                    isSelected={selectedSong?.syraTrackId === item.syraTrackId}
+                    onSelect={handleSelectSong}
+                  />
+                )}
+                className="max-h-[300px]"
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                onEndReached={songSearch.loadMore}
+                onEndReachedThreshold={0.4}
+                ListFooterComponent={<ResultsFooter loading={songSearch.isFetchingNextPage} />}
+              />
+            )
+          ) : podcastSearch.results.length === 0 ? (
+            toElement(
+              VStack(
+                Icon(RiSearchLine).size('2xl').foreground('muted'),
+                RawText(t('profile.media.podcast.empty')).foreground('muted').font('md'),
+              )
+                .padding('vertical', '4xl')
+                .align('center')
+                .justify('center')
+                .spacing('sm'),
+            )
           ) : (
             <FlatList
-              data={songSearch.results}
-              keyExtractor={(item) => item.syraTrackId}
+              data={podcastSearch.results}
+              keyExtractor={(item) => item.syraPodcastId}
               renderItem={({ item }) => (
-                <SongResultRow
+                <PodcastResultRow
                   result={item}
-                  isSelected={selectedSong?.syraTrackId === item.syraTrackId}
-                  onSelect={handleSelectSong}
+                  isSelected={selectedPodcast?.syraPodcastId === item.syraPodcastId}
+                  onSelect={handleSelectPodcast}
                 />
               )}
               className="max-h-[300px]"
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              onEndReached={songSearch.loadMore}
+              onEndReached={podcastSearch.loadMore}
               onEndReachedThreshold={0.4}
-              ListFooterComponent={<ResultsFooter loading={songSearch.isFetchingNextPage} />}
+              ListFooterComponent={<ResultsFooter loading={podcastSearch.isFetchingNextPage} />}
             />
-          )
-        ) : podcastSearch.results.length === 0 ? (
-          <View className="items-center justify-center py-10 gap-2">
-            <RiSearchLine size="2xl" fill={colors.textSecondary} />
-            <Text className="text-muted-foreground text-[15px]">
-              {t('profile.media.podcast.empty')}
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={podcastSearch.results}
-            keyExtractor={(item) => item.syraPodcastId}
-            renderItem={({ item }) => (
-              <PodcastResultRow
-                result={item}
-                isSelected={selectedPodcast?.syraPodcastId === item.syraPodcastId}
-                onSelect={handleSelectPodcast}
-              />
-            )}
-            className="max-h-[300px]"
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            onEndReached={podcastSearch.loadMore}
-            onEndReachedThreshold={0.4}
-            ListFooterComponent={<ResultsFooter loading={podcastSearch.isFetchingNextPage} />}
-          />
-        )}
-      </View>
-
-      {/* Selected song — start offset + save */}
-      {isSongTab && selectedSong && (
-        <View className="bg-muted rounded-xl p-3 mt-2">
-          <View className="flex-row items-center gap-3">
-            {selectedSong.artworkUrl ? (
-              <Image
-                source={{ uri: selectedSong.artworkUrl }}
-                style={{ width: 40, height: 40, borderRadius: 6 }}
-                contentFit="cover"
-                transition={120}
-              />
-            ) : (
-              <View
-                className="rounded-md bg-background items-center justify-center"
-                style={{ width: 40, height: 40 }}
-              >
-                <RiMusic2Line size="md" fill={colors.textSecondary} />
-              </View>
-            )}
-            <View className="flex-1 shrink">
-              <Text className="text-foreground text-[15px] font-semibold" numberOfLines={1}>
-                {selectedSong.title}
-              </Text>
-              <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
-                {selectedSong.artist}
-              </Text>
-            </View>
-          </View>
-
-          {maxStartSec > 0 && (
-            <View className="flex-row items-center justify-between mt-3">
-              <Text className="text-muted-foreground text-[13px]">
-                {t('profile.media.song.startsAt', { time: formatDuration(startSec) })}
-              </Text>
-              <View className="flex-row items-center gap-3">
+          ),
+        ),
+      )
+        .frame({ minHeight: '120' })
+        .margin('top', 'sm'),
+      /* Selected song — start offset + save */ Embed(
+        isSongTab &&
+          selectedSong &&
+          toElement(
+            VStack(
+              HStack(
+                Embed(
+                  selectedSong.artworkUrl ? (
+                    <Image
+                      source={{ uri: selectedSong.artworkUrl }}
+                      style={{ width: 40, height: 40, borderRadius: 6 }}
+                      contentFit="cover"
+                      transition={120}
+                    />
+                  ) : (
+                    <View
+                      className="rounded-md bg-background items-center justify-center"
+                      style={{ width: 40, height: 40 }}
+                    >
+                      {toElement(Icon(RiMusic2Line).size('md').foreground('muted'))}
+                    </View>
+                  ),
+                ),
+                VStack(
+                  RawText(selectedSong.title)
+                    .foreground('foreground')
+                    .font('md')
+                    .weight('semibold')
+                    .lines(1),
+                  RawText(selectedSong.artist).foreground('muted').font('sm').lines(1),
+                )
+                  .flex('1')
+                  .shrink('normal'),
+              )
+                .align('center')
+                .spacing('md'),
+              maxStartSec > 0
+                ? HStack(
+                    RawText(t('profile.media.song.startsAt', { time: formatDuration(startSec) }))
+                      .foreground('muted')
+                      .font('sm'),
+                    HStack(
+                      Embed(
+                        <Pressable
+                          onPress={decrementStart}
+                          disabled={startSec <= 0}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('profile.media.song.startEarlier')}
+                          hitSlop={tokens.hitSlop.md}
+                          className="rounded-full bg-background items-center justify-center"
+                          style={{ width: 32, height: 32, opacity: startSec <= 0 ? 0.4 : 1 }}
+                        >
+                          <Text className="text-foreground text-lg font-semibold leading-none">
+                            {'−'}
+                          </Text>
+                        </Pressable>,
+                      ),
+                      RawText(formatDuration(startSec))
+                        .foreground('foreground')
+                        .font('md')
+                        .weight('semibold')
+                        .when('web', (v) => v.monospacedDigit()),
+                      Embed(
+                        <Pressable
+                          onPress={incrementStart}
+                          disabled={startSec >= maxStartSec}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('profile.media.song.startLater')}
+                          hitSlop={tokens.hitSlop.md}
+                          className="rounded-full bg-background items-center justify-center"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            opacity: startSec >= maxStartSec ? 0.4 : 1,
+                          }}
+                        >
+                          <Text className="text-foreground text-lg font-semibold leading-none">
+                            +
+                          </Text>
+                        </Pressable>,
+                      ),
+                    )
+                      .align('center')
+                      .spacing('md'),
+                  )
+                    .align('center')
+                    .justify('between')
+                    .margin('top', 'md')
+                : null,
+              Embed(
                 <Pressable
-                  onPress={decrementStart}
-                  disabled={startSec <= 0}
+                  onPress={handleSaveSong}
+                  disabled={saving}
                   accessibilityRole="button"
-                  accessibilityLabel={t('profile.media.song.startEarlier')}
-                  hitSlop={tokens.hitSlop.md}
-                  className="rounded-full bg-background items-center justify-center"
-                  style={{ width: 32, height: 32, opacity: startSec <= 0 ? 0.4 : 1 }}
+                  accessibilityLabel={t('profile.media.save')}
+                  className="mt-3 rounded-full bg-primary py-2.5 items-center justify-center"
+                  style={{ opacity: saving ? 0.6 : 1 }}
                 >
-                  <Text className="text-foreground text-lg font-semibold leading-none">{'−'}</Text>
-                </Pressable>
-                <Text className="text-foreground text-[15px] font-semibold tabular-nums">
-                  {formatDuration(startSec)}
-                </Text>
+                  {saving ? (
+                    <SpinnerIcon size={20} color={colors.primaryForeground} />
+                  ) : (
+                    toElement(
+                      RawText(t('profile.media.save'))
+                        .font('md')
+                        .weight('semibold')
+                        .foreground('onPrimary'),
+                    )
+                  )}
+                </Pressable>,
+              ),
+            )
+              .padding('all', 'md')
+              .background('mutedFill')
+              .corner('md')
+              .margin('top', 'sm'),
+          ),
+      ),
+      /* Selected podcast — save (no start offset, no preview) */ Embed(
+        !isSongTab &&
+          selectedPodcast &&
+          toElement(
+            VStack(
+              HStack(
+                Embed(
+                  selectedPodcast.artworkUrl ? (
+                    <Image
+                      source={{ uri: selectedPodcast.artworkUrl }}
+                      style={{ width: 40, height: 40, borderRadius: 6 }}
+                      contentFit="cover"
+                      transition={120}
+                    />
+                  ) : (
+                    <View
+                      className="rounded-md bg-background items-center justify-center"
+                      style={{ width: 40, height: 40 }}
+                    >
+                      {toElement(Icon(RiMic2Line).size('md').foreground('muted'))}
+                    </View>
+                  ),
+                ),
+                VStack(
+                  RawText(selectedPodcast.title)
+                    .foreground('foreground')
+                    .font('md')
+                    .weight('semibold')
+                    .lines(1),
+                  selectedPodcast.author
+                    ? RawText(selectedPodcast.author).foreground('muted').font('sm').lines(1)
+                    : null,
+                )
+                  .flex('1')
+                  .shrink('normal'),
+              )
+                .align('center')
+                .spacing('md'),
+              Embed(
                 <Pressable
-                  onPress={incrementStart}
-                  disabled={startSec >= maxStartSec}
+                  onPress={handleSavePodcast}
+                  disabled={saving}
                   accessibilityRole="button"
-                  accessibilityLabel={t('profile.media.song.startLater')}
-                  hitSlop={tokens.hitSlop.md}
-                  className="rounded-full bg-background items-center justify-center"
-                  style={{ width: 32, height: 32, opacity: startSec >= maxStartSec ? 0.4 : 1 }}
+                  accessibilityLabel={t('profile.media.save')}
+                  className="mt-3 rounded-full bg-primary py-2.5 items-center justify-center"
+                  style={{ opacity: saving ? 0.6 : 1 }}
                 >
-                  <Text className="text-foreground text-lg font-semibold leading-none">+</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-
-          <Pressable
-            onPress={handleSaveSong}
-            disabled={saving}
-            accessibilityRole="button"
-            accessibilityLabel={t('profile.media.save')}
-            className="mt-3 rounded-full bg-primary py-2.5 items-center justify-center"
-            style={{ opacity: saving ? 0.6 : 1 }}
-          >
-            {saving ? (
-              <SpinnerIcon size={20} color={colors.primaryForeground} />
-            ) : (
-              <Text
-                className="text-[15px] font-semibold"
-                style={{ color: colors.primaryForeground }}
-              >
-                {t('profile.media.save')}
-              </Text>
-            )}
-          </Pressable>
-        </View>
-      )}
-
-      {/* Selected podcast — save (no start offset, no preview) */}
-      {!isSongTab && selectedPodcast && (
-        <View className="bg-muted rounded-xl p-3 mt-2">
-          <View className="flex-row items-center gap-3">
-            {selectedPodcast.artworkUrl ? (
-              <Image
-                source={{ uri: selectedPodcast.artworkUrl }}
-                style={{ width: 40, height: 40, borderRadius: 6 }}
-                contentFit="cover"
-                transition={120}
-              />
-            ) : (
-              <View
-                className="rounded-md bg-background items-center justify-center"
-                style={{ width: 40, height: 40 }}
-              >
-                <RiMic2Line size="md" fill={colors.textSecondary} />
-              </View>
-            )}
-            <View className="flex-1 shrink">
-              <Text className="text-foreground text-[15px] font-semibold" numberOfLines={1}>
-                {selectedPodcast.title}
-              </Text>
-              {selectedPodcast.author ? (
-                <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
-                  {selectedPodcast.author}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-
-          <Pressable
-            onPress={handleSavePodcast}
-            disabled={saving}
-            accessibilityRole="button"
-            accessibilityLabel={t('profile.media.save')}
-            className="mt-3 rounded-full bg-primary py-2.5 items-center justify-center"
-            style={{ opacity: saving ? 0.6 : 1 }}
-          >
-            {saving ? (
-              <SpinnerIcon size={20} color={colors.primaryForeground} />
-            ) : (
-              <Text
-                className="text-[15px] font-semibold"
-                style={{ color: colors.primaryForeground }}
-              >
-                {t('profile.media.save')}
-              </Text>
-            )}
-          </Pressable>
-        </View>
-      )}
-
-      {/* Remove the currently pinned media (song or podcast) */}
-      {currentMedia && (
-        <Pressable
-          onPress={handleRemove}
-          disabled={saving}
-          accessibilityRole="button"
-          accessibilityLabel={t('profile.media.remove')}
-          className="flex-row items-center justify-center gap-2 mt-3 py-2.5"
-        >
-          <RiDeleteBinLine size="sm" fill={colors.error} />
-          <Text className="text-[15px] font-semibold" style={{ color: colors.error }}>
-            {t('profile.media.remove')}
-          </Text>
-        </Pressable>
-      )}
-    </View>
+                  {saving ? (
+                    <SpinnerIcon size={20} color={colors.primaryForeground} />
+                  ) : (
+                    toElement(
+                      RawText(t('profile.media.save'))
+                        .font('md')
+                        .weight('semibold')
+                        .foreground('onPrimary'),
+                    )
+                  )}
+                </Pressable>,
+              ),
+            )
+              .padding('all', 'md')
+              .background('mutedFill')
+              .corner('md')
+              .margin('top', 'sm'),
+          ),
+      ),
+      /* Remove the currently pinned media (song or podcast) */ Embed(
+        currentMedia &&
+          toElement(
+            HStack(
+              Icon(RiDeleteBinLine).size('sm').foreground('error'),
+              RawText(t('profile.media.remove')).font('md').weight('semibold').foreground('error'),
+            )
+              .padding('vertical', '10')
+              .align('center')
+              .justify('center')
+              .spacing('sm')
+              .margin('top', 'md')
+              .onPress(handleRemove)
+              .disabled(saving)
+              .role('button')
+              .label(t('profile.media.remove')),
+          ),
+      ),
+    )
+      .padding('horizontal', 'lg')
+      .padding('top', 'md')
+      .padding('bottom', 'sm')
+      .background('background'),
   );
 });

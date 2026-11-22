@@ -1,11 +1,18 @@
 import { memo } from 'react';
-import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { useChannelWriters } from './hooks/useChannelWriters';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Button as LButton,
+  Embed,
+  RawText,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * A CHANNEL's writers — the people it has already NAMED on its posts.
@@ -67,34 +74,43 @@ export const ProfileWriters = memo(function ProfileWriters({
     );
   }
 
-  return (
-    <View className="w-full">
-      <Text className="text-muted-foreground text-sm px-3 py-3">
-        {t('channels.writers.caption', {
+  return toElement(
+    VStack(
+      RawText(
+        t('channels.writers.caption', {
           defaultValue: 'The people this channel has named on its posts.',
-        })}
-      </Text>
-      {writers.map((entry, index) => (
-        <ProfileCard
-          key={entry.writer.id}
-          profile={entry.writer}
-          showFollowButton
-          meta={t('channels.writers.lastWrote', {
-            time: formatRelativeTime(new Date(entry.lastPostAt), locale, { style: 'short' }),
-            defaultValue: 'Last wrote {{time}}',
-          })}
-          // The last row's hairline would otherwise sit under nothing — unless
-          // the load-more button follows it, which it then separates.
-          showDivider={hasMore || index < writers.length - 1}
-        />
-      ))}
-      {hasMore ? (
-        <View className="p-4">
-          <Button appearance="subtle" tone="neutral" onPress={loadMore} loading={loadingMore}>
-            {t('common.loadMore')}
-          </Button>
-        </View>
-      ) : null}
-    </View>
+        }),
+      )
+        .padding('horizontal', 'md')
+        .padding('vertical', 'md')
+        .foreground('muted')
+        .font('14')
+        .leading('20px'),
+      Embed(
+        writers.map((entry, index) => (
+          <ProfileCard
+            key={entry.writer.id}
+            profile={entry.writer}
+            showFollowButton
+            meta={t('channels.writers.lastWrote', {
+              time: formatRelativeTime(new Date(entry.lastPostAt), locale, { style: 'short' }),
+              defaultValue: 'Last wrote {{time}}',
+            })}
+            // The last row's hairline would otherwise sit under nothing — unless
+            // the load-more button follows it, which it then separates.
+            showDivider={hasMore || index < writers.length - 1}
+          />
+        )),
+      ),
+      hasMore
+        ? VStack(
+            LButton(LText(t('common.loadMore')))
+              .style('subtle')
+              .tint('neutral')
+              .onPress(loadMore)
+              .loading(loadingMore),
+          ).padding('all', 'lg')
+        : null,
+    ).frame({ width: 'full' }),
   );
 });

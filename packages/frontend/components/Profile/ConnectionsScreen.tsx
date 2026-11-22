@@ -6,7 +6,6 @@ import {
   connectionTabFromPathname,
   type ConnectionTab,
 } from '@/components/Profile/profileTabRoute';
-import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import {
@@ -17,7 +16,7 @@ import {
 import { usePathname } from '@/lib/navigation/router';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, TouchableOpacity, Platform } from 'react-native';
+import { TouchableOpacity, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -37,6 +36,7 @@ import { shareLink } from '@/utils/shareLink';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
+import { Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 type TabType = ConnectionTab;
 
@@ -377,22 +377,36 @@ function ConnectionsContent({
         onPress={handleInviteFriends}
         activeOpacity={0.7}
       >
-        <View className="w-10 h-10 rounded-full items-center justify-center bg-primary">
-          <RiGroupFill size="md" fill={theme.colors.card} />
-        </View>
-        <View className="flex-1">
-          <Text className="text-[15px] font-bold mb-0.5 text-foreground">
-            {t('settings.inviteContacts.inviteBannerTitle', {
-              defaultValue: 'Invite friends from your contacts',
-            })}
-          </Text>
-          <Text className="text-[13px] font-medium text-muted-foreground">
-            {t('settings.inviteContacts.inviteBannerSubtitle', {
-              defaultValue: 'Share Mention and grow your community.',
-            })}
-          </Text>
-        </View>
-        <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
+        {toElement(
+          VStack(Icon(RiGroupFill).size('md').foreground('card'))
+            .frame({ width: '4xl', height: '4xl' })
+            .background('primary')
+            .corner('infinite')
+            .align('center')
+            .justify('center'),
+        )}
+        {toElement(
+          VStack(
+            LText(
+              t('settings.inviteContacts.inviteBannerTitle', {
+                defaultValue: 'Invite friends from your contacts',
+              }),
+            )
+              .font('md')
+              .weight('bold')
+              .margin('bottom', '2xs')
+              .foreground('foreground'),
+            LText(
+              t('settings.inviteContacts.inviteBannerSubtitle', {
+                defaultValue: 'Share Mention and grow your community.',
+              }),
+            )
+              .font('sm')
+              .weight('medium')
+              .foreground('muted'),
+          ).flex('1'),
+        )}
+        {toElement(Icon(RiArrowRightSLine).size('md').foreground('muted'))}
       </TouchableOpacity>
     ),
     [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t],

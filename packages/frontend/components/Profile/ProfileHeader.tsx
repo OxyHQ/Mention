@@ -28,6 +28,16 @@ import { LAYOUT } from './types';
 import { PROFILE_AVATAR_RING } from './ProfilePageHeader';
 import type { ProfileHeaderProps } from './types';
 
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  Icon,
+  Text,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+
 // Shrink the 90px header avatar toward these values as the profile scrolls. The
 // same constants drive both the ZoomableAvatar (non-live) collapse and the live
 // avatar's collapse wrapper so the two stay pixel-identical during scroll.
@@ -120,102 +130,131 @@ export const ProfileHeader = memo(function ProfileHeader({
     ],
   }));
 
-  return (
-    <View className="flex-row justify-between items-end mb-2.5">
-      <View className="relative">
-        {isProfileLive ? (
-          <Animated.View
-            className="bg-muted rounded-full"
-            style={[
-              { borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill },
-              liveAvatarCollapseStyle,
-            ]}
-          >
-            <LiveAvatar
+  return toElement(
+    HStack(
+      VStack(
+        Embed(
+          isProfileLive ? (
+            <Animated.View
+              className="bg-muted rounded-full"
+              style={[
+                { borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill },
+                liveAvatarCollapseStyle,
+              ]}
+            >
+              <LiveAvatar
+                account={account}
+                userId={profileId}
+                source={avatarUri ?? undefined}
+                size={90}
+                variant={MEDIA_VARIANT_AVATAR_LG}
+              />
+            </Animated.View>
+          ) : (
+            <ZoomableAvatar
+              shareUrl={galleryShareUrl ?? null}
               account={account}
-              userId={profileId}
-              source={avatarUri ?? undefined}
-              size={90}
-              variant={MEDIA_VARIANT_AVATAR_LG}
+              source={avatarUri}
+              size={90 - PROFILE_AVATAR_RING * 2}
+              className="bg-muted"
+              style={{
+                width: 90,
+                height: 90,
+                borderRadius: 45,
+                borderWidth: PROFILE_AVATAR_RING,
+                borderColor: surfaceFill,
+              }}
+              collapseProgress={avatarCollapseProgress}
+              collapseMinScale={PROFILE_AVATAR_COLLAPSE_MIN_SCALE}
+              collapseTranslateY={PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y}
             />
-          </Animated.View>
-        ) : (
-          <ZoomableAvatar
-            shareUrl={galleryShareUrl ?? null}
-            account={account}
-            source={avatarUri}
-            size={90 - PROFILE_AVATAR_RING * 2}
-            className="bg-muted"
-            style={{
-              width: 90,
-              height: 90,
-              borderRadius: 45,
-              borderWidth: PROFILE_AVATAR_RING,
-              borderColor: surfaceFill,
-            }}
-            collapseProgress={avatarCollapseProgress}
-            collapseMinScale={PROFILE_AVATAR_COLLAPSE_MIN_SCALE}
-            collapseTranslateY={PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y}
-          />
-        )}
-        {!isOwnProfile && profileId && (
-          <PresenceIndicator
-            userId={profileId}
-            size="medium"
-            style={{ position: 'absolute', bottom: 4, right: 4 }}
-          />
-        )}
-      </View>
-      <View className="flex-1 min-w-0 ml-3">
-        {isOwnProfile && currentUsername === username ? (
-          <View className="flex-row flex-wrap justify-end items-center gap-2">
-            <Button appearance="subtle" tone="neutral" onPress={openEditProfile}>
-              {t('profile.editProfile')}
-            </Button>
-            <Button.Group testID="profile-owner-actions">
-              <Button
-                iconOnly
-                onPress={goInsights}
-                accessibilityLabel="Analytics"
-                leadingIcon={RiLineChartLine}
-              />
-              <Button
-                iconOnly
-                onPress={goSettings}
-                accessibilityLabel="Settings"
-                leadingIcon={RiSettings3Line}
-              />
-            </Button.Group>
-          </View>
-        ) : profileId ? (
-          <View className="flex-row flex-wrap justify-end items-center gap-2">
-            {(canPoke || interactionActions) && (
-              <Button.Group testID="profile-interaction-actions">
-                {canPoke && (
-                  <Button
-                    iconOnly
-                    onPress={togglePoke}
-                    disabled={pokeLoading}
-                    pressed={poked}
-                    accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-                    leadingIcon={RiHand}
-                  />
-                )}
-                {interactionActions}
-              </Button.Group>
-            )}
-            {/* Seed from the profile DTO's authoritative viewer relationship so
-                the button paints correctly on first render. When the DTO omits it,
-                the app-root follow-store seed covers followed users. */}
-            <FollowButtonComponent
+          ),
+        ),
+        Embed(
+          !isOwnProfile && profileId && (
+            <PresenceIndicator
               userId={profileId}
-              initiallyFollowing={initialIsFollowing}
-              username={username}
-              verb={followVerb}
+              size="medium"
+              style={{ position: 'absolute', bottom: 4, right: 4 }}
             />
-          </View>
-        ) : null}
-      </View>
-    </View>
+          ),
+        ),
+      ),
+      VStack(
+        Embed(
+          isOwnProfile && currentUsername === username
+            ? toElement(
+                HStack(
+                  LButton(Text(t('profile.editProfile')))
+                    .style('subtle')
+                    .tint('neutral')
+                    .onPress(openEditProfile),
+                  Embed(
+                    <Button.Group testID="profile-owner-actions">
+                      {toElement(
+                        LButton(Icon(RiLineChartLine))
+                          .shape('circle')
+                          .onPress(goInsights)
+                          .label('Analytics'),
+                      )}
+                      {toElement(
+                        LButton(Icon(RiSettings3Line))
+                          .shape('circle')
+                          .onPress(goSettings)
+                          .label('Settings'),
+                      )}
+                    </Button.Group>,
+                  ),
+                )
+                  .wrap()
+                  .justify('end')
+                  .align('center')
+                  .spacing('sm'),
+              )
+            : profileId
+              ? toElement(
+                  HStack(
+                    Embed(
+                      (canPoke || interactionActions) && (
+                        <Button.Group testID="profile-interaction-actions">
+                          {canPoke &&
+                            toElement(
+                              LButton(Icon(RiHand))
+                                .shape('circle')
+                                .onPress(togglePoke)
+                                .disabled(pokeLoading)
+                                .pressed(poked)
+                                .label(poked ? 'Unpoke' : 'Poke'),
+                            )}
+                          {interactionActions}
+                        </Button.Group>
+                      ),
+                    ),
+                    /* Seed from the profile DTO's authoritative viewer relationship so
+                    the button paints correctly on first render. When the DTO omits it,
+                    the app-root follow-store seed covers followed users. */ Embed(
+                      <FollowButtonComponent
+                        userId={profileId}
+                        initiallyFollowing={initialIsFollowing}
+                        username={username}
+                        verb={followVerb}
+                      />,
+                    ),
+                  )
+                    .wrap()
+                    .justify('end')
+                    .align('center')
+                    .spacing('sm'),
+                )
+              : null,
+        ),
+      )
+        .frame({ minWidth: 'none' })
+        .flex('1')
+        .margin('left', 'md'),
+    )
+      .justify('between')
+      .align('end')
+      .margin('bottom', '10'),
   );
 });

@@ -1,13 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  View,
-  type StyleProp,
-  type ViewStyle,
-  type ViewInstance,
-} from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle, type ViewInstance } from 'react-native';
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { hasAccountAvatarCharacter } from '@/components/ui/use-account-avatar-motion';
@@ -27,6 +20,8 @@ import { useAuth, useFileDownloadUrl } from '@oxy.so/services/ui/client';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { LazyZoomableGallery } from '@/components/common/LazyZoomableGallery';
 import { MEDIA_VARIANT_FULL, MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface ZoomableAvatarProps {
   /** An Oxy file id, an absolute URL, or an expo-image source (a bundled asset). */
@@ -164,42 +159,44 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
 
   return (
     <>
-      <Pressable
-        onPress={handlePress}
-        disabled={hasCharacter || !zoomUri}
-        accessibilityLabel="Profile avatar"
-        accessibilityRole="image"
-      >
-        <View ref={wrapperRef} collapsable={false}>
-          <Animated.View
-            className={`web:[user-select:none] web:[-webkit-user-drag:none] web:cursor-pointer${className ? ` ${className}` : ''}`}
-            style={[
-              styles.avatar,
-              { width: size, height: size, borderRadius: size / 2 },
-              style,
-              collapseStyle,
-              hasCharacter && { overflow: 'visible' },
-            ]}
-          >
-            <AccountAvatar
-              account={account}
-              onImageError={() =>
-                setImageFailure((current) =>
-                  current.source === source
-                    ? { source, failed: true, attemptedSource: imageSource }
-                    : current,
-                )
-              }
-              source={imageSource}
-              fallbackSource={DefaultAvatar}
-              size={size}
-              shape="circle"
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
-        </View>
-      </Pressable>
-
+      {toElement(
+        VStack(
+          Embed(
+            <View ref={wrapperRef} collapsable={false}>
+              <Animated.View
+                className={`web:[user-select:none] web:[-webkit-user-drag:none] web:cursor-pointer${className ? ` ${className}` : ''}`}
+                style={[
+                  styles.avatar,
+                  { width: size, height: size, borderRadius: size / 2 },
+                  style,
+                  collapseStyle,
+                  hasCharacter && { overflow: 'visible' },
+                ]}
+              >
+                <AccountAvatar
+                  account={account}
+                  onImageError={() =>
+                    setImageFailure((current) =>
+                      current.source === source
+                        ? { source, failed: true, attemptedSource: imageSource }
+                        : current,
+                    )
+                  }
+                  source={imageSource}
+                  fallbackSource={DefaultAvatar}
+                  size={size}
+                  shape="circle"
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            </View>,
+          ),
+        )
+          .onPress(handlePress)
+          .disabled(hasCharacter || !zoomUri)
+          .label('Profile avatar')
+          .role('image'),
+      )}
       <LazyZoomableGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius="circle" />
     </>
   );

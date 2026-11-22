@@ -12,6 +12,8 @@ import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
 /**
  * Profile banner picker/preview. Self-contained: reads/writes
  * `useAppearanceStore` directly.
@@ -67,72 +69,109 @@ export const BannerSection: React.FC = () => {
 
   const removeHeaderImage = useCallback(() => saveHeaderImage(''), [saveHeaderImage]);
 
-  return (
-    <View className="px-5 py-4 gap-3">
-      <View className="gap-1">
-        <View className="flex-row items-center gap-3">
-          <RiImageLine width={22} fill={colors.text} />
-          <Text className="text-[16px] font-semibold text-foreground">
-            {t('settings.profileHeader', 'Profile header')}
-          </Text>
-        </View>
-        <Text className="text-sm text-muted-foreground pl-[34px]">
-          {t('settings.uploadHeaderHint', 'Recommended: 1500x500px')}
-        </Text>
-      </View>
-
-      {headerImageRef ? (
-        <Pressable
-          className="rounded-2xl overflow-hidden border border-border relative bg-muted"
-          onPress={openHeaderPicker}
-          accessibilityRole="button"
-          accessibilityLabel={`${t('common.edit')} ${t('settings.profileHeader')}`}
-        >
-          <Image
-            source={{
-              // Same variant the profile banner asks for, so this preview and
-              // the profile share ONE cache entry instead of pulling two
-              // differently-sized copies of the picked image.
-              uri: oxyServices.assets.renderUrl(headerImageRef, MEDIA_VARIANT_BANNER),
-            }}
-            // expo-image is not a react-native core view, so a className does
-            // not size it on native; the frame is the image's own style.
-            style={BANNER_PREVIEW_STYLE}
-            contentFit="cover"
-          />
-          <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/60 px-3 py-2">
-            <View className="flex-row items-center gap-2">
-              <RiCameraLine width={17} fill={colors.primaryForeground} />
-              <Text className="text-white text-sm font-semibold">{t('common.edit')}</Text>
-            </View>
-            <Pressable
-              className="w-9 h-9 rounded-full items-center justify-center bg-black/40"
-              onPress={(event) => {
-                event.stopPropagation();
-                void removeHeaderImage();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`${t('common.remove')} ${t('settings.profileHeader')}`}
-            >
-              <RiDeleteBinLine width={17} fill={colors.primaryForeground} />
-            </Pressable>
-          </View>
-        </Pressable>
-      ) : (
-        <Pressable
-          className="aspect-[3/1] min-h-28 rounded-2xl border-[1.5px] border-dashed border-border bg-muted items-center justify-center gap-2"
-          onPress={openHeaderPicker}
-          accessibilityRole="button"
-          accessibilityLabel={t('settings.uploadHeader', 'Upload header image')}
-        >
-          <View className="w-11 h-11 rounded-full items-center justify-center bg-primary/10">
-            <RiCameraLine width={21} fill={colors.primary} />
-          </View>
-          <Text className="text-sm font-semibold text-foreground">
-            {t('settings.uploadHeader', 'Upload header image')}
-          </Text>
-        </Pressable>
-      )}
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        HStack(
+          Embed(<RiImageLine width={22} fill={colors.text} />),
+          RawText(t('settings.profileHeader', 'Profile header'))
+            .font('16')
+            .weight('semibold')
+            .foreground('foreground'),
+        )
+          .align('center')
+          .spacing('md'),
+        Embed(
+          <Text className="text-sm text-muted-foreground pl-[34px]">
+            {t('settings.uploadHeaderHint', 'Recommended: 1500x500px')}
+          </Text>,
+        ),
+      ).spacing('xs'),
+      Embed(
+        headerImageRef ? (
+          toElement(
+            VStack(
+              Embed(
+                <Image
+                  source={{
+                    // Same variant the profile banner asks for, so this preview and
+                    // the profile share ONE cache entry instead of pulling two
+                    // differently-sized copies of the picked image.
+                    uri: oxyServices.assets.renderUrl(headerImageRef, MEDIA_VARIANT_BANNER),
+                  }}
+                  // expo-image is not a react-native core view, so a className does
+                  // not size it on native; the frame is the image's own style.
+                  style={BANNER_PREVIEW_STYLE}
+                  contentFit="cover"
+                />,
+              ),
+              Embed(
+                <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/60 px-3 py-2">
+                  {toElement(
+                    HStack(
+                      Embed(<RiCameraLine width={17} fill={colors.primaryForeground} />),
+                      RawText(t('common.edit'))
+                        .foreground('white')
+                        .font('14')
+                        .leading('20px')
+                        .weight('semibold'),
+                    )
+                      .align('center')
+                      .spacing('sm'),
+                  )}
+                  {toElement(
+                    VStack(Embed(<RiDeleteBinLine width={17} fill={colors.primaryForeground} />))
+                      .frame({ width: '36', height: '36' })
+                      .background('black/40')
+                      .corner('infinite')
+                      .align('center')
+                      .justify('center')
+                      .onPress((event) => {
+                        event.stopPropagation();
+                        void removeHeaderImage();
+                      })
+                      .role('button')
+                      .label(`${t('common.remove')} ${t('settings.profileHeader')}`),
+                  )}
+                </View>,
+              ),
+            )
+              .background('mutedFill')
+              .border('border', 'thin')
+              .corner('lg')
+              .clipped()
+              .onPress(openHeaderPicker)
+              .role('button')
+              .label(`${t('common.edit')} ${t('settings.profileHeader')}`),
+          )
+        ) : (
+          <Pressable
+            className="aspect-[3/1] min-h-28 rounded-2xl border-[1.5px] border-dashed border-border bg-muted items-center justify-center gap-2"
+            onPress={openHeaderPicker}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.uploadHeader', 'Upload header image')}
+          >
+            {toElement(
+              VStack(Embed(<RiCameraLine width={21} fill={colors.primary} />))
+                .frame({ width: '44', height: '44' })
+                .background('primary/10')
+                .corner('infinite')
+                .align('center')
+                .justify('center'),
+            )}
+            {toElement(
+              RawText(t('settings.uploadHeader', 'Upload header image'))
+                .font('14')
+                .leading('20px')
+                .weight('semibold')
+                .foreground('foreground'),
+            )}
+          </Pressable>
+        ),
+      ),
+    )
+      .padding('horizontal', 'xl')
+      .padding('vertical', 'lg')
+      .spacing('md'),
   );
 };

@@ -1,13 +1,11 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@oxy.so/bloom/hover-card';
 import { UserHoverCard } from '@oxy.so/bloom/user-hover-card';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
-import { Muted } from '@oxy.so/bloom/typography';
 import { FollowButton } from '@/components/FollowButton';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -19,6 +17,8 @@ import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDateInput } from '@/utils/dateUtils';
 import type { ProfileHoverCardProps } from './types';
+
+import { Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * A profile preview on hover. Bloom owns WHEN and WHERE it appears (`HoverCard`:
@@ -134,20 +134,23 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
           }
           onPressProfile={handlePressProfile}
           footer={
-            activity.length > 0 ? (
-              <View style={{ gap: 4 }}>
-                <Muted>{t('profile.activity', { defaultValue: 'Activity' })}</Muted>
-                {/* 119 days is 18 columns at 11px + 3px gaps: 249px, inside the
-                    card's 256px content width. */}
-                <ActivityHeatmap
-                  data={activity}
-                  endDate={formatDateInput(new Date())}
-                  numDays={119}
-                  cellSize={11}
-                  gap={3}
-                />
-              </View>
-            ) : undefined
+            activity.length > 0
+              ? toElement(
+                  VStack(
+                    Text(t('profile.activity', { defaultValue: 'Activity' })).textStyle('muted'),
+                    /* 119 days is 18 columns at 11px + 3px gaps: 249px, inside the
+                                  card's 256px content width. */ Embed(
+                      <ActivityHeatmap
+                        data={activity}
+                        endDate={formatDateInput(new Date())}
+                        numDays={119}
+                        cellSize={11}
+                        gap={3}
+                      />,
+                    ),
+                  ).spacing('xs'),
+                )
+              : undefined
           }
         />
       </HoverCardContent>

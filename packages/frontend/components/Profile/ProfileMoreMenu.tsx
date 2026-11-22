@@ -26,6 +26,8 @@ import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { RiSpamLine } from '@oxy.so/bloom/icons/RiSpamLine';
 import type { ProfileData } from '@/hooks/useProfileData';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
 /** What the profile's "…" button needs: the menu's name and its groups, built on open. */
 export interface ProfileMoreMenuProps {
   profileData: ProfileData | null;
@@ -214,13 +216,13 @@ export function ProfileMoreMenu({
         {canUsePrivateApi ? (
           <>
             <DropdownMenuItem
-              leading={<RiListUnordered width={22} height={22} fill={theme.colors.text} />}
+              leading={toElement(Icon(RiListUnordered).size('22').foreground('foreground'))}
               onPress={handleAddToList}
             >
               {t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' })}
             </DropdownMenuItem>
             <DropdownMenuItem
-              leading={<RiRocket2Line width={22} height={22} fill={theme.colors.text} />}
+              leading={toElement(Icon(RiRocket2Line).size('22').foreground('foreground'))}
               onPress={handleAddToStarterPack}
             >
               {t('starterPacks.addTo.menuItem', {
@@ -230,7 +232,7 @@ export function ProfileMoreMenu({
             {viewerOperatesAccount ? null : (
               <>
                 <DropdownMenuItem
-                  leading={<RiMicOffLine width={22} height={22} fill={theme.colors.text} />}
+                  leading={toElement(Icon(RiMicOffLine).size('22').foreground('foreground'))}
                   onPress={handleMute}
                 >
                   {t('profile.muteUser', {
@@ -241,7 +243,7 @@ export function ProfileMoreMenu({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"
-                  leading={<RiForbidLine width={22} height={22} fill={theme.colors.error} />}
+                  leading={toElement(Icon(RiForbidLine).size('22').foreground('error'))}
                   onPress={handleBlock}
                 >
                   {t('profile.blockUser', {
@@ -251,7 +253,7 @@ export function ProfileMoreMenu({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
-                  leading={<RiSpamLine width={22} height={22} fill={theme.colors.error} />}
+                  leading={toElement(Icon(RiSpamLine).size('22').foreground('error'))}
                   onPress={handleReport}
                 >
                   {t('profile.reportUser', { defaultValue: 'Report' })}

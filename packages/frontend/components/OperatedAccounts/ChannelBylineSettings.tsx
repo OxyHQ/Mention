@@ -2,8 +2,6 @@ import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
-import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -15,6 +13,14 @@ import {
 } from '@/services/channelAccountService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { getErrorMessage } from '@/utils/apiError';
+
+import {
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  Icon,
+  Toggle,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const bylineLogger = createLogger('ChannelBylineSettings');
 
@@ -54,23 +60,18 @@ export function ChannelBylineSettings({ accountId }: { accountId: string }) {
     [signPostsMutation],
   );
 
-  return (
-    <GroupedSection
-      title={t('channels.settings.byline')}
-      footer={t('channels.settings.signPostsFooter')}
-    >
-      <GroupedSectionItem
-        icon={<RiUserLine width={20} height={20} fill={colors.textSecondary} />}
-        title={t('channels.settings.signPosts')}
-        showChevron={false}
-        rightElement={
-          <Switch
-            checked={settings?.signPosts === true}
-            onCheckedChange={handleSignPostsChange}
-            disabled={isPending || signPostsMutation.isPending}
-          />
-        }
-      />
-    </GroupedSection>
+  return toElement(
+    LGroupedSection(
+      LGroupedSectionItem(t('channels.settings.signPosts'))
+        .leadingView(Icon(RiUserLine).size('md').foreground('muted'))
+        .chevron(false)
+        .trailing(
+          Toggle([settings?.signPosts === true, handleSignPostsChange]).disabled(
+            isPending || signPostsMutation.isPending,
+          ),
+        ),
+    )
+      .title(t('channels.settings.byline'))
+      .caption(t('channels.settings.signPostsFooter')),
   );
 }

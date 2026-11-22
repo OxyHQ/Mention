@@ -16,6 +16,8 @@ import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 
+import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+
 /**
  * The identity line is the shared {@link UserName} — display name plus the
  * verified / federated / agent / automated markers, rendered exactly as every
@@ -188,59 +190,63 @@ export function ProfileCard({
       <ListItem
         person={{ name: nameLabel || handle, subtitle: handle || undefined }}
         onPress={press}
-        leading={
-          <View pointerEvents="none">
-            <AccountAvatar
-              account={resolved}
-              source={resolved.avatar || undefined}
-              size={size === 'sm' ? 36 : 44}
-              variant={MEDIA_VARIANT_AVATAR}
-              verified={resolved.verified}
-              placeholderColor={getUserPlaceholderColor(resolved)}
-            />
-          </View>
-        }
-        content={
-          <View pointerEvents="none" className="flex-1 gap-0.5">
-            {/* Identity line via the shared UserName: the name + verified /
-              federated / agent / automated markers and the muted @handle line,
-              consistent with every other user surface. */}
-            <UserName
-              name={nameLabel}
-              handle={handle || undefined}
-              verified={resolved.verified}
-              isFederated={resolved.isFederated}
-              kind={resolved.kind}
-              isAgent={resolved.isAgent}
-              isAutomated={resolved.isAutomated}
-              style={IDENTITY_STYLE}
-            />
-            {meta ? (
-              <Text className="text-sm leading-[18px] text-muted-foreground" numberOfLines={1}>
-                {meta}
-              </Text>
-            ) : null}
-            {resolved.description ? (
-              <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
-                {resolved.description}
-              </Text>
-            ) : null}
-          </View>
-        }
-        trailing={
-          <View className="flex-row items-center gap-3">
-            {showFollowButton && (
-              <FollowButton
-                userId={resolved.id}
-                username={handle || undefined}
-                size="sm"
-                initiallyFollowing={initiallyFollowing}
-                onFollowChange={onFollowChange}
-              />
-            )}
-            {accessory}
-          </View>
-        }
+        leading={toElement(
+          VStack(
+            Embed(
+              <AccountAvatar
+                account={resolved}
+                source={resolved.avatar || undefined}
+                size={size === 'sm' ? 36 : 44}
+                variant={MEDIA_VARIANT_AVATAR}
+                verified={resolved.verified}
+                placeholderColor={getUserPlaceholderColor(resolved)}
+              />,
+            ),
+          ).allowsHitTesting(false),
+        )}
+        content={toElement(
+          VStack(
+            /* Identity line via the shared UserName: the name + verified /
+                        federated / agent / automated markers and the muted @handle line,
+                        consistent with every other user surface. */ Embed(
+              <UserName
+                name={nameLabel}
+                handle={handle || undefined}
+                verified={resolved.verified}
+                isFederated={resolved.isFederated}
+                kind={resolved.kind}
+                isAgent={resolved.isAgent}
+                isAutomated={resolved.isAutomated}
+                style={IDENTITY_STYLE}
+              />,
+            ),
+            meta ? LText(meta).font('14').leading('18px').foreground('muted').lines(1) : null,
+            resolved.description
+              ? LText(resolved.description).font('14').leading('20px').foreground('muted').lines(2)
+              : null,
+          )
+            .flex('1')
+            .spacing('2xs')
+            .allowsHitTesting(false),
+        )}
+        trailing={toElement(
+          HStack(
+            Embed(
+              showFollowButton && (
+                <FollowButton
+                  userId={resolved.id}
+                  username={handle || undefined}
+                  size="sm"
+                  initiallyFollowing={initiallyFollowing}
+                  onFollowChange={onFollowChange}
+                />
+              ),
+            ),
+            Embed(accessory),
+          )
+            .align('center')
+            .spacing('md'),
+        )}
       />
     </View>
   );
@@ -296,17 +302,19 @@ export function ProfileCardSkeletonList({
   showDivider = true,
   size,
 }: ProfileCardSkeletonListProps) {
-  return (
-    <View className="w-full">
-      {Array.from({ length: count }, (_, index) => (
-        <ProfileCardSkeleton
-          key={index}
-          size={size}
-          showFollowButton={showFollowButton}
-          // The last row's hairline would double the container's own border.
-          showDivider={showDivider && index < count - 1}
-        />
-      ))}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        Array.from({ length: count }, (_, index) => (
+          <ProfileCardSkeleton
+            key={index}
+            size={size}
+            showFollowButton={showFollowButton}
+            // The last row's hairline would double the container's own border.
+            showDivider={showDivider && index < count - 1}
+          />
+        )),
+      ),
+    ).frame({ width: 'full' }),
   );
 }

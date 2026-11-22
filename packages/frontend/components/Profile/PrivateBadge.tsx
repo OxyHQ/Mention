@@ -1,9 +1,9 @@
 import { memo } from 'react';
-import { View, Text } from 'react-native';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { PrivateBadgeProps } from './types';
+import { HStack, Icon, RawText, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Private profile indicator badge
@@ -14,12 +14,23 @@ export const PrivateBadge = memo(function PrivateBadge({ privacySettings }: Priv
   const { t } = useTranslation();
   const isFollowersOnly = privacySettings?.profileVisibility === 'followers_only';
 
-  return (
-    <View className="flex-row items-center self-start rounded-xl px-1.5 py-0.5 gap-1 mt-1 mb-1 bg-muted">
-      <RiLockLine size="xs" fill={theme.colors.textSecondary} />
-      <Text className="text-muted-foreground text-xs font-medium">
-        {isFollowersOnly ? t('settings.privacy.followersOnly') : t('settings.privacy.private')}
-      </Text>
-    </View>
+  return toElement(
+    HStack(
+      Icon(RiLockLine).size('xs').foreground('muted'),
+      RawText(isFollowersOnly ? t('settings.privacy.followersOnly') : t('settings.privacy.private'))
+        .foreground('muted')
+        .font('xs')
+        .leading('16px')
+        .weight('medium'),
+    )
+      .padding('horizontal', '6')
+      .padding('vertical', '2xs')
+      .background('mutedFill')
+      .corner('md')
+      .align('center')
+      .alignSelf('start')
+      .spacing('xs')
+      .margin('top', 'xs')
+      .margin('bottom', 'xs'),
   );
 });

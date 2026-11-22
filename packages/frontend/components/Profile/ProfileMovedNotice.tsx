@@ -1,11 +1,11 @@
 import { memo } from 'react';
-import { Pressable, Text, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { RemoteProfileMove } from '@mention/shared-types/profile';
 import { profileBasePath } from './profileRoute';
+import { HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface ProfileMovedNoticeProps {
   movedTo: RemoteProfileMove;
@@ -27,19 +27,28 @@ export const ProfileMovedNotice = memo(function ProfileMovedNotice({
     defaultValue: 'This account has moved to @{{handle}}',
   });
 
-  return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel={label}
-      onPress={() => router.push(profileBasePath('person', movedTo.handle))}
-      className="flex-row items-center gap-2 rounded-xl px-3 py-2 mt-1 mb-2 bg-muted"
-    >
-      <View className="flex-1">
-        <Text className="text-foreground text-sm font-medium" numberOfLines={2}>
-          {label}
-        </Text>
-      </View>
-      <RiArrowRightLine size="sm" fill={theme.colors.textSecondary} />
-    </Pressable>
+  return toElement(
+    HStack(
+      VStack(
+        RawText(label)
+          .foreground('foreground')
+          .font('14')
+          .leading('20px')
+          .weight('medium')
+          .lines(2),
+      ).flex('1'),
+      Icon(RiArrowRightLine).size('sm').foreground('muted'),
+    )
+      .padding('horizontal', 'md')
+      .padding('vertical', 'sm')
+      .background('mutedFill')
+      .corner('md')
+      .align('center')
+      .spacing('sm')
+      .margin('top', 'xs')
+      .margin('bottom', 'sm')
+      .role('link')
+      .label(label)
+      .onPress(() => router.push(profileBasePath('person', movedTo.handle))),
   );
 });

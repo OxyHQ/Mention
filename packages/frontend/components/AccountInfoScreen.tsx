@@ -1,12 +1,10 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { Redirect } from '@/lib/navigation/router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
@@ -36,8 +34,19 @@ import { profileRouteFamily, type ProfileRouteFamily } from '@/components/Profil
 import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useTheme } from '@oxy.so/bloom/theme';
+
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  Header,
+  Icon,
+  ScrollView,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const ABOUT_AVATAR_SIZE = 80;
 
@@ -93,15 +102,17 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   //
   // Same back-nav header the sibling profile sub-screens (followers / following /
   // connections) render, shared by the loading / not-found / loaded states.
-  const content = (
-    <ScreenScrollView>
-      <AccountInfoContent
-        profileData={profileData}
-        profileLoading={profileLoading}
-        notFound={notFound}
-        onRetry={refresh}
-      />
-    </ScreenScrollView>
+  const content = toElement(
+    ScrollView(
+      Embed(
+        <AccountInfoContent
+          profileData={profileData}
+          profileLoading={profileLoading}
+          notFound={notFound}
+          onRetry={refresh}
+        />,
+      ),
+    ),
   );
   if (Platform.OS === 'web' && routedFamily === 'person') return content;
   return (
@@ -109,12 +120,11 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
       scroll={Platform.OS === 'web' ? 'auto' : 'content'}
       colorPreset={color?.colorPreset}
       seed={color?.seed}
-      header={
-        <PageHeader
-          title={t('profile.about.title', { defaultValue: 'About' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+      header={toElement(
+        Header(t('profile.about.title', { defaultValue: 'About' }))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      )}
     >
       {content}
     </Screen>
@@ -217,243 +227,266 @@ function AccountInfoContent({
   // both align to the same 16px gutter as the profile header, and the settings
   // cards are never double-inset. Vertical rhythm mirrors the settings screens
   // (the app's other SettingsListGroup surface).
-  return (
-    <View className="px-screen-margin pb-6">
-      {/* Identity header — a classic CENTERED profile header: the avatar
-            centered on top, then the display name, then the muted @handle, all
-            horizontally centered (via `items-center` + UserName's `align="center"`).
-            Keeps the profile's typographic scale (24px display name, 15px muted
-            @handle) and inline verified / federated / agent badges via the shared
-            UserName, so it reads as the same identity surface as the profile. */}
-      <View className="px-4 pt-4 pb-5 items-center">
-        <ZoomableAvatar
-          shareUrl={
-            galleryProfilePermalink(profileData.username, profileRouteFamily(profileData)) ?? null
-          }
-          account={profileData}
-          source={avatarUri}
-          size={ABOUT_AVATAR_SIZE}
-          className="bg-muted"
-          style={{
-            width: ABOUT_AVATAR_SIZE,
-            height: ABOUT_AVATAR_SIZE,
-            borderRadius: ABOUT_AVATAR_SIZE / 2,
-          }}
-        />
-        <UserName
-          name={profileData.design.displayName ?? profileData.name?.displayName}
-          handle={profileData.username}
-          verified={profileData.verified}
-          isFederated={profileData.isFederated}
-          kind={profileData.kind}
-          // Deliberately NOT opted in: this screen already carries an explicit
-          // "Learn more about the fediverse" row below, which is a better
-          // affordance than a 15px glyph. Two doors to one dialog on one
-          // screen is one more than the screen needs.
-          isAgent={profileData.isAgent}
-          isAutomated={profileData.isAutomated}
-          copyableHandle
-          align="center"
-          variant="default"
-          // UserName exposes name/handle sizing only through this typed style
-          // object (no 24px `variant`), so the profile header itself sets the
-          // display-name scale the same way — matched here for parity.
-          style={{
-            name: { fontSize: 24, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
-            handle: { fontSize: 15 },
-          }}
-        />
-      </View>
-
-      {/* Categories — the WHOLE ordered list, which is what makes this the
-            counterpart to the profile: the header names only the primary, so
-            without this surface the other three would be unreadable anywhere.
-            The order is the account's own and is never sorted here; the first
-            row is marked as the primary, which is the only thing that explains
-            why that one and not another appears under the name. */}
-      {categories.length > 0 && (
-        <GroupedSection title={t('accountCategories.title', { defaultValue: 'Categories' })}>
-          {categories.map((category, index) => (
-            <GroupedSectionItem
-              key={category.id}
-              icon={<RowIcon icon={RiHashtag} />}
-              title={category.label}
-              value={
-                index === 0
-                  ? t('accountCategories.primary', { defaultValue: 'Primary' })
-                  : undefined
-              }
-            />
-          ))}
-        </GroupedSection>
-      )}
-
-      {/* Profile details — the source's own fields (pronouns, and the like). A link
-          is never one of them: links are the profile's chips. */}
-      {(pronouns || (profileData.fields && profileData.fields.length > 0)) && (
-        <GroupedSection
-          title={t('profile.about.profileDetails', { defaultValue: 'Profile details' })}
-        >
-          {pronouns && (
-            <GroupedSectionItem
-              title={t('profile.about.pronouns', { defaultValue: 'Pronouns' })}
-              value={pronouns}
-            />
-          )}
-          {profileData.fields?.map((field) => (
-            <GroupedSectionItem
-              key={`${field.name}:${field.value}`}
-              title={field.name}
-              value={field.value}
-            />
-          ))}
-        </GroupedSection>
-      )}
-
-      {/* Account details — dates, location, activity */}
-      {hasAccountDetails && (
-        <GroupedSection title={t('profile.about.details', { defaultValue: 'Account details' })}>
-          {joinDate && (
-            <GroupedSectionItem
-              icon={<RiCalendar2Line width={20} height={20} fill={theme.colors.textSecondary} />}
-              title={t('profile.about.dateJoined', { defaultValue: 'Date joined' })}
-              value={joinDate}
-            />
-          )}
-
-          {profileData.primaryLocation && (
-            <GroupedSectionItem
-              icon={<RowIcon icon={RiMapPinLine} />}
-              title={t('profile.about.basedIn', { defaultValue: 'Account based in' })}
-              value={profileData.primaryLocation}
-            />
-          )}
-
-          {websiteUrl && (
-            <GroupedSectionItem
-              icon={<RowIcon icon={RiLinkM} />}
-              title={t('profile.about.website', { defaultValue: 'Website' })}
-              value={website?.replace(/^https?:\/\//i, '')}
-              onPress={() => openExternalLink(websiteUrl)}
-            />
-          )}
-
-          {hasUsernameChanges && (
-            <GroupedSectionItem
-              icon={<RowIcon icon={RiAtLine} />}
-              title={t('profile.about.usernameChanges', { defaultValue: 'Username changes' })}
-              value={String(profileData.usernameChangeCount)}
-            />
-          )}
-
-          {profileData.connectedVia && (
-            <GroupedSectionItem
-              icon={<RowIcon icon={RiEarthLine} />}
-              title={t('profile.about.connectedVia', { defaultValue: 'Connected via' })}
-              value={profileData.connectedVia}
-            />
-          )}
-        </GroupedSection>
-      )}
-
-      {/* Verification — its own section, matching the profile's emphasis on the
-            verified badge */}
-      {profileData.verified && (
-        <GroupedSection title={t('profile.about.verification', { defaultValue: 'Verification' })}>
-          <GroupedSectionItem
-            icon={<RiVerifiedBadgeFill width={20} height={20} fill={VERIFIED_BADGE_COLOR} />}
-            title={t('profile.fields.verified', { defaultValue: 'Verified' })}
-            value={
-              verifiedDate
-                ? t('profile.about.since', {
-                    date: verifiedDate,
-                    defaultValue: `Since ${verifiedDate}`,
-                  })
-                : t('profile.about.verifiedAccount', { defaultValue: 'Verified account' })
+  return toElement(
+    VStack(
+      /* Identity header — a classic CENTERED profile header: the avatar
+              centered on top, then the display name, then the muted @handle, all
+              horizontally centered (via `items-center` + UserName's `align="center"`).
+              Keeps the profile's typographic scale (24px display name, 15px muted
+              @handle) and inline verified / federated / agent badges via the shared
+              UserName, so it reads as the same identity surface as the profile. */ VStack(
+        Embed(
+          <ZoomableAvatar
+            shareUrl={
+              galleryProfilePermalink(profileData.username, profileRouteFamily(profileData)) ?? null
             }
-          />
-        </GroupedSection>
-      )}
-
-      {/* Fediverse — every non-Oxy account, whichever network it lives on,
-            under the same title and icon as the marker beside its name (no
-            per-network chip anywhere). The ROWS still say where the account
-            actually lives: the network by name, its home server, the full
-            cross-network handle, and a link out to the original profile. The
-            "Learn more" row opens the FediverseInfoSheet for ActivityPub
-            accounts only, the network that sheet describes. */}
-      {federationInfo && (
-        <GroupedSection
-          title={t('fediverse.about.title', { defaultValue: 'Fediverse' })}
-          footer={
-            federationInfo.network === 'atproto'
-              ? t('fediverse.about.descriptionBluesky', {
-                  instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
-                  defaultValue:
-                    'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
-                })
-              : federationInfo.network === 'instagram-graph'
-                ? t('fediverse.about.descriptionInstagram', {
-                    defaultValue:
-                      "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
-                  })
-                : t('fediverse.about.descriptionActivityPub', {
-                    instance: federationInfo.instance ?? '',
-                    defaultValue:
-                      'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
-                  })
-          }
-        >
-          <GroupedSectionItem
-            icon={<RiFediverseLine width={20} height={20} fill={theme.colors.textSecondary} />}
-            title={t('fediverse.about.network', { defaultValue: 'Network' })}
-            value={
-              federationInfo.network === 'atproto'
-                ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
-                : federationInfo.network === 'instagram-graph'
-                  ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
-                  : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })
-            }
-          />
-
-          {federationInfo.instance && (
-            <GroupedSectionItem
-              icon={<RowIcon icon={RiDatabase2Line} />}
-              title={t('fediverse.about.homeServer', { defaultValue: 'Home server' })}
-              value={federationInfo.instance}
-            />
-          )}
-
-          {federationInfo.handle && (
-            <GroupedSectionItem
-              icon={<RowIcon icon={RiAtLine} />}
-              title={t('fediverse.about.handle', { defaultValue: 'Handle' })}
-              value={`@${federationInfo.handle}`}
-            />
-          )}
-
-          {federationInfo.originalProfileUrl && (
-            <GroupedSectionItem
-              icon={<RiExternalLinkLine width={20} height={20} fill={theme.colors.textSecondary} />}
-              title={t('fediverse.about.viewOriginal', { defaultValue: 'View original profile' })}
-              onPress={() => {
-                if (federationInfo.originalProfileUrl)
-                  openExternalLink(federationInfo.originalProfileUrl);
-              }}
-            />
-          )}
-
-          {federationInfo.network === 'activitypub' && (
-            <GroupedSectionItem
-              icon={<RiFediverseLine width={20} height={20} fill={theme.colors.textSecondary} />}
-              title={t('fediverse.about.learnMore', {
-                defaultValue: 'Learn more about the fediverse',
-              })}
-              onPress={() => showFediverseInfo()}
-            />
-          )}
-        </GroupedSection>
-      )}
-    </View>
+            account={profileData}
+            source={avatarUri}
+            size={ABOUT_AVATAR_SIZE}
+            className="bg-muted"
+            style={{
+              width: ABOUT_AVATAR_SIZE,
+              height: ABOUT_AVATAR_SIZE,
+              borderRadius: ABOUT_AVATAR_SIZE / 2,
+            }}
+          />,
+        ),
+        Embed(
+          <UserName
+            name={profileData.design.displayName ?? profileData.name?.displayName}
+            handle={profileData.username}
+            verified={profileData.verified}
+            isFederated={profileData.isFederated}
+            kind={profileData.kind}
+            // Deliberately NOT opted in: this screen already carries an explicit
+            // "Learn more about the fediverse" row below, which is a better
+            // affordance than a 15px glyph. Two doors to one dialog on one
+            // screen is one more than the screen needs.
+            isAgent={profileData.isAgent}
+            isAutomated={profileData.isAutomated}
+            copyableHandle
+            align="center"
+            variant="default"
+            // UserName exposes name/handle sizing only through this typed style
+            // object (no 24px `variant`), so the profile header itself sets the
+            // display-name scale the same way — matched here for parity.
+            style={{
+              name: { fontSize: 24, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
+              handle: { fontSize: 15 },
+            }}
+          />,
+        ),
+      )
+        .padding('horizontal', 'lg')
+        .padding('top', 'lg')
+        .padding('bottom', 'xl')
+        .align('center'),
+      /* Categories — the WHOLE ordered list, which is what makes this the
+              counterpart to the profile: the header names only the primary, so
+              without this surface the other three would be unreadable anywhere.
+              The order is the account's own and is never sorted here; the first
+              row is marked as the primary, which is the only thing that explains
+              why that one and not another appears under the name. */ categories.length > 0
+        ? LGroupedSection(
+            Embed(
+              categories.map((category, index) =>
+                toElement(
+                  LGroupedSectionItem(category.label)
+                    .leadingView(Embed(<RowIcon icon={RiHashtag} />))
+                    .value(
+                      index === 0
+                        ? t('accountCategories.primary', { defaultValue: 'Primary' })
+                        : undefined,
+                    ),
+                  category.id,
+                ),
+              ),
+            ),
+          ).title(t('accountCategories.title', { defaultValue: 'Categories' }))
+        : null,
+      /* Profile details — the source's own fields (pronouns, and the like). A link
+            is never one of them: links are the profile's chips. */ Embed(
+        (pronouns || (profileData.fields && profileData.fields.length > 0)) &&
+          toElement(
+            LGroupedSection(
+              Embed(
+                pronouns &&
+                  toElement(
+                    LGroupedSectionItem(
+                      t('profile.about.pronouns', { defaultValue: 'Pronouns' }),
+                    ).value(pronouns),
+                  ),
+              ),
+              Embed(
+                profileData.fields?.map((field) =>
+                  toElement(
+                    LGroupedSectionItem(field.name).value(field.value),
+                    `${field.name}:${field.value}`,
+                  ),
+                ),
+              ),
+            ).title(t('profile.about.profileDetails', { defaultValue: 'Profile details' })),
+          ),
+      ),
+      /* Account details — dates, location, activity */ Embed(
+        hasAccountDetails &&
+          toElement(
+            LGroupedSection(
+              Embed(
+                joinDate &&
+                  toElement(
+                    LGroupedSectionItem(
+                      t('profile.about.dateJoined', { defaultValue: 'Date joined' }),
+                    )
+                      .leadingView(Icon(RiCalendar2Line).size('md').foreground('muted'))
+                      .value(joinDate),
+                  ),
+              ),
+              Embed(
+                profileData.primaryLocation &&
+                  toElement(
+                    LGroupedSectionItem(
+                      t('profile.about.basedIn', { defaultValue: 'Account based in' }),
+                    )
+                      .leadingView(Embed(<RowIcon icon={RiMapPinLine} />))
+                      .value(profileData.primaryLocation),
+                  ),
+              ),
+              Embed(
+                websiteUrl &&
+                  toElement(
+                    LGroupedSectionItem(t('profile.about.website', { defaultValue: 'Website' }))
+                      .leadingView(Embed(<RowIcon icon={RiLinkM} />))
+                      .value(website?.replace(/^https?:\/\//i, ''))
+                      .onPress(() => openExternalLink(websiteUrl)),
+                  ),
+              ),
+              Embed(
+                hasUsernameChanges &&
+                  toElement(
+                    LGroupedSectionItem(
+                      t('profile.about.usernameChanges', { defaultValue: 'Username changes' }),
+                    )
+                      .leadingView(Embed(<RowIcon icon={RiAtLine} />))
+                      .value(String(profileData.usernameChangeCount)),
+                  ),
+              ),
+              Embed(
+                profileData.connectedVia &&
+                  toElement(
+                    LGroupedSectionItem(
+                      t('profile.about.connectedVia', { defaultValue: 'Connected via' }),
+                    )
+                      .leadingView(Embed(<RowIcon icon={RiEarthLine} />))
+                      .value(profileData.connectedVia),
+                  ),
+              ),
+            ).title(t('profile.about.details', { defaultValue: 'Account details' })),
+          ),
+      ),
+      /* Verification — its own section, matching the profile's emphasis on the
+              verified badge */ Embed(
+        profileData.verified &&
+          toElement(
+            LGroupedSection(
+              LGroupedSectionItem(t('profile.fields.verified', { defaultValue: 'Verified' }))
+                .leadingView(
+                  Embed(<RiVerifiedBadgeFill width={20} height={20} fill={VERIFIED_BADGE_COLOR} />),
+                )
+                .value(
+                  verifiedDate
+                    ? t('profile.about.since', {
+                        date: verifiedDate,
+                        defaultValue: `Since ${verifiedDate}`,
+                      })
+                    : t('profile.about.verifiedAccount', { defaultValue: 'Verified account' }),
+                ),
+            ).title(t('profile.about.verification', { defaultValue: 'Verification' })),
+          ),
+      ),
+      /* Fediverse — every non-Oxy account, whichever network it lives on,
+              under the same title and icon as the marker beside its name (no
+              per-network chip anywhere). The ROWS still say where the account
+              actually lives: the network by name, its home server, the full
+              cross-network handle, and a link out to the original profile. The
+              "Learn more" row opens the FediverseInfoSheet for ActivityPub
+              accounts only, the network that sheet describes. */ Embed(
+        federationInfo &&
+          toElement(
+            LGroupedSection(
+              LGroupedSectionItem(t('fediverse.about.network', { defaultValue: 'Network' }))
+                .leadingView(Icon(RiFediverseLine).size('md').foreground('muted'))
+                .value(
+                  federationInfo.network === 'atproto'
+                    ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
+                    : federationInfo.network === 'instagram-graph'
+                      ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
+                      : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' }),
+                ),
+              Embed(
+                federationInfo.instance &&
+                  toElement(
+                    LGroupedSectionItem(
+                      t('fediverse.about.homeServer', { defaultValue: 'Home server' }),
+                    )
+                      .leadingView(Embed(<RowIcon icon={RiDatabase2Line} />))
+                      .value(federationInfo.instance),
+                  ),
+              ),
+              Embed(
+                federationInfo.handle &&
+                  toElement(
+                    LGroupedSectionItem(t('fediverse.about.handle', { defaultValue: 'Handle' }))
+                      .leadingView(Embed(<RowIcon icon={RiAtLine} />))
+                      .value(`@${federationInfo.handle}`),
+                  ),
+              ),
+              Embed(
+                federationInfo.originalProfileUrl &&
+                  toElement(
+                    LGroupedSectionItem(
+                      t('fediverse.about.viewOriginal', { defaultValue: 'View original profile' }),
+                    )
+                      .leadingView(Icon(RiExternalLinkLine).size('md').foreground('muted'))
+                      .onPress(() => {
+                        if (federationInfo.originalProfileUrl)
+                          openExternalLink(federationInfo.originalProfileUrl);
+                      }),
+                  ),
+              ),
+              federationInfo.network === 'activitypub'
+                ? LGroupedSectionItem(
+                    t('fediverse.about.learnMore', {
+                      defaultValue: 'Learn more about the fediverse',
+                    }),
+                  )
+                    .leadingView(Icon(RiFediverseLine).size('md').foreground('muted'))
+                    .onPress(() => showFediverseInfo())
+                : null,
+            )
+              .title(t('fediverse.about.title', { defaultValue: 'Fediverse' }))
+              .caption(
+                federationInfo.network === 'atproto'
+                  ? t('fediverse.about.descriptionBluesky', {
+                      instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
+                      defaultValue:
+                        'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
+                    })
+                  : federationInfo.network === 'instagram-graph'
+                    ? t('fediverse.about.descriptionInstagram', {
+                        defaultValue:
+                          "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
+                      })
+                    : t('fediverse.about.descriptionActivityPub', {
+                        instance: federationInfo.instance ?? '',
+                        defaultValue:
+                          'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
+                      }),
+              ),
+          ),
+      ),
+    )
+      .padding('horizontal', 'xl')
+      .padding('bottom', '2xl'),
   );
 }

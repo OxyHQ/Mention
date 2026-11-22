@@ -1,10 +1,9 @@
 import { experienceService } from '@/services/experienceService';
 import { useEffect, useState } from 'react';
 import { ClarityError } from '@clarity.surf/sdk';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Button } from '@oxy.so/bloom/button';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import {
   Select,
@@ -14,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@oxy.so/bloom/select';
-import { Switch } from '@oxy.so/bloom/switch';
 import { TextField, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import {
@@ -26,6 +24,17 @@ import {
 import type { Organization, SafetyOrganizationIdentity } from '@oxy.so/contracts';
 import { ExperienceEmployerField } from './ExperienceEmployerField';
 import { confirmDialog } from '@/utils/alerts';
+
+import {
+  Button as LButton,
+  Embed,
+  HStack,
+  RawText,
+  Text as LText,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export function ExperienceEditor({
   entry,
@@ -117,31 +126,35 @@ export function ExperienceEditor({
     maxLength: number,
   ) {
     const invalid = errors.includes(key);
-    return (
-      <View className="gap-1">
-        <TextFieldLabel>{t(`profile.experience.fields.${key}`)}</TextFieldLabel>
-        <TextField invalid={invalid} disabled={busy}>
-          <TextFieldInput
-            label={t(`profile.experience.fields.${key}`)}
-            value={draft[key] ?? ''}
-            onChangeText={(value) =>
-              field(
-                key,
-                (key === 'location' || key === 'description') && !value.trim() ? null : value,
-              )
-            }
-            maxLength={maxLength}
-            multiline={key === 'description'}
-            autoCapitalize={key.endsWith('Date') ? 'none' : 'sentences'}
-            placeholder={key.endsWith('Date') ? 'YYYY-MM' : undefined}
-          />
-        </TextField>
-        {invalid ? (
-          <Text accessibilityRole="alert" className="text-error-primary text-sm">
-            {t(`profile.experience.validation.${key}`)}
-          </Text>
-        ) : null}
-      </View>
+    return toElement(
+      VStack(
+        Embed(<TextFieldLabel>{t(`profile.experience.fields.${key}`)}</TextFieldLabel>),
+        Embed(
+          <TextField invalid={invalid} disabled={busy}>
+            <TextFieldInput
+              label={t(`profile.experience.fields.${key}`)}
+              value={draft[key] ?? ''}
+              onChangeText={(value) =>
+                field(
+                  key,
+                  (key === 'location' || key === 'description') && !value.trim() ? null : value,
+                )
+              }
+              maxLength={maxLength}
+              multiline={key === 'description'}
+              autoCapitalize={key.endsWith('Date') ? 'none' : 'sentences'}
+              placeholder={key.endsWith('Date') ? 'YYYY-MM' : undefined}
+            />
+          </TextField>,
+        ),
+        Embed(
+          invalid ? (
+            <Text accessibilityRole="alert" className="text-error-primary text-sm">
+              {t(`profile.experience.validation.${key}`)}
+            </Text>
+          ) : null,
+        ),
+      ).spacing('xs'),
     );
   }
   const employmentOptions = [
@@ -165,98 +178,122 @@ export function ExperienceEditor({
         style={{ maxHeight: 560 }}
         contentContainerStyle={{ paddingBottom: 8 }}
       >
-        <View className="gap-4">
-          <Text className="text-muted-foreground text-sm">
-            {t('profile.experience.publicHint')}
-          </Text>
-          {textField('title', 200)}
-          <ExperienceEmployerField
-            initialEmployer={employer}
-            value={draft.employerOxyAccountId}
-            disabled={busy || !canEdit}
-            invalid={errors.includes('employerOxyAccountId')}
-            onChange={(organization) =>
-              field('employerOxyAccountId', organization?.accountId ?? '')
-            }
-          />
-          <View className="gap-1">
-            <TextFieldLabel>{t('profile.experience.fields.employmentType')}</TextFieldLabel>
-            <Select
-              value={draft.employmentType ?? ''}
-              disabled={busy}
-              onValueChange={(value) =>
-                field(
-                  'employmentType',
-                  value
-                    ? (EXPERIENCE_EMPLOYMENT_TYPES.find((type) => type === value) ?? null)
-                    : null,
-                )
-              }
-            >
-              <SelectTrigger label={t('profile.experience.fields.employmentType')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent
-                items={employmentOptions}
-                renderItem={(option) => (
-                  <SelectItem value={option.value} label={option.label}>
-                    <SelectItemText>{option.label}</SelectItemText>
-                  </SelectItem>
-                )}
-              />
-            </Select>
-          </View>
-          {textField('location', 300)}
-          {textField('startDate', 7)}
-          <View className="flex-row items-center justify-between gap-3">
-            <Text className="text-foreground text-base flex-1">
-              {t('profile.experience.current')}
-            </Text>
-            <Switch
-              accessibilityLabel={t('profile.experience.current')}
-              checked={draft.endDate === null}
-              disabled={busy}
-              onCheckedChange={(current) => field('endDate', current ? null : '')}
-            />
-          </View>
-          {draft.endDate !== null ? textField('endDate', 7) : null}
-          <Text className="text-muted-foreground text-sm">{t('profile.experience.dateHint')}</Text>
-          {textField('description', 5000)}
-          {save.isError || remove.isError ? (
-            <Text accessibilityRole="alert" className="text-error-primary text-sm">
-              {t(
-                remove.isError
-                  ? 'profile.experience.deleteError'
-                  : save.error instanceof ClarityError &&
-                      save.error.code === 'experience_limit_reached'
-                    ? 'profile.experience.limitReached'
-                    : save.error instanceof ClarityError && save.error.code === 'invalid_employer'
-                      ? 'profile.experience.validation.employerOxyAccountId'
-                      : 'profile.experience.saveError',
-              )}
-            </Text>
-          ) : null}
-        </View>
+        {toElement(
+          VStack(
+            RawText(t('profile.experience.publicHint'))
+              .foreground('muted')
+              .font('14')
+              .leading('20px'),
+            Embed(textField('title', 200)),
+            Embed(
+              <ExperienceEmployerField
+                initialEmployer={employer}
+                value={draft.employerOxyAccountId}
+                disabled={busy || !canEdit}
+                invalid={errors.includes('employerOxyAccountId')}
+                onChange={(organization) =>
+                  field('employerOxyAccountId', organization?.accountId ?? '')
+                }
+              />,
+            ),
+            VStack(
+              Embed(
+                <TextFieldLabel>{t('profile.experience.fields.employmentType')}</TextFieldLabel>,
+              ),
+              Embed(
+                <Select
+                  value={draft.employmentType ?? ''}
+                  disabled={busy}
+                  onValueChange={(value) =>
+                    field(
+                      'employmentType',
+                      value
+                        ? (EXPERIENCE_EMPLOYMENT_TYPES.find((type) => type === value) ?? null)
+                        : null,
+                    )
+                  }
+                >
+                  <SelectTrigger label={t('profile.experience.fields.employmentType')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent
+                    items={employmentOptions}
+                    renderItem={(option) => (
+                      <SelectItem value={option.value} label={option.label}>
+                        <SelectItemText>{option.label}</SelectItemText>
+                      </SelectItem>
+                    )}
+                  />
+                </Select>,
+              ),
+            ).spacing('xs'),
+            Embed(textField('location', 300)),
+            Embed(textField('startDate', 7)),
+            HStack(
+              RawText(t('profile.experience.current'))
+                .foreground('foreground')
+                .font('16')
+                .leading('normal')
+                .flex('1'),
+              Toggle([draft.endDate === null, (current) => field('endDate', current ? null : '')])
+                .label(t('profile.experience.current'))
+                .disabled(busy),
+            )
+              .align('center')
+              .justify('between')
+              .spacing('md'),
+            Embed(draft.endDate !== null ? textField('endDate', 7) : null),
+            RawText(t('profile.experience.dateHint'))
+              .foreground('muted')
+              .font('14')
+              .leading('20px'),
+            Embed(textField('description', 5000)),
+            Embed(
+              save.isError || remove.isError ? (
+                <Text accessibilityRole="alert" className="text-error-primary text-sm">
+                  {t(
+                    remove.isError
+                      ? 'profile.experience.deleteError'
+                      : save.error instanceof ClarityError &&
+                          save.error.code === 'experience_limit_reached'
+                        ? 'profile.experience.limitReached'
+                        : save.error instanceof ClarityError &&
+                            save.error.code === 'invalid_employer'
+                          ? 'profile.experience.validation.employerOxyAccountId'
+                          : 'profile.experience.saveError',
+                  )}
+                </Text>
+              ) : null,
+            ),
+          ).spacing('lg'),
+        )}
       </ScrollView>
-      <View className="flex-row flex-wrap items-center justify-end gap-2 pt-4">
-        {entry ? (
-          <Button
-            appearance="plain"
-            tone="danger"
-            onPress={() => void deleteEntry()}
-            disabled={busy || !canEdit}
-            loading={remove.isPending}
-          >
-            {t('common.delete', { defaultValue: 'Delete' })}
-          </Button>
-        ) : null}
-        <Button appearance="plain" tone="neutral" onPress={() => control.close()} disabled={busy}>
-          {t('common.cancel', { defaultValue: 'Cancel' })}
-        </Button>
-        <Button onPress={submit} disabled={busy || !canEdit} loading={save.isPending}>
-          {t('common.save', { defaultValue: 'Save' })}
-        </Button>
-      </View>
+      {toElement(
+        HStack(
+          entry
+            ? LButton(LText(t('common.delete', { defaultValue: 'Delete' })))
+                .style('plain')
+                .tint('danger')
+                .onPress(() => void deleteEntry())
+                .disabled(busy || !canEdit)
+                .loading(remove.isPending)
+            : null,
+          LButton(LText(t('common.cancel', { defaultValue: 'Cancel' })))
+            .style('plain')
+            .tint('neutral')
+            .onPress(() => control.close())
+            .disabled(busy),
+          LButton(LText(t('common.save', { defaultValue: 'Save' })))
+            .onPress(submit)
+            .disabled(busy || !canEdit)
+            .loading(save.isPending),
+        )
+          .padding('top', 'lg')
+          .wrap()
+          .align('center')
+          .justify('end')
+          .spacing('sm'),
+      )}
     </Dialog>
   );
 }

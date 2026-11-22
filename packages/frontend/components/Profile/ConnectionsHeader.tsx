@@ -1,10 +1,10 @@
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/lib/navigation/router';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { connectionTabFromPathname } from './profileTabRoute';
+
+import { Header, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
 
 export function ConnectionsHeader({
   username,
@@ -39,21 +39,15 @@ export function ConnectionsHeader({
     (active === 'followers' || active === 'following') && data?.design.displayName
       ? `${data.design.displayName} ${selected?.label}`
       : selected?.label;
-  return (
-    <PageHeader
-      title={title}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-      accessory={
-        <Tabs
-          value={active}
-          onValueChange={(tab) => router.push(`/@${handle}/${tab}`)}
-          variant="underline"
-        >
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} />
-          ))}
-        </Tabs>
-      }
-    />
+  return toElement(
+    Header(title)
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .accessory(
+        LTabs(
+          [active, (tab) => router.push(`/@${handle}/${tab}`)],
+          tabs.map((tab) => TabItem(tab.id, tab.label)),
+        ).style('underline'),
+      )
+      .inPage(),
   );
 }

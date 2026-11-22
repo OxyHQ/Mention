@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter, usePathname, type Href } from '@/lib/navigation/router';
 import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
@@ -7,7 +6,6 @@ import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 import { profileTabsOffset } from './ProfilePageHeader';
 import { ProfileShell } from './ProfileShell';
 import { ConnectionsHeader } from './ConnectionsHeader';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ProfileTabBarRow } from './ProfileTabBarRow';
 import { usePersonProfileView } from './hooks/usePersonProfileView';
 import { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
@@ -19,6 +17,8 @@ import {
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { useCommunitiesPreview } from '@/hooks/useCommunitiesPreview';
 import type { ProfileChromeFrameProps, ProfileTabDescriptor } from './types';
+
+import { Embed, Header, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * The `[username]` layout's body — WEB, where it owns the profile chrome.
@@ -161,37 +161,46 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
 
   return (
     <>
-      <View className="flex-1 web:z-auto">
-        {view.seo}
-        <ProfileShell
-          active={active}
-          routeHeader={
-            connectionTab && canShowSupervisedHeader ? (
-              <ConnectionsHeader username={routedUsername} profileData={view.accountProfile} />
-            ) : pathname?.endsWith('/about') && canShowSupervisedHeader ? (
-              <PageHeader
-                title={t('profile.about.title', { defaultValue: 'About' })}
-                backLabel={t('common.back', { defaultValue: 'Back' })}
-              />
-            ) : pathname?.endsWith('/settings') && canShowCommunityHeader ? (
-              <PageHeader title={t('communities.settings.title')} backLabel={t('common.back')} />
-            ) : undefined
-          }
-          chrome={view.chrome}
-          loading={loading}
-          profileData={view.profileData}
-          accentColor={view.accountColor}
-          notFound={view.notFound}
-          onRetry={view.refresh}
-          banner={{ uri: view.bannerUri }}
-          headerActions={view.headerActions}
-          summary={view.summary}
-          tabBar={tabBar}
-        >
-          {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
-          {children}
-        </ProfileShell>
-      </View>
+      {toElement(
+        VStack(
+          Embed(view.seo),
+          Embed(
+            <ProfileShell
+              active={active}
+              routeHeader={
+                connectionTab && canShowSupervisedHeader ? (
+                  <ConnectionsHeader username={routedUsername} profileData={view.accountProfile} />
+                ) : pathname?.endsWith('/about') && canShowSupervisedHeader ? (
+                  toElement(
+                    Header(t('profile.about.title', { defaultValue: 'About' }))
+                      .backLabel(t('common.back', { defaultValue: 'Back' }))
+                      .inPage(),
+                  )
+                ) : pathname?.endsWith('/settings') && canShowCommunityHeader ? (
+                  toElement(
+                    Header(t('communities.settings.title')).backLabel(t('common.back')).inPage(),
+                  )
+                ) : undefined
+              }
+              chrome={view.chrome}
+              loading={loading}
+              profileData={view.profileData}
+              accentColor={view.accountColor}
+              notFound={view.notFound}
+              onRetry={view.refresh}
+              banner={{ uri: view.bannerUri }}
+              headerActions={view.headerActions}
+              summary={view.summary}
+              tabBar={tabBar}
+            >
+              {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
+              {children}
+            </ProfileShell>,
+          ),
+        )
+          .flex('1')
+          .when('web', (v) => v.zIndex('auto')),
+      )}
     </>
   );
 }

@@ -1,10 +1,8 @@
 import { memo, useState, useMemo, useCallback } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Text } from '@oxy.so/bloom/typography';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
@@ -12,6 +10,8 @@ import { logger } from '@oxy.so/core/logger';
 import type { ProfileData } from '@/lib/recommendations';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+import { Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface SuggestedUsersProps {
   visible?: boolean;
@@ -104,19 +104,24 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     return null;
   }
 
-  return (
-    <View className="pt-3">
-      <Text className="text-foreground text-[15px] font-bold px-4 mb-1">
-        {title || t('suggestions.title')}
-      </Text>
-      {displayedUsers.map((suggested) => (
-        <SuggestedUserCard
-          key={suggested.id}
-          user={suggested}
-          onDismiss={handleDismiss}
-          hideDismiss={hideDismiss}
-        />
-      ))}
-    </View>
+  return toElement(
+    VStack(
+      LText(title || t('suggestions.title'))
+        .padding('horizontal', 'lg')
+        .foreground('foreground')
+        .font('md')
+        .weight('bold')
+        .margin('bottom', 'xs'),
+      Embed(
+        displayedUsers.map((suggested) => (
+          <SuggestedUserCard
+            key={suggested.id}
+            user={suggested}
+            onDismiss={handleDismiss}
+            hideDismiss={hideDismiss}
+          />
+        )),
+      ),
+    ).padding('top', 'md'),
   );
 });

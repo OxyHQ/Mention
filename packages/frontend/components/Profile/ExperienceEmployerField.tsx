@@ -2,7 +2,7 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import { organizationDirectoryQueryKeys } from '@/lib/viewerQueryKeys';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
@@ -14,9 +14,6 @@ import type {
   SafetyOrganizationIdentity,
   OrganizationType,
 } from '@oxy.so/contracts';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { Button } from '@oxy.so/bloom/button';
-import { Item } from '@oxy.so/bloom/item';
 import {
   Select,
   SelectContent,
@@ -25,9 +22,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@oxy.so/bloom/select';
-import { TextField, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
+import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
+
+import {
+  Avatar as LAvatar,
+  Button as LButton,
+  Embed,
+  HStack,
+  RawText,
+  Row,
+  Text as LText,
+  TextField as LTextField,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** Selection and neutral creation both address Oxy's one organization directory. */
 export function ExperienceEmployerField({
@@ -119,232 +129,250 @@ export function ExperienceEmployerField({
     value,
     label: t(`profile.experience.organizationTypes.${value}`),
   }));
-  return (
-    <View className="gap-2">
-      <TextFieldLabel>{label}</TextFieldLabel>
-      {value ? (
-        <View className="gap-1">
-          <Item
-            leading={
-              <Avatar
-                source={
+  return toElement(
+    VStack(
+      Embed(<TextFieldLabel>{label}</TextFieldLabel>),
+      Embed(
+        value ? (
+          toElement(
+            VStack(
+              Row(employer?.name ?? t('profile.experience.unavailableEmployer'))
+                .leadingView(
+                  LAvatar(
+                    !supervision.supervised &&
+                      employer &&
+                      'avatar' in employer &&
+                      typeof employer.avatar === 'string'
+                      ? employer.avatar
+                      : undefined,
+                    { name: employer?.name ?? t('profile.experience.unavailableEmployer') },
+                  ).size('md'),
+                )
+                .subtitle(
                   !supervision.supervised &&
-                  employer &&
-                  'avatar' in employer &&
-                  typeof employer.avatar === 'string'
-                    ? employer.avatar
-                    : undefined
-                }
-                name={employer?.name ?? t('profile.experience.unavailableEmployer')}
-                size={32}
-              />
-            }
-            title={employer?.name ?? t('profile.experience.unavailableEmployer')}
-            subtitle={
-              !supervision.supervised &&
-              employer &&
-              'websiteUrl' in employer &&
-              typeof employer.websiteUrl === 'string'
-                ? (employer.websiteUrl ?? undefined)
-                : undefined
-            }
-          />
-          <Button
-            appearance="plain"
-            tone="neutral"
-            size="sm"
-            disabled={disabled}
-            onPress={() => {
-              onChange(null);
-              setSelected(undefined);
-              setQuery('');
-            }}
-          >
-            {t('profile.experience.changeEmployer')}
-          </Button>
-        </View>
-      ) : (
-        <>
-          <TextField invalid={invalid} disabled={disabled || create.isPending}>
-            <TextFieldInput
-              label={label}
-              value={query}
-              maxLength={supervision.supervised ? 100 : ORGANIZATION_NAME_MAX_LENGTH}
-              onChangeText={(text) => {
-                setQuery(text);
-                setCreating(false);
-                create.reset();
-              }}
-            />
-          </TextField>
-          <Text className="text-muted-foreground text-sm">
-            {t('profile.experience.companyHint')}
+                    employer &&
+                    'websiteUrl' in employer &&
+                    typeof employer.websiteUrl === 'string'
+                    ? (employer.websiteUrl ?? undefined)
+                    : undefined,
+                ),
+              LButton(LText(t('profile.experience.changeEmployer')))
+                .style('plain')
+                .tint('neutral')
+                .size('sm')
+                .disabled(disabled)
+                .onPress(() => {
+                  onChange(null);
+                  setSelected(undefined);
+                  setQuery('');
+                }),
+            ).spacing('xs'),
+          )
+        ) : (
+          <>
+            {toElement(
+              LTextField(
+                [
+                  query,
+                  (text) => {
+                    setQuery(text);
+                    setCreating(false);
+                    create.reset();
+                  },
+                ],
+                label,
+              )
+                .maxLength(supervision.supervised ? 100 : ORGANIZATION_NAME_MAX_LENGTH)
+                .invalid(invalid)
+                .disabled(disabled || create.isPending),
+            )}
+            {toElement(
+              RawText(t('profile.experience.companyHint'))
+                .foreground('muted')
+                .font('14')
+                .leading('20px'),
+            )}
+            {debounced.length >= 2 && debounced === query.trim() && !creating
+              ? toElement(
+                  VStack(
+                    Embed(
+                      results.isPending ? (
+                        <ListSkeleton count={2} />
+                      ) : results.isError ? (
+                        toElement(
+                          VStack(
+                            RawText(t('profile.experience.companySearchError'))
+                              .foreground('muted')
+                              .font('14')
+                              .leading('20px'),
+                            LButton(LText(t('common.retry', { defaultValue: 'Try again' })))
+                              .style('plain')
+                              .tint('neutral')
+                              .size('sm')
+                              .onPress(() => void results.refetch()),
+                          ).spacing('sm'),
+                        )
+                      ) : (
+                        <>
+                          {results.data?.pages
+                            .flatMap((page) => page.items)
+                            .map((organization) =>
+                              toElement(
+                                Row(organization.name)
+                                  .disabled(disabled)
+                                  .leadingView(
+                                    LAvatar(
+                                      !supervision.supervised && 'avatar' in organization
+                                        ? organization.avatar
+                                        : undefined,
+                                      { name: organization.name },
+                                    ).size('md'),
+                                  )
+                                  .subtitle(
+                                    !supervision.supervised && 'websiteUrl' in organization
+                                      ? [organization.websiteUrl, organization.countryCode]
+                                          .filter(Boolean)
+                                          .join(' · ')
+                                      : undefined,
+                                  )
+                                  .onPress(() => select(organization)),
+                                organization.accountId,
+                              ),
+                            )}
+                          {results.hasNextPage
+                            ? toElement(
+                                LButton(LText(t('common.loadMore', { defaultValue: 'Load more' })))
+                                  .style('plain')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .loading(results.isFetchingNextPage)
+                                  .onPress(() => void results.fetchNextPage()),
+                              )
+                            : null}
+                          {!supervision.supervised
+                            ? toElement(
+                                LButton(LText(t('profile.experience.addOrganization')))
+                                  .style('plain')
+                                  .tint('neutral')
+                                  .size('sm')
+                                  .disabled(!canUsePrivateApi || disabled)
+                                  .onPress(() => setCreating(true)),
+                              )
+                            : null}
+                        </>
+                      ),
+                    ),
+                  ),
+                )
+              : null}
+            {creating && !supervision.supervised
+              ? toElement(
+                  VStack(
+                    RawText(query.trim()).foreground('foreground').weight('semibold'),
+                    RawText(t('profile.experience.neutralOrganizationHint'))
+                      .foreground('muted')
+                      .font('14')
+                      .leading('20px'),
+                    Embed(
+                      <Select
+                        value={organizationType}
+                        disabled={create.isPending}
+                        onValueChange={(value) => {
+                          const type = ORGANIZATION_TYPES.find((candidate) => candidate === value);
+                          if (type) setOrganizationType(type);
+                        }}
+                      >
+                        <SelectTrigger label={t('profile.experience.organizationType')}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent
+                          items={options}
+                          renderItem={(option) => (
+                            <SelectItem value={option.value} label={option.label}>
+                              <SelectItemText>{option.label}</SelectItemText>
+                            </SelectItem>
+                          )}
+                        />
+                      </Select>,
+                    ),
+                    Embed(
+                      <TextFieldInput
+                        label={t('profile.experience.website')}
+                        value={website}
+                        onChangeText={setWebsite}
+                        autoCapitalize="none"
+                        keyboardType="url"
+                        editable={!create.isPending}
+                      />,
+                    ),
+                    Embed(
+                      <TextFieldInput
+                        label={t('profile.experience.country')}
+                        value={country}
+                        onChangeText={setCountry}
+                        maxLength={2}
+                        autoCapitalize="characters"
+                        editable={!create.isPending}
+                      />,
+                    ),
+                    Embed(
+                      createInvalid ? (
+                        <Text accessibilityRole="alert" className="text-error-primary text-sm">
+                          {t('profile.experience.organizationInvalid')}
+                        </Text>
+                      ) : null,
+                    ),
+                    Embed(
+                      create.isError ? (
+                        <Text accessibilityRole="alert" className="text-error-primary text-sm">
+                          {t('profile.experience.organizationCreateError')}
+                        </Text>
+                      ) : null,
+                    ),
+                    HStack(
+                      LButton(LText(t('common.cancel', { defaultValue: 'Cancel' })))
+                        .style('plain')
+                        .tint('neutral')
+                        .size('sm')
+                        .disabled(create.isPending)
+                        .onPress(() => setCreating(false)),
+                      LButton(LText(t('profile.experience.createOrganization')))
+                        .size('sm')
+                        .disabled(disabled || create.isPending || !canUsePrivateApi)
+                        .loading(create.isPending)
+                        .onPress(() => {
+                          // The client twin of the contract's schema: the same verdict,
+                          // without loading Zod into the app.
+                          const organization = parseOrganizationDraft({
+                            name: query,
+                            organizationType,
+                            websiteUrl: website,
+                            countryCode: country,
+                          });
+                          setCreateInvalid(organization === null);
+                          if (organization) create.mutate(organization);
+                        }),
+                    )
+                      .wrap()
+                      .justify('end')
+                      .spacing('sm'),
+                  )
+                    .padding('all', 'md')
+                    .border('border', 'thin')
+                    .corner('md')
+                    .spacing('md'),
+                )
+              : null}
+          </>
+        ),
+      ),
+      Embed(
+        invalid ? (
+          <Text accessibilityRole="alert" className="text-error-primary text-sm">
+            {t('profile.experience.validation.employerOxyAccountId')}
           </Text>
-          {debounced.length >= 2 && debounced === query.trim() && !creating ? (
-            <View>
-              {results.isPending ? (
-                <ListSkeleton count={2} />
-              ) : results.isError ? (
-                <View className="gap-2">
-                  <Text className="text-muted-foreground text-sm">
-                    {t('profile.experience.companySearchError')}
-                  </Text>
-                  <Button
-                    appearance="plain"
-                    tone="neutral"
-                    size="sm"
-                    onPress={() => void results.refetch()}
-                  >
-                    {t('common.retry', { defaultValue: 'Try again' })}
-                  </Button>
-                </View>
-              ) : (
-                <>
-                  {results.data?.pages
-                    .flatMap((page) => page.items)
-                    .map((organization) => (
-                      <Item
-                        key={organization.accountId}
-                        disabled={disabled}
-                        leading={
-                          <Avatar
-                            source={
-                              !supervision.supervised && 'avatar' in organization
-                                ? organization.avatar
-                                : undefined
-                            }
-                            name={organization.name}
-                            size={32}
-                          />
-                        }
-                        title={organization.name}
-                        subtitle={
-                          !supervision.supervised && 'websiteUrl' in organization
-                            ? [organization.websiteUrl, organization.countryCode]
-                                .filter(Boolean)
-                                .join(' · ')
-                            : undefined
-                        }
-                        onPress={() => select(organization)}
-                      />
-                    ))}
-                  {results.hasNextPage ? (
-                    <Button
-                      appearance="plain"
-                      tone="neutral"
-                      size="sm"
-                      loading={results.isFetchingNextPage}
-                      onPress={() => void results.fetchNextPage()}
-                    >
-                      {t('common.loadMore', { defaultValue: 'Load more' })}
-                    </Button>
-                  ) : null}
-                  {!supervision.supervised ? (
-                    <Button
-                      appearance="plain"
-                      tone="neutral"
-                      size="sm"
-                      disabled={!canUsePrivateApi || disabled}
-                      onPress={() => setCreating(true)}
-                    >
-                      {t('profile.experience.addOrganization')}
-                    </Button>
-                  ) : null}
-                </>
-              )}
-            </View>
-          ) : null}
-          {creating && !supervision.supervised ? (
-            <View className="gap-3 rounded-xl border border-border p-3">
-              <Text className="text-foreground font-semibold">{query.trim()}</Text>
-              <Text className="text-muted-foreground text-sm">
-                {t('profile.experience.neutralOrganizationHint')}
-              </Text>
-              <Select
-                value={organizationType}
-                disabled={create.isPending}
-                onValueChange={(value) => {
-                  const type = ORGANIZATION_TYPES.find((candidate) => candidate === value);
-                  if (type) setOrganizationType(type);
-                }}
-              >
-                <SelectTrigger label={t('profile.experience.organizationType')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  items={options}
-                  renderItem={(option) => (
-                    <SelectItem value={option.value} label={option.label}>
-                      <SelectItemText>{option.label}</SelectItemText>
-                    </SelectItem>
-                  )}
-                />
-              </Select>
-              <TextFieldInput
-                label={t('profile.experience.website')}
-                value={website}
-                onChangeText={setWebsite}
-                autoCapitalize="none"
-                keyboardType="url"
-                editable={!create.isPending}
-              />
-              <TextFieldInput
-                label={t('profile.experience.country')}
-                value={country}
-                onChangeText={setCountry}
-                maxLength={2}
-                autoCapitalize="characters"
-                editable={!create.isPending}
-              />
-              {createInvalid ? (
-                <Text accessibilityRole="alert" className="text-error-primary text-sm">
-                  {t('profile.experience.organizationInvalid')}
-                </Text>
-              ) : null}
-              {create.isError ? (
-                <Text accessibilityRole="alert" className="text-error-primary text-sm">
-                  {t('profile.experience.organizationCreateError')}
-                </Text>
-              ) : null}
-              <View className="flex-row flex-wrap justify-end gap-2">
-                <Button
-                  appearance="plain"
-                  tone="neutral"
-                  size="sm"
-                  disabled={create.isPending}
-                  onPress={() => setCreating(false)}
-                >
-                  {t('common.cancel', { defaultValue: 'Cancel' })}
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={disabled || create.isPending || !canUsePrivateApi}
-                  loading={create.isPending}
-                  onPress={() => {
-                    // The client twin of the contract's schema: the same verdict,
-                    // without loading Zod into the app.
-                    const organization = parseOrganizationDraft({
-                      name: query,
-                      organizationType,
-                      websiteUrl: website,
-                      countryCode: country,
-                    });
-                    setCreateInvalid(organization === null);
-                    if (organization) create.mutate(organization);
-                  }}
-                >
-                  {t('profile.experience.createOrganization')}
-                </Button>
-              </View>
-            </View>
-          ) : null}
-        </>
-      )}
-      {invalid ? (
-        <Text accessibilityRole="alert" className="text-error-primary text-sm">
-          {t('profile.experience.validation.employerOxyAccountId')}
-        </Text>
-      ) : null}
-    </View>
+        ) : null,
+      ),
+    ).spacing('sm'),
   );
 }

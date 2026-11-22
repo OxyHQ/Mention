@@ -1,10 +1,15 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useTheme } from '@oxy.so/bloom/theme';
-
 import { useRouter } from '@/lib/navigation/router';
+
+import {
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  Icon,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * A COMMUNITY's moderation that is Mention's: who is banned from posting in
@@ -22,14 +27,12 @@ export function CommunityModerationSettings({ accountId }: { accountId: string }
     [accountId, router],
   );
 
-  return (
-    <GroupedSection title={t('communities.settings.moderation')}>
-      <GroupedSectionItem
-        icon={<RiForbidLine width={20} height={20} fill={colors.textSecondary} />}
-        title={t('communities.bans')}
-        description={t('communities.settings.bansDescription')}
-        onPress={openBans}
-      />
-    </GroupedSection>
+  return toElement(
+    LGroupedSection(
+      LGroupedSectionItem(t('communities.bans'))
+        .leadingView(Icon(RiForbidLine).size('md').foreground('muted'))
+        .description(t('communities.settings.bansDescription'))
+        .onPress(openBans),
+    ).title(t('communities.settings.moderation')),
   );
 }
