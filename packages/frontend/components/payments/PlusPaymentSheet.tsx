@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Linking, Platform } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
 import {
   parseContract,
@@ -28,6 +27,7 @@ import {
   type PlusOfferBinding,
 } from '@/lib/payments/plusCheckout';
 import { clearPlusCheckoutKey, getPlusCheckoutKey } from '@/lib/payments/plusCheckoutStorage';
+import { Button as LButton, Text, toElement } from '@oxy.so/bloom-language';
 
 const OUTCOME_POLL_MS = 3000;
 type Outcome = 'pending' | 'fulfilled' | 'closed' | 'review' | null;
@@ -281,15 +281,12 @@ function PaymentContent({ onClose, cadence }: { onClose(): void; cadence: PlusCa
           : {}),
         ...(!canUsePrivateApi
           ? {
-              renderAdditionalDetails: () => (
-                <Button
-                  onPress={() => {
+              renderAdditionalDetails: () =>
+                toElement(
+                  LButton(Text(t('plus.payment.signIn'))).onPress(() => {
                     void signIn();
-                  }}
-                >
-                  {t('plus.payment.signIn')}
-                </Button>
-              ),
+                  }),
+                ),
             }
           : {}),
         canContinue: canUsePrivateApi && (operation !== null || (purchaseAvailable && !hasAccess)),

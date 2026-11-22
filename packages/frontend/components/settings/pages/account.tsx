@@ -4,14 +4,12 @@ import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { confirmDialog } from '@/utils/alerts';
-import { Button } from '@oxy.so/bloom/button';
 import { SettingsProfilePage } from '@oxy.so/bloom/settings-modal';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
 import { createLogger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import { Button as LButton, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('SettingsAccount');
 export default function AccountSettingsContent() {
@@ -59,16 +57,13 @@ export default function AccountSettingsContent() {
                 label: t('settings.account.loadFailed', {
                   defaultValue: 'Could not load your account',
                 }),
-                control: (
-                  <Button
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => {
+                control: toElement(
+                  LButton(LText(t('common.retry', { defaultValue: 'Try again' })))
+                    .style('subtle')
+                    .tint('neutral')
+                    .onPress(() => {
                       void refetch();
-                    }}
-                  >
-                    {t('common.retry', { defaultValue: 'Try again' })}
-                  </Button>
+                    }),
                 ),
               },
             ],
@@ -78,26 +73,26 @@ export default function AccountSettingsContent() {
     );
   if (!isAuthResolved || (isAuthenticated && !profile)) return <SettingsSkeleton />;
   if (!isAuthenticated)
-    return (
-      <View className="gap-4">
-        <Text>
-          {t('settings.account.signedOutSubtitle', {
+    return toElement(
+      VStack(
+        LText(
+          t('settings.account.signedOutSubtitle', {
             defaultValue:
               'Sign in to access your privacy, notifications, feed, and personalization settings.',
-          })}
-        </Text>
-        <Button
-          onPress={() =>
-            afterClose(() => {
-              void signIn();
-            })
-          }
-        >
-          {t('settings.account.signedOutTitle', {
-            defaultValue: 'Sign in to Mention',
-          })}
-        </Button>
-      </View>
+          }),
+        ),
+        LButton(
+          LText(
+            t('settings.account.signedOutTitle', {
+              defaultValue: 'Sign in to Mention',
+            }),
+          ),
+        ).onPress(() =>
+          afterClose(() => {
+            void signIn();
+          }),
+        ),
+      ).spacing('lg'),
     );
   return (
     <SettingsProfilePage
@@ -117,24 +112,23 @@ export default function AccountSettingsContent() {
               description: t('settings.account.oxyDescription', {
                 defaultValue: 'Manage your shared Oxy identity, profile and security.',
               }),
-              control: (
-                <Button
-                  size="sm"
-                  appearance="subtle"
-                  tone="neutral"
-                  onPress={() => showBottomSheet?.('ManageAccount')}
-                >
-                  {t('common.manage', { defaultValue: 'Manage' })}
-                </Button>
+              control: toElement(
+                LButton(LText(t('common.manage', { defaultValue: 'Manage' })))
+                  .size('sm')
+                  .style('subtle')
+                  .tint('neutral')
+                  .onPress(() => showBottomSheet?.('ManageAccount')),
               ),
             },
             {
               key: 'signout',
               label: t('settings.signOut'),
-              control: (
-                <Button size="sm" appearance="subtle" tone="danger" onPress={logout}>
-                  {t('settings.signOut')}
-                </Button>
+              control: toElement(
+                LButton(LText(t('settings.signOut')))
+                  .size('sm')
+                  .style('subtle')
+                  .tint('danger')
+                  .onPress(logout),
               ),
             },
           ],

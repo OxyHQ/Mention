@@ -1,17 +1,21 @@
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import {
   useAppearanceStore,
   type PostReadMoreAction,
   type PostTextExpand,
 } from '@/stores/appearanceStore';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAccountThemeControls } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import {
+  Loading as LLoading,
+  SettingsSelect as LSettingsSelect,
+  Toggle,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -124,26 +128,21 @@ export default function AppearanceSettingsScreen() {
                 'settings.theme.source.useAccountDesc',
                 'Use your Oxy account theme on this device',
               ),
-              control: (
-                <Switch
-                  checked={source === 'account'}
-                  onCheckedChange={(on) => changeThemeSource(on ? 'account' : 'app')}
-                  accessibilityLabel={t(
-                    'settings.theme.source.useAccount',
-                    'Sync theme with account',
-                  )}
-                />
+              control: toElement(
+                Toggle([
+                  source === 'account',
+                  (on) => changeThemeSource(on ? 'account' : 'app'),
+                ]).label(t('settings.theme.source.useAccount', 'Sync theme with account')),
               ),
             },
             {
               key: 'mode',
               label: t('settings.theme.title', 'Color mode'),
-              control: (
-                <SettingsSelect
-                  label={t('settings.theme.title', 'Color mode')}
-                  value={themeMode}
-                  onChange={onThemeModeChange}
-                  items={[
+              control: toElement(
+                LSettingsSelect(
+                  t('settings.theme.title', 'Color mode'),
+                  [themeMode, onThemeModeChange],
+                  [
                     {
                       value: 'system',
                       label: t('settings.theme.system', 'System'),
@@ -153,8 +152,8 @@ export default function AppearanceSettingsScreen() {
                       label: t('settings.theme.light', 'Light'),
                     },
                     { value: 'dark', label: t('settings.theme.dark', 'Dark') },
-                  ]}
-                />
+                  ],
+                ),
               ),
             },
           ],
@@ -162,17 +161,16 @@ export default function AppearanceSettingsScreen() {
         {
           key: 'reading',
           label: t('settings.appearance.title', 'Appearance'),
-          action: settingsSaving ? <Loading size="sm" /> : undefined,
+          action: settingsSaving ? toElement(LLoading().size('sm')) : undefined,
           rows: [
             {
               key: 'length',
               label: t('settings.appearance.postTextLength.title', 'Post text length'),
-              control: (
-                <SettingsSelect
-                  label={t('settings.appearance.postTextLength.title', 'Post text length')}
-                  value={postTextExpand}
-                  onChange={onPostTextExpandChange}
-                  items={[
+              control: toElement(
+                LSettingsSelect(
+                  t('settings.appearance.postTextLength.title', 'Post text length'),
+                  [postTextExpand, onPostTextExpandChange],
+                  [
                     {
                       value: 'default',
                       label: t('settings.appearance.postTextLength.default', 'Default'),
@@ -189,19 +187,18 @@ export default function AppearanceSettingsScreen() {
                       value: 'all',
                       label: t('settings.appearance.postTextLength.all', 'Show all'),
                     },
-                  ]}
-                />
+                  ],
+                ),
               ),
             },
             {
               key: 'read-more',
               label: t('settings.appearance.readMoreAction.title', 'On "Read more" tap'),
-              control: (
-                <SettingsSelect
-                  label={t('settings.appearance.readMoreAction.title', 'On "Read more" tap')}
-                  value={postReadMoreAction}
-                  onChange={onPostReadMoreActionChange}
-                  items={[
+              control: toElement(
+                LSettingsSelect(
+                  t('settings.appearance.readMoreAction.title', 'On "Read more" tap'),
+                  [postReadMoreAction, onPostReadMoreActionChange],
+                  [
                     {
                       value: 'openPost',
                       label: t('settings.appearance.readMoreAction.openPost', 'Open post'),
@@ -210,19 +207,18 @@ export default function AppearanceSettingsScreen() {
                       value: 'expandInline',
                       label: t('settings.appearance.readMoreAction.expandInline', 'Expand here'),
                     },
-                  ]}
-                />
+                  ],
+                ),
               ),
             },
             {
               key: 'bio',
               label: t('settings.appearance.collapseBio.title', 'Profile bios'),
-              control: (
-                <SettingsSelect
-                  label={t('settings.appearance.collapseBio.title', 'Profile bios')}
-                  value={collapseLongBio ? 'collapse' : 'full'}
-                  onChange={onCollapseLongBioChange}
-                  items={[
+              control: toElement(
+                LSettingsSelect(
+                  t('settings.appearance.collapseBio.title', 'Profile bios'),
+                  [collapseLongBio ? 'collapse' : 'full', onCollapseLongBioChange],
+                  [
                     {
                       value: 'collapse',
                       label: t('settings.appearance.collapseBio.collapse', 'Collapse if long'),
@@ -231,8 +227,8 @@ export default function AppearanceSettingsScreen() {
                       value: 'full',
                       label: t('settings.appearance.collapseBio.full', 'Always show full'),
                     },
-                  ]}
-                />
+                  ],
+                ),
               ),
             },
           ],

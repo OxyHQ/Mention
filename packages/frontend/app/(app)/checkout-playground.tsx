@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Text } from '@oxy.so/bloom/typography';
+import { Text as LText, toElement } from '@oxy.so/bloom-language';
 
 // A compile-time boundary: production must not ship developer fixtures or their assets.
 const Playground: ComponentType | null = __DEV__
@@ -7,5 +7,5 @@ const Playground: ComponentType | null = __DEV__
   : null;
 
 export default function CheckoutPlaygroundRoute() {
-  return Playground ? <Playground /> : <Text>Not available</Text>;
+  return Playground ? <Playground /> : toElement(LText('Not available'));
 }

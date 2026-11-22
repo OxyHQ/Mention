@@ -1,4 +1,3 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
@@ -13,17 +12,24 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
-import { Button } from '@oxy.so/bloom/button';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Text,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const FILTER_TOGGLES: {
   icon: BloomIcon;
@@ -117,301 +123,309 @@ function PrivacySettingsScreen() {
   };
 
   if (!isAuthResolved || isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.privacy.signInRequired', {
-            defaultValue: 'Sign in to manage your privacy settings',
-          })}
-          description={t('settings.privacy.signInRequiredDesc', {
-            defaultValue: 'Control who can see your profile, mention you, and more.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.privacy.signInRequired', {
+              defaultValue: 'Sign in to manage your privacy settings',
+            })}
+            description={t('settings.privacy.signInRequiredDesc', {
+              defaultValue: 'Control who can see your profile, mention you, and more.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (loading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <SettingsSection>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.privateProfile')}
-              description={t('settings.privacy.privateProfileDesc', {
-                defaultValue: 'Control who can see your profile',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/profile-visibility')}
-                    accessibilityLabel={t('settings.privacy.privateProfile')}
-                  >
-                    {getProfileVisibilityText()}
-                  </Button>
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.searchEngines')}
-              description={t('settings.privacy.searchEnginesDesc')}
-              rightElement={
-                <>
-                  <Switch
-                    checked={privacySettings.searchEngineIndexing ?? true}
-                    onCheckedChange={(value) => updatePrivacyToggle('searchEngineIndexing', value)}
-                    accessibilityLabel={t('settings.privacy.searchEngines')}
-                  />
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.showLikes')}
-              description={t('settings.privacy.showLikesDesc')}
-              rightElement={
-                <>
-                  <Switch
-                    checked={privacySettings.showLikes ?? false}
-                    onCheckedChange={(value) => updatePrivacyToggle('showLikes', value)}
-                    accessibilityLabel={t('settings.privacy.showLikes')}
-                  />
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.tagsAndMentions')}
-              description={t('settings.privacy.tagsAndMentionsDesc', {
-                defaultValue: 'Choose who can tag or mention you',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/tags-mentions')}
-                    accessibilityLabel={t('settings.privacy.tagsAndMentions')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.onlineStatus.title')}
-              description={t('settings.privacy.onlineStatusDesc', {
-                defaultValue: 'Show when you are active',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/online-status')}
-                    accessibilityLabel={t('settings.privacy.onlineStatus.title')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.restrictedProfiles')}
-              description={t('settings.privacy.restrictedProfilesDesc', {
-                defaultValue: 'Limit interactions from specific people',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/restricted')}
-                    accessibilityLabel={t('settings.privacy.restrictedProfiles')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.blockedProfiles')}
-              description={t('settings.privacy.blockedProfilesDesc', {
-                defaultValue: 'People you have blocked',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/blocked')}
-                    accessibilityLabel={t('settings.privacy.blockedProfiles')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.hiddenWords')}
-              description={t('settings.privacy.hiddenWordsDesc', {
-                defaultValue: 'Filter posts containing specific words',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/hidden-words')}
-                    accessibilityLabel={t('settings.privacy.hiddenWords')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-            {/* Beside muted words because a reader looking for "stop
-                        showing me this" looks in one place — but a separate
-                        screen, because the two are different rules: a muted word
-                        is a safety filter that reaches search and notifications,
-                        a muted lane is a timeline preference that reaches feeds
-                        only. */}
-            <GroupedSectionItem
-              wrapControl
-              title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}
-              description={t('lanes.muted.settingsDesc', {
-                defaultValue: 'Hide one track of an account you follow',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/muted-lanes')}
-                    accessibilityLabel={t('lanes.muted.title', {
-                      defaultValue: 'Muted lanes',
-                    })}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.hideLikeShareCounts')}
-              description={t('settings.privacy.hideLikeShareCountsDesc', {
-                defaultValue: 'Hide engagement counts on posts',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/privacy/hide-counts')}
-                    accessibilityLabel={t('settings.privacy.hideLikeShareCounts')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection label={t('settings.privacy.content')}>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.showSensitiveContent')}
-              description={t('settings.privacy.showSensitiveContentDesc', {
-                defaultValue:
-                  "Sensitive and NSFW posts never appear in your feeds. They remain visible on the author's profile.",
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={privacySettings.showSensitiveContent ?? false}
-                      onCheckedChange={(value) =>
-                        updatePrivacyToggle('showSensitiveContent', value)
-                      }
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection>
-          <GroupedSection>
-            {FILTER_TOGGLES.map(
-              ({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) => (
-                <GroupedSectionItem
-                  wrapControl
-                  title={t(titleKey, { defaultValue: titleDefault })}
-                  description={t(descKey, { defaultValue: descDefault })}
-                  key={filterKey}
-                  rightElement={
-                    <>
-                      {
-                        <Switch
-                          checked={recFilters[filterKey]}
-                          onCheckedChange={(v) => updateRecFilter(filterKey, v)}
-                        />
-                      }
-                    </>
-                  }
-                />
+  return toElement(
+    VStack(
+      VStack(
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.privacy.privateProfile'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.privateProfileDesc', {
+                  defaultValue: 'Control who can see your profile',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(getProfileVisibilityText()))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/profile-visibility'))
+                        .label(t('settings.privacy.privateProfile')),
+                    )}
+                  </>,
+                ),
               ),
-            )}
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+            LGroupedSectionItem(t('settings.privacy.searchEngines'))
+              .wrapControl()
+              .description(t('settings.privacy.searchEnginesDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        privacySettings.searchEngineIndexing ?? true,
+                        (value) => updatePrivacyToggle('searchEngineIndexing', value),
+                      ]).label(t('settings.privacy.searchEngines')),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.showLikes'))
+              .wrapControl()
+              .description(t('settings.privacy.showLikesDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        privacySettings.showLikes ?? false,
+                        (value) => updatePrivacyToggle('showLikes', value),
+                      ]).label(t('settings.privacy.showLikes')),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.tagsAndMentions'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.tagsAndMentionsDesc', {
+                  defaultValue: 'Choose who can tag or mention you',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/tags-mentions'))
+                        .label(t('settings.privacy.tagsAndMentions')),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.onlineStatus.title'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.onlineStatusDesc', {
+                  defaultValue: 'Show when you are active',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/online-status'))
+                        .label(t('settings.privacy.onlineStatus.title')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.privacy.restrictedProfiles'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.restrictedProfilesDesc', {
+                  defaultValue: 'Limit interactions from specific people',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/restricted'))
+                        .label(t('settings.privacy.restrictedProfiles')),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.blockedProfiles'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.blockedProfilesDesc', {
+                  defaultValue: 'People you have blocked',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/blocked'))
+                        .label(t('settings.privacy.blockedProfiles')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.privacy.hiddenWords'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.hiddenWordsDesc', {
+                  defaultValue: 'Filter posts containing specific words',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/hidden-words'))
+                        .label(t('settings.privacy.hiddenWords')),
+                    )}
+                  </>,
+                ),
+              ),
+            /* Beside muted words because a reader looking for "stop
+                          showing me this" looks in one place — but a separate
+                          screen, because the two are different rules: a muted word
+                          is a safety filter that reaches search and notifications,
+                          a muted lane is a timeline preference that reaches feeds
+                          only. */ LGroupedSectionItem(
+              t('lanes.muted.title', { defaultValue: 'Muted lanes' }),
+            )
+              .wrapControl()
+              .description(
+                t('lanes.muted.settingsDesc', {
+                  defaultValue: 'Hide one track of an account you follow',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/muted-lanes'))
+                        .label(
+                          t('lanes.muted.title', {
+                            defaultValue: 'Muted lanes',
+                          }),
+                        ),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.hideLikeShareCounts'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.hideLikeShareCountsDesc', {
+                  defaultValue: 'Hide engagement counts on posts',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/privacy/hide-counts'))
+                        .label(t('settings.privacy.hideLikeShareCounts')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        LSettingsSection(
+          t('settings.privacy.content'),
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.privacy.showSensitiveContent'))
+              .wrapControl()
+              .description(
+                t('settings.privacy.showSensitiveContentDesc', {
+                  defaultValue:
+                    "Sensitive and NSFW posts never appear in your feeds. They remain visible on the author's profile.",
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        privacySettings.showSensitiveContent ?? false,
+                        (value) => updatePrivacyToggle('showSensitiveContent', value),
+                      ]),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            Embed(
+              FILTER_TOGGLES.map(
+                ({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) =>
+                  toElement(
+                    LGroupedSectionItem(t(titleKey, { defaultValue: titleDefault }))
+                      .wrapControl()
+                      .description(t(descKey, { defaultValue: descDefault }))
+                      .trailing(
+                        Embed(
+                          <>
+                            {toElement(
+                              Toggle([recFilters[filterKey], (v) => updateRecFilter(filterKey, v)]),
+                            )}
+                          </>,
+                        ),
+                      ),
+                    filterKey,
+                  ),
+              ),
+            ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }
 

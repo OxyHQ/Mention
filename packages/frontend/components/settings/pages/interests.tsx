@@ -1,12 +1,16 @@
-import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { TopicPicker } from '@/components/interests/TopicPicker';
 import { Search } from '@oxy.so/bloom/search';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  SettingsSection as LSettingsSection,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Your interests — a searchable grid of topics, where selecting one FOLLOWS it.
@@ -34,63 +38,60 @@ export default function InterestsSettingsScreen() {
   const [query, setQuery] = useState('');
 
   if (isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.interests.signInRequired', {
-            defaultValue: 'Sign in to choose your interests',
-          })}
-          description={t('settings.interests.signInRequiredDesc', {
-            defaultValue: 'Pick topics so we can tailor your feed.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.interests.signInRequired', {
+              defaultValue: 'Sign in to choose your interests',
+            })}
+            description={t('settings.interests.signInRequiredDesc', {
+              defaultValue: 'Pick topics so we can tailor your feed.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <View className="pb-2">
-          <Search
-            value={query}
-            onValueChange={setQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder={t('settings.interests.searchPlaceholder', {
-              defaultValue: 'Search topics',
-            })}
-            accessibilityLabel={t('settings.interests.searchLabel', {
-              defaultValue: 'Search topics',
-            })}
-            label={t('settings.interests.searchLabel', {
-              defaultValue: 'Search topics',
-            })}
-            onClearText={() => setQuery('')}
-          />
-        </View>
-
-        <SettingsSection
-          label={t('settings.interests.title', {
+  return toElement(
+    VStack(
+      VStack(
+        VStack(
+          Embed(
+            <Search
+              value={query}
+              onValueChange={setQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder={t('settings.interests.searchPlaceholder', {
+                defaultValue: 'Search topics',
+              })}
+              accessibilityLabel={t('settings.interests.searchLabel', {
+                defaultValue: 'Search topics',
+              })}
+              label={t('settings.interests.searchLabel', {
+                defaultValue: 'Search topics',
+              })}
+              onClearText={() => setQuery('')}
+            />,
+          ),
+        ).padding('bottom', 'sm'),
+        LSettingsSection(
+          t('settings.interests.title', {
             defaultValue: 'Your interests',
-          })}
-          description={t('settings.interests.description', {
+          }),
+          LGroupedSection(Embed(<TopicPicker query={query} />)),
+        ).description(
+          t('settings.interests.description', {
             defaultValue: 'Topics you follow shape your feed, and come with you to every Oxy app.',
-          })}
-        >
-          <GroupedSection>
-            <TopicPicker query={query} />
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+          }),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

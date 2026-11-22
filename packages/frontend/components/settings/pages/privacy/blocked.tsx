@@ -1,16 +1,12 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { queryClient } from '@/lib/queryClient';
 import { refreshPrivacyLists } from '@/services/privacyService';
 import { searchService } from '@/services/searchService';
 import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
-import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import { Search } from '@oxy.so/bloom/search';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
@@ -23,7 +19,20 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  HStack,
+  Icon,
+  RawText,
+  Search as LSearch,
+  SettingsSection as LSettingsSection,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const blockedLogger = createLogger('BlockedUsers');
 
@@ -258,153 +267,167 @@ export default function BlockedUsersScreen() {
   };
 
   if (!isAuthResolved || isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.privacy.blocked.signInRequired', {
-            defaultValue: 'Sign in to manage blocked accounts',
-          })}
-          description={t('settings.privacy.blocked.signInRequiredDesc', {
-            defaultValue: 'You can block or unblock people once signed in.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.privacy.blocked.signInRequired', {
+              defaultValue: 'Sign in to manage blocked accounts',
+            })}
+            description={t('settings.privacy.blocked.signInRequiredDesc', {
+              defaultValue: 'You can block or unblock people once signed in.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <SettingsSection label={t('settings.privacy.searchUsersToBlock')}>
-          <GroupedSection>
-            <View className="px-4 py-3 flex-row items-center gap-3">
-              <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
-              <Search
-                value={searchQuery}
-                onValueChange={handleSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={t('settings.privacy.searchUsersToBlock')}
-                label={t('settings.privacy.searchUsersToBlock')}
-                onClearText={() => handleSearch('')}
-              />
-              {searching && <ListSkeleton count={2} />}
-            </View>
-          </GroupedSection>
-        </SettingsSection>
+  return toElement(
+    VStack(
+      VStack(
+        LSettingsSection(
+          t('settings.privacy.searchUsersToBlock'),
+          LGroupedSection(
+            HStack(
+              Icon(RiSearchLine).size('md').foreground('muted'),
+              LSearch([searchQuery, handleSearch])
+                .autocapitalize('none')
+                .autocorrect(false)
+                .placeholder(t('settings.privacy.searchUsersToBlock'))
+                .label(t('settings.privacy.searchUsersToBlock'))
+                .onClearText(() => handleSearch('')),
+              Embed(searching && <ListSkeleton count={2} />),
+            )
+              .padding('horizontal', 'lg')
+              .padding('vertical', 'md')
+              .align('center')
+              .spacing('md'),
+          ),
+        ),
+        searchQuery.length > 0 && searchResults.length > 0
+          ? LSettingsSection(
+              undefined,
+              LGroupedSection(
+                Embed(
+                  searchResults.map((user) => {
+                    const userId = getUserId(user);
+                    const handle = user.username || user.handle || '';
+                    const isBlocking = blocking === userId;
+                    if (!userId || !user.name?.displayName) return null;
 
-        {searchQuery.length > 0 && searchResults.length > 0 && (
-          <SettingsSection>
-            <GroupedSection>
-              {searchResults.map((user) => {
-                const userId = getUserId(user);
-                const handle = user.username || user.handle || '';
-                const isBlocking = blocking === userId;
-                if (!userId || !user.name?.displayName) return null;
+                    return toElement(
+                      LGroupedSectionItem(user.name.displayName)
+                        .wrapControl()
+                        .description(`@${handle}`)
+                        .trailing(
+                          Embed(
+                            <>
+                              {toElement(
+                                LButton(
+                                  LText(
+                                    isBlocking ? (
+                                      <Loading
+                                        className="text-primary"
+                                        variant="inline"
+                                        size="sm"
+                                        style={{ flex: undefined }}
+                                      />
+                                    ) : (
+                                      <RiAddCircleLine
+                                        width={22}
+                                        height={22}
+                                        fill={colors.primary}
+                                      />
+                                    ),
+                                  ),
+                                )
+                                  .size('sm')
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .onPress(() => !isBlocking && handleBlock(user))
+                                  .disabled(isBlocking)
+                                  .label(user.name.displayName),
+                              )}
+                            </>,
+                          ),
+                        ),
+                      userId,
+                    );
+                  }),
+                ),
+              ),
+            )
+          : null,
+        searchQuery.length > 0 && !searching && searchResults.length === 0
+          ? VStack(
+              RawText(t('settings.privacy.noUsersFound'))
+                .font('14')
+                .leading('20px')
+                .foreground('muted'),
+            )
+              .padding('vertical', 'lg')
+              .align('center')
+          : null,
+        LSettingsSection(
+          t('settings.privacy.blockedUsers'),
+          LGroupedSection(
+            Embed(
+              loading ? (
+                <ListSkeleton />
+              ) : blockedUsers.length === 0 ? (
+                toElement(
+                  VStack(
+                    Embed(
+                      <EmptyState
+                        title={t('settings.privacy.noBlockedUsers')}
+                        sticker="blockedAccounts"
+                      />,
+                    ),
+                  ).padding('vertical', 'lg'),
+                )
+              ) : (
+                blockedUsers.map((user) => {
+                  const userId = getUserId(user);
+                  const handle = user.username || user.handle || '';
+                  if (!userId || !user.name?.displayName) return null;
 
-                return (
-                  <GroupedSectionItem
-                    wrapControl
-                    title={user.name.displayName}
-                    description={`@${handle}`}
-                    key={userId}
-                    rightElement={
-                      <>
-                        <Button
-                          size="sm"
-                          appearance="subtle"
-                          tone="neutral"
-                          onPress={() => !isBlocking && handleBlock(user)}
-                          disabled={isBlocking}
-                          accessibilityLabel={user.name.displayName}
-                        >
-                          {isBlocking ? (
-                            <Loading
-                              className="text-primary"
-                              variant="inline"
-                              size="sm"
-                              style={{ flex: undefined }}
-                            />
-                          ) : (
-                            <RiAddCircleLine width={22} height={22} fill={colors.primary} />
-                          )}
-                        </Button>
-                      </>
-                    }
-                  />
-                );
-              })}
-            </GroupedSection>
-          </SettingsSection>
-        )}
-
-        {searchQuery.length > 0 && !searching && searchResults.length === 0 && (
-          <View className="py-4 items-center">
-            <Text className="text-sm text-muted-foreground">
-              {t('settings.privacy.noUsersFound')}
-            </Text>
-          </View>
-        )}
-
-        <SettingsSection label={t('settings.privacy.blockedUsers')}>
-          <GroupedSection>
-            {loading ? (
-              <ListSkeleton />
-            ) : blockedUsers.length === 0 ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('settings.privacy.noBlockedUsers')}
-                  sticker="blockedAccounts"
-                />
-              </View>
-            ) : (
-              blockedUsers.map((user) => {
-                const userId = getUserId(user);
-                const handle = user.username || user.handle || '';
-                if (!userId || !user.name?.displayName) return null;
-
-                return (
-                  <GroupedSectionItem
-                    wrapControl
-                    title={user.name.displayName}
-                    description={`@${handle}`}
-                    key={userId}
-                    rightElement={
-                      <>
-                        {
-                          <Button
-                            size="sm"
-                            appearance="subtle"
-                            tone="danger"
-                            onPress={() => {
-                              if (userId) {
-                                handleUnblock(userId);
-                              } else {
-                                blockedLogger.error('No userId found for user');
-                                void showSettingsAlert(t('common.error'), 'Invalid user ID');
-                              }
-                            }}
-                          >
-                            {t('settings.privacy.unblock')}
-                          </Button>
-                        }
-                      </>
-                    }
-                  />
-                );
-              })
-            )}
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+                  return toElement(
+                    LGroupedSectionItem(user.name.displayName)
+                      .wrapControl()
+                      .description(`@${handle}`)
+                      .trailing(
+                        Embed(
+                          <>
+                            {toElement(
+                              LButton(LText(t('settings.privacy.unblock')))
+                                .size('sm')
+                                .style('subtle')
+                                .tint('danger')
+                                .onPress(() => {
+                                  if (userId) {
+                                    handleUnblock(userId);
+                                  } else {
+                                    blockedLogger.error('No userId found for user');
+                                    void showSettingsAlert(t('common.error'), 'Invalid user ID');
+                                  }
+                                }),
+                            )}
+                          </>,
+                        ),
+                      ),
+                    userId,
+                  );
+                })
+              ),
+            ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

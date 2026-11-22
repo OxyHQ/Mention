@@ -1,6 +1,4 @@
 import { useId, useState } from 'react';
-import { Button } from '@oxy.so/bloom/button';
-import { Checkbox } from '@oxy.so/bloom/checkbox';
 import {
   CardForm,
   CARD_FORM_EMPTY_VALUE,
@@ -14,6 +12,8 @@ import {
 } from '@oxy.so/bloom/card-form';
 import type { CheckoutCard } from '@peable.to/sdk/checkout/ui';
 import { useTranslation } from 'react-i18next';
+
+import { Button as LButton, Checkbox as LCheckbox, Text, toElement } from '@oxy.so/bloom-language';
 
 // Recognise only the two familiar local fixture numbers, not a processor's live BIN table.
 const LOCAL_CARD_SCHEMES: readonly CardScheme[] = [
@@ -66,30 +66,26 @@ export function LocalCheckoutCardEntry({
         secureSecurityCode
         required
       />
-      <Checkbox
-        checked={saveCard}
-        onCheckedChange={setSaveCard}
-        label={label('saveCard')}
-        description={label('saveCardHint')}
-      />
-      <Button
-        size="lg"
-        disabled={!valid}
-        onPress={() => {
-          if (!valid) return;
-          const metadata: CheckoutCard = {
-            id: `local-card-${id}`,
-            brand: scheme?.name ?? label('card.generic'),
-            last4: cardDigits(value.number).slice(-4),
-            saveForLater: saveCard,
-          };
-          setValue({ ...CARD_FORM_EMPTY_VALUE });
-          onCard(metadata);
-          onDone();
-        }}
-      >
-        {label('continue')}
-      </Button>
+      {toElement(
+        LCheckbox([saveCard, setSaveCard], label('saveCard')).description(label('saveCardHint')),
+      )}
+      {toElement(
+        LButton(Text(label('continue')))
+          .size('lg')
+          .disabled(!valid)
+          .onPress(() => {
+            if (!valid) return;
+            const metadata: CheckoutCard = {
+              id: `local-card-${id}`,
+              brand: scheme?.name ?? label('card.generic'),
+              last4: cardDigits(value.number).slice(-4),
+              saveForLater: saveCard,
+            };
+            setValue({ ...CARD_FORM_EMPTY_VALUE });
+            onCard(metadata);
+            onDone();
+          }),
+      )}
     </>
   );
 }

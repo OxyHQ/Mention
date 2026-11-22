@@ -1,10 +1,10 @@
 import { useProfileData } from '@/hooks/useProfileData';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
-import { SettingsValueField, type SettingsRowData } from '@oxy.so/bloom/settings-modal';
+import type { SettingsRowData } from '@oxy.so/bloom/settings-modal';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { Pressable } from 'react-native';
+import { Embed, SettingsValue, VStack, toElement } from '@oxy.so/bloom-language';
 
 type OxyProfileField = 'displayName' | 'username' | 'bio' | 'location' | 'links';
 
@@ -19,29 +19,31 @@ export function useOxyIdentityRows({ full = false }: { full?: boolean } = {}): S
   const { data: profile } = useProfileData(user?.username);
   const notSet = t('settings.editProfile.notSet', { defaultValue: 'Not set' });
 
-  const value = (text: string | undefined, fieldType: OxyProfileField) => (
-    <Pressable
-      onPress={() => showBottomSheet?.({ screen: 'EditProfileField', props: { fieldType } })}
-      accessibilityRole="button"
-    >
-      <SettingsValueField muted={!text}>{text || notSet}</SettingsValueField>
-    </Pressable>
-  );
+  const value = (text: string | undefined, fieldType: OxyProfileField) =>
+    toElement(
+      VStack(SettingsValue(text || notSet).muted(!text))
+        .onPress(() => showBottomSheet?.({ screen: 'EditProfileField', props: { fieldType } }))
+        .role('button'),
+    );
 
   const rows: SettingsRowData[] = [
     {
       key: 'avatar',
       label: t('settings.profile.photo', { defaultValue: 'Profile photo' }),
-      control: (
-        <Pressable onPress={() => void openAvatarPicker()} accessibilityRole="button">
-          <AccountAvatar
-            account={profile ?? undefined}
-            source={profile?.avatar}
-            name={profile?.design.displayName ?? profile?.username}
-            size={40}
-            variant={MEDIA_VARIANT_AVATAR_LG}
-          />
-        </Pressable>
+      control: toElement(
+        VStack(
+          Embed(
+            <AccountAvatar
+              account={profile ?? undefined}
+              source={profile?.avatar}
+              name={profile?.design.displayName ?? profile?.username}
+              size={40}
+              variant={MEDIA_VARIANT_AVATAR_LG}
+            />,
+          ),
+        )
+          .onPress(() => void openAvatarPicker())
+          .role('button'),
       ),
     },
     {

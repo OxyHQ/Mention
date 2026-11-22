@@ -8,18 +8,10 @@ import { localProviderTestBinding } from '@/lib/payments/localProviderTest';
 import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge';
 import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SubscriptionPrice, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-  SegmentedControlItemText,
-} from '@oxy.so/bloom/segmented-control';
+import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { plusPriceMajorUnits, type PlusCadence } from '@/lib/payments/plusCheckout';
 import { Text, Title, Subtitle } from '@oxy.so/bloom/typography';
-import { Button } from '@oxy.so/bloom/button';
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
@@ -29,8 +21,26 @@ import { PlusPaymentSheet } from '@/components/payments/PlusPaymentSheet';
 import { PlusDisplayEstimate } from '@/components/payments/PlusDisplayEstimate';
 import { useTranslation } from 'react-i18next';
 
+import {
+  Button as LButton,
+  Embed,
+  Group,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  HStack,
+  Header,
+  Icon,
+  Option,
+  ScrollView,
+  Segmented,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
+
 /** Mention Plus is sold individually and is also included with Oxy One. */
-export default function PlusScreen() {
+export default screen(function PlusScreen() {
   const router = useRouter();
   const routeParams = useLocalSearchParams<{ '#': string }>();
   const [checkoutBinding, setCheckoutBinding] = useState(() =>
@@ -113,7 +123,7 @@ export default function PlusScreen() {
         {
           id: 'social',
           title: t('plus.freeBenefitSocial'),
-          icon: <RiChat3Line size="lg" fill={colors.primary} />,
+          icon: toElement(Icon(RiChat3Line).size('lg').foreground('primary')),
         },
       ],
     },
@@ -140,22 +150,22 @@ export default function PlusScreen() {
         {
           id: 'social',
           title: t('plus.freeBenefitSocial'),
-          icon: <RiChat3Line size="lg" fill={colors.primary} />,
+          icon: toElement(Icon(RiChat3Line).size('lg').foreground('primary')),
         },
         {
           id: 'mono',
           title: t('plus.benefitMono'),
           description: t('plus.benefitMonoDescription'),
-          icon: <RiPaletteLine size="lg" fill={colors.primary} />,
+          icon: toElement(Icon(RiPaletteLine).size('lg').foreground('primary')),
         },
       ],
     },
   ];
 
   const selectedPlan = plans.find((plan) => plan.id === selected);
-  return (
-    <Screen header={<PageHeader backLabel={t('common.back', { defaultValue: 'Back' })} />}>
-      <ScreenScrollView>
+  return Group(
+    ScrollView(
+      Embed(
         <View
           style={{
             width: '100%',
@@ -176,108 +186,114 @@ export default function PlusScreen() {
             ) : (
               <Text style={{ textAlign: 'center' }}>{selectedPlan.price}</Text>
             ))}
-          <View
-            testID="plus-plan-selectors"
-            style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}
-          >
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <SegmentedControl
-                label={t('plus.selectorLabel')}
-                type="radio"
-                size="sm"
-                value={selected}
-                onValueChange={(value) => {
-                  if (!paymentOpen) setSelected(value);
-                }}
-              >
-                {plans.map((plan) => (
-                  <SegmentedControlItem key={plan.id} value={plan.id} disabled={paymentOpen}>
-                    <SegmentedControlItemText>{plan.label}</SegmentedControlItemText>
-                  </SegmentedControlItem>
-                ))}
-              </SegmentedControl>
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <SegmentedControl<PlusCadence>
-                label={t('plus.payment.cadenceLabel')}
-                type="radio"
-                size="sm"
-                value={cadence}
-                onValueChange={(value) => {
-                  if (!paymentOpen) setCadence(value);
-                }}
-              >
-                <SegmentedControlItem value="month" disabled={paymentOpen}>
-                  <SegmentedControlItemText>
-                    {t('plus.payment.cadenceMonth')}
-                  </SegmentedControlItemText>
-                </SegmentedControlItem>
-                <SegmentedControlItem value="year" disabled={paymentOpen}>
-                  <SegmentedControlItemText>
-                    {t('plus.payment.cadenceYearShort')}
-                  </SegmentedControlItemText>
-                </SegmentedControlItem>
-              </SegmentedControl>
-            </View>
-          </View>
+          {toElement(
+            HStack(
+              VStack(
+                Segmented(
+                  [
+                    selected,
+                    (value) => {
+                      if (!paymentOpen) setSelected(value);
+                    },
+                  ],
+                  plans.map((plan) => Option(plan.id, plan.label).disabled(paymentOpen)),
+                )
+                  .label(t('plus.selectorLabel'))
+                  .size('sm'),
+              )
+                .frame({ minWidth: 'none' })
+                .grow(),
+              VStack(
+                Segmented(
+                  [
+                    cadence,
+                    (value) => {
+                      if (!paymentOpen) setCadence(value);
+                    },
+                  ],
+                  Option('month', t('plus.payment.cadenceMonth')).disabled(paymentOpen),
+                  Option('year', t('plus.payment.cadenceYearShort')).disabled(paymentOpen),
+                )
+                  .label(t('plus.payment.cadenceLabel'))
+                  .size('sm'),
+              )
+                .frame({ minWidth: 'none' })
+                .grow(),
+            )
+              .spacing('sm')
+              .align('center')
+              .testID('plus-plan-selectors'),
+          )}
           {cadence === 'year' && (
             <Text variant="caption-1-regular" style={{ textAlign: 'center' }}>
               {t('plus.payment.annualDiscount')}
             </Text>
           )}
-          <GroupedSection>
-            {selectedPlan?.benefits.map((benefit) => (
-              <GroupedSectionItem
-                key={benefit.id}
-                title={benefit.title}
-                description={benefit.description}
-                icon={benefit.icon}
-                titleNumberOfLines={0}
-                descriptionLines={0}
-              />
-            ))}
-          </GroupedSection>
-          {selected === 'plus' && (
-            <Button
-              size="lg"
-              disabled={hasAccess || loading || (!developmentCheckout && !purchaseAvailable)}
-              onPress={() => {
-                if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
-                  openPayment();
-              }}
-            >
-              {t(
-                hasAccess
-                  ? 'plus.payment.included'
-                  : developmentCheckout || purchaseAvailable
-                    ? 'plus.subscribe'
-                    : failed
-                      ? 'plus.payment.pricingUnavailable'
-                      : 'plus.payment.comingSoon',
-              )}
-            </Button>
+          {toElement(
+            LGroupedSection(
+              Embed(
+                selectedPlan?.benefits.map((benefit) =>
+                  toElement(
+                    LGroupedSectionItem(benefit.title)
+                      .description(benefit.description)
+                      .leadingView(Embed(benefit.icon))
+                      .lines(0)
+                      .descriptionLines(0),
+                    benefit.id,
+                  ),
+                ),
+              ),
+            ),
           )}
-          <Button
-            appearance="plain"
-            tone="neutral"
-            onPress={() => {
-              void Linking.openURL('https://oxy.so/one');
-            }}
-          >
-            {t('plus.exploreOxyOne')}
-          </Button>
-        </View>
-        {selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />}
-        {selected === 'plus' && !hasAccess && !purchaseAvailable && !failed && !loading && (
-          <View style={{ paddingHorizontal: 24, marginTop: 16, alignItems: 'center' }}>
-            <Text style={{ maxWidth: 480, textAlign: 'center', color: colors.textSecondary }}>
-              {t('plus.payment.notReady')}
-            </Text>
-          </View>
-        )}
-      </ScreenScrollView>
-      {isLocalCheckoutPreview() && <CheckoutPreviewBadge providerTest={developmentCheckout} />}
-      {paymentOpen &&
+          {selected === 'plus' &&
+            toElement(
+              LButton(
+                LText(
+                  t(
+                    hasAccess
+                      ? 'plus.payment.included'
+                      : developmentCheckout || purchaseAvailable
+                        ? 'plus.subscribe'
+                        : failed
+                          ? 'plus.payment.pricingUnavailable'
+                          : 'plus.payment.comingSoon',
+                  ),
+                ),
+              )
+                .size('lg')
+                .disabled(hasAccess || loading || (!developmentCheckout && !purchaseAvailable))
+                .onPress(() => {
+                  if (!hasAccess && !loading && (developmentCheckout || purchaseAvailable))
+                    openPayment();
+                }),
+            )}
+          {toElement(
+            LButton(LText(t('plus.exploreOxyOne')))
+              .style('plain')
+              .tint('neutral')
+              .onPress(() => {
+                void Linking.openURL('https://oxy.so/one');
+              }),
+          )}
+        </View>,
+      ),
+      Embed(selected === 'plus' && offer?.price && <PlusDisplayEstimate price={offer.price} />),
+      selected === 'plus' && !hasAccess && !purchaseAvailable && !failed && !loading
+        ? VStack(
+            Embed(
+              <Text style={{ maxWidth: 480, textAlign: 'center', color: colors.textSecondary }}>
+                {t('plus.payment.notReady')}
+              </Text>,
+            ),
+          )
+            .padding('horizontal', '2xl')
+            .margin('top', 'lg')
+            .align('center')
+        : null,
+    ),
+    Embed(isLocalCheckoutPreview() && <CheckoutPreviewBadge providerTest={developmentCheckout} />),
+    Embed(
+      paymentOpen &&
         (developmentCheckout ? (
           preparation && preparation.scope === scope ? (
             <PreparedPlusCheckout
@@ -292,7 +308,11 @@ export default function PlusScreen() {
           ) : null
         ) : (
           <PlusPaymentSheet cadence={cadence} onClose={closePayment} />
-        ))}
-    </Screen>
+        )),
+    ),
+  ).header(
+    Header()
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-}
+});

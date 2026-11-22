@@ -1,12 +1,17 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export default function TagsMentionsScreen() {
   const { t } = useTranslation();
@@ -23,76 +28,68 @@ export default function TagsMentionsScreen() {
   };
 
   if (!isAuthResolved || isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.privacy.tagsMentions.signInRequired', {
-            defaultValue: 'Sign in to manage tags and mentions',
-          })}
-          description={t('settings.privacy.tagsMentions.signInRequiredDesc', {
-            defaultValue: 'Control who can tag or mention you in posts.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.privacy.tagsMentions.signInRequired', {
+              defaultValue: 'Sign in to manage tags and mentions',
+            })}
+            description={t('settings.privacy.tagsMentions.signInRequiredDesc', {
+              defaultValue: 'Control who can tag or mention you in posts.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (loading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <SettingsSection>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.allowTags')}
-              description={t('settings.privacy.allowTagsDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={allowTags}
-                      onCheckedChange={(value) => updateSetting('allowTags', value)}
-                      accessibilityLabel={t('settings.privacy.allowTags')}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.allowMentions')}
-              description={t('settings.privacy.allowMentionsDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={allowMentions}
-                      onCheckedChange={(value) => updateSetting('allowMentions', value)}
-                      accessibilityLabel={t('settings.privacy.allowMentions')}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.privacy.allowTags'))
+              .wrapControl()
+              .description(t('settings.privacy.allowTagsDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([allowTags, (value) => updateSetting('allowTags', value)]).label(
+                        t('settings.privacy.allowTags'),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.allowMentions'))
+              .wrapControl()
+              .description(t('settings.privacy.allowMentionsDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        allowMentions,
+                        (value) => updateSetting('allowMentions', value),
+                      ]).label(t('settings.privacy.allowMentions')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

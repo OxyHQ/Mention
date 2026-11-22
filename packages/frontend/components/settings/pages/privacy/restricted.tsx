@@ -1,17 +1,13 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { queryClient } from '@/lib/queryClient';
 import { refreshPrivacyLists } from '@/services/privacyService';
 import { searchService } from '@/services/searchService';
 import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
-import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiInformationFill } from '@oxy.so/bloom/icons/RiInformationFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import { Search } from '@oxy.so/bloom/search';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
@@ -24,7 +20,20 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  HStack,
+  Icon,
+  RawText,
+  Search as LSearch,
+  SettingsSection as LSettingsSection,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const restrictedLogger = createLogger('RestrictedUsers');
 
@@ -314,167 +323,186 @@ export default function RestrictedUsersScreen() {
   };
 
   if (!isAuthResolved || isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.privacy.restricted.signInRequired', {
-            defaultValue: 'Sign in to manage restricted accounts',
-          })}
-          description={t('settings.privacy.restricted.signInRequiredDesc', {
-            defaultValue:
-              'Restricted accounts can interact with you but their replies are hidden by default.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.privacy.restricted.signInRequired', {
+              defaultValue: 'Sign in to manage restricted accounts',
+            })}
+            description={t('settings.privacy.restricted.signInRequiredDesc', {
+              defaultValue:
+                'Restricted accounts can interact with you but their replies are hidden by default.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <SettingsSection>
-          <GroupedSection>
-            <View className="px-4 py-3.5 flex-row items-center gap-3">
-              <RiInformationFill width={20} height={20} fill={colors.primary} />
-              <Text className="flex-1 text-[13px] text-foreground">
-                {t('settings.privacy.restrictedUsersDescription')}
-              </Text>
-            </View>
-          </GroupedSection>
-        </SettingsSection>
+  return toElement(
+    VStack(
+      VStack(
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            HStack(
+              Icon(RiInformationFill).size('md').foreground('primary'),
+              RawText(t('settings.privacy.restrictedUsersDescription'))
+                .flex('1')
+                .font('sm')
+                .foreground('foreground'),
+            )
+              .padding('horizontal', 'lg')
+              .padding('vertical', '14')
+              .align('center')
+              .spacing('md'),
+          ),
+        ),
+        LSettingsSection(
+          t('settings.privacy.searchUsersToRestrict'),
+          LGroupedSection(
+            HStack(
+              Icon(RiSearchLine).size('md').foreground('muted'),
+              LSearch([searchQuery, handleSearch])
+                .autocapitalize('none')
+                .autocorrect(false)
+                .placeholder(t('settings.privacy.searchUsersToRestrict'))
+                .label(t('settings.privacy.searchUsersToRestrict'))
+                .onClearText(() => handleSearch('')),
+              Embed(searching && <ListSkeleton count={2} />),
+            )
+              .padding('horizontal', 'lg')
+              .padding('vertical', 'md')
+              .align('center')
+              .spacing('md'),
+          ),
+        ),
+        searchQuery.length > 0 && searchResults.length > 0
+          ? LSettingsSection(
+              undefined,
+              LGroupedSection(
+                Embed(
+                  searchResults.map((user) => {
+                    const userId = getUserId(user);
+                    const handle = user.username || user.handle || '';
+                    const isRestricting = restricting === userId;
+                    if (!userId || !user.name?.displayName) return null;
 
-        <SettingsSection label={t('settings.privacy.searchUsersToRestrict')}>
-          <GroupedSection>
-            <View className="px-4 py-3 flex-row items-center gap-3">
-              <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
-              <Search
-                value={searchQuery}
-                onValueChange={handleSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={t('settings.privacy.searchUsersToRestrict')}
-                label={t('settings.privacy.searchUsersToRestrict')}
-                onClearText={() => handleSearch('')}
-              />
-              {searching && <ListSkeleton count={2} />}
-            </View>
-          </GroupedSection>
-        </SettingsSection>
+                    return toElement(
+                      LGroupedSectionItem(user.name.displayName)
+                        .wrapControl()
+                        .description(`@${handle}`)
+                        .trailing(
+                          Embed(
+                            <>
+                              {toElement(
+                                LButton(
+                                  LText(
+                                    isRestricting ? (
+                                      <Loading
+                                        className="text-primary"
+                                        variant="inline"
+                                        size="sm"
+                                        style={{ flex: undefined }}
+                                      />
+                                    ) : (
+                                      <RiAddCircleLine
+                                        width={22}
+                                        height={22}
+                                        fill={colors.primary}
+                                      />
+                                    ),
+                                  ),
+                                )
+                                  .size('sm')
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .onPress(() => !isRestricting && handleRestrict(user))
+                                  .disabled(isRestricting)
+                                  .label(user.name.displayName),
+                              )}
+                            </>,
+                          ),
+                        ),
+                      userId,
+                    );
+                  }),
+                ),
+              ),
+            )
+          : null,
+        searchQuery.length > 0 && !searching && searchResults.length === 0
+          ? VStack(
+              RawText(t('settings.privacy.noUsersFound'))
+                .font('14')
+                .leading('20px')
+                .foreground('muted'),
+            )
+              .padding('vertical', 'lg')
+              .align('center')
+          : null,
+        LSettingsSection(
+          t('settings.privacy.restrictedUsers'),
+          LGroupedSection(
+            Embed(
+              loading ? (
+                <ListSkeleton />
+              ) : restrictedUsers.length === 0 ? (
+                toElement(
+                  VStack(
+                    Embed(
+                      <EmptyState
+                        title={t('settings.privacy.noRestrictedUsers')}
+                        sticker="restrictedAccounts"
+                      />,
+                    ),
+                  ).padding('vertical', 'lg'),
+                )
+              ) : (
+                restrictedUsers.map((user) => {
+                  const userId = getUserId(user);
+                  const handle = user.username || user.handle || '';
+                  if (!userId || !user.name?.displayName) return null;
 
-        {searchQuery.length > 0 && searchResults.length > 0 && (
-          <SettingsSection>
-            <GroupedSection>
-              {searchResults.map((user) => {
-                const userId = getUserId(user);
-                const handle = user.username || user.handle || '';
-                const isRestricting = restricting === userId;
-                if (!userId || !user.name?.displayName) return null;
-
-                return (
-                  <GroupedSectionItem
-                    wrapControl
-                    title={user.name.displayName}
-                    description={`@${handle}`}
-                    key={userId}
-                    rightElement={
-                      <>
-                        <Button
-                          size="sm"
-                          appearance="subtle"
-                          tone="neutral"
-                          onPress={() => !isRestricting && handleRestrict(user)}
-                          disabled={isRestricting}
-                          accessibilityLabel={user.name.displayName}
-                        >
-                          {isRestricting ? (
-                            <Loading
-                              className="text-primary"
-                              variant="inline"
-                              size="sm"
-                              style={{ flex: undefined }}
-                            />
-                          ) : (
-                            <RiAddCircleLine width={22} height={22} fill={colors.primary} />
-                          )}
-                        </Button>
-                      </>
-                    }
-                  />
-                );
-              })}
-            </GroupedSection>
-          </SettingsSection>
-        )}
-
-        {searchQuery.length > 0 && !searching && searchResults.length === 0 && (
-          <View className="py-4 items-center">
-            <Text className="text-sm text-muted-foreground">
-              {t('settings.privacy.noUsersFound')}
-            </Text>
-          </View>
-        )}
-
-        <SettingsSection label={t('settings.privacy.restrictedUsers')}>
-          <GroupedSection>
-            {loading ? (
-              <ListSkeleton />
-            ) : restrictedUsers.length === 0 ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('settings.privacy.noRestrictedUsers')}
-                  sticker="restrictedAccounts"
-                />
-              </View>
-            ) : (
-              restrictedUsers.map((user) => {
-                const userId = getUserId(user);
-                const handle = user.username || user.handle || '';
-                if (!userId || !user.name?.displayName) return null;
-
-                return (
-                  <GroupedSectionItem
-                    wrapControl
-                    title={user.name.displayName}
-                    description={`@${handle}`}
-                    key={userId}
-                    rightElement={
-                      <>
-                        {
-                          <Button
-                            size="sm"
-                            appearance="subtle"
-                            tone="danger"
-                            onPress={() => {
-                              if (userId) {
-                                handleUnrestrict(userId);
-                              } else {
-                                restrictedLogger.error('No userId found for user', undefined, {
-                                  user,
-                                });
-                                void showSettingsAlert(t('common.error'), 'Invalid user ID');
-                              }
-                            }}
-                          >
-                            {t('settings.privacy.unrestrict')}
-                          </Button>
-                        }
-                      </>
-                    }
-                  />
-                );
-              })
-            )}
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+                  return toElement(
+                    LGroupedSectionItem(user.name.displayName)
+                      .wrapControl()
+                      .description(`@${handle}`)
+                      .trailing(
+                        Embed(
+                          <>
+                            {toElement(
+                              LButton(LText(t('settings.privacy.unrestrict')))
+                                .size('sm')
+                                .style('subtle')
+                                .tint('danger')
+                                .onPress(() => {
+                                  if (userId) {
+                                    handleUnrestrict(userId);
+                                  } else {
+                                    restrictedLogger.error('No userId found for user', undefined, {
+                                      user,
+                                    });
+                                    void showSettingsAlert(t('common.error'), 'Invalid user ID');
+                                  }
+                                }),
+                            )}
+                          </>,
+                        ),
+                      ),
+                    userId,
+                  );
+                })
+              ),
+            ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

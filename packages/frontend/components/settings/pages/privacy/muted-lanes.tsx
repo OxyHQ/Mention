@@ -1,4 +1,3 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -6,16 +5,23 @@ import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { getErrorMessage } from '@/utils/apiError';
 import type { MutedLane } from '@mention/shared-types';
-import { Admonition } from '@oxy.so/bloom/admonition';
-import { Button } from '@oxy.so/bloom/button';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Admonition as LAdmonition,
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Text,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const mutedLanesLogger = createLogger('MutedLanes');
 
@@ -73,101 +79,114 @@ export default function MutedLanesScreen() {
   });
 
   if (!isAuthenticated) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('lanes.muted.signInRequired', {
-            defaultValue: 'Sign in to manage muted lanes',
-          })}
-          description={t('lanes.muted.description', {
-            defaultValue:
-              'A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.',
-          })}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <View className="mb-4">
-          <Admonition type="info">
-            {t('lanes.muted.description', {
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('lanes.muted.signInRequired', {
+              defaultValue: 'Sign in to manage muted lanes',
+            })}
+            description={t('lanes.muted.description', {
               defaultValue:
                 'A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.',
             })}
-          </Admonition>
-        </View>
+          />,
+        ),
+      ).spacing('lg'),
+    );
+  }
 
-        <SettingsSection label={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
-          <GroupedSection>
-            {isLoading ? (
-              <ListSkeleton />
-            ) : isError ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('lanes.muted.loadFailed', {
-                    defaultValue: 'Failed to load muted lanes',
-                  })}
-                  error={{
-                    title: t('lanes.muted.loadFailed', {
-                      defaultValue: 'Failed to load muted lanes',
-                    }),
-                    message: t('common.tryAgain', {
-                      defaultValue: 'Try again',
-                    }),
-                    onRetry: async () => {
-                      await refetch();
-                    },
-                  }}
-                />
-              </View>
-            ) : muted.length === 0 ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('lanes.muted.empty', {
-                    defaultValue: 'No muted lanes',
-                  })}
-                  sticker="mutedLanes"
-                />
-              </View>
-            ) : (
-              muted.map((entry) => {
-                // The publisher's handle comes from the canonical Oxy
-                // identity the server resolved; an owner that could not
-                // be resolved is dropped there, never rendered blank.
-                const handle = getNormalizedUserHandle(entry.owner) || '';
-                return (
-                  <GroupedSectionItem
-                    wrapControl
-                    title={entry.lane.name}
-                    description={handle ? `@${handle}` : undefined}
-                    key={entry.lane.id}
-                    rightElement={
-                      <>
-                        {
-                          <Button
-                            size="sm"
-                            appearance="subtle"
-                            tone="danger"
-                            onPress={() => unmuteMutation.mutate(entry.lane.id)}
-                            accessibilityLabel={t('lanes.muted.unmute', {
-                              defaultValue: 'Unmute',
-                            })}
-                          >
-                            {t('lanes.muted.unmute', { defaultValue: 'Unmute' })}
-                          </Button>
-                        }
-                      </>
-                    }
-                  />
-                );
-              })
-            )}
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        VStack(
+          LAdmonition(
+            Text(
+              t('lanes.muted.description', {
+                defaultValue:
+                  'A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.',
+              }),
+            ),
+          ).style('info'),
+        ).margin('bottom', 'lg'),
+        LSettingsSection(
+          t('lanes.muted.title', { defaultValue: 'Muted lanes' }),
+          LGroupedSection(
+            Embed(
+              isLoading ? (
+                <ListSkeleton />
+              ) : isError ? (
+                toElement(
+                  VStack(
+                    Embed(
+                      <EmptyState
+                        title={t('lanes.muted.loadFailed', {
+                          defaultValue: 'Failed to load muted lanes',
+                        })}
+                        error={{
+                          title: t('lanes.muted.loadFailed', {
+                            defaultValue: 'Failed to load muted lanes',
+                          }),
+                          message: t('common.tryAgain', {
+                            defaultValue: 'Try again',
+                          }),
+                          onRetry: async () => {
+                            await refetch();
+                          },
+                        }}
+                      />,
+                    ),
+                  ).padding('vertical', 'lg'),
+                )
+              ) : muted.length === 0 ? (
+                toElement(
+                  VStack(
+                    Embed(
+                      <EmptyState
+                        title={t('lanes.muted.empty', {
+                          defaultValue: 'No muted lanes',
+                        })}
+                        sticker="mutedLanes"
+                      />,
+                    ),
+                  ).padding('vertical', 'lg'),
+                )
+              ) : (
+                muted.map((entry) => {
+                  // The publisher's handle comes from the canonical Oxy
+                  // identity the server resolved; an owner that could not
+                  // be resolved is dropped there, never rendered blank.
+                  const handle = getNormalizedUserHandle(entry.owner) || '';
+                  return toElement(
+                    LGroupedSectionItem(entry.lane.name)
+                      .wrapControl()
+                      .description(handle ? `@${handle}` : undefined)
+                      .trailing(
+                        Embed(
+                          <>
+                            {toElement(
+                              LButton(Text(t('lanes.muted.unmute', { defaultValue: 'Unmute' })))
+                                .size('sm')
+                                .style('subtle')
+                                .tint('danger')
+                                .onPress(() => unmuteMutation.mutate(entry.lane.id))
+                                .label(
+                                  t('lanes.muted.unmute', {
+                                    defaultValue: 'Unmute',
+                                  }),
+                                ),
+                            )}
+                          </>,
+                        ),
+                      ),
+                    entry.lane.id,
+                  );
+                })
+              ),
+            ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

@@ -1,9 +1,5 @@
 import { useState } from 'react';
-import { View } from 'react-native';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Text } from '@oxy.so/bloom/typography';
-import { Button } from '@oxy.so/bloom/button';
+import { Screen } from '@oxy.so/bloom/screen';
 import { CheckoutPreviewControls } from '@/components/payments/CheckoutPreviewControls';
 import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge';
 import { MerchantInstallmentSettings } from '@/components/payments/MerchantInstallmentSettings';
@@ -19,6 +15,16 @@ import {
   type InstallmentPreviewDecision,
 } from '@/lib/payments/merchantInstallmentPreview';
 
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+
 /** Local developer fixtures only. This route is never a customer checkout mode. */
 export default function CheckoutPlayground() {
   const [open, setOpen] = useState(false);
@@ -29,32 +35,38 @@ export default function CheckoutPlayground() {
   const [incomingFunds, setIncomingFunds] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [preferences, setPreferences] = useState(DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES);
-  if (!isLocalCheckoutPreview()) return <Text>Not available</Text>;
+  if (!isLocalCheckoutPreview()) return toElement(LText('Not available'));
   return (
-    <Screen header={<PageHeader />}>
-      <ScreenScrollView>
-        <View style={{ padding: 24, gap: 20 }}>
-          <Text variant="title-2-semibold">Checkout development fixtures</Text>
-          <CheckoutPreviewControls
-            scenario={scenario}
-            onScenario={setScenario}
-            outcome={outcome}
-            onOutcome={setOutcome}
-            customerMode={customerMode}
-            onCustomerMode={setCustomerMode}
-            installmentDecision={decision}
-            onInstallmentDecision={setDecision}
-            incomingFunds={incomingFunds}
-            onIncomingFunds={setIncomingFunds}
-            soundEnabled={soundEnabled}
-            onSoundEnabled={setSoundEnabled}
-          />
-          <MerchantInstallmentSettings value={preferences} onChange={setPreferences} />
-          <Button size="lg" onPress={() => setOpen(true)}>
-            Open checkout
-          </Button>
-        </View>
-      </ScreenScrollView>
+    <Screen header={toElement(Header().inPage())}>
+      {toElement(
+        ScrollView(
+          VStack(
+            LText('Checkout development fixtures').font('title-2').weight('semibold'),
+            Embed(
+              <CheckoutPreviewControls
+                scenario={scenario}
+                onScenario={setScenario}
+                outcome={outcome}
+                onOutcome={setOutcome}
+                customerMode={customerMode}
+                onCustomerMode={setCustomerMode}
+                installmentDecision={decision}
+                onInstallmentDecision={setDecision}
+                incomingFunds={incomingFunds}
+                onIncomingFunds={setIncomingFunds}
+                soundEnabled={soundEnabled}
+                onSoundEnabled={setSoundEnabled}
+              />,
+            ),
+            Embed(<MerchantInstallmentSettings value={preferences} onChange={setPreferences} />),
+            LButton(LText('Open checkout'))
+              .size('lg')
+              .onPress(() => setOpen(true)),
+          )
+            .padding('all', '2xl')
+            .spacing('xl'),
+        ),
+      )}
       <CheckoutPreviewBadge />
       {open && (
         <CheckoutFixtureSheet

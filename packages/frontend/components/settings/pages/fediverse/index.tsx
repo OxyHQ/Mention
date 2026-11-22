@@ -1,19 +1,25 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { WEB_BASE_URL } from '@/config';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
-import { Button } from '@oxy.so/bloom/button';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Text,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('FediverseSettings');
 
@@ -102,61 +108,56 @@ function FediverseSharingBody() {
     });
   }, [applyChange, sharing]);
 
-  return (
-    <View className="gap-4">
-      <SettingsSection description={t('fediverse.settings.description')}>
-        <GroupedSection>
-          <GroupedSectionItem
-            wrapControl
-            title={t('fediverse.settings.share')}
-            description={federatedHandle}
-            rightElement={
-              <>{<Switch checked={sharing} onCheckedChange={onToggle} disabled={pending} />}</>
-            }
-          />
-        </GroupedSection>
-      </SettingsSection>
-
-      <SettingsSection>
-        <GroupedSection>
-          <GroupedSectionItem
-            wrapControl
-            title={t('fediverse.settings.whatIs')}
-            rightElement={
-              <>
-                <Button
-                  size="sm"
-                  appearance="subtle"
-                  tone="neutral"
-                  onPress={openInfoSheet}
-                  accessibilityLabel={t('fediverse.settings.whatIs')}
-                >
-                  {t('common.open', { defaultValue: 'Open' })}
-                </Button>
-              </>
-            }
-          />
-          <GroupedSectionItem
-            wrapControl
-            title={t('transparency.title')}
-            description={t('transparency.list.title')}
-            rightElement={
-              <>
-                <Button
-                  size="sm"
-                  appearance="subtle"
-                  tone="neutral"
-                  onPress={() => router.push('/settings/fediverse/transparency')}
-                  accessibilityLabel={t('transparency.title')}
-                >
-                  {t('common.open', { defaultValue: 'Open' })}
-                </Button>
-              </>
-            }
-          />
-        </GroupedSection>
-      </SettingsSection>
-    </View>
+  return toElement(
+    VStack(
+      LSettingsSection(
+        undefined,
+        LGroupedSection(
+          LGroupedSectionItem(t('fediverse.settings.share'))
+            .wrapControl()
+            .description(federatedHandle)
+            .trailing(Embed(<>{toElement(Toggle([sharing, onToggle]).disabled(pending))}</>)),
+        ),
+      ).description(t('fediverse.settings.description')),
+      LSettingsSection(
+        undefined,
+        LGroupedSection(
+          LGroupedSectionItem(t('fediverse.settings.whatIs'))
+            .wrapControl()
+            .trailing(
+              Embed(
+                <>
+                  {toElement(
+                    LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                      .size('sm')
+                      .style('subtle')
+                      .tint('neutral')
+                      .onPress(openInfoSheet)
+                      .label(t('fediverse.settings.whatIs')),
+                  )}
+                </>,
+              ),
+            ),
+          LGroupedSectionItem(t('transparency.title'))
+            .wrapControl()
+            .description(t('transparency.list.title'))
+            .trailing(
+              Embed(
+                <>
+                  {toElement(
+                    LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                      .size('sm')
+                      .style('subtle')
+                      .tint('neutral')
+                      .onPress(() => router.push('/settings/fediverse/transparency'))
+                      .label(t('transparency.title')),
+                  )}
+                </>,
+              ),
+            ),
+        ),
+      ),
+    ).spacing('lg'),
   );
 }
 
@@ -165,22 +166,25 @@ export default function FediverseSettingsScreen() {
 
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-  return (
-    <View className="gap-4">
-      {!isAuthResolved || isPrivateApiPending ? (
-        <SettingsSkeleton />
-      ) : !canUsePrivateApi ? (
-        <OxyAuthPrompt
-          label={t('fediverse.settings.signInRequired', {
-            defaultValue: 'Sign in to manage fediverse sharing',
-          })}
-          description={t('fediverse.settings.signInRequiredDesc', {
-            defaultValue: 'Control whether your profile and posts are shared across the fediverse.',
-          })}
-        />
-      ) : (
-        <FediverseSharingBody />
-      )}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        !isAuthResolved || isPrivateApiPending ? (
+          <SettingsSkeleton />
+        ) : !canUsePrivateApi ? (
+          <OxyAuthPrompt
+            label={t('fediverse.settings.signInRequired', {
+              defaultValue: 'Sign in to manage fediverse sharing',
+            })}
+            description={t('fediverse.settings.signInRequiredDesc', {
+              defaultValue:
+                'Control whether your profile and posts are shared across the fediverse.',
+            })}
+          />
+        ) : (
+          <FediverseSharingBody />
+        ),
+      ),
+    ).spacing('lg'),
   );
 }

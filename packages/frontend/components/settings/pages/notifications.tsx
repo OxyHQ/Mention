@@ -1,17 +1,23 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
-import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  Loading as LLoading,
+  SettingsSection as LSettingsSection,
+  Text,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface NotificationPreferences {
   pushEnabled: boolean;
@@ -68,245 +74,253 @@ export default function NotificationSettingsScreen() {
   );
 
   if (isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.notifications.signInRequired', {
-            defaultValue: 'Sign in to manage notifications',
-          })}
-          description={t('settings.notifications.signInRequiredDesc', {
-            defaultValue: 'Choose what alerts you receive and how.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.notifications.signInRequired', {
+              defaultValue: 'Sign in to manage notifications',
+            })}
+            description={t('settings.notifications.signInRequiredDesc', {
+              defaultValue: 'Choose what alerts you receive and how.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (loading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
-  return (
-    <View className="gap-4">
-      {saving ? <Loading variant="inline" size="sm" /> : null}
-      <View className="gap-4">
-        <SettingsSection
-          label={t('settings.notifications.sections.general', {
+  return toElement(
+    VStack(
+      saving ? LLoading().style('inline').size('sm') : null,
+      VStack(
+        LSettingsSection(
+          t('settings.notifications.sections.general', {
             defaultValue: 'General',
-          })}
-        >
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.notifications.push', {
+          }),
+          LGroupedSection(
+            LGroupedSectionItem(
+              t('settings.notifications.push', {
                 defaultValue: 'Push notifications',
-              })}
-              description={t('settings.notifications.pushDesc', {
-                defaultValue: 'Receive push notifications on your device',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={prefs.pushEnabled}
-                      onCheckedChange={(v) => updatePreference('pushEnabled', v)}
-                      accessibilityLabel={t('settings.notifications.push', {
-                        defaultValue: 'Push notifications',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection
-          label={t('settings.notifications.sections.activity', {
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.notifications.pushDesc', {
+                  defaultValue: 'Receive push notifications on your device',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([prefs.pushEnabled, (v) => updatePreference('pushEnabled', v)]).label(
+                        t('settings.notifications.push', {
+                          defaultValue: 'Push notifications',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        LSettingsSection(
+          t('settings.notifications.sections.activity', {
             defaultValue: 'Activity from others',
-          })}
-        >
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('subscription.list.title', {
+          }),
+          LGroupedSection(
+            LGroupedSectionItem(
+              t('subscription.list.title', {
                 defaultValue: 'Activity notifications',
-              })}
-              description={t('subscription.list.entryDesc', {
-                defaultValue: 'Accounts that notify you when they post',
-              })}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={() => router.push('/settings/notifications/subscriptions')}
-                    accessibilityLabel={t('subscription.list.title', {
-                      defaultValue: 'Activity notifications',
-                    })}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection
-          label={t('settings.notifications.sections.types', {
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('subscription.list.entryDesc', {
+                  defaultValue: 'Accounts that notify you when they post',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(() => router.push('/settings/notifications/subscriptions'))
+                        .label(
+                          t('subscription.list.title', {
+                            defaultValue: 'Activity notifications',
+                          }),
+                        ),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        LSettingsSection(
+          t('settings.notifications.sections.types', {
             defaultValue: 'Notification types',
-          })}
-        >
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.notifications.likes', {
+          }),
+          LGroupedSection(
+            LGroupedSectionItem(
+              t('settings.notifications.likes', {
                 defaultValue: 'Likes',
-              })}
-              description={t('settings.notifications.likesDesc', {
-                defaultValue: 'When someone likes your post',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={prefs.likes}
-                      onCheckedChange={(v) => updatePreference('likes', v)}
-                      accessibilityLabel={t('settings.notifications.likes', {
-                        defaultValue: 'Likes',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.notifications.boosts', {
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.notifications.likesDesc', {
+                  defaultValue: 'When someone likes your post',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([prefs.likes, (v) => updatePreference('likes', v)]).label(
+                        t('settings.notifications.likes', {
+                          defaultValue: 'Likes',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(
+              t('settings.notifications.boosts', {
                 defaultValue: 'Boosts',
-              })}
-              description={t('settings.notifications.boostsDesc', {
-                defaultValue: 'When someone boosts your post',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={prefs.boosts}
-                      onCheckedChange={(v) => updatePreference('boosts', v)}
-                      accessibilityLabel={t('settings.notifications.boosts', {
-                        defaultValue: 'Boosts',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.notifications.follows', {
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.notifications.boostsDesc', {
+                  defaultValue: 'When someone boosts your post',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([prefs.boosts, (v) => updatePreference('boosts', v)]).label(
+                        t('settings.notifications.boosts', {
+                          defaultValue: 'Boosts',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(
+              t('settings.notifications.follows', {
                 defaultValue: 'New followers',
-              })}
-              description={t('settings.notifications.followsDesc', {
-                defaultValue: 'When someone follows you',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={prefs.follows}
-                      onCheckedChange={(v) => updatePreference('follows', v)}
-                      accessibilityLabel={t('settings.notifications.follows', {
-                        defaultValue: 'New followers',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.notifications.mentions', {
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.notifications.followsDesc', {
+                  defaultValue: 'When someone follows you',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([prefs.follows, (v) => updatePreference('follows', v)]).label(
+                        t('settings.notifications.follows', {
+                          defaultValue: 'New followers',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(
+              t('settings.notifications.mentions', {
                 defaultValue: 'Mentions',
-              })}
-              description={t('settings.notifications.mentionsDesc', {
-                defaultValue: 'When someone mentions you in a post',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={prefs.mentions}
-                      onCheckedChange={(v) => updatePreference('mentions', v)}
-                      accessibilityLabel={t('settings.notifications.mentions', {
-                        defaultValue: 'Mentions',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.notifications.replies', {
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.notifications.mentionsDesc', {
+                  defaultValue: 'When someone mentions you in a post',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([prefs.mentions, (v) => updatePreference('mentions', v)]).label(
+                        t('settings.notifications.mentions', {
+                          defaultValue: 'Mentions',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(
+              t('settings.notifications.replies', {
                 defaultValue: 'Replies',
-              })}
-              description={t('settings.notifications.repliesDesc', {
-                defaultValue: 'When someone replies to your post',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={prefs.replies}
-                      onCheckedChange={(v) => updatePreference('replies', v)}
-                      accessibilityLabel={t('settings.notifications.replies', {
-                        defaultValue: 'Replies',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.notifications.quotes', {
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.notifications.repliesDesc', {
+                  defaultValue: 'When someone replies to your post',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([prefs.replies, (v) => updatePreference('replies', v)]).label(
+                        t('settings.notifications.replies', {
+                          defaultValue: 'Replies',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(
+              t('settings.notifications.quotes', {
                 defaultValue: 'Quote posts',
-              })}
-              description={t('settings.notifications.quotesDesc', {
-                defaultValue: 'When someone quotes your post',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={prefs.quotes}
-                      onCheckedChange={(v) => updatePreference('quotes', v)}
-                      accessibilityLabel={t('settings.notifications.quotes', {
-                        defaultValue: 'Quote posts',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.notifications.quotesDesc', {
+                  defaultValue: 'When someone quotes your post',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([prefs.quotes, (v) => updatePreference('quotes', v)]).label(
+                        t('settings.notifications.quotes', {
+                          defaultValue: 'Quote posts',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

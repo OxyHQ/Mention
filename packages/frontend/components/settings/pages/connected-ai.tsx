@@ -1,4 +1,3 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -6,11 +5,8 @@ import { confirmDialog } from '@/utils/alerts';
 import { MCP_RESOURCE_URL } from '@/config';
 import { getErrorMessage } from '@/utils/apiError';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
-import { Button } from '@oxy.so/bloom/button';
-import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import type { ConnectedMcpClient } from '@oxy.so/core';
@@ -18,7 +14,20 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
+
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  IconCircle as LIconCircle,
+  RawText,
+  SettingsSection as LSettingsSection,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('ConnectedAiSettings');
 
@@ -107,124 +116,146 @@ export default function ConnectedAiScreen() {
   );
 
   if (!isAuthResolved || isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('mcp.connections.signInRequired', {
-            defaultValue: 'Sign in to manage connected apps',
-          })}
-          description={t('mcp.connections.signInRequiredDesc', {
-            defaultValue: 'Sign in to review and revoke AI apps connected to your Mention account.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('mcp.connections.signInRequired', {
+              defaultValue: 'Sign in to manage connected apps',
+            })}
+            description={t('mcp.connections.signInRequiredDesc', {
+              defaultValue:
+                'Sign in to review and revoke AI apps connected to your Mention account.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        {isLoading ? (
-          <ListSkeleton />
-        ) : isError ? (
-          <EmptyState
-            sticker="offline"
-            error={{
-              title: t('mcp.connections.loadError', {
-                defaultValue: "Couldn't load connected apps",
-              }),
-              message: t('common.tryAgain', { defaultValue: 'Try again' }),
-              onRetry: async () => {
-                await refetch();
-              },
-            }}
-          />
-        ) : connections.length === 0 ? (
-          <View className="px-6 py-10 items-center gap-3">
-            <IconCircle icon={RiSparklingLine} />
-            <Text className="text-xl font-bold text-foreground text-center">
-              {t('mcp.connections.empty.title', {
-                defaultValue: 'No connected apps',
-              })}
-            </Text>
-            <Text className="text-[15px] text-muted-foreground text-center max-w-[340px]">
-              {t('mcp.connections.empty.description', {
-                defaultValue:
-                  'AI apps you authorize to access your Mention account will appear here. You can revoke access anytime.',
-              })}
-            </Text>
-          </View>
-        ) : (
-          <SettingsSection
-            description={t('mcp.connections.footer', {
-              defaultValue:
-                'These apps can access your Mention account on your behalf. Revoke any you no longer use.',
-            })}
-          >
-            <GroupedSection>
-              {connections.map((connection) => {
-                const revoking =
-                  revokeMutation.isPending && revokeMutation.variables === connection.id;
-                const timeLine = connection.lastUsedAt
-                  ? t('mcp.connections.lastUsed', {
-                      defaultValue: 'Last used {{time}}',
-                      time: formatRelativeTime(new Date(connection.lastUsedAt), locale, {
-                        style: 'short',
-                      }),
-                    })
-                  : connection.createdAt
-                    ? t('mcp.connections.connected', {
-                        defaultValue: 'Connected {{time}}',
-                        time: formatRelativeTime(new Date(connection.createdAt), locale, {
-                          style: 'short',
-                        }),
-                      })
-                    : undefined;
-                return (
-                  <GroupedSectionItem
-                    wrapControl
-                    title={connectionLabel(connection)}
-                    description={timeLine}
-                    key={connection.id}
-                    rightElement={
-                      <>
-                        {revoking ? (
-                          <Loading
-                            className="text-primary"
-                            variant="inline"
-                            size="sm"
-                            style={{ flex: undefined }}
-                          />
-                        ) : (
-                          <Button
-                            appearance="subtle"
-                            tone="neutral"
-                            size="sm"
-                            onPress={() => handleRevoke(connection)}
-                            disabled={revokeMutation.isPending}
-                          >
-                            {t('mcp.connections.revoke', {
-                              defaultValue: 'Revoke',
-                            })}
-                          </Button>
-                        )}
-                      </>
-                    }
-                  />
-                );
-              })}
-            </GroupedSection>
-          </SettingsSection>
-        )}
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        Embed(
+          isLoading ? (
+            <ListSkeleton />
+          ) : isError ? (
+            <EmptyState
+              sticker="offline"
+              error={{
+                title: t('mcp.connections.loadError', {
+                  defaultValue: "Couldn't load connected apps",
+                }),
+                message: t('common.tryAgain', { defaultValue: 'Try again' }),
+                onRetry: async () => {
+                  await refetch();
+                },
+              }}
+            />
+          ) : connections.length === 0 ? (
+            toElement(
+              VStack(
+                LIconCircle(RiSparklingLine),
+                RawText(
+                  t('mcp.connections.empty.title', {
+                    defaultValue: 'No connected apps',
+                  }),
+                )
+                  .font('xl')
+                  .leading('28px')
+                  .weight('bold')
+                  .foreground('foreground')
+                  .textAlign('center'),
+                Embed(
+                  <Text className="text-[15px] text-muted-foreground text-center max-w-[340px]">
+                    {t('mcp.connections.empty.description', {
+                      defaultValue:
+                        'AI apps you authorize to access your Mention account will appear here. You can revoke access anytime.',
+                    })}
+                  </Text>,
+                ),
+              )
+                .padding('horizontal', '2xl')
+                .padding('vertical', '4xl')
+                .align('center')
+                .spacing('md'),
+            )
+          ) : (
+            toElement(
+              LSettingsSection(
+                undefined,
+                LGroupedSection(
+                  Embed(
+                    connections.map((connection) => {
+                      const revoking =
+                        revokeMutation.isPending && revokeMutation.variables === connection.id;
+                      const timeLine = connection.lastUsedAt
+                        ? t('mcp.connections.lastUsed', {
+                            defaultValue: 'Last used {{time}}',
+                            time: formatRelativeTime(new Date(connection.lastUsedAt), locale, {
+                              style: 'short',
+                            }),
+                          })
+                        : connection.createdAt
+                          ? t('mcp.connections.connected', {
+                              defaultValue: 'Connected {{time}}',
+                              time: formatRelativeTime(new Date(connection.createdAt), locale, {
+                                style: 'short',
+                              }),
+                            })
+                          : undefined;
+                      return toElement(
+                        LGroupedSectionItem(connectionLabel(connection))
+                          .wrapControl()
+                          .description(timeLine)
+                          .trailing(
+                            Embed(
+                              <>
+                                {revoking ? (
+                                  <Loading
+                                    className="text-primary"
+                                    variant="inline"
+                                    size="sm"
+                                    style={{ flex: undefined }}
+                                  />
+                                ) : (
+                                  toElement(
+                                    LButton(
+                                      LText(
+                                        t('mcp.connections.revoke', {
+                                          defaultValue: 'Revoke',
+                                        }),
+                                      ),
+                                    )
+                                      .style('subtle')
+                                      .tint('neutral')
+                                      .size('sm')
+                                      .onPress(() => handleRevoke(connection))
+                                      .disabled(revokeMutation.isPending),
+                                  )
+                                )}
+                              </>,
+                            ),
+                          ),
+                        connection.id,
+                      );
+                    }),
+                  ),
+                ),
+              ).description(
+                t('mcp.connections.footer', {
+                  defaultValue:
+                    'These apps can access your Mention account on your behalf. Revoke any you no longer use.',
+                }),
+              ),
+            )
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

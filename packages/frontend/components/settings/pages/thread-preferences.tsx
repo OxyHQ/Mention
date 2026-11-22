@@ -1,15 +1,21 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { ThreadSortGroup } from '@/components/settings/ThreadSortGroup';
 import { useThreadPreferencesStore, type VoteStyle } from '@/hooks/useThreadPreferences';
-import { Button } from '@oxy.so/bloom/button';
 import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Text,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const VOTE_STYLE_OPTIONS: {
   value: VoteStyle;
@@ -38,79 +44,86 @@ export default function ThreadPreferencesScreen() {
   // every row reads and writes the same value, with no local copy to sync.
   const { treeView, voteStyle, setTreeView, setVoteStyle } = useThreadPreferencesStore();
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <ThreadSortGroup
-          title={t('settings.threadPreferences.sortReplies', {
-            defaultValue: 'Sort replies',
-          })}
-        />
-
-        <SettingsSection
-          label={t('settings.threadPreferences.likeStyle', {
+  return toElement(
+    VStack(
+      VStack(
+        Embed(
+          <ThreadSortGroup
+            title={t('settings.threadPreferences.sortReplies', {
+              defaultValue: 'Sort replies',
+            })}
+          />,
+        ),
+        LSettingsSection(
+          t('settings.threadPreferences.likeStyle', {
             defaultValue: 'Like style',
-          })}
-        >
-          <GroupedSection>
-            {VOTE_STYLE_OPTIONS.map((option) => (
-              <GroupedSectionItem
-                wrapControl
-                title={t(option.labelKey, {
-                  defaultValue: option.defaultLabel,
-                })}
-                key={option.value}
-                rightElement={
-                  <>
-                    <Button
-                      size="sm"
-                      appearance="subtle"
-                      tone="neutral"
-                      onPress={() => setVoteStyle(option.value)}
-                      accessibilityLabel={t(option.labelKey, {
-                        defaultValue: option.defaultLabel,
-                      })}
-                    >
-                      {<RadioIndicator selected={voteStyle === option.value} />}
-                    </Button>
-                  </>
-                }
-              />
-            ))}
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection
-          label={t('settings.threadPreferences.display', {
+          }),
+          LGroupedSection(
+            Embed(
+              VOTE_STYLE_OPTIONS.map((option) =>
+                toElement(
+                  LGroupedSectionItem(
+                    t(option.labelKey, {
+                      defaultValue: option.defaultLabel,
+                    }),
+                  )
+                    .wrapControl()
+                    .trailing(
+                      Embed(
+                        <>
+                          {toElement(
+                            LButton(Text(<RadioIndicator selected={voteStyle === option.value} />))
+                              .size('sm')
+                              .style('subtle')
+                              .tint('neutral')
+                              .onPress(() => setVoteStyle(option.value))
+                              .label(
+                                t(option.labelKey, {
+                                  defaultValue: option.defaultLabel,
+                                }),
+                              ),
+                          )}
+                        </>,
+                      ),
+                    ),
+                  option.value,
+                ),
+              ),
+            ),
+          ),
+        ),
+        LSettingsSection(
+          t('settings.threadPreferences.display', {
             defaultValue: 'Display',
-          })}
-        >
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.threadPreferences.treeView', {
+          }),
+          LGroupedSection(
+            LGroupedSectionItem(
+              t('settings.threadPreferences.treeView', {
                 defaultValue: 'Threaded tree view',
-              })}
-              description={t('settings.threadPreferences.treeViewDesc', {
-                defaultValue: 'Show replies in a threaded tree structure',
-              })}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={treeView}
-                      onCheckedChange={setTreeView}
-                      accessibilityLabel={t('settings.threadPreferences.treeView', {
-                        defaultValue: 'Threaded tree view',
-                      })}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('settings.threadPreferences.treeViewDesc', {
+                  defaultValue: 'Show replies in a threaded tree structure',
+                }),
+              )
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([treeView, setTreeView]).label(
+                        t('settings.threadPreferences.treeView', {
+                          defaultValue: 'Threaded tree view',
+                        }),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

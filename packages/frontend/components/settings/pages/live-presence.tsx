@@ -1,6 +1,5 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import type { BloomIcon } from '@/components/settings/RowIcon';
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import {
   getLivePresencePreference,
   updateLivePresencePreference,
@@ -13,7 +12,12 @@ import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Embed,
+  SettingsSelect as LSettingsSelect,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface PresenceOption {
   value: LiveVisibility;
@@ -79,34 +83,28 @@ export default function LivePresenceScreen() {
   const selected: LiveVisibility = preference ?? 'active';
 
   if (isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.livePresence.signInRequired', {
-            defaultValue: 'Sign in to manage your live presence',
-          })}
-          description={t('settings.livePresence.signInRequiredDesc', {
-            defaultValue: 'Choose when others see you live in a room.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.livePresence.signInRequired', {
+              defaultValue: 'Sign in to manage your live presence',
+            })}
+            description={t('settings.livePresence.signInRequiredDesc', {
+              defaultValue: 'Choose when others see you live in a room.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (isLoading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   return (
@@ -123,22 +121,24 @@ export default function LivePresenceScreen() {
               description: t('settings.livePresence.footer', {
                 defaultValue: 'This controls when your avatar shows a live badge across Mention.',
               }),
-              control: (
-                <SettingsSelect
-                  label={t('settings.livePresence.title', {
+              control: toElement(
+                LSettingsSelect(
+                  t('settings.livePresence.title', {
                     defaultValue: 'Live presence',
-                  })}
-                  value={selected}
-                  onChange={(value) => {
-                    if (!mutation.isPending) mutation.mutate(value);
-                  }}
-                  items={OPTIONS.map((option) => ({
+                  }),
+                  [
+                    selected,
+                    (value) => {
+                      if (!mutation.isPending) mutation.mutate(value);
+                    },
+                  ],
+                  OPTIONS.map((option) => ({
                     value: option.value,
                     label: t(option.labelKey, {
                       defaultValue: option.labelDefault,
                     }),
-                  }))}
-                />
+                  })),
+                ),
               ),
             },
           ],

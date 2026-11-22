@@ -1,4 +1,3 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 /**
  * Activity notification subscriptions — the accounts the viewer asked to be
@@ -13,7 +12,6 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
  */
 
 import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
@@ -26,7 +24,6 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
@@ -36,8 +33,19 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { subscriptionService } from '@/services/subscriptionService';
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { normalizeApiError } from '@/utils/apiError';
-import { Button } from '@oxy.so/bloom/button';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
+
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  Icon,
+  SettingsSection as LSettingsSection,
+  Text,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const PAGE_LIMIT = 50;
 const SKELETON_ROWS = 6;
@@ -146,17 +154,15 @@ export default function ActivitySubscriptionsScreen() {
         <ProfileCard
           key={item.author.id}
           profile={item.author}
-          accessory={
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              leadingIcon={RiNotification3Fill}
-              onPress={() => unsubscribe({ authorId: item.author.id, viewerId: user?.id })}
-              disabled={isUnsubscribing}
-              accessibilityLabel={label}
-            />
-          }
+          accessory={toElement(
+            LButton(Icon(RiNotification3Fill))
+              .shape('circle')
+              .style('subtle')
+              .tint('neutral')
+              .onPress(() => unsubscribe({ authorId: item.author.id, viewerId: user?.id }))
+              .disabled(isUnsubscribing)
+              .label(label),
+          )}
         />
       );
     },
@@ -164,47 +170,58 @@ export default function ActivitySubscriptionsScreen() {
   );
 
   const listHeader = useMemo(
-    () => (
-      <SettingsSection>
-        <GroupedSection>
-          <GroupedSectionItem
-            wrapControl
-            title={t('subscription.list.intro.title', {
-              defaultValue: 'Activity from others',
-            })}
-            description={t('subscription.list.intro.description', {
-              defaultValue: 'Get notified when these accounts post.',
-            })}
-            rightElement={<></>}
-          />
-        </GroupedSection>
-      </SettingsSection>
-    ),
+    () =>
+      toElement(
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            LGroupedSectionItem(
+              t('subscription.list.intro.title', {
+                defaultValue: 'Activity from others',
+              }),
+            )
+              .wrapControl()
+              .description(
+                t('subscription.list.intro.description', {
+                  defaultValue: 'Get notified when these accounts post.',
+                }),
+              )
+              .trailing(Embed(<></>)),
+          ),
+        ),
+      ),
     [t],
   );
 
   const listEmpty = useMemo(
-    () => (
-      <View className="py-6">
-        <EmptyState
-          title={t('subscription.list.empty.title', {
-            defaultValue: 'No activity notifications',
-          })}
-          subtitle={t('subscription.list.empty.subtitle', {
-            defaultValue:
-              "Open someone's profile and tap the bell to get notified whenever they post.",
-          })}
-          sticker="subscriptions"
-        />
-      </View>
-    ),
+    () =>
+      toElement(
+        VStack(
+          Embed(
+            <EmptyState
+              title={t('subscription.list.empty.title', {
+                defaultValue: 'No activity notifications',
+              })}
+              subtitle={t('subscription.list.empty.subtitle', {
+                defaultValue:
+                  "Open someone's profile and tap the bell to get notified whenever they post.",
+              })}
+              sticker="subscriptions"
+            />,
+          ),
+        ).padding('vertical', '2xl'),
+      ),
     [t],
   );
 
   const listFooter = useMemo(
     () =>
       // The shared modal owns scrolling; the explicit action below loads more.
-      isFetchingNextPage ? <ListSkeleton count={2} /> : <View className="h-8" />,
+      isFetchingNextPage ? (
+        <ListSkeleton count={2} />
+      ) : (
+        toElement(VStack().frame({ height: '3xl' }))
+      ),
     [isFetchingNextPage],
   );
 
@@ -245,30 +262,27 @@ export default function ActivitySubscriptionsScreen() {
     }
 
     if (isLoading && subscriptions.length === 0) {
-      return (
-        <View>
-          {listHeader}
-          <ProfileCardSkeletonList count={SKELETON_ROWS} />
-        </View>
+      return toElement(
+        VStack(Embed(listHeader), Embed(<ProfileCardSkeletonList count={SKELETON_ROWS} />)),
       );
     }
 
-    return (
-      <View>
-        {listHeader}
-        {subscriptions.length === 0 ? listEmpty : subscriptions.map(renderRow)}
-        {listFooter}
-        {hasNextPage && (
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            loading={isFetchingNextPage}
-            onPress={handleLoadMore}
-          >
-            {t('common.loadMore', { defaultValue: 'Load more' })}
-          </Button>
-        )}
-      </View>
+    return toElement(
+      VStack(
+        Embed(listHeader),
+        Embed(subscriptions.length === 0 ? listEmpty : subscriptions.map(renderRow)),
+        Embed(listFooter),
+        Embed(
+          hasNextPage &&
+            toElement(
+              LButton(Text(t('common.loadMore', { defaultValue: 'Load more' })))
+                .style('subtle')
+                .tint('neutral')
+                .loading(isFetchingNextPage)
+                .onPress(handleLoadMore),
+            ),
+        ),
+      ),
     );
   };
 
@@ -282,7 +296,7 @@ export default function ActivitySubscriptionsScreen() {
           defaultValue: 'Manage the accounts that notify you when they post.',
         })}
       />
-      <View className="gap-4">{renderContent()}</View>
+      {toElement(VStack(Embed(renderContent())).spacing('lg'))}
     </>
   );
 }

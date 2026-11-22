@@ -1,5 +1,4 @@
 import type { InstallmentPreviewDecision } from '@/lib/payments/merchantInstallmentPreview';
-import { Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -9,6 +8,7 @@ import type {
   PreviewOutcome,
   CheckoutCustomerMode,
 } from '@/lib/payments/checkoutPreview';
+import { Button as LButton, Embed, HStack, Text as LText, toElement } from '@oxy.so/bloom-language';
 
 /** Explicit development controls live on the host page, never inside consumer checkout. */
 export function CheckoutPreviewControls({
@@ -51,61 +51,91 @@ export function CheckoutPreviewControls({
         borderRadius: 16,
       }}
     >
-      <Text>{t('plus.merchantInstallments.decision.title')}</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {(['available', 'pending', 'rejected', 'unavailable'] as const).map((value) => (
-          <Button
-            key={value}
-            size="sm"
-            appearance={installmentDecision === value ? 'subtle' : 'outline'}
-            onPress={() => onInstallmentDecision(value)}
-          >
-            {t(`plus.merchantInstallments.decision.${value}`)}
-          </Button>
-        ))}
-      </View>
-      <Button size="sm" appearance="outline" onPress={() => onIncomingFunds(!incomingFunds)}>
-        {t(incomingFunds ? 'plus.checkout.incomingOn' : 'plus.checkout.incomingOff')}
-      </Button>
-      <Button size="sm" appearance="outline" onPress={() => onSoundEnabled(!soundEnabled)}>
-        {t(soundEnabled ? 'plus.checkout.soundOn' : 'plus.checkout.soundOff')}
-      </Button>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {(['automatic', 'guest', 'account-preview'] as const).map((value) => (
-          <Button
-            key={value}
-            size="sm"
-            appearance={customerMode === value ? 'subtle' : 'outline'}
-            onPress={() => onCustomerMode(value)}
-          >
-            {t(`plus.checkout.customerMode.${value}`)}
-          </Button>
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {(['subscription', 'physical', 'trial'] as const).map((value) => (
-          <Button
-            key={value}
-            size="sm"
-            appearance={scenario === value ? 'subtle' : 'outline'}
-            onPress={() => onScenario(value)}
-          >
-            {t(`plus.checkout.scenario.${value}`)}
-          </Button>
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {(['success', 'failure', 'loading'] as const).map((value) => (
-          <Button
-            key={value}
-            size="sm"
-            appearance={outcome === value ? 'subtle' : 'outline'}
-            onPress={() => onOutcome(value)}
-          >
-            {t(`plus.payment.preview.${value}`)}
-          </Button>
-        ))}
-      </View>
+      {toElement(LText(t('plus.merchantInstallments.decision.title')))}
+      {toElement(
+        HStack(
+          Embed(
+            (['available', 'pending', 'rejected', 'unavailable'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                appearance={installmentDecision === value ? 'subtle' : 'outline'}
+                onPress={() => onInstallmentDecision(value)}
+              >
+                {t(`plus.merchantInstallments.decision.${value}`)}
+              </Button>
+            )),
+          ),
+        )
+          .wrap()
+          .spacing('6'),
+      )}
+      {toElement(
+        LButton(LText(t(incomingFunds ? 'plus.checkout.incomingOn' : 'plus.checkout.incomingOff')))
+          .size('sm')
+          .style('outline')
+          .onPress(() => onIncomingFunds(!incomingFunds)),
+      )}
+      {toElement(
+        LButton(LText(t(soundEnabled ? 'plus.checkout.soundOn' : 'plus.checkout.soundOff')))
+          .size('sm')
+          .style('outline')
+          .onPress(() => onSoundEnabled(!soundEnabled)),
+      )}
+      {toElement(
+        HStack(
+          Embed(
+            (['automatic', 'guest', 'account-preview'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                appearance={customerMode === value ? 'subtle' : 'outline'}
+                onPress={() => onCustomerMode(value)}
+              >
+                {t(`plus.checkout.customerMode.${value}`)}
+              </Button>
+            )),
+          ),
+        )
+          .wrap()
+          .spacing('6'),
+      )}
+      {toElement(
+        HStack(
+          Embed(
+            (['subscription', 'physical', 'trial'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                appearance={scenario === value ? 'subtle' : 'outline'}
+                onPress={() => onScenario(value)}
+              >
+                {t(`plus.checkout.scenario.${value}`)}
+              </Button>
+            )),
+          ),
+        )
+          .wrap()
+          .spacing('6'),
+      )}
+      {toElement(
+        HStack(
+          Embed(
+            (['success', 'failure', 'loading'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                appearance={outcome === value ? 'subtle' : 'outline'}
+                onPress={() => onOutcome(value)}
+              >
+                {t(`plus.payment.preview.${value}`)}
+              </Button>
+            )),
+          ),
+        )
+          .wrap()
+          .spacing('6'),
+      )}
     </View>
   );
 }

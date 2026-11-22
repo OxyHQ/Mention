@@ -1,7 +1,6 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type { BloomIcon } from '@/components/settings/RowIcon';
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { useSettingsBack } from '@/context/MentionSettingsContext';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { alertDialog } from '@/utils/alerts';
@@ -13,7 +12,12 @@ import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Embed,
+  SettingsSelect as LSettingsSelect,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type VisibilityOption = 'public' | 'private' | 'followers_only';
 
@@ -61,34 +65,28 @@ function ProfileVisibilityScreen() {
   };
 
   if (!isAuthResolved || isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.privacy.profileVisibility.signInRequired', {
-            defaultValue: 'Sign in to set profile visibility',
-          })}
-          description={t('settings.privacy.profileVisibility.signInRequiredDesc', {
-            defaultValue: 'Choose who can see your profile and posts.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.privacy.profileVisibility.signInRequired', {
+              defaultValue: 'Sign in to set profile visibility',
+            })}
+            description={t('settings.privacy.profileVisibility.signInRequiredDesc', {
+              defaultValue: 'Choose who can see your profile and posts.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (loading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   const options: VisibilityOptionConfig[] = [
@@ -123,18 +121,20 @@ function ProfileVisibilityScreen() {
               label: t('settings.privacy.privateProfile'),
               description: options.find((option) => option.value === profileVisibility)
                 ?.description,
-              control: (
-                <SettingsSelect
-                  label={t('settings.privacy.privateProfile')}
-                  value={profileVisibility}
-                  onChange={(value) => {
-                    if (!saving) void handleSave(value);
-                  }}
-                  items={options.map((option) => ({
+              control: toElement(
+                LSettingsSelect(
+                  t('settings.privacy.privateProfile'),
+                  [
+                    profileVisibility,
+                    (value) => {
+                      if (!saving) void handleSave(value);
+                    },
+                  ],
+                  options.map((option) => ({
                     value: option.value,
                     label: option.label,
-                  }))}
-                />
+                  })),
+                ),
               ),
             },
           ],

@@ -1,20 +1,26 @@
-import { GroupedSectionItem, GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import {
   FOR_YOU_TUNING_MODULES,
   type ForYouFeedTuning,
   type ForYouTuningModuleSpec,
 } from '@mention/shared-types/mtn/feedTuning';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, View } from 'react-native';
-
-import { Slider } from '@oxy.so/bloom/slider';
 import { useForYouTuning } from '@/hooks/useForYouTuning';
 import { resolveTuning, updateTuning } from '@/utils/forYouTuning';
+
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  RawText,
+  SettingsSection as LSettingsSection,
+  Slider as LSlider,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type TuningCategory = ForYouTuningModuleSpec['category'];
 
@@ -60,46 +66,49 @@ function TuningModuleRow({
 
   return (
     <>
-      <GroupedSectionItem
-        wrapControl
-        title={t(spec.labelKey)}
-        description={t(spec.descriptionKey)}
-        rightElement={
-          <>
-            {
-              <Switch
-                checked={enabled}
-                onCheckedChange={(value) =>
-                  onSave(updateTuning(tuning, spec, { enabled: value, threshold }))
-                }
-                accessibilityLabel={t(spec.labelKey)}
-              />
-            }
-          </>
-        }
-      />
-      {enabled && range !== undefined && threshold !== undefined ? (
-        <View className="px-5 pb-3">
-          <Slider
-            value={threshold}
-            onValueChange={(value) =>
-              onSave(
-                updateTuning(tuning, spec, {
-                  enabled: true,
-                  threshold: stepIsFractional ? value : Math.round(value),
-                }),
+      {toElement(
+        LGroupedSectionItem(t(spec.labelKey))
+          .wrapControl()
+          .description(t(spec.descriptionKey))
+          .trailing(
+            Embed(
+              <>
+                {toElement(
+                  Toggle([
+                    enabled,
+                    (value) => onSave(updateTuning(tuning, spec, { enabled: value, threshold })),
+                  ]).label(t(spec.labelKey)),
+                )}
+              </>,
+            ),
+          ),
+      )}
+      {enabled && range !== undefined && threshold !== undefined
+        ? toElement(
+            VStack(
+              LSlider(
+                [
+                  threshold,
+                  (value) =>
+                    onSave(
+                      updateTuning(tuning, spec, {
+                        enabled: true,
+                        threshold: stepIsFractional ? value : Math.round(value),
+                      }),
+                    ),
+                ],
+                t('feed.tuning.threshold', { defaultValue: 'Threshold' }),
               )
-            }
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            label={t('feed.tuning.threshold', { defaultValue: 'Threshold' })}
-            formatValue={(value) =>
-              stepIsFractional ? value.toFixed(2) : String(Math.round(value))
-            }
-          />
-        </View>
-      ) : null}
+                .bounds(range.min, range.max)
+                .step(range.step)
+                .valueFormat((value) =>
+                  stepIsFractional ? value.toFixed(2) : String(Math.round(value)),
+                ),
+            )
+              .padding('horizontal', 'xl')
+              .padding('bottom', 'md'),
+          )
+        : null}
     </>
   );
 }
@@ -120,54 +129,66 @@ export default function ForYouTuningScreen() {
   const groups = useMemo(() => groupByCategory(), []);
 
   if (!isAuthenticated) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('feed.tuning.signInRequired', {
-            defaultValue: 'Sign in to tune your For You feed',
-          })}
-          description={t('feed.tuning.signInRequiredDesc', {
-            defaultValue:
-              'Adjust which quality, engagement, and content filters shape your discovery feed.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('feed.tuning.signInRequired', {
+              defaultValue: 'Sign in to tune your For You feed',
+            })}
+            description={t('feed.tuning.signInRequiredDesc', {
+              defaultValue:
+                'Adjust which quality, engagement, and content filters shape your discovery feed.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (isLoading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <View className="pt-2 pb-1">
-          <Text className="text-[13px] leading-[18px] text-muted-foreground">
-            {t('feed.tuning.intro', {
+  return toElement(
+    VStack(
+      VStack(
+        VStack(
+          RawText(
+            t('feed.tuning.intro', {
               defaultValue:
                 'These filters shape only your For You discovery feed. Accounts you follow are never filtered.',
-            })}
-          </Text>
-        </View>
-
-        {groups.map((group) => (
-          <SettingsSection
-            label={t(`feed.tuning.categories.${group.category}`)}
-            key={group.category}
-          >
-            <GroupedSection>
-              {group.modules.map((spec) => (
-                <TuningModuleRow key={spec.moduleId} spec={spec} tuning={tuning} onSave={save} />
-              ))}
-            </GroupedSection>
-          </SettingsSection>
-        ))}
-      </View>
-    </View>
+            }),
+          )
+            .font('sm')
+            .leading('18px')
+            .foreground('muted'),
+        )
+          .padding('top', 'sm')
+          .padding('bottom', 'xs'),
+        Embed(
+          groups.map((group) =>
+            toElement(
+              LSettingsSection(
+                t(`feed.tuning.categories.${group.category}`),
+                LGroupedSection(
+                  Embed(
+                    group.modules.map((spec) => (
+                      <TuningModuleRow
+                        key={spec.moduleId}
+                        spec={spec}
+                        tuning={tuning}
+                        onSave={save}
+                      />
+                    )),
+                  ),
+                ),
+              ),
+              group.category,
+            ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

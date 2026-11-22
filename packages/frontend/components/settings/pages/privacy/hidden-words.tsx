@@ -1,4 +1,3 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -10,12 +9,10 @@ import {
 } from '@/services/muteWordsService';
 import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
 import { getErrorMessage } from '@/utils/apiError';
-import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { confirm as confirmSettingsAction } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -25,7 +22,19 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Admonition as LAdmonition,
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  HStack,
+  Icon,
+  SettingsSection as LSettingsSection,
+  Text,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const hiddenWordsLogger = createLogger('HiddenWords');
 
@@ -131,161 +140,178 @@ export default function HiddenWordsScreen() {
   };
 
   if (!isAuthenticated) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.privacy.hiddenWordsSignInRequired', {
-            defaultValue: 'Sign in to manage muted words',
-          })}
-          description={t('settings.privacy.hiddenWordsSignInRequiredDesc', {
-            defaultValue: 'Muted words and hashtags hide matching posts from your feeds.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.privacy.hiddenWordsSignInRequired', {
+              defaultValue: 'Sign in to manage muted words',
+            })}
+            description={t('settings.privacy.hiddenWordsSignInRequiredDesc', {
+              defaultValue: 'Muted words and hashtags hide matching posts from your feeds.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <View className="mb-4">
-          <Admonition type="info">
-            {t('settings.privacy.hiddenWordsDescription', {
-              defaultValue:
-                'Posts containing these words or hashtags are hidden from your feeds. Start an entry with # to mute a hashtag.',
-            })}
-          </Admonition>
-        </View>
-
-        <SettingsSection
-          label={t('settings.privacy.addMutedWord', {
+  return toElement(
+    VStack(
+      VStack(
+        VStack(
+          LAdmonition(
+            Text(
+              t('settings.privacy.hiddenWordsDescription', {
+                defaultValue:
+                  'Posts containing these words or hashtags are hidden from your feeds. Start an entry with # to mute a hashtag.',
+              }),
+            ),
+          ).style('info'),
+        ).margin('bottom', 'lg'),
+        LSettingsSection(
+          t('settings.privacy.addMutedWord', {
             defaultValue: 'Add a word or hashtag',
-          })}
-        >
-          <GroupedSection>
-            <View className="px-4 py-3 flex-row items-center gap-3">
-              <RiEyeOffLine size="md" fill={colors.textSecondary} />
-              <TextFieldInput
-                value={input}
-                onValueChange={setInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={t('settings.privacy.addWordPlaceholder', {
-                  defaultValue: 'Word or #hashtag',
-                })}
-                editable={!addMutation.isPending}
-                onSubmitEditing={handleAdd}
-                returnKeyType="done"
-                label={t('settings.privacy.addWordPlaceholder', {
-                  defaultValue: 'Word or #hashtag',
-                })}
-              />
-              {addMutation.isPending ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
-              ) : (
-                <Button
-                  size="sm"
-                  appearance="subtle"
-                  tone="neutral"
-                  onPress={handleAdd}
-                  disabled={input.trim().length === 0}
-                  accessibilityLabel={t('settings.privacy.addMutedWord', {
-                    defaultValue: 'Add a word or hashtag',
+          }),
+          LGroupedSection(
+            HStack(
+              Icon(RiEyeOffLine).size('md').foreground('muted'),
+              Embed(
+                <TextFieldInput
+                  value={input}
+                  onValueChange={setInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder={t('settings.privacy.addWordPlaceholder', {
+                    defaultValue: 'Word or #hashtag',
                   })}
-                >
-                  <RiAddCircleLine
-                    width={26}
-                    height={26}
-                    fill={input.trim().length === 0 ? colors.textSecondary : colors.primary}
+                  editable={!addMutation.isPending}
+                  onSubmitEditing={handleAdd}
+                  returnKeyType="done"
+                  label={t('settings.privacy.addWordPlaceholder', {
+                    defaultValue: 'Word or #hashtag',
+                  })}
+                />,
+              ),
+              Embed(
+                addMutation.isPending ? (
+                  <Loading
+                    className="text-primary"
+                    variant="inline"
+                    size="sm"
+                    style={{ flex: undefined }}
                   />
-                </Button>
-              )}
-            </View>
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection
-          label={t('settings.privacy.mutedWords', {
+                ) : (
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={handleAdd}
+                    disabled={input.trim().length === 0}
+                    accessibilityLabel={t('settings.privacy.addMutedWord', {
+                      defaultValue: 'Add a word or hashtag',
+                    })}
+                  >
+                    <RiAddCircleLine
+                      width={26}
+                      height={26}
+                      fill={input.trim().length === 0 ? colors.textSecondary : colors.primary}
+                    />
+                  </Button>
+                ),
+              ),
+            )
+              .padding('horizontal', 'lg')
+              .padding('vertical', 'md')
+              .align('center')
+              .spacing('md'),
+          ),
+        ),
+        LSettingsSection(
+          t('settings.privacy.mutedWords', {
             defaultValue: 'Muted words and hashtags',
-          })}
-        >
-          <GroupedSection>
-            {isLoading ? (
-              <ListSkeleton />
-            ) : isError ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('settings.privacy.failedToLoadMutedWords', {
-                    defaultValue: 'Failed to load muted words',
-                  })}
-                  error={{
-                    title: t('settings.privacy.failedToLoadMutedWords', {
-                      defaultValue: 'Failed to load muted words',
-                    }),
-                    message: t('common.tryAgain', {
-                      defaultValue: 'Try again',
-                    }),
-                    onRetry: async () => {
-                      await refetch();
-                    },
-                  }}
-                />
-              </View>
-            ) : mutedWords.length === 0 ? (
-              <View className="py-4">
-                <EmptyState
-                  title={t('settings.privacy.mutedWordsEmpty', {
-                    defaultValue: 'No muted words yet',
-                  })}
-                  sticker="mutedWords"
-                />
-              </View>
-            ) : (
-              mutedWords.map((word) => {
-                const isHashtag = isHashtagMuteWord(word);
-                return (
-                  <GroupedSectionItem
-                    wrapControl
-                    title={muteWordDisplayValue(word)}
-                    description={
-                      isHashtag
-                        ? t('settings.privacy.mutedWordTypeHashtag', {
-                            defaultValue: 'Hashtag',
-                          })
-                        : t('settings.privacy.mutedWordTypeWord', {
-                            defaultValue: 'Word',
-                          })
-                    }
-                    key={word.id}
-                    rightElement={
-                      <>
-                        {
-                          <Button
-                            size="sm"
-                            appearance="subtle"
-                            tone="danger"
-                            onPress={() => handleRemove(word)}
-                            accessibilityLabel={t('settings.privacy.removeMutedWord', {
-                              defaultValue: 'Remove muted word',
-                            })}
-                          >
-                            {t('common.remove', { defaultValue: 'Remove' })}
-                          </Button>
-                        }
-                      </>
-                    }
-                  />
-                );
-              })
-            )}
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+          }),
+          LGroupedSection(
+            Embed(
+              isLoading ? (
+                <ListSkeleton />
+              ) : isError ? (
+                toElement(
+                  VStack(
+                    Embed(
+                      <EmptyState
+                        title={t('settings.privacy.failedToLoadMutedWords', {
+                          defaultValue: 'Failed to load muted words',
+                        })}
+                        error={{
+                          title: t('settings.privacy.failedToLoadMutedWords', {
+                            defaultValue: 'Failed to load muted words',
+                          }),
+                          message: t('common.tryAgain', {
+                            defaultValue: 'Try again',
+                          }),
+                          onRetry: async () => {
+                            await refetch();
+                          },
+                        }}
+                      />,
+                    ),
+                  ).padding('vertical', 'lg'),
+                )
+              ) : mutedWords.length === 0 ? (
+                toElement(
+                  VStack(
+                    Embed(
+                      <EmptyState
+                        title={t('settings.privacy.mutedWordsEmpty', {
+                          defaultValue: 'No muted words yet',
+                        })}
+                        sticker="mutedWords"
+                      />,
+                    ),
+                  ).padding('vertical', 'lg'),
+                )
+              ) : (
+                mutedWords.map((word) => {
+                  const isHashtag = isHashtagMuteWord(word);
+                  return toElement(
+                    LGroupedSectionItem(muteWordDisplayValue(word))
+                      .wrapControl()
+                      .description(
+                        isHashtag
+                          ? t('settings.privacy.mutedWordTypeHashtag', {
+                              defaultValue: 'Hashtag',
+                            })
+                          : t('settings.privacy.mutedWordTypeWord', {
+                              defaultValue: 'Word',
+                            }),
+                      )
+                      .trailing(
+                        Embed(
+                          <>
+                            {toElement(
+                              LButton(Text(t('common.remove', { defaultValue: 'Remove' })))
+                                .size('sm')
+                                .style('subtle')
+                                .tint('danger')
+                                .onPress(() => handleRemove(word))
+                                .label(
+                                  t('settings.privacy.removeMutedWord', {
+                                    defaultValue: 'Remove muted word',
+                                  }),
+                                ),
+                            )}
+                          </>,
+                        ),
+                      ),
+                    word.id,
+                  );
+                })
+              ),
+            ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

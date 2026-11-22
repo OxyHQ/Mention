@@ -1,12 +1,17 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const hideCountsLogger = createLogger('HideCounts');
 
@@ -42,129 +47,118 @@ export default function HideCountsScreen() {
   };
 
   if (isPrivateApiPending) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
   if (!canUsePrivateApi) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.privacy.hideCounts.signInRequired', {
-            defaultValue: 'Sign in to hide engagement counts',
-          })}
-          description={t('settings.privacy.hideCounts.signInRequiredDesc', {
-            defaultValue: 'Hide likes, boosts, replies, and saves on your posts.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.privacy.hideCounts.signInRequired', {
+              defaultValue: 'Sign in to hide engagement counts',
+            })}
+            description={t('settings.privacy.hideCounts.signInRequiredDesc', {
+              defaultValue: 'Hide likes, boosts, replies, and saves on your posts.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (loading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <SettingsSection>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.hideAllCounts')}
-              description={t('settings.privacy.hideAllCountsDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={allHidden}
-                      onCheckedChange={(value) => updateAllSettings(value)}
-                      accessibilityLabel={t('settings.privacy.hideAllCounts')}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        <SettingsSection label={t('settings.privacy.individualSettings')}>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.hideLikeCounts')}
-              description={t('settings.privacy.hideLikeCountsDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={hideLikeCounts}
-                      onCheckedChange={(value) => updateSetting('hideLikeCounts', value)}
-                      accessibilityLabel={t('settings.privacy.hideLikeCounts')}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.hideShareCounts')}
-              description={t('settings.privacy.hideShareCountsDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={hideShareCounts}
-                      onCheckedChange={(value) => updateSetting('hideShareCounts', value)}
-                      accessibilityLabel={t('settings.privacy.hideShareCounts')}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.hideReplyCounts')}
-              description={t('settings.privacy.hideReplyCountsDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={hideReplyCounts}
-                      onCheckedChange={(value) => updateSetting('hideReplyCounts', value)}
-                      accessibilityLabel={t('settings.privacy.hideReplyCounts')}
-                    />
-                  }
-                </>
-              }
-            />
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.privacy.hideSaveCounts')}
-              description={t('settings.privacy.hideSaveCountsDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={hideSaveCounts}
-                      onCheckedChange={(value) => updateSetting('hideSaveCounts', value)}
-                      accessibilityLabel={t('settings.privacy.hideSaveCounts')}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        LSettingsSection(
+          undefined,
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.privacy.hideAllCounts'))
+              .wrapControl()
+              .description(t('settings.privacy.hideAllCountsDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([allHidden, (value) => updateAllSettings(value)]).label(
+                        t('settings.privacy.hideAllCounts'),
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        LSettingsSection(
+          t('settings.privacy.individualSettings'),
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.privacy.hideLikeCounts'))
+              .wrapControl()
+              .description(t('settings.privacy.hideLikeCountsDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        hideLikeCounts,
+                        (value) => updateSetting('hideLikeCounts', value),
+                      ]).label(t('settings.privacy.hideLikeCounts')),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.hideShareCounts'))
+              .wrapControl()
+              .description(t('settings.privacy.hideShareCountsDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        hideShareCounts,
+                        (value) => updateSetting('hideShareCounts', value),
+                      ]).label(t('settings.privacy.hideShareCounts')),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.hideReplyCounts'))
+              .wrapControl()
+              .description(t('settings.privacy.hideReplyCountsDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        hideReplyCounts,
+                        (value) => updateSetting('hideReplyCounts', value),
+                      ]).label(t('settings.privacy.hideReplyCounts')),
+                    )}
+                  </>,
+                ),
+              ),
+            LGroupedSectionItem(t('settings.privacy.hideSaveCounts'))
+              .wrapControl()
+              .description(t('settings.privacy.hideSaveCountsDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        hideSaveCounts,
+                        (value) => updateSetting('hideSaveCounts', value),
+                      ]).label(t('settings.privacy.hideSaveCounts')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

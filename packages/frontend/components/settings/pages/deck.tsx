@@ -1,11 +1,17 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { useDeckSettings } from '@/components/deck/deckSettings';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { Text } from 'react-native';
+
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Toggle,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export default function DeckSettingsPage() {
   const { t } = useTranslation();
@@ -16,67 +22,72 @@ export default function DeckSettingsPage() {
   const syncEnabled = useDeckSettings((state) => state.syncEnabled);
   const setSyncEnabled = useDeckSettings((state) => state.setSyncEnabled);
   const status = useDeckSettings((state) => state.status);
-  return (
-    <SettingsSection label={t('deck.workspace.title', 'Deck')}>
-      <GroupedSection>
-        {available && (
-          <GroupedSectionItem
-            wrapControl
-            title={t('deck.workspace.homeScreen')}
-            description={t('deck.workspace.homeScreenDescription')}
-            rightElement={
+  return toElement(
+    LSettingsSection(
+      t('deck.workspace.title', 'Deck'),
+      LGroupedSection(
+        Embed(
+          available &&
+            toElement(
+              LGroupedSectionItem(t('deck.workspace.homeScreen'))
+                .wrapControl()
+                .description(t('deck.workspace.homeScreenDescription'))
+                .trailing(
+                  Embed(
+                    <>
+                      {toElement(
+                        Toggle([homeScreen, setHomeScreen]).label(t('deck.workspace.homeScreen')),
+                      )}
+                    </>,
+                  ),
+                ),
+            ),
+        ),
+        LGroupedSectionItem(t('deck.workspace.sync', 'Sync across devices'))
+          .wrapControl()
+          .description(
+            t(
+              'deck.workspace.description',
+              'Save your panels, pages, navigation history and reading positions to your account.',
+            ),
+          )
+          .trailing(
+            Embed(
               <>
-                <Switch
-                  checked={homeScreen}
-                  onCheckedChange={setHomeScreen}
-                  accessibilityLabel={t('deck.workspace.homeScreen')}
-                />
-              </>
-            }
-          />
-        )}
-        <GroupedSectionItem
-          wrapControl
-          title={t('deck.workspace.sync', 'Sync across devices')}
-          description={t(
-            'deck.workspace.description',
-            'Save your panels, pages, navigation history and reading positions to your account.',
-          )}
-          rightElement={
-            <>
-              <Switch
-                checked={syncEnabled}
-                disabled={!canUsePrivateApi}
-                onCheckedChange={setSyncEnabled}
-                accessibilityLabel={t('deck.workspace.sync', 'Sync across devices')}
-              />
-            </>
-          }
-        />
-      </GroupedSection>
-      <Text className="text-muted-foreground text-sm px-4" accessibilityLiveRegion="polite">
-        {!user?.id
-          ? t(
-              'deck.workspace.anonymous',
-              'Sign in to sync your Deck. Your workspace is saved on this device.',
-            )
-          : status === 'error'
+                {toElement(
+                  Toggle([syncEnabled, setSyncEnabled])
+                    .disabled(!canUsePrivateApi)
+                    .label(t('deck.workspace.sync', 'Sync across devices')),
+                )}
+              </>,
+            ),
+          ),
+      ),
+      Embed(
+        <Text className="text-muted-foreground text-sm px-4" accessibilityLiveRegion="polite">
+          {!user?.id
             ? t(
-                'deck.workspace.error',
-                'Changes are saved on this device. Sync could not finish and will retry automatically.',
+                'deck.workspace.anonymous',
+                'Sign in to sync your Deck. Your workspace is saved on this device.',
               )
-            : !syncEnabled
+            : status === 'error'
               ? t(
-                  'deck.workspace.local',
-                  'Your workspace stays on this device. Turn sync on to share this workspace with your other devices.',
+                  'deck.workspace.error',
+                  'Changes are saved on this device. Sync could not finish and will retry automatically.',
                 )
-              : status === 'saved'
-                ? t('deck.workspace.saved', 'Your Deck is saved to your account.')
-                : t(
-                    'deck.workspace.saving',
-                    'Your workspace is available immediately. Saving to your account…',
-                  )}
-      </Text>
-    </SettingsSection>
+              : !syncEnabled
+                ? t(
+                    'deck.workspace.local',
+                    'Your workspace stays on this device. Turn sync on to share this workspace with your other devices.',
+                  )
+                : status === 'saved'
+                  ? t('deck.workspace.saved', 'Your Deck is saved to your account.')
+                  : t(
+                      'deck.workspace.saving',
+                      'Your workspace is available immediately. Saving to your account…',
+                    )}
+        </Text>,
+      ),
+    ),
   );
 }

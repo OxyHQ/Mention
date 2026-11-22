@@ -1,12 +1,18 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
-import { Button } from '@oxy.so/bloom/button';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { getNativeLanguageName } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  SettingsSection as LSettingsSection,
+  Text,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * The app's UI language is an Oxy-account concern, not a Mention one: Oxy
@@ -37,32 +43,32 @@ export default function LanguageSettingsScreen() {
     .map((code) => getNativeLanguageName(code))
     .join(', ');
 
-  return (
-    <View className="gap-4">
-      <View className="gap-4">
-        <SettingsSection label={t('settings.language.selectLanguage')}>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.language.title')}
-              description={languageDescription}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="neutral"
-                    onPress={openLanguageSelector}
-                    accessibilityLabel={t('settings.language.title')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+  return toElement(
+    VStack(
+      VStack(
+        LSettingsSection(
+          t('settings.language.selectLanguage'),
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.language.title'))
+              .wrapControl()
+              .description(languageDescription)
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(Text(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('neutral')
+                        .onPress(openLanguageSelector)
+                        .label(t('settings.language.title')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

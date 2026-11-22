@@ -1,17 +1,24 @@
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
-import { SettingsSelect } from '@oxy.so/bloom/settings-modal/select';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
-import { Slider } from '@oxy.so/bloom/slider';
 import { DEFAULT_FEED_SETTINGS, useFeedSettings, type FeedSettings } from '@/hooks/useFeedSettings';
 import { confirmDialog } from '@/utils/alerts';
-import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsSection } from '@oxy.so/bloom/settings-modal';
-import { Switch } from '@oxy.so/bloom/switch';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, View } from 'react-native';
+import {
+  Button as LButton,
+  Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+  Loading as LLoading,
+  RawText,
+  SettingsSection as LSettingsSection,
+  SettingsSelect as LSettingsSelect,
+  Slider as LSlider,
+  Text as LText,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const PRESETS = {
   mostRecent: {
@@ -135,285 +142,296 @@ export default function FeedSettingsScreen() {
   }, [save, t]);
 
   if (!isAuthenticated) {
-    return (
-      <View className="gap-4">
-        <OxyAuthPrompt
-          label={t('settings.feed.signInRequired', {
-            defaultValue: 'Sign in to customize your feed',
-          })}
-          description={t('settings.feed.signInRequiredDesc', {
-            defaultValue: 'Tune the algorithm, diversity, and recency to your taste.',
-          })}
-        />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <OxyAuthPrompt
+            label={t('settings.feed.signInRequired', {
+              defaultValue: 'Sign in to customize your feed',
+            })}
+            description={t('settings.feed.signInRequiredDesc', {
+              defaultValue: 'Tune the algorithm, diversity, and recency to your taste.',
+            })}
+          />,
+        ),
+      ).spacing('lg'),
     );
   }
 
   if (isLoading) {
-    return (
-      <View className="gap-4">
-        <SettingsSkeleton />
-      </View>
-    );
+    return toElement(VStack(Embed(<SettingsSkeleton />)).spacing('lg'));
   }
 
-  return (
-    <View className="gap-4">
-      {isSaving ? <Loading variant="inline" size="sm" /> : null}
-      <View className="gap-4">
-        <SettingsSection label={t('settings.feed.following.title')}>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.feed.following.order')}
-              description={t('settings.feed.following.description')}
-              rightElement={
-                <>
-                  <SettingsSelect
-                    label={t('settings.feed.following.order')}
-                    value={settings.following.sort}
-                    onChange={(sort) => commit({ following: { sort } })}
-                    items={[
-                      { value: 'chronological', label: t('settings.feed.following.chronological') },
-                      { value: 'relevance', label: t('settings.feed.following.relevance') },
-                    ]}
-                  />
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-        {/* Presets */}
-        <SettingsSection label={t('settings.feed.presets.title')}>
-          <GroupedSection>
-            {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
-              <GroupedSectionItem
-                wrapControl
-                title={PRESETS[key].name}
-                description={t(`settings.feed.presets.${key}Desc`)}
-                key={key}
-                rightElement={
+  return toElement(
+    VStack(
+      isSaving ? LLoading().style('inline').size('sm') : null,
+      VStack(
+        LSettingsSection(
+          t('settings.feed.following.title'),
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.feed.following.order'))
+              .wrapControl()
+              .description(t('settings.feed.following.description'))
+              .trailing(
+                Embed(
                   <>
-                    <Button
-                      size="sm"
-                      appearance="subtle"
-                      tone="neutral"
-                      onPress={() => applyPreset(key)}
-                      accessibilityLabel={PRESETS[key].name}
-                    >
-                      {t('common.open', { defaultValue: 'Open' })}
-                    </Button>
-                  </>
-                }
-              />
-            ))}
-          </GroupedSection>
-        </SettingsSection>
-
-        {/* Diversity */}
-        <SettingsSection label={t('settings.feed.diversity.title')}>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.feed.diversity.enabled')}
-              description={t('settings.feed.diversity.enabledDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={settings.diversity.enabled}
-                      onCheckedChange={(value) =>
-                        commit({
-                          diversity: { ...settings.diversity, enabled: value },
-                        })
-                      }
-                      accessibilityLabel={t('settings.feed.diversity.enabled')}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        {settings.diversity.enabled && (
-          <View className="py-3 gap-4">
-            <View>
-              <Slider
-                value={settings.diversity.sameAuthorPenalty}
-                onValueChange={(value) =>
-                  previewChange({
-                    diversity: {
-                      ...settings.diversity,
-                      sameAuthorPenalty: value,
-                    },
-                  })
-                }
-                onSlidingComplete={(value) =>
-                  commit({
-                    diversity: {
-                      ...settings.diversity,
-                      sameAuthorPenalty: value,
-                    },
-                  })
-                }
-                min={0.5}
-                max={1.0}
-                step={0.01}
-                label={t('settings.feed.diversity.sameAuthorPenalty')}
-                formatValue={(v) => v.toFixed(2)}
-              />
-              <Text className="text-xs mt-1 text-muted-foreground">
-                {t('settings.feed.diversity.sameAuthorPenaltyDesc')}
-              </Text>
-            </View>
-            <View>
-              <Slider
-                value={settings.diversity.sameTopicPenalty}
-                onValueChange={(value) =>
-                  previewChange({
-                    diversity: {
-                      ...settings.diversity,
-                      sameTopicPenalty: value,
-                    },
-                  })
-                }
-                onSlidingComplete={(value) =>
-                  commit({
-                    diversity: {
-                      ...settings.diversity,
-                      sameTopicPenalty: value,
-                    },
-                  })
-                }
-                min={0.5}
-                max={1.0}
-                step={0.01}
-                label={t('settings.feed.diversity.sameTopicPenalty')}
-                formatValue={(v) => v.toFixed(2)}
-              />
-              <Text className="text-xs mt-1 text-muted-foreground">
-                {t('settings.feed.diversity.sameTopicPenaltyDesc')}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Recency */}
-        <SettingsSection label={t('settings.feed.recency.title')}>
-          <GroupedSection>
-            <View className="py-3 gap-4">
-              <View>
-                <Slider
-                  value={settings.recency.halfLifeHours}
-                  onValueChange={(value) =>
-                    previewChange({
-                      recency: {
-                        ...settings.recency,
-                        halfLifeHours: Math.round(value),
-                      },
-                    })
-                  }
-                  onSlidingComplete={(value) =>
+                    {toElement(
+                      LSettingsSelect(
+                        t('settings.feed.following.order'),
+                        [settings.following.sort, (sort) => commit({ following: { sort } })],
+                        [
+                          {
+                            value: 'chronological',
+                            label: t('settings.feed.following.chronological'),
+                          },
+                          { value: 'relevance', label: t('settings.feed.following.relevance') },
+                        ],
+                      ),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        /* Presets */ LSettingsSection(
+          t('settings.feed.presets.title'),
+          LGroupedSection(
+            Embed(
+              (Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) =>
+                toElement(
+                  LGroupedSectionItem(PRESETS[key].name)
+                    .wrapControl()
+                    .description(t(`settings.feed.presets.${key}Desc`))
+                    .trailing(
+                      Embed(
+                        <>
+                          {toElement(
+                            LButton(LText(t('common.open', { defaultValue: 'Open' })))
+                              .size('sm')
+                              .style('subtle')
+                              .tint('neutral')
+                              .onPress(() => applyPreset(key))
+                              .label(PRESETS[key].name),
+                          )}
+                        </>,
+                      ),
+                    ),
+                  key,
+                ),
+              ),
+            ),
+          ),
+        ),
+        /* Diversity */ LSettingsSection(
+          t('settings.feed.diversity.title'),
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.feed.diversity.enabled'))
+              .wrapControl()
+              .description(t('settings.feed.diversity.enabledDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        settings.diversity.enabled,
+                        (value) =>
+                          commit({
+                            diversity: { ...settings.diversity, enabled: value },
+                          }),
+                      ]).label(t('settings.feed.diversity.enabled')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        Embed(
+          settings.diversity.enabled &&
+            toElement(
+              VStack(
+                VStack(
+                  LSlider(
+                    [
+                      settings.diversity.sameAuthorPenalty,
+                      (value) =>
+                        previewChange({
+                          diversity: {
+                            ...settings.diversity,
+                            sameAuthorPenalty: value,
+                          },
+                        }),
+                    ],
+                    t('settings.feed.diversity.sameAuthorPenalty'),
+                  )
+                    .onCommit((value) =>
+                      commit({
+                        diversity: {
+                          ...settings.diversity,
+                          sameAuthorPenalty: value,
+                        },
+                      }),
+                    )
+                    .bounds(0.5, 1)
+                    .step(0.01)
+                    .valueFormat((v) => v.toFixed(2)),
+                  RawText(t('settings.feed.diversity.sameAuthorPenaltyDesc'))
+                    .font('xs')
+                    .leading('16px')
+                    .margin('top', 'xs')
+                    .foreground('muted'),
+                ),
+                VStack(
+                  LSlider(
+                    [
+                      settings.diversity.sameTopicPenalty,
+                      (value) =>
+                        previewChange({
+                          diversity: {
+                            ...settings.diversity,
+                            sameTopicPenalty: value,
+                          },
+                        }),
+                    ],
+                    t('settings.feed.diversity.sameTopicPenalty'),
+                  )
+                    .onCommit((value) =>
+                      commit({
+                        diversity: {
+                          ...settings.diversity,
+                          sameTopicPenalty: value,
+                        },
+                      }),
+                    )
+                    .bounds(0.5, 1)
+                    .step(0.01)
+                    .valueFormat((v) => v.toFixed(2)),
+                  RawText(t('settings.feed.diversity.sameTopicPenaltyDesc'))
+                    .font('xs')
+                    .leading('16px')
+                    .margin('top', 'xs')
+                    .foreground('muted'),
+                ),
+              )
+                .padding('vertical', 'md')
+                .spacing('lg'),
+            ),
+        ),
+        /* Recency */ LSettingsSection(
+          t('settings.feed.recency.title'),
+          LGroupedSection(
+            VStack(
+              VStack(
+                LSlider(
+                  [
+                    settings.recency.halfLifeHours,
+                    (value) =>
+                      previewChange({
+                        recency: {
+                          ...settings.recency,
+                          halfLifeHours: Math.round(value),
+                        },
+                      }),
+                  ],
+                  t('settings.feed.recency.halfLifeHours'),
+                )
+                  .onCommit((value) =>
                     commit({
                       recency: {
                         ...settings.recency,
                         halfLifeHours: Math.round(value),
                       },
-                    })
-                  }
-                  min={6}
-                  max={72}
-                  step={1}
-                  label={t('settings.feed.recency.halfLifeHours')}
-                  formatValue={(v) => `${Math.round(v)} ${t('settings.feed.recency.hours')}`}
-                />
-                <Text className="text-xs mt-1 text-muted-foreground">
-                  {t('settings.feed.recency.halfLifeHoursDesc')}
-                </Text>
-              </View>
-              <View>
-                <Slider
-                  value={settings.recency.maxAgeHours}
-                  onValueChange={(value) =>
-                    previewChange({
-                      recency: {
-                        ...settings.recency,
-                        maxAgeHours: Math.round(value),
-                      },
-                    })
-                  }
-                  onSlidingComplete={(value) =>
+                    }),
+                  )
+                  .bounds(6, 72)
+                  .step(1)
+                  .valueFormat((v) => `${Math.round(v)} ${t('settings.feed.recency.hours')}`),
+                RawText(t('settings.feed.recency.halfLifeHoursDesc'))
+                  .font('xs')
+                  .leading('16px')
+                  .margin('top', 'xs')
+                  .foreground('muted'),
+              ),
+              VStack(
+                LSlider(
+                  [
+                    settings.recency.maxAgeHours,
+                    (value) =>
+                      previewChange({
+                        recency: {
+                          ...settings.recency,
+                          maxAgeHours: Math.round(value),
+                        },
+                      }),
+                  ],
+                  t('settings.feed.recency.maxAgeHours'),
+                )
+                  .onCommit((value) =>
                     commit({
                       recency: {
                         ...settings.recency,
                         maxAgeHours: Math.round(value),
                       },
-                    })
-                  }
-                  min={24}
-                  max={336}
-                  step={24}
-                  label={t('settings.feed.recency.maxAgeHours')}
-                  formatValue={(v) => `${Math.round(v / 24)} ${t('settings.feed.recency.days')}`}
-                />
-                <Text className="text-xs mt-1 text-muted-foreground">
-                  {t('settings.feed.recency.maxAgeHoursDesc')}
-                </Text>
-              </View>
-            </View>
-          </GroupedSection>
-        </SettingsSection>
-
-        {/* Quality */}
-        <SettingsSection label={t('settings.feed.quality.title')}>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.feed.quality.boostHighQuality')}
-              description={t('settings.feed.quality.boostHighQualityDesc')}
-              rightElement={
-                <>
-                  {
-                    <Switch
-                      checked={settings.quality.boostHighQuality}
-                      onCheckedChange={(value) =>
-                        commit({
-                          quality: { ...settings.quality, boostHighQuality: value },
-                        })
-                      }
-                      accessibilityLabel={t('settings.feed.quality.boostHighQuality')}
-                    />
-                  }
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-
-        {/* Reset */}
-        <SettingsSection>
-          <GroupedSection>
-            <GroupedSectionItem
-              wrapControl
-              title={t('settings.feed.resetToDefaults')}
-              rightElement={
-                <>
-                  <Button
-                    size="sm"
-                    appearance="subtle"
-                    tone="danger"
-                    onPress={resetToDefaults}
-                    accessibilityLabel={t('settings.feed.resetToDefaults')}
-                  >
-                    {t('common.open', { defaultValue: 'Open' })}
-                  </Button>
-                </>
-              }
-            />
-          </GroupedSection>
-        </SettingsSection>
-      </View>
-    </View>
+                    }),
+                  )
+                  .bounds(24, 336)
+                  .step(24)
+                  .valueFormat((v) => `${Math.round(v / 24)} ${t('settings.feed.recency.days')}`),
+                RawText(t('settings.feed.recency.maxAgeHoursDesc'))
+                  .font('xs')
+                  .leading('16px')
+                  .margin('top', 'xs')
+                  .foreground('muted'),
+              ),
+            )
+              .padding('vertical', 'md')
+              .spacing('lg'),
+          ),
+        ),
+        /* Quality */ LSettingsSection(
+          t('settings.feed.quality.title'),
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.feed.quality.boostHighQuality'))
+              .wrapControl()
+              .description(t('settings.feed.quality.boostHighQualityDesc'))
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      Toggle([
+                        settings.quality.boostHighQuality,
+                        (value) =>
+                          commit({
+                            quality: { ...settings.quality, boostHighQuality: value },
+                          }),
+                      ]).label(t('settings.feed.quality.boostHighQuality')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+        /* Reset */ LSettingsSection(
+          undefined,
+          LGroupedSection(
+            LGroupedSectionItem(t('settings.feed.resetToDefaults'))
+              .wrapControl()
+              .trailing(
+                Embed(
+                  <>
+                    {toElement(
+                      LButton(LText(t('common.open', { defaultValue: 'Open' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('danger')
+                        .onPress(resetToDefaults)
+                        .label(t('settings.feed.resetToDefaults')),
+                    )}
+                  </>,
+                ),
+              ),
+          ),
+        ),
+      ).spacing('lg'),
+    ).spacing('lg'),
   );
 }

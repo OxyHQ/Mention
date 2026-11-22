@@ -1,6 +1,5 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
-import { Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -11,6 +10,7 @@ import type {
 } from '@mention/shared-types';
 import { publicApi } from '@/utils/api';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Public moderation transparency: the instances Mention refuses to federate
@@ -27,11 +27,20 @@ const BLOCKED_DOMAINS_QUERY_KEY = ['federation', 'blocked-domains'] as const;
 
 /** A paragraph of the explanatory copy. */
 function Paragraph({ children }: { children: React.ReactNode }) {
-  return <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">{children}</Text>;
+  return toElement(
+    RawText(children).margin('top', 'md').font('md').leading('24px').foreground('muted'),
+  );
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <Text className="mt-8 text-lg font-bold text-foreground">{children}</Text>;
+  return toElement(
+    RawText(children)
+      .margin('top', '3xl')
+      .font('18')
+      .leading('28px')
+      .weight('bold')
+      .foreground('foreground'),
+  );
 }
 
 function BlockCard({ block }: { block: PublishedFederationBlock }) {
@@ -71,40 +80,82 @@ function BlockCard({ block }: { block: PublishedFederationBlock }) {
     }
   };
 
-  return (
-    <View className="mt-3 rounded-2xl border border-border bg-card p-4">
-      <View className="flex-row items-start justify-between gap-3">
-        <Text className="flex-1 text-base font-semibold text-foreground">{block.domain}</Text>
-        <View className="rounded-full bg-muted px-2.5 py-1">
-          <Text className="text-xs font-medium text-muted-foreground">
-            {severityLabel(block.severity)}
-          </Text>
-        </View>
-      </View>
-
-      {block.source === 'policy' ? (
-        <>
-          <Text className="mt-2 text-[15px] leading-6 text-foreground">{block.reason}</Text>
-          <Text className="mt-3 text-xs text-muted-foreground">
-            {t('transparency.blockMeta', {
-              category: categoryLabel(block.category),
-              since: block.since,
-            })}
-          </Text>
-          <Text className="mt-1 text-xs text-muted-foreground">
-            {block.corroboratingSources.length > 0
-              ? t('transparency.corroboratedBy', {
-                  sources: block.corroboratingSources.join(', '),
-                })
-              : t('transparency.decidedHere')}
-          </Text>
-        </>
-      ) : (
-        <Text className="mt-2 text-[15px] leading-6 text-muted-foreground">
-          {t('transparency.operationalBlock')}
-        </Text>
-      )}
-    </View>
+  return toElement(
+    VStack(
+      HStack(
+        RawText(block.domain)
+          .flex('1')
+          .font('16')
+          .leading('normal')
+          .weight('semibold')
+          .foreground('foreground'),
+        VStack(
+          RawText(severityLabel(block.severity))
+            .font('xs')
+            .leading('16px')
+            .weight('medium')
+            .foreground('muted'),
+        )
+          .padding('horizontal', '10')
+          .padding('vertical', 'xs')
+          .background('mutedFill')
+          .corner('infinite'),
+      )
+        .align('start')
+        .justify('between')
+        .spacing('md'),
+      Embed(
+        block.source === 'policy' ? (
+          <>
+            {toElement(
+              RawText(block.reason)
+                .margin('top', 'sm')
+                .font('md')
+                .leading('24px')
+                .foreground('foreground'),
+            )}
+            {toElement(
+              RawText(
+                t('transparency.blockMeta', {
+                  category: categoryLabel(block.category),
+                  since: block.since,
+                }),
+              )
+                .margin('top', 'md')
+                .font('xs')
+                .leading('16px')
+                .foreground('muted'),
+            )}
+            {toElement(
+              RawText(
+                block.corroboratingSources.length > 0
+                  ? t('transparency.corroboratedBy', {
+                      sources: block.corroboratingSources.join(', '),
+                    })
+                  : t('transparency.decidedHere'),
+              )
+                .margin('top', 'xs')
+                .font('xs')
+                .leading('16px')
+                .foreground('muted'),
+            )}
+          </>
+        ) : (
+          toElement(
+            RawText(t('transparency.operationalBlock'))
+              .margin('top', 'sm')
+              .font('md')
+              .leading('24px')
+              .foreground('muted'),
+          )
+        ),
+      ),
+    )
+      .padding('all', 'lg')
+      .background('card')
+      .border('border', 'thin')
+      .corner('lg')
+      .margin('top', 'md'),
   );
 }
 
@@ -122,43 +173,45 @@ export default function TransparencySettingsPage() {
 
   const blocks = blocksQuery.data;
 
-  return (
-    <View>
-      <Text className="text-2xl font-bold text-foreground">{t('transparency.heading')}</Text>
-      <Paragraph>{t('transparency.intro')}</Paragraph>
-      <Paragraph>{t('transparency.introSource')}</Paragraph>
-
-      <SectionTitle>{t('transparency.whatItDoes.title')}</SectionTitle>
-      <Paragraph>{t('transparency.whatItDoes.body')}</Paragraph>
-      <Paragraph>{t('transparency.whatItDoes.bluntness')}</Paragraph>
-      <Paragraph>{t('transparency.whatItDoes.scope')}</Paragraph>
-      <Paragraph>{t('transparency.whatItDoes.limits')}</Paragraph>
-
-      <SectionTitle>{t('transparency.howWeDecide.title')}</SectionTitle>
-      <Paragraph>{t('transparency.howWeDecide.corroboration')}</Paragraph>
-      <Paragraph>{t('transparency.howWeDecide.judgement')}</Paragraph>
-      <Paragraph>{t('transparency.howWeDecide.audit')}</Paragraph>
-
-      <SectionTitle>{t('transparency.list.title')}</SectionTitle>
-
-      {blocksQuery.isPending ? (
-        <ListSkeleton />
-      ) : blocksQuery.isError ? (
-        <Paragraph>{t('transparency.list.error')}</Paragraph>
-      ) : blocks && blocks.length > 0 ? (
-        <>
-          <Paragraph>{t('transparency.list.count', { count: blocks.length })}</Paragraph>
-          {blocks.map((block) => (
-            <BlockCard key={block.domain} block={block} />
-          ))}
-        </>
-      ) : (
-        <EmptyState
-          title={t('transparency.list.empty')}
-          sticker="transparency"
-          containerStyle={{ paddingTop: 40 }}
-        />
-      )}
-    </View>
+  return toElement(
+    VStack(
+      RawText(t('transparency.heading'))
+        .font('24')
+        .leading('32px')
+        .weight('bold')
+        .foreground('foreground'),
+      Embed(<Paragraph>{t('transparency.intro')}</Paragraph>),
+      Embed(<Paragraph>{t('transparency.introSource')}</Paragraph>),
+      Embed(<SectionTitle>{t('transparency.whatItDoes.title')}</SectionTitle>),
+      Embed(<Paragraph>{t('transparency.whatItDoes.body')}</Paragraph>),
+      Embed(<Paragraph>{t('transparency.whatItDoes.bluntness')}</Paragraph>),
+      Embed(<Paragraph>{t('transparency.whatItDoes.scope')}</Paragraph>),
+      Embed(<Paragraph>{t('transparency.whatItDoes.limits')}</Paragraph>),
+      Embed(<SectionTitle>{t('transparency.howWeDecide.title')}</SectionTitle>),
+      Embed(<Paragraph>{t('transparency.howWeDecide.corroboration')}</Paragraph>),
+      Embed(<Paragraph>{t('transparency.howWeDecide.judgement')}</Paragraph>),
+      Embed(<Paragraph>{t('transparency.howWeDecide.audit')}</Paragraph>),
+      Embed(<SectionTitle>{t('transparency.list.title')}</SectionTitle>),
+      Embed(
+        blocksQuery.isPending ? (
+          <ListSkeleton />
+        ) : blocksQuery.isError ? (
+          <Paragraph>{t('transparency.list.error')}</Paragraph>
+        ) : blocks && blocks.length > 0 ? (
+          <>
+            <Paragraph>{t('transparency.list.count', { count: blocks.length })}</Paragraph>
+            {blocks.map((block) => (
+              <BlockCard key={block.domain} block={block} />
+            ))}
+          </>
+        ) : (
+          <EmptyState
+            title={t('transparency.list.empty')}
+            sticker="transparency"
+            containerStyle={{ paddingTop: 40 }}
+          />
+        ),
+      ),
+    ),
   );
 }
