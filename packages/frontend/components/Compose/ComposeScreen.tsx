@@ -25,11 +25,35 @@ import {
   Suspense,
 } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { View, Text, TextInput, TouchableOpacity, Pressable, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Pressable,
+  ScrollView,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 // Imported under the name every call site in this file already uses, because
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
 import { composeStyles as styles } from './ComposeScreen.styles';
+
+// What the composer's classes drew, as styles (theme colours are applied where
+// they are drawn, from Bloom's colour tokens).
+/** The screen fills its room (`flex-1`); the safe area pads it. */
+const COMPOSE_ROOT = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' } satisfies ViewStyle;
+/** A community post's title (`text-[17px] font-semibold py-1`). */
+const TITLE_INPUT = {
+  fontSize: 17,
+  fontWeight: '600',
+  paddingVertical: tokens.space.xs,
+} satisfies TextStyle;
+/** The quoted post under the text (`mt-3`). */
+const QUOTE_GAP = { marginTop: tokens.space.md } satisfies ViewStyle;
+/** The direct post's recipient hint (`text-sm`). */
+const HINT = { fontSize: 14, lineHeight: 20 } satisfies TextStyle;
 import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
@@ -61,7 +85,9 @@ import {
   MEDIA_VARIANT_AVATAR,
   PostVisibility,
 } from '@mention/shared-types/post';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { tokenAlpha, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { tokens } from '@oxy.so/bloom/styles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary, {
@@ -244,6 +270,10 @@ export interface ComposeScreenProps {
 const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const router = useRouter();
   const theme = useTheme();
+  const colorTokens = useColorTokens();
+  const insets = useSafeAreaInsets();
+  // The thread's connector: the primary token at 20%, never a hex suffix (see below).
+  const connector = { backgroundColor: tokenAlpha(colorTokens.primary, 0.2) };
   const haptic = useHaptics();
   const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
   const { drafts, saveDraft, queueDeleteDraft, readDraft } = useDrafts();
@@ -3120,7 +3150,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       {/* The BOTTOM inset too: the shell's bottom bar is never drawn over the
           composer (`app/(app)/_layout.tsx`), so the footer row sits on the
           screen edge and has to clear the gesture area itself. */}
-      <View className="flex-1 bg-card pt-safe pb-safe">
+      <View
+        style={[
+          COMPOSE_ROOT,
+          {
+            backgroundColor: colorTokens.card,
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
         {switchingDraft && toElement(RawText(t('common.saving')).role('alert'))}
         {autoSaveError &&
           toElement(
@@ -3176,7 +3215,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           {toElement(
             VStack(
               /* Header */ Embed(
-                <View className="bg-card border-border" style={styles.header}>
+                <View
+                  style={[
+                    { backgroundColor: colorTokens.card, borderColor: colorTokens.border },
+                    styles.header,
+                  ]}
+                >
                   {presentation === 'tab' ? (
                     // The tab has nothing to pop to, so it CLOSES — back to Home, the
                     // way "done" leaves every tabbed composer. Nothing is discarded:
@@ -3215,8 +3259,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     />
                   )}
                   <Text
-                    className="text-foreground"
-                    style={[styles.headerTitle, { pointerEvents: 'none' }]}
+                    style={[
+                      { color: colorTokens.foreground },
+                      styles.headerTitle,
+                      { pointerEvents: 'none' },
+                    ]}
                   >
                     {isEditMode
                       ? t('compose.edit.title')
@@ -3390,16 +3437,30 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               ),
               /* Mode Toggle Section */ Embed(
                 showModeToggle && (
-                  <View className="bg-muted border-border" style={styles.modeToggleContainer}>
+                  <View
+                    style={[
+                      { backgroundColor: colorTokens.muted, borderColor: colorTokens.border },
+                      styles.modeToggleContainer,
+                    ]}
+                  >
                     <View style={styles.modeToggleRow}>
                       <View style={styles.modeOption}>
                         <Text
-                          className={postingMode === 'thread' ? 'text-primary' : 'text-foreground'}
-                          style={styles.modeLabel}
+                          style={[
+                            {
+                              color:
+                                postingMode === 'thread'
+                                  ? colorTokens.primary
+                                  : colorTokens.foreground,
+                            },
+                            styles.modeLabel,
+                          ]}
                         >
                           {t('compose.thread.title')}
                         </Text>
-                        <Text className="text-muted-foreground" style={styles.modeDescription}>
+                        <Text
+                          style={[{ color: colorTokens.mutedForeground }, styles.modeDescription]}
+                        >
                           {t('compose.thread.postAsLinked')}
                         </Text>
                       </View>
@@ -3416,12 +3477,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       </View>
                       <View style={styles.modeOption}>
                         <Text
-                          className={postingMode === 'beast' ? 'text-primary' : 'text-foreground'}
-                          style={styles.modeLabel}
+                          style={[
+                            {
+                              color:
+                                postingMode === 'beast'
+                                  ? colorTokens.primary
+                                  : colorTokens.foreground,
+                            },
+                            styles.modeLabel,
+                          ]}
                         >
                           {t('compose.thread.beastMode')}
                         </Text>
-                        <Text className="text-muted-foreground" style={styles.modeDescription}>
+                        <Text
+                          style={[{ color: colorTokens.mutedForeground }, styles.modeDescription]}
+                        >
                           {t('compose.thread.postAllAtOnce')}
                         </Text>
                       </View>
@@ -3457,8 +3527,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       <>
                         {/* Main composer */}
                         <View
-                          className="border-border"
                           style={[
+                            { borderColor: colorTokens.border },
                             styles.postContainer,
                             !showThreadTimeline && threadItems.length > 0 && styles.beastSeparator,
                             focusedItemId !== MAIN_ITEM_ID &&
@@ -3469,7 +3539,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           {/* Connector line below main avatar — thread mode only; see
                   `showThreadTimeline`. */}
                           {showThreadTimeline ? (
-                            <View className="bg-primary/20" style={styles.itemConnectorLine} />
+                            <View style={[connector, styles.itemConnectorLine]} />
                           ) : null}
                           <View style={styles.composerWithTimeline}>
                             <ComposeIdentityHeader
@@ -3485,7 +3555,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             >
                               {effectiveCommunity ? (
                                 <TextInput
-                                  className="text-foreground text-[17px] font-semibold py-1"
+                                  style={[TITLE_INPUT, { color: colorTokens.foreground }]}
                                   placeholder={t('compose.community.titlePlaceholder', {
                                     defaultValue: 'Title (optional)',
                                   })}
@@ -3500,7 +3570,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                               ) : null}
                               <MentionTextInput
                                 ref={mainTextInputRef}
-                                className="text-foreground"
                                 style={styles.mainTextInput}
                                 placeholder={
                                   replyToPostId
@@ -3912,7 +3981,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
                             {/* Quote prefill card */}
                             {(quotedPost || quoteLoading) && (
-                              <View className="mt-3" style={bottomLeftPadWithHPadStyle}>
+                              <View style={[QUOTE_GAP, bottomLeftPadWithHPadStyle]}>
                                 <QuoteCard
                                   post={quotedPost}
                                   loading={quoteLoading}
@@ -4196,7 +4265,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       }}
                     >
                       {showThreadTimeline ? (
-                        <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
+                        <View style={[connector, styles.itemConnectorLineAbove]} />
                       ) : null}
                       <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                         <TouchableOpacity activeOpacity={0.7}>
@@ -4238,7 +4307,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           The pills scroll (four of them, and "Anyone can interact" alone is
                           most of a phone); the button has its own slot beside them and
                           never overlaps one. */ Embed(
-                <View className="border-border" style={styles.bottomBar}>
+                <View style={[{ borderColor: colorTokens.border }, styles.bottomBar]}>
                   <ChipRow
                     style={styles.bottomBarChips}
                     contentInset={16}
@@ -4384,11 +4453,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   {isDirect && (directRecipientsError || mainRecipients.length === 0) ? (
                     <Text
                       accessibilityRole={directRecipientsError ? 'alert' : undefined}
-                      className={
-                        directRecipientsError
-                          ? 'text-destructive text-sm'
-                          : 'text-muted-foreground text-sm'
-                      }
+                      style={[
+                        HINT,
+                        {
+                          color: directRecipientsError
+                            ? colorTokens.destructive
+                            : colorTokens.mutedForeground,
+                        },
+                      ]}
                       testID="compose-direct-recipients-hint"
                     >
                       {t('compose.audience.needsRecipient', {
@@ -4696,10 +4768,12 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
   const { t } = useTranslation();
   const { dismiss } = useComposeExit(presentation);
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+  const colorTokens = useColorTokens();
+  const insets = useSafeAreaInsets();
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <View className="flex-1 bg-card pt-safe">
+      <View style={[COMPOSE_ROOT, { backgroundColor: colorTokens.card, paddingTop: insets.top }]}>
         <FormSkeleton />
       </View>
     );
