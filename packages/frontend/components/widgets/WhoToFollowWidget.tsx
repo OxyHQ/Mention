@@ -1,7 +1,6 @@
 import { Button } from '@oxy.so/bloom/button';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import React, { useMemo, useCallback } from 'react';
-import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/lib/navigation/router';
 import {
@@ -13,6 +12,7 @@ import { BaseWidget } from './BaseWidget';
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 const MAX_DISPLAY_USERS = 5;
 /** Height of the small plain "Show more" button (Bloom `Button size="sm"`). */
@@ -41,15 +41,25 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
         {/* The loaded widget's shape — as many rows as it shows, at the same
             inset, and the "Show more" button — so the rail below it (the
             footer) stays put when the suggestions land (#1216). */}
-        <View className="gap-2">
-          <ProfileCardSkeletonList
-            count={MAX_DISPLAY_USERS}
-            showFollowButton
-            size="sm"
-            showDivider={false}
-          />
-          <Skeleton.Box width={88} height={SHOW_MORE_HEIGHT} borderRadius={SHOW_MORE_HEIGHT / 2} />
-        </View>
+        {toElement(
+          VStack(
+            Embed(
+              <ProfileCardSkeletonList
+                count={MAX_DISPLAY_USERS}
+                showFollowButton
+                size="sm"
+                showDivider={false}
+              />,
+            ),
+            Embed(
+              <Skeleton.Box
+                width={88}
+                height={SHOW_MORE_HEIGHT}
+                borderRadius={SHOW_MORE_HEIGHT / 2}
+              />,
+            ),
+          ).spacing('sm'),
+        )}
       </BaseWidget>
     );
   }
@@ -63,22 +73,27 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
 
   return (
     <BaseWidget title={t('discovery.whoToFollow')} divider={divider}>
-      <View className="gap-2">
-        {/* Compact Bloom rows align directly with the widget heading. */}
-        <View>
-          {displayedUsers.map((user) => (
-            <FollowRowComponent key={user.id} profileData={user} showBorder={false} />
-          ))}
-        </View>
-        <Button
-          appearance="plain"
-          size="sm"
-          onPress={handleShowMore}
-          style={{ alignSelf: 'flex-start' }}
-        >
-          {t('common.showMore')}
-        </Button>
-      </View>
+      {toElement(
+        VStack(
+          /* Compact Bloom rows align directly with the widget heading. */ VStack(
+            Embed(
+              displayedUsers.map((user) => (
+                <FollowRowComponent key={user.id} profileData={user} showBorder={false} />
+              )),
+            ),
+          ),
+          Embed(
+            <Button
+              appearance="plain"
+              size="sm"
+              onPress={handleShowMore}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              {t('common.showMore')}
+            </Button>,
+          ),
+        ).spacing('sm'),
+      )}
     </BaseWidget>
   );
 }

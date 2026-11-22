@@ -7,7 +7,6 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   View,
-  Text,
   TouchableOpacity,
   type TextInputSelectionChangeEvent,
   type TextInputInstance,
@@ -18,7 +17,6 @@ import { skipToken, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useDismissKeyboardOnBlur } from '@/hooks/useDismissKeyboardOnBlur';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { Screen } from '@oxy.so/bloom/screen';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
@@ -47,7 +45,6 @@ import {
   toProfileHandleSuggestion,
   type ActiveOperatorToken,
 } from '@/utils/searchSuggestions';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
@@ -81,6 +78,18 @@ import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLatchedState } from '@/hooks/useLatchedState';
 import { useSearchAllSources } from '@/hooks/useSearchAllSources';
+
+import {
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  TabItem,
+  Tabs as LTabs,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type ResultTab = 'posts' | 'users' | 'feeds' | 'hashtags' | 'lists' | 'starterPacks' | 'saved';
 type SearchTab = 'all' | ResultTab;
@@ -1142,15 +1151,33 @@ function SearchIndex() {
     ({ item }: { item: SearchRow }): React.ReactElement | null => {
       switch (item.kind) {
         case 'sectionHeader':
-          return (
-            <View className="w-full flex-row items-center justify-between px-3 pt-4 pb-2">
-              <Text className="text-lg font-bold text-foreground">{item.title}</Text>
-              {item.action ? (
-                <TouchableOpacity onPress={item.action.onPress} hitSlop={tokens.hitSlop.md}>
-                  <Text className="text-sm font-semibold text-primary">{item.action.label}</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+          return toElement(
+            HStack(
+              RawText(item.title)
+                .font('18')
+                .leading('28px')
+                .weight('bold')
+                .foreground('foreground'),
+              Embed(
+                item.action ? (
+                  <TouchableOpacity onPress={item.action.onPress} hitSlop={tokens.hitSlop.md}>
+                    {toElement(
+                      RawText(item.action.label)
+                        .font('14')
+                        .leading('20px')
+                        .weight('semibold')
+                        .foreground('primary'),
+                    )}
+                  </TouchableOpacity>
+                ) : null,
+              ),
+            )
+              .padding('horizontal', 'md')
+              .padding('top', 'lg')
+              .padding('bottom', 'sm')
+              .frame({ width: 'full' })
+              .align('center')
+              .justify('between'),
           );
 
         case 'recent':
@@ -1160,107 +1187,166 @@ function SearchIndex() {
               onPress={() => handleRecentPress(item.term)}
               accessibilityRole="button"
             >
-              <View className="flex-1 flex-row items-center gap-3">
-                <RiTimeLine width={18} height={18} fill={theme.colors.textSecondary} />
-                <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
-                  {item.term}
-                </Text>
-              </View>
+              {toElement(
+                HStack(
+                  Icon(RiTimeLine).size('18').foreground('muted'),
+                  RawText(item.term)
+                    .flex('1')
+                    .font('16')
+                    .leading('normal')
+                    .foreground('foreground')
+                    .lines(1),
+                )
+                  .flex('1')
+                  .align('center')
+                  .spacing('md'),
+              )}
               <TouchableOpacity
                 onPress={() => void handleRemoveRecent(item.term)}
                 hitSlop={tokens.hitSlop.md}
                 accessibilityRole="button"
                 accessibilityLabel={t('search.removeRecent', 'Remove from recent searches')}
               >
-                <RiCloseLine size="sm" fill={theme.colors.textTertiary} />
+                {toElement(Icon(RiCloseLine).size('sm').foreground('textTertiary'))}
               </TouchableOpacity>
             </TouchableOpacity>
           );
 
         case 'trend':
-          return (
-            <View className="w-full px-3 border-b border-border">
-              <TrendItemRow
-                trend={item.trend}
-                onPress={(trend) => navigateToTrend(trend, 'search')}
-                size="large"
-              />
-            </View>
+          return toElement(
+            VStack(
+              Embed(
+                <TrendItemRow
+                  trend={item.trend}
+                  onPress={(trend) => navigateToTrend(trend, 'search')}
+                  size="large"
+                />,
+              ),
+            )
+              .padding('horizontal', 'md')
+              .frame({ width: 'full' })
+              .border('border', 'thin', 'bottom'),
           );
 
         case 'trendsLoading':
-          return (
-            <View className="w-full border-b border-border">
-              <ListSkeleton count={2} />
-            </View>
+          return toElement(
+            VStack(Embed(<ListSkeleton count={2} />))
+              .frame({ width: 'full' })
+              .border('border', 'thin', 'bottom'),
           );
 
         case 'trendsError':
-          return (
-            <View className="w-full px-3 py-4 gap-2 border-b border-border">
-              <Text className="text-sm text-muted-foreground">{t('error.fetch_trends')}</Text>
-              <TouchableOpacity
-                onPress={() => void fetchTrends()}
-                className="self-start rounded-full bg-muted px-4 py-2"
-                accessibilityRole="button"
-              >
-                <Text className="text-sm font-semibold text-primary">
-                  {t('search.retry', 'Retry')}
-                </Text>
-              </TouchableOpacity>
-            </View>
+          return toElement(
+            VStack(
+              RawText(t('error.fetch_trends')).font('14').leading('20px').foreground('muted'),
+              Embed(
+                <TouchableOpacity
+                  onPress={() => void fetchTrends()}
+                  className="self-start rounded-full bg-muted px-4 py-2"
+                  accessibilityRole="button"
+                >
+                  {toElement(
+                    RawText(t('search.retry', 'Retry'))
+                      .font('14')
+                      .leading('20px')
+                      .weight('semibold')
+                      .foreground('primary'),
+                  )}
+                </TouchableOpacity>,
+              ),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'lg')
+              .frame({ width: 'full' })
+              .border('border', 'thin', 'bottom')
+              .spacing('sm'),
           );
 
         case 'operators':
-          return (
-            <View className="w-full px-3 py-4 gap-2">
-              <Text className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('search.operatorHints', 'Search operators')}
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {SEARCH_OPERATORS.map((operator) => (
-                  <TouchableOpacity
-                    key={operator.operator}
-                    onPress={() => handleOperatorPress(operator.insert)}
-                    className="rounded-full bg-muted px-3 py-1.5"
-                    accessibilityRole="button"
-                    accessibilityLabel={t(
-                      `search.operator.${operator.labelKey}`,
-                      operator.description,
-                    )}
-                  >
-                    <Text className="text-xs font-medium text-muted-foreground">
-                      {operator.operator}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+          return toElement(
+            VStack(
+              RawText(t('search.operatorHints', 'Search operators'))
+                .font('xs')
+                .leading('16px')
+                .weight('semibold')
+                .textCase('uppercase')
+                .tracking('wide')
+                .foreground('muted'),
+              HStack(
+                Embed(
+                  SEARCH_OPERATORS.map((operator) => (
+                    <TouchableOpacity
+                      key={operator.operator}
+                      onPress={() => handleOperatorPress(operator.insert)}
+                      className="rounded-full bg-muted px-3 py-1.5"
+                      accessibilityRole="button"
+                      accessibilityLabel={t(
+                        `search.operator.${operator.labelKey}`,
+                        operator.description,
+                      )}
+                    >
+                      {toElement(
+                        RawText(operator.operator)
+                          .font('xs')
+                          .leading('16px')
+                          .weight('medium')
+                          .foreground('muted'),
+                      )}
+                    </TouchableOpacity>
+                  )),
+                ),
+              )
+                .wrap()
+                .spacing('sm'),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'lg')
+              .frame({ width: 'full' })
+              .spacing('sm'),
           );
 
         case 'operatorValues':
-          return (
-            <View className="w-full px-3 py-4 gap-2 border-b border-border">
-              <Text className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('search.suggestions.completeOperator', 'Complete {{prefix}}:', {
+          return toElement(
+            VStack(
+              RawText(
+                t('search.suggestions.completeOperator', 'Complete {{prefix}}:', {
                   prefix: item.token.prefix,
-                })}
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {item.values.map((value) => (
-                  <TouchableOpacity
-                    key={value}
-                    onPress={() => handleOperatorValuePress(item.token, value)}
-                    className="rounded-full bg-muted px-3 py-1.5"
-                    accessibilityRole="button"
-                  >
-                    <Text className="text-xs font-medium text-muted-foreground">
-                      {`${item.token.prefix}:${value}`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+                }),
+              )
+                .font('xs')
+                .leading('16px')
+                .weight('semibold')
+                .textCase('uppercase')
+                .tracking('wide')
+                .foreground('muted'),
+              HStack(
+                Embed(
+                  item.values.map((value) => (
+                    <TouchableOpacity
+                      key={value}
+                      onPress={() => handleOperatorValuePress(item.token, value)}
+                      className="rounded-full bg-muted px-3 py-1.5"
+                      accessibilityRole="button"
+                    >
+                      {toElement(
+                        RawText(`${item.token.prefix}:${value}`)
+                          .font('xs')
+                          .leading('16px')
+                          .weight('medium')
+                          .foreground('muted'),
+                      )}
+                    </TouchableOpacity>
+                  )),
+                ),
+              )
+                .wrap()
+                .spacing('sm'),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'lg')
+              .frame({ width: 'full' })
+              .border('border', 'thin', 'bottom')
+              .spacing('sm'),
           );
 
         case 'goToProfile':
@@ -1270,10 +1356,17 @@ function SearchIndex() {
               onPress={() => handleGoToProfile(item.handle)}
               accessibilityRole="button"
             >
-              <RiUserLine width={18} height={18} fill={theme.colors.textSecondary} />
-              <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
-                {t('search.suggestions.goToProfile', 'Go to @{{handle}}', { handle: item.handle })}
-              </Text>
+              {toElement(Icon(RiUserLine).size('18').foreground('muted'))}
+              {toElement(
+                RawText(
+                  t('search.suggestions.goToProfile', 'Go to @{{handle}}', { handle: item.handle }),
+                )
+                  .flex('1')
+                  .font('16')
+                  .leading('normal')
+                  .foreground('foreground')
+                  .lines(1),
+              )}
             </TouchableOpacity>
           );
 
@@ -1287,33 +1380,43 @@ function SearchIndex() {
               return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
             }
             if (activeTab === 'feeds') {
-              return (
-                <View>
-                  {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-                    <FeedCardSkeleton key={`feed-skeleton-${index}`} />
-                  ))}
-                </View>
+              return toElement(
+                VStack(
+                  Embed(
+                    Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+                      <FeedCardSkeleton key={`feed-skeleton-${index}`} />
+                    )),
+                  ),
+                ),
               );
             }
             if (activeTab === 'starterPacks') {
-              return (
-                <View>
-                  {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-                    <View key={`pack-skeleton-${index}`} className="w-full px-3 py-2">
-                      <StarterPackCardSkeleton />
-                    </View>
-                  ))}
-                </View>
+              return toElement(
+                VStack(
+                  Embed(
+                    Array.from({ length: SKELETON_ROW_COUNT }, (_, index) =>
+                      toElement(
+                        VStack(Embed(<StarterPackCardSkeleton />))
+                          .padding('horizontal', 'md')
+                          .padding('vertical', 'sm')
+                          .frame({ width: 'full' }),
+                        `pack-skeleton-${index}`,
+                      ),
+                    ),
+                  ),
+                ),
               );
             }
-            return (
-              <View className="w-full">
-                {activeTab === 'posts' || activeTab === 'saved' ? (
-                  <FeedSkeleton />
-                ) : (
-                  <ListSkeleton />
-                )}
-              </View>
+            return toElement(
+              VStack(
+                Embed(
+                  activeTab === 'posts' || activeTab === 'saved' ? (
+                    <FeedSkeleton />
+                  ) : (
+                    <ListSkeleton />
+                  ),
+                ),
+              ).frame({ width: 'full' }),
             );
           }
           if (item.state === 'error') {
@@ -1375,20 +1478,39 @@ function SearchIndex() {
               onPress={() => handleOpenHashtag(item.hashtag.tag)}
               accessibilityRole="button"
             >
-              <View className="flex-1 flex-row items-center gap-3">
-                <View className="w-10 h-10 items-center justify-center rounded-full bg-primary/10">
-                  <Text className="text-xl font-bold text-primary">#</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
-                    #{item.hashtag.tag}
-                  </Text>
-                  <Text className="mt-0.5 text-sm text-muted-foreground">
-                    {formatCompactNumber(item.hashtag.count)} {t('search.posts', 'posts')}
-                  </Text>
-                </View>
-              </View>
-              <RiArrowRightSLine size="sm" fill={theme.colors.textTertiary} />
+              {toElement(
+                HStack(
+                  VStack(
+                    RawText('#').font('xl').leading('28px').weight('bold').foreground('primary'),
+                  )
+                    .frame({ width: '4xl', height: '4xl' })
+                    .background('primary/10')
+                    .corner('infinite')
+                    .align('center')
+                    .justify('center'),
+                  VStack(
+                    RawText('#', item.hashtag.tag)
+                      .font('16')
+                      .leading('normal')
+                      .weight('semibold')
+                      .foreground('foreground')
+                      .lines(1),
+                    RawText(
+                      formatCompactNumber(item.hashtag.count),
+                      ' ',
+                      t('search.posts', 'posts'),
+                    )
+                      .margin('top', '2xs')
+                      .font('14')
+                      .leading('20px')
+                      .foreground('muted'),
+                  ).flex('1'),
+                )
+                  .flex('1')
+                  .align('center')
+                  .spacing('md'),
+              )}
+              {toElement(Icon(RiArrowRightSLine).size('sm').foreground('textTertiary'))}
             </TouchableOpacity>
           );
 
@@ -1401,10 +1523,13 @@ function SearchIndex() {
         case 'starterPack': {
           const pack = toStarterPackCardData(item.pack);
           if (!pack) return null;
-          return (
-            <View className="w-full px-3 py-2">
-              <StarterPackCard pack={pack} onPress={() => handleOpenStarterPack(pack.id)} />
-            </View>
+          return toElement(
+            VStack(
+              Embed(<StarterPackCard pack={pack} onPress={() => handleOpenStarterPack(pack.id)} />),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'sm')
+              .frame({ width: 'full' }),
           );
         }
 
@@ -1455,34 +1580,42 @@ function SearchIndex() {
       <SEO title={t('seo.search.title')} description={t('seo.search.description')} />
       <HeaderDockProvider>
         <Screen
-          header={
-            <PageHeader
-              title={t('search.title', 'Search')}
-              backLabel={t('common.back', { defaultValue: 'Back' })}
-              titleReveal="always"
-              testID="search-page-header"
-            />
-          }
+          header={toElement(
+            Header(t('search.title', 'Search'))
+              .backLabel(t('common.back', { defaultValue: 'Back' }))
+              .titleReveal('always')
+              .testID('search-page-header')
+              .inPage(),
+          )}
         >
           <StickySection testID="search-sticky-tabs" className="border-b border-border">
-            <View className="mx-4 my-2">
-              <Search
-                ref={searchInputRef}
-                label={t('search.placeholder', 'Search...')}
-                value={query}
-                onChangeText={handleQueryChange}
-                onSelectionChange={handleSelectionChange}
-                onSubmitEditing={handleSubmit}
-                onClearText={clearSearch}
-                autoFocus
-              />
-            </View>
+            {toElement(
+              VStack(
+                Embed(
+                  <Search
+                    ref={searchInputRef}
+                    label={t('search.placeholder', 'Search...')}
+                    value={query}
+                    onChangeText={handleQueryChange}
+                    onSelectionChange={handleSelectionChange}
+                    onSubmitEditing={handleSubmit}
+                    onClearText={clearSearch}
+                    autoFocus
+                  />,
+                ),
+              )
+                .margin('horizontal', 'lg')
+                .margin('vertical', 'sm'),
+            )}
 
-            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-              {tabs.map((tab: { id: string; label: string; count?: number }) => (
-                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-              ))}
-            </Tabs>
+            {toElement(
+              LTabs(
+                [activeTab, handleTabPress],
+                tabs.map((tab: { id: string; label: string; count?: number }) =>
+                  TabItem(tab.id, tab.label).count(tab.count),
+                ),
+              ).style('underline'),
+            )}
 
             {/* Refining a query keeps the previous rows on screen, so the
                     only signal that newer ones are coming is this hairline.
@@ -1490,9 +1623,14 @@ function SearchIndex() {
                     when idle) rather than overlaying the list, so results
                     never shift by a pixel when it appears. */}
             <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
-              {refreshing ? (
-                <View testID="search-refreshing" className="h-full w-full bg-primary/60" />
-              ) : null}
+              {refreshing
+                ? toElement(
+                    VStack()
+                      .frame({ height: 'full', width: 'full' })
+                      .background('primary/60')
+                      .testID('search-refreshing'),
+                  )
+                : null}
             </View>
           </StickySection>
           {/* ONE scroll container for every state — suggestions, results,
@@ -1500,28 +1638,37 @@ function SearchIndex() {
                     so the container never swaps (no scroll or keyboard reset on
                     the first keystroke) and the suggestions have no focus-bound
                     lifecycle to get wrong. */}
-          <View className="flex-1 min-h-0">
-            <VirtualList
-              screen={{}}
-              data={rows}
-              keyExtractor={keyExtractor}
-              getItemType={getItemType}
-              renderItem={renderRow}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              scrollbar="never"
-              onEndReached={handleEndReached}
-              onEndReachedThreshold={0.5}
-              ListHeaderComponent={renderListHeader()}
-              ListFooterComponent={
-                isFetchingNextPage ? (
-                  <View className="items-center justify-center py-4">
-                    <ListSkeleton count={2} />
-                  </View>
-                ) : null
-              }
-            />
-          </View>
+          {toElement(
+            VStack(
+              Embed(
+                <VirtualList
+                  screen={{}}
+                  data={rows}
+                  keyExtractor={keyExtractor}
+                  getItemType={getItemType}
+                  renderItem={renderRow}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  scrollbar="never"
+                  onEndReached={handleEndReached}
+                  onEndReachedThreshold={0.5}
+                  ListHeaderComponent={renderListHeader()}
+                  ListFooterComponent={
+                    isFetchingNextPage
+                      ? toElement(
+                          VStack(Embed(<ListSkeleton count={2} />))
+                            .padding('vertical', 'lg')
+                            .align('center')
+                            .justify('center'),
+                        )
+                      : null
+                  }
+                />,
+              ),
+            )
+              .frame({ minHeight: 'none' })
+              .flex('1'),
+          )}
         </Screen>
       </HeaderDockProvider>
     </>

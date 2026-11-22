@@ -4,9 +4,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
-import { Text } from '@oxy.so/bloom/typography';
+import { Screen } from '@oxy.so/bloom/screen';
 
 import { SEO } from '@/components/SEO';
 import { trendingService } from '@/services/trendingService';
@@ -14,6 +12,15 @@ import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { buildTrendTree, type TrendTreeNode } from '@/utils/trendGraphTree';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { EmptyState } from '@/components/common/EmptyState';
+
+import {
+  Embed,
+  Header,
+  ScrollView as LScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Trend relations (route `/trend-graph`).
@@ -67,88 +74,107 @@ export default function TrendGraphScreen() {
         robots="index,follow"
       />
       <Screen
-        header={
-          <PageHeader
-            title={t('trendGraph.title')}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
-        }
+        header={toElement(
+          Header(t('trendGraph.title'))
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+        )}
       >
-        <ScreenScrollView contentContainerClassName="pb-16">
-          {/*
-          No title block here. The header above already names the screen, and
-          repeating it in 28px — under an uppercase eyebrow — spent the first
-          fifth of the viewport saying the same thing three times.
-        */}
-          <Text className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground leading-6">
-            {t('trendGraph.subtitle')}
-          </Text>
+        {toElement(
+          LScrollView(
+            /*
+                  No title block here. The header above already names the screen, and
+                  repeating it in 28px — under an uppercase eyebrow — spent the first
+                  fifth of the viewport saying the same thing three times.
+                */ LText(t('trendGraph.subtitle'))
+              .padding('horizontal', 'lg')
+              .padding('bottom', 'md')
+              .padding('top', 'xs')
+              .font('sm')
+              .foreground('muted')
+              .leading('24px'),
+            Embed(
+              <FilterRow
+                values={data?.availableLanguages ?? []}
+                selected={language}
+                onSelect={setLanguage}
+                allLabel={t('trendGraph.filters.all')}
+              />,
+            ),
+            /*
+                  Region renders only when the data has any. `postClassification.region`
+                  is sparse, and an always-present filter with nothing in it reads as a
+                  broken control rather than as an absent signal.
+                */ Embed(
+              (data?.availableRegions.length ?? 0) > 0 && (
+                <FilterRow
+                  values={data?.availableRegions ?? []}
+                  selected={region}
+                  onSelect={setRegion}
+                  allLabel={t('trendGraph.filters.all')}
+                />
+              ),
+            ),
+            Embed(
+              isLoading ? (
+                <InsightsSkeleton />
+              ) : isError ? (
+                toElement(
+                  VStack(
+                    LText(t('trendGraph.error'))
+                      .textAlign('center')
+                      .font('14')
+                      .foreground('muted')
+                      .leading('24px'),
+                    Embed(
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        onPress={() => void refetch()}
+                        className="rounded-full bg-primary px-4 py-2 web:cursor-pointer"
+                      >
+                        {toElement(
+                          LText(t('trendGraph.retry'))
+                            .font('14')
+                            .weight('semibold')
+                            .foreground('onPrimary')
+                            .leading('24px'),
+                        )}
+                      </TouchableOpacity>,
+                    ),
+                  )
+                    .padding('horizontal', 'lg')
+                    .padding('vertical', '4xl')
+                    .align('center')
+                    .spacing('md'),
+                )
+              ) : isEmpty ? (
+                <EmptyState
+                  title={t('trendGraph.empty')}
+                  sticker="trendGraph"
+                  containerStyle={{ paddingTop: 40 }}
+                />
+              ) : (
+                <>
+                  {tree.stories.length > 0 ? (
+                    <Section title={t('trendGraph.sections.stories')}>
+                      {tree.stories.map((story) => (
+                        <Branch key={story.node.term} entry={story} />
+                      ))}
+                    </Section>
+                  ) : null}
 
-          <FilterRow
-            values={data?.availableLanguages ?? []}
-            selected={language}
-            onSelect={setLanguage}
-            allLabel={t('trendGraph.filters.all')}
-          />
-          {/*
-          Region renders only when the data has any. `postClassification.region`
-          is sparse, and an always-present filter with nothing in it reads as a
-          broken control rather than as an absent signal.
-        */}
-          {(data?.availableRegions.length ?? 0) > 0 && (
-            <FilterRow
-              values={data?.availableRegions ?? []}
-              selected={region}
-              onSelect={setRegion}
-              allLabel={t('trendGraph.filters.all')}
-            />
-          )}
-
-          {isLoading ? (
-            <InsightsSkeleton />
-          ) : isError ? (
-            // An unreachable graph must not render as an empty one: "no relations
-            // found" over an outage would say the network has no stories.
-            <View className="items-center gap-3 px-4 py-10">
-              <Text className="text-center font-primary text-sm text-muted-foreground leading-6">
-                {t('trendGraph.error')}
-              </Text>
-              <TouchableOpacity
-                accessibilityRole="button"
-                onPress={() => void refetch()}
-                className="rounded-full bg-primary px-4 py-2 web:cursor-pointer"
-              >
-                <Text className="font-primary text-sm font-semibold text-primary-foreground leading-6">
-                  {t('trendGraph.retry')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : isEmpty ? (
-            <EmptyState
-              title={t('trendGraph.empty')}
-              sticker="trendGraph"
-              containerStyle={{ paddingTop: 40 }}
-            />
-          ) : (
-            <>
-              {tree.stories.length > 0 ? (
-                <Section title={t('trendGraph.sections.stories')}>
-                  {tree.stories.map((story) => (
-                    <Branch key={story.node.term} entry={story} />
-                  ))}
-                </Section>
-              ) : null}
-
-              {tree.ungrouped.length > 0 ? (
-                <Section title={t('trendGraph.sections.ungrouped')}>
-                  {tree.ungrouped.map((entry) => (
-                    <Branch key={entry.node.term} entry={entry} />
-                  ))}
-                </Section>
-              ) : null}
-            </>
-          )}
-        </ScreenScrollView>
+                  {tree.ungrouped.length > 0 ? (
+                    <Section title={t('trendGraph.sections.ungrouped')}>
+                      {tree.ungrouped.map((entry) => (
+                        <Branch key={entry.node.term} entry={entry} />
+                      ))}
+                    </Section>
+                  ) : null}
+                </>
+              ),
+            ),
+          ).contentView((v) => v.padding('bottom', '64')),
+        )}
       </Screen>
     </>
   );
@@ -156,15 +182,13 @@ export default function TrendGraphScreen() {
 
 /** A titled block of rows, matching the section headers used across the app. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View className="mb-2">
-      <View className="px-4 py-2">
-        <Text className="font-primary text-sm font-medium text-muted-foreground leading-6">
-          {title}
-        </Text>
-      </View>
-      <View className="px-4">{children}</View>
-    </View>
+  return toElement(
+    VStack(
+      VStack(LText(title).font('14').weight('medium').foreground('muted').leading('24px'))
+        .padding('horizontal', 'lg')
+        .padding('vertical', 'sm'),
+      VStack(Embed(children)).padding('horizontal', 'lg'),
+    ).margin('bottom', 'sm'),
   );
 }
 
@@ -186,7 +210,6 @@ function Branch({ entry }: { entry: TrendTreeNode }) {
         authors={entry.node.authorCount}
         emphasis
       />
-
       {entry.children.length > 0 ? (
         // The trunk: one continuous rule down the left of everything merged into
         // the term above. This is what makes the block read as a tree at a
@@ -203,7 +226,6 @@ function Branch({ entry }: { entry: TrendTreeNode }) {
           ))}
         </View>
       ) : null}
-
       <RelatedLine entry={entry} />
     </View>
   );
@@ -244,12 +266,18 @@ function RelatedLine({ entry }: { entry: TrendTreeNode }) {
 
   return (
     <View className="ml-1 border-border pb-1 pl-3" style={styles.dashedTrunk}>
-      <Text className="font-primary text-[12px] text-muted-foreground leading-6" numberOfLines={2}>
-        {t('trendGraph.related', {
-          terms: shown.join(', '),
-          count: rest,
-        })}
-      </Text>
+      {toElement(
+        LText(
+          t('trendGraph.related', {
+            terms: shown.join(', '),
+            count: rest,
+          }),
+        )
+          .font('xs')
+          .foreground('muted')
+          .leading('24px')
+          .lines(2),
+      )}
     </View>
   );
 }
@@ -284,17 +312,27 @@ function TermRow({
       onPress={() => navigateToTerm(term, 'graph')}
       className="web:cursor-pointer flex-row items-baseline justify-between py-1.5"
     >
-      <Text
-        className={`mr-3 shrink font-primary text-foreground ${emphasis ? 'text-[15px] font-bold' : 'text-[14px]'} leading-6`}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-      <Text className="shrink-0 font-primary text-[12px] text-muted-foreground leading-6">
-        {t('trendGraph.node.posts', { count: volume })}
-        {' · '}
-        {t('trendGraph.node.authors', { count: authors })}
-      </Text>
+      {toElement(
+        LText(label)
+          .margin('right', 'md')
+          .shrink('normal')
+          .foreground('foreground')
+          .leading('24px')
+          .when(Boolean(emphasis), (v) => v.font('md').weight('bold'))
+          .when(!emphasis, (v) => v.font('14'))
+          .lines(1),
+      )}
+      {toElement(
+        LText(
+          t('trendGraph.node.posts', { count: volume }),
+          ' · ',
+          t('trendGraph.node.authors', { count: authors }),
+        )
+          .shrink('never')
+          .font('xs')
+          .foreground('muted')
+          .leading('24px'),
+      )}
     </TouchableOpacity>
   );
 }
@@ -329,11 +367,13 @@ function FilterRow({
             onPress={() => onSelect(value)}
             className={`web:cursor-pointer rounded-full px-3 py-1.5 ${isActive ? 'bg-primary' : 'bg-muted'}`}
           >
-            <Text
-              className={`font-primary text-[13px] font-medium ${isActive ? 'text-primary-foreground' : 'text-foreground'} leading-6`}
-            >
-              {value ?? allLabel}
-            </Text>
+            {toElement(
+              LText(value ?? allLabel)
+                .font('sm')
+                .weight('medium')
+                .foreground(isActive ? 'onPrimary' : 'foreground')
+                .leading('24px'),
+            )}
           </TouchableOpacity>
         );
       })}

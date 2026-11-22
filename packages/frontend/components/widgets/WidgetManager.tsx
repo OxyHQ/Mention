@@ -1,13 +1,15 @@
 import { recoverChunkError } from '@/lib/chunkReload';
 import type React from 'react';
 import { Component, type ReactNode } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
 import { LiveRoomsWidget } from './LiveRoomsWidget';
 import { TopicRailWidgets } from '../topic/TopicWidgets';
 import { createLogger } from '@oxy.so/core/logger';
+
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const logger = createLogger('WidgetManager');
 
@@ -73,37 +75,21 @@ export function WidgetManager({ screenId, customWidgets = [], topicTerm }: Widge
         return [<TrendsWidget key="trends" />];
 
       case 'notifications':
-        return [
-          <View key="notifications">
-            <Text>{t('widgets.notifications')}</Text>
-          </View>,
-        ];
+        return [toElement(VStack(RawText(t('widgets.notifications'))), 'notifications')];
 
       case 'saved':
-        return [
-          <View key="saved">
-            <Text>{t('widgets.savedPosts')}</Text>
-          </View>,
-        ];
+        return [toElement(VStack(RawText(t('widgets.savedPosts'))), 'saved')];
 
       case 'profile':
         return [
-          <View key="profile-stats">
-            <Text>{t('widgets.profileStats')}</Text>
-          </View>,
-          <View key="engagement-stats">
-            <Text>{t('widgets.engagementStats')}</Text>
-          </View>,
+          toElement(VStack(RawText(t('widgets.profileStats'))), 'profile-stats'),
+          toElement(VStack(RawText(t('widgets.engagementStats'))), 'engagement-stats'),
         ];
 
       case 'post-detail':
         return [
-          <View key="related-posts">
-            <Text>{t('widgets.relatedPosts')}</Text>
-          </View>,
-          <View key="recently-viewed">
-            <Text>{t('widgets.recentlyViewed')}</Text>
-          </View>,
+          toElement(VStack(RawText(t('widgets.relatedPosts'))), 'related-posts'),
+          toElement(VStack(RawText(t('widgets.recentlyViewed'))), 'recently-viewed'),
         ];
 
       case 'search':
@@ -121,17 +107,19 @@ export function WidgetManager({ screenId, customWidgets = [], topicTerm }: Widge
   }
 
   // No column `gap` — each widget owns its own bottom margin, see `BaseWidget`.
-  return (
-    <View className="flex-col">
-      {allWidgets.map((widget, index) => {
-        const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
-        return (
-          <WidgetErrorBoundary key={slotKey}>
-            <WidgetSlot>{widget}</WidgetSlot>
-          </WidgetErrorBoundary>
-        );
-      })}
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        allWidgets.map((widget, index) => {
+          const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
+          return (
+            <WidgetErrorBoundary key={slotKey}>
+              <WidgetSlot>{widget}</WidgetSlot>
+            </WidgetErrorBoundary>
+          );
+        }),
+      ),
+    ),
   );
 }
 

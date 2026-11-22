@@ -2,8 +2,8 @@ import { useRouter } from '@/lib/navigation/router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
-import { Search } from '@oxy.so/bloom/search';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
+import { Search as LSearch, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Right-rail search box — the same Bloom `Search` field the search screen uses, so
@@ -43,13 +43,12 @@ export const SearchBar = () => {
       className="w-full mb-4 z-10 web:sticky web:top-0"
       style={{ backgroundColor: surfaceFill }}
     >
-      <Search
-        label={t('searchBar.placeholder')}
-        value={query}
-        onValueChange={setQuery}
-        onClearText={() => setQuery('')}
-        onSubmitEditing={handleSubmit}
-      />
+      {toElement(
+        LSearch([query, setQuery])
+          .label(t('searchBar.placeholder'))
+          .onClearText(() => setQuery(''))
+          .onSubmit(handleSubmit),
+      )}
     </View>
   );
 };

@@ -16,6 +16,8 @@ import type { Trend } from '@/interfaces/Trend';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { getTrendBadge } from './trendBadge';
 
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
 /** Faces shown beside a trend. Matches what the server stores per trend. */
 const TREND_FACE_SIZE = 18;
 
@@ -157,96 +159,119 @@ export const TrendItemRow = memo(function TrendItemRow({
         vertically centred ordinal would float against the middle of the text
         block instead of sitting beside the row it numbers.
       */}
-      <View className="flex-1 flex-row items-start justify-between mr-2">
-        {ordinal !== undefined ? (
-          <Text
-            className={`text-muted-foreground mr-2 font-semibold ${isLarge ? 'text-[15px]' : 'text-[13px]'}`}
-            style={styles.ordinal}
-          >
-            {ordinal}
-          </Text>
-        ) : null}
-        <View className="flex-1 mr-3">
-          <View className="flex-row items-center mb-0.5">
-            <Text className={`text-muted-foreground ${isLarge ? 'text-[13px]' : 'text-[12px]'}`}>
-              {getTrendLabel(trend, t)}
-            </Text>
-            {badge ? (
-              <View
-                className={`ml-2 rounded-full px-1.5 py-0.5 ${
-                  badge.tone === 'hot'
-                    ? 'bg-destructive/10'
-                    : badge.tone === 'new'
-                      ? 'bg-primary/10'
-                      : 'bg-muted'
-                }`}
+      {toElement(
+        HStack(
+          Embed(
+            ordinal !== undefined ? (
+              <Text
+                className={`text-muted-foreground mr-2 font-semibold ${isLarge ? 'text-[15px]' : 'text-[13px]'}`}
+                style={styles.ordinal}
               >
-                <Text
-                  className={`text-[11px] font-semibold ${
-                    badge.tone === 'hot'
-                      ? 'text-destructive'
-                      : badge.tone === 'new'
-                        ? 'text-primary'
-                        : 'text-muted-foreground'
-                  }`}
-                >
-                  {badge.text}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          {/*
-            Wraps to a second line rather than truncating at one: the leading
-            ordinal takes horizontal space away from the title, and the widget
-            column is the narrowest surface a trend is shown in, so a long
-            multi-word name would otherwise be cut mid-word. Two lines is the
-            cap — beyond that a runaway name would push the whole list down.
-          */}
-          <Text
-            className={`text-foreground font-bold ${isLarge ? 'text-[16px]' : 'text-[14px]'}`}
-            numberOfLines={2}
-          >
-            {trend.displayName || trend.text}
-          </Text>
-          {trend.description ? (
-            <Text
-              className={`text-muted-foreground ${isLarge ? 'text-[13px] mt-1' : 'text-[12px] mt-0.5'}`}
-              numberOfLines={isLarge ? 2 : 1}
-            >
-              {trend.description}
-            </Text>
-          ) : null}
-          {faces.length > 0 ? (
-            <View className="mt-1.5 flex-row">
-              <AccountAvatarGroup
-                items={faces}
-                size={TREND_FACE_SIZE}
-                max={faces.length}
-                variant={MEDIA_VARIANT_AVATAR}
-              />
-            </View>
-          ) : null}
-        </View>
-        {series ? (
-          <View className="items-end">
-            <Sparkline
-              data={series}
-              width={50}
-              height={24}
-              shape="sharp"
-              color={theme.colors.primary}
-            />
-          </View>
-        ) : DirectionIcon ? (
-          <View className="items-end">
-            <DirectionIcon
-              width={DIRECTION_ICON_SIZE}
-              height={DIRECTION_ICON_SIZE}
-              fill={theme.colors.textSecondary}
-            />
-          </View>
-        ) : null}
-      </View>
+                {ordinal}
+              </Text>
+            ) : null,
+          ),
+          VStack(
+            HStack(
+              RawText(getTrendLabel(trend, t))
+                .foreground('muted')
+                .font(isLarge ? 'sm' : 'xs'),
+              Embed(
+                badge ? (
+                  <View
+                    className={`ml-2 rounded-full px-1.5 py-0.5 ${
+                      badge.tone === 'hot'
+                        ? 'bg-destructive/10'
+                        : badge.tone === 'new'
+                          ? 'bg-primary/10'
+                          : 'bg-muted'
+                    }`}
+                  >
+                    <Text
+                      className={`text-[11px] font-semibold ${
+                        badge.tone === 'hot'
+                          ? 'text-destructive'
+                          : badge.tone === 'new'
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
+                      }`}
+                    >
+                      {badge.text}
+                    </Text>
+                  </View>
+                ) : null,
+              ),
+            )
+              .align('center')
+              .margin('bottom', '2xs'),
+            /*
+                  Wraps to a second line rather than truncating at one: the leading
+                  ordinal takes horizontal space away from the title, and the widget
+                  column is the narrowest surface a trend is shown in, so a long
+                  multi-word name would otherwise be cut mid-word. Two lines is the
+                  cap — beyond that a runaway name would push the whole list down.
+                */ RawText(trend.displayName || trend.text)
+              .foreground('foreground')
+              .weight('bold')
+              .font(isLarge ? '16' : '14')
+              .lines(2),
+            trend.description
+              ? RawText(trend.description)
+                  .foreground('muted')
+                  .font(isLarge ? 'sm' : 'xs')
+                  .margin('top', isLarge ? 'xs' : '2xs')
+                  .lines(isLarge ? 2 : 1)
+              : null,
+            faces.length > 0
+              ? HStack(
+                  Embed(
+                    <AccountAvatarGroup
+                      items={faces}
+                      size={TREND_FACE_SIZE}
+                      max={faces.length}
+                      variant={MEDIA_VARIANT_AVATAR}
+                    />,
+                  ),
+                ).margin('top', '6')
+              : null,
+          )
+            .flex('1')
+            .margin('right', 'md'),
+          Embed(
+            series
+              ? toElement(
+                  VStack(
+                    Embed(
+                      <Sparkline
+                        data={series}
+                        width={50}
+                        height={24}
+                        shape="sharp"
+                        color={theme.colors.primary}
+                      />,
+                    ),
+                  ).align('end'),
+                )
+              : DirectionIcon
+                ? toElement(
+                    VStack(
+                      Embed(
+                        <DirectionIcon
+                          width={DIRECTION_ICON_SIZE}
+                          height={DIRECTION_ICON_SIZE}
+                          fill={theme.colors.textSecondary}
+                        />,
+                      ),
+                    ).align('end'),
+                  )
+                : null,
+          ),
+        )
+          .flex('1')
+          .align('start')
+          .justify('between')
+          .margin('right', 'sm'),
+      )}
       {getMenuActions ? <WidgetItemMenu label={trend.text} {...getMenuActions(trend)} /> : null}
     </TouchableOpacity>
   );
@@ -265,16 +290,17 @@ export function TrendItemRowSkeleton({ showBorder = false }: { showBorder?: bool
       className={`flex-row items-center justify-between py-1.5 ${showBorder ? 'border-border' : ''}`}
       style={showBorder ? styles.itemBorder : undefined}
     >
-      <View className="flex-1 mr-2">
-        {/* The gap is the label row's own `mb-0.5`; Skeleton.Text reads only its width and line height. */}
-        <View className="mb-0.5">
-          <Skeleton.Text style={{ lineHeight: 16, width: 120 }} />
-        </View>
-        <Skeleton.Text style={{ lineHeight: 16, width: 160 }} />
-      </View>
-      <View className="p-1">
-        <Skeleton.Circle size={16} />
-      </View>
+      {toElement(
+        VStack(
+          /* The gap is the label row's own `mb-0.5`; Skeleton.Text reads only its width and line height. */ VStack(
+            Embed(<Skeleton.Text style={{ lineHeight: 16, width: 120 }} />),
+          ).margin('bottom', '2xs'),
+          Embed(<Skeleton.Text style={{ lineHeight: 16, width: 160 }} />),
+        )
+          .flex('1')
+          .margin('right', 'sm'),
+      )}
+      {toElement(VStack(Embed(<Skeleton.Circle size={16} />)).padding('all', 'xs'))}
     </View>
   );
 }

@@ -1,11 +1,8 @@
 import { Button } from '@oxy.so/bloom/button';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiFlagLine } from '@oxy.so/bloom/icons/RiFlagLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
@@ -34,11 +32,22 @@ import { useTopicRailStore } from '@/stores/topicRailStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { shareLink } from '@/utils/shareLink';
+import {
+  Button as LButton,
+  Embed,
+  Group as LGroup,
+  Header,
+  Icon,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /** How the topic's posts are ordered. `top` is the default, as on the mock. */
 type TopicSort = 'top' | 'latest';
 
-export default function TrendScreen() {
+export default screen(function TrendScreen() {
   // The TERM is the whole address. Everything shown about the trend is
   // resolved from it, never carried alongside it.
   const { name } = useLocalSearchParams<{ name: string }>();
@@ -167,26 +176,26 @@ export default function TrendScreen() {
 
   const headerActions = (
     <Button.Group accessibilityLabel={t('trend.topic.actions', { defaultValue: 'Acciones' })}>
-      <Button
-        iconOnly
-        leadingIcon={RiFlagLine}
-        accessibilityLabel={t('trend.topic.report', { defaultValue: 'Reportar' })}
-        onPress={reportTopic}
-      />
-      <Button
-        iconOnly
-        leadingIcon={RiShare2Line}
-        accessibilityLabel={t('widgetMenu.share', { defaultValue: 'Compartir' })}
-        onPress={shareTopic}
-      />
+      {toElement(
+        LButton(Icon(RiFlagLine))
+          .shape('circle')
+          .label(t('trend.topic.report', { defaultValue: 'Reportar' }))
+          .onPress(reportTopic),
+      )}
+      {toElement(
+        LButton(Icon(RiShare2Line))
+          .shape('circle')
+          .label(t('widgetMenu.share', { defaultValue: 'Compartir' }))
+          .onPress(shareTopic),
+      )}
       {trendActions ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild label={t('trend.topic.more', { defaultValue: 'Más' })}>
-            <Button
-              iconOnly
-              leadingIcon={RiMoreFill}
-              accessibilityLabel={t('trend.topic.more', { defaultValue: 'Más' })}
-            />
+            {toElement(
+              LButton(Icon(RiMoreFill))
+                .shape('circle')
+                .label(t('trend.topic.more', { defaultValue: 'Más' })),
+            )}
           </DropdownMenuTrigger>
           <DropdownMenuContent label={heading}>
             <DropdownMenuItem onPress={trendActions.onNotInterested}>
@@ -202,50 +211,66 @@ export default function TrendScreen() {
   );
 
   const listHeader = useMemo(
-    () => (
-      <View className="px-4 pb-2">
-        <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
-          {categoryLabel || t('trend.trendingLabel', { defaultValue: 'Trending' })}
-        </Text>
-        <Text className="text-[28px] leading-8 font-bold mb-2 text-foreground">{heading}</Text>
-        {updatedLabel ? (
-          <Text className="text-xs text-muted-foreground mb-3">{updatedLabel}</Text>
-        ) : null}
-        {statsLabel ? <Text className="text-sm text-foreground mb-2">{statsLabel}</Text> : null}
-        {summary ? <Text className="text-sm text-muted-foreground mb-2">{summary}</Text> : null}
-        {/* Native has no right rail: the same widgets sit under the header. */}
-        {Platform.OS !== 'web' && term ? <TopicInlineWidgets term={term} /> : null}
-        <Tabs
-          value={sort}
-          onValueChange={(value) => setSort(value as TopicSort)}
-          variant="underline"
-          fullWidth
-          // Pressing the sort you are on reselects the screen: back to the top, then a reload.
-          pressOpenTab="reselect"
-          label={t('trend.topic.order', { defaultValue: 'Orden' })}
-        >
-          <TabsTrigger value="top" label={t('trend.topic.sortTop', { defaultValue: 'Top' })} />
-          <TabsTrigger
-            value="latest"
-            label={t('trend.topic.sortLatest', { defaultValue: 'Latest' })}
-          />
-        </Tabs>
-      </View>
-    ),
+    () =>
+      toElement(
+        VStack(
+          LText(categoryLabel || t('trend.trendingLabel', { defaultValue: 'Trending' }))
+            .font('xs')
+            .leading('16px')
+            .foreground('muted')
+            .weight('medium')
+            .textCase('uppercase')
+            .tracking('wide')
+            .margin('bottom', 'xs'),
+          Embed(
+            <Text className="text-[28px] leading-8 font-bold mb-2 text-foreground">{heading}</Text>,
+          ),
+          updatedLabel
+            ? LText(updatedLabel)
+                .font('xs')
+                .leading('16px')
+                .foreground('muted')
+                .margin('bottom', 'md')
+            : null,
+          statsLabel
+            ? LText(statsLabel)
+                .font('14')
+                .leading('20px')
+                .foreground('foreground')
+                .margin('bottom', 'sm')
+            : null,
+          summary
+            ? LText(summary).font('14').leading('20px').foreground('muted').margin('bottom', 'sm')
+            : null,
+          /* Native has no right rail: the same widgets sit under the header. */ Embed(
+            Platform.OS !== 'web' && term ? <TopicInlineWidgets term={term} /> : null,
+          ),
+          Embed(
+            <Tabs
+              value={sort}
+              onValueChange={(value) => setSort(value as TopicSort)}
+              variant="underline"
+              fullWidth
+              // Pressing the sort you are on reselects the screen: back to the top, then a reload.
+              pressOpenTab="reselect"
+              label={t('trend.topic.order', { defaultValue: 'Orden' })}
+            >
+              <TabsTrigger value="top" label={t('trend.topic.sortTop', { defaultValue: 'Top' })} />
+              <TabsTrigger
+                value="latest"
+                label={t('trend.topic.sortLatest', { defaultValue: 'Latest' })}
+              />
+            </Tabs>,
+          ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('bottom', 'sm'),
+      ),
     [heading, summary, categoryLabel, updatedLabel, statsLabel, term, sort, t],
   );
 
-  return (
-    <Screen
-      scroll="auto"
-      header={
-        <PageHeader
-          title={heading}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          actions={headerActions}
-        />
-      }
-    >
+  return LGroup(
+    Embed(
       <SEO
         robots="index,follow"
         title={t('seo.trend.title', { topic: heading, defaultValue: '{{topic}} - Mention' })}
@@ -253,9 +278,15 @@ export default function TrendScreen() {
           topic: heading,
           defaultValue: 'Posts about {{topic}} on Mention',
         })}
-      />
-
-      <Feed type={feedType} listHeaderComponent={listHeader} />
-    </Screen>
-  );
-}
+      />,
+    ),
+    Embed(<Feed type={feedType} listHeaderComponent={listHeader} />),
+  )
+    .screenScroll('auto')
+    .header(
+      Header(heading)
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .toolbar(Embed(headerActions))
+        .inPage(),
+    );
+});

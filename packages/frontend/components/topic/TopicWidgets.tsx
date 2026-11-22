@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Text } from '@oxy.so/bloom/typography';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { PostUser, TrendRelatedDTO, TrendTopicResponse } from '@mention/shared-types';
@@ -12,6 +11,7 @@ import { useRouter } from '@/lib/navigation/router';
 import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** The topic's live numbers, shared by every widget below. */
 function useTopic(term: string) {
@@ -43,11 +43,20 @@ function TopicPeopleWidget({ authors }: { authors: PostUser[] }) {
   if (authors.length === 0) return null;
   return (
     <BaseWidget title={t('trend.topic.people', { defaultValue: 'Personas relevantes' })} divider>
-      <View className="gap-2">
-        {authors.map((user) => (
-          <ProfileCard key={user.id} profile={toProfileCard(user)} size="sm" showDivider={false} />
-        ))}
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            authors.map((user) => (
+              <ProfileCard
+                key={user.id}
+                profile={toProfileCard(user)}
+                size="sm"
+                showDivider={false}
+              />
+            )),
+          ),
+        ).spacing('sm'),
+      )}
     </BaseWidget>
   );
 }
@@ -61,41 +70,51 @@ function TopicMovementWidget({ topic }: { topic: TrendTopicResponse }) {
 
   return (
     <BaseWidget title={t('trend.topic.movement', { defaultValue: 'Cómo se mueve' })} divider>
-      <View className="gap-3">
-        {series.length > 1 ? (
-          <Sparkline
-            data={series}
-            width={240}
-            height={48}
-            shape="sharp"
-            color={theme.colors.primary}
-          />
-        ) : null}
-        <View className="flex-row justify-between">
-          <Stat
-            value={formatCompactNumber(topic.volume ?? 0)}
-            label={t('trend.topic.statPosts', { defaultValue: 'publicaciones' })}
-          />
-          <Stat
-            value={formatCompactNumber(topic.authorCount ?? 0)}
-            label={t('trend.topic.statPeople', { defaultValue: 'personas' })}
-          />
-          <Stat
-            value={`${momentumPercent}%`}
-            label={t('trend.topic.statMomentum', { defaultValue: 'ritmo' })}
-          />
-        </View>
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            series.length > 1 ? (
+              <Sparkline
+                data={series}
+                width={240}
+                height={48}
+                shape="sharp"
+                color={theme.colors.primary}
+              />
+            ) : null,
+          ),
+          HStack(
+            Embed(
+              <Stat
+                value={formatCompactNumber(topic.volume ?? 0)}
+                label={t('trend.topic.statPosts', { defaultValue: 'publicaciones' })}
+              />,
+            ),
+            Embed(
+              <Stat
+                value={formatCompactNumber(topic.authorCount ?? 0)}
+                label={t('trend.topic.statPeople', { defaultValue: 'personas' })}
+              />,
+            ),
+            Embed(
+              <Stat
+                value={`${momentumPercent}%`}
+                label={t('trend.topic.statMomentum', { defaultValue: 'ritmo' })}
+              />,
+            ),
+          ).justify('between'),
+        ).spacing('md'),
+      )}
     </BaseWidget>
   );
 }
 
 function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <View className="items-start">
-      <Text className="text-[18px] font-bold text-foreground">{value}</Text>
-      <Text className="text-xs text-muted-foreground">{label}</Text>
-    </View>
+  return toElement(
+    VStack(
+      LText(value).font('18').weight('bold').foreground('foreground'),
+      LText(label).font('xs').leading('16px').foreground('muted'),
+    ).align('start'),
   );
 }
 
@@ -106,25 +125,38 @@ function TopicRelatedWidget({ related }: { related: TrendRelatedDTO[] }) {
   if (related.length === 0) return null;
   return (
     <BaseWidget title={t('trend.topic.related', { defaultValue: 'Relacionados' })} divider>
-      <View className="gap-2">
-        {related.map((item) => (
-          <TouchableOpacity
-            key={item.term}
-            accessibilityRole="link"
-            onPress={() => router.push(`/t/${encodeURIComponent(item.term)}`)}
-          >
-            <Text className="text-[15px] font-bold text-foreground" numberOfLines={1}>
-              {item.displayName ?? item.term}
-            </Text>
-            <Text className="text-xs text-muted-foreground">
-              {t('trend.topic.relatedPosts', {
-                count: item.volume,
-                defaultValue: '{{count}} publicaciones',
-              })}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            related.map((item) => (
+              <TouchableOpacity
+                key={item.term}
+                accessibilityRole="link"
+                onPress={() => router.push(`/t/${encodeURIComponent(item.term)}`)}
+              >
+                {toElement(
+                  LText(item.displayName ?? item.term)
+                    .font('md')
+                    .weight('bold')
+                    .foreground('foreground')
+                    .lines(1),
+                )}
+                {toElement(
+                  LText(
+                    t('trend.topic.relatedPosts', {
+                      count: item.volume,
+                      defaultValue: '{{count}} publicaciones',
+                    }),
+                  )
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                )}
+              </TouchableOpacity>
+            )),
+          ),
+        ).spacing('sm'),
+      )}
     </BaseWidget>
   );
 }
@@ -158,9 +190,9 @@ export function TopicRailWidgets({ term }: { term: string }) {
 
 /** Stacked under the header, on native where there is no rail. */
 export function TopicInlineWidgets({ term }: { term: string }) {
-  return (
-    <View className="px-4 pb-2">
-      <TopicWidgetStack term={term} />
-    </View>
+  return toElement(
+    VStack(Embed(<TopicWidgetStack term={term} />))
+      .padding('horizontal', 'lg')
+      .padding('bottom', 'sm'),
   );
 }

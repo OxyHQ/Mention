@@ -20,6 +20,8 @@ import { WEB_BASE_URL } from '@/config';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 
+import { Embed, HStack, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+
 const MAX_ROOMS_DISPLAYED = 3;
 const LIVE_ROOMS_ROUTE = '/live-rooms';
 
@@ -55,27 +57,33 @@ const RoomRow = React.memo(function RoomRow({
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View className="flex-1 flex-row items-center gap-2">
-        <View
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
-        />
-        <View className="flex-1">
-          <Text variant="body-2-bold" numberOfLines={1}>
-            {room.title}
-          </Text>
-          <View className="flex-row items-center gap-1 mt-px">
-            <RiCustomerServiceLine width={11} height={11} fill={theme.colors.textSecondary} />
-            <Text
-              variant="caption-2-regular"
-              style={{ flex: 1, color: theme.colors.textSecondary }}
-              numberOfLines={1}
-            >
-              {listenerCount} listening · {hostName}
-            </Text>
-          </View>
-        </View>
-      </View>
+      {toElement(
+        HStack(
+          Embed(
+            <View
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
+            />,
+          ),
+          VStack(
+            LText(room.title).font('body-2').weight('bold').lines(1),
+            HStack(
+              Icon(RiCustomerServiceLine).size('11').foreground('muted'),
+              LText(listenerCount, ' listening · ', hostName)
+                .grow()
+                .foreground('muted')
+                .font('caption-2')
+                .lines(1),
+            )
+              .align('center')
+              .spacing('xs')
+              .margin('top', '1'),
+          ).flex('1'),
+        )
+          .flex('1')
+          .align('center')
+          .spacing('sm'),
+      )}
       <WidgetItemMenu label={room.title} {...getMenuActions(room)} />
     </TouchableOpacity>
   );
@@ -136,49 +144,59 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<RiBroadcastLine size="sm" fill={theme.colors.text} />}
+      icon={toElement(Icon(RiBroadcastLine).size('sm').foreground('foreground'))}
       divider={divider}
     >
-      {!hasSettled ? (
-        <View className="gap-2.5 py-1">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 8 }}>
-              <Skeleton.Circle size={6} />
-              <Skeleton.Col>
-                <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 180 }} />
-                <Skeleton.Text style={{ fontSize: 11, lineHeight: 13, width: 140 }} />
-              </Skeleton.Col>
-            </Skeleton.Row>
-          ))}
-        </View>
-      ) : (
-        <View className="gap-2">
-          <View>
-            {displayedRooms.map((room, index) => (
-              <RoomRow
-                key={room._id}
-                room={room}
-                isLast={index === displayedRooms.length - 1}
-                onPress={() =>
-                  router.push({
-                    pathname: '/live-rooms/live/[id]',
-                    params: { id: room._id },
-                  })
-                }
-                getMenuActions={getMenuActions}
-              />
-            ))}
-          </View>
-          <Button
-            appearance="plain"
-            size="sm"
-            onPress={handleShowMore}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            {t('common.showMore')}
-          </Button>
-        </View>
-      )}
+      {!hasSettled
+        ? toElement(
+            VStack(
+              Embed(
+                Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 8 }}>
+                    <Skeleton.Circle size={6} />
+                    <Skeleton.Col>
+                      <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 180 }} />
+                      <Skeleton.Text style={{ fontSize: 11, lineHeight: 13, width: 140 }} />
+                    </Skeleton.Col>
+                  </Skeleton.Row>
+                )),
+              ),
+            )
+              .padding('vertical', 'xs')
+              .spacing('10'),
+          )
+        : toElement(
+            VStack(
+              VStack(
+                Embed(
+                  displayedRooms.map((room, index) => (
+                    <RoomRow
+                      key={room._id}
+                      room={room}
+                      isLast={index === displayedRooms.length - 1}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/live-rooms/live/[id]',
+                          params: { id: room._id },
+                        })
+                      }
+                      getMenuActions={getMenuActions}
+                    />
+                  )),
+                ),
+              ),
+              Embed(
+                <Button
+                  appearance="plain"
+                  size="sm"
+                  onPress={handleShowMore}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  {t('common.showMore')}
+                </Button>,
+              ),
+            ).spacing('sm'),
+          )}
     </BaseWidget>
   );
 }

@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
-import { Text } from '@oxy.so/bloom/typography';
+import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 type BaseWidgetProps = {
   title?: string;
@@ -19,13 +18,16 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
     // reserve the spacing between them. Owning the margin here lets the
     // column collapse to nothing when every widget renders null.
     <Card appearance="plain" className="gap-2 mb-4" radius="radius-0">
-      {title && (
-        <View className="flex-row justify-between items-center">
-          <Text className="text-[15px] leading-6 font-bold text-foreground">{title}</Text>
-          {icon && <View>{icon}</View>}
-        </View>
-      )}
-      <View>{children}</View>
+      {title &&
+        toElement(
+          HStack(
+            LText(title).font('md').leading('24px').weight('bold').foreground('foreground'),
+            Embed(icon && toElement(VStack(Embed(icon)))),
+          )
+            .justify('between')
+            .align('center'),
+        )}
+      {toElement(VStack(Embed(children)))}
       {/* The rule under a widget in a stacked rail: 8px of the card's
                 gap plus this margin keep the 16px it always sat below. */}
       {divider ? <Divider style={{ marginTop: 8 }} /> : null}

@@ -1,11 +1,11 @@
-import { Screen } from '@oxy.so/bloom/screen';
 import { useTranslation } from 'react-i18next';
 import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
+import { Embed, Group, Header } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * Explore is a routed top-tab cluster: each tab is its own URL under `/explore`
@@ -28,7 +28,7 @@ const TABS = [
   { id: 'starter-packs', label: 'explore.tabs.starterPacks', href: '/explore/starter-packs' },
 ] as const satisfies readonly { id: string; label: string; href: Href }[];
 
-export default function ExploreLayout() {
+export default screen(function ExploreLayout() {
   const router = useRouter();
   const pushTab = (id: string) => {
     const tab = TABS.find((candidate) => candidate.id === id);
@@ -42,14 +42,29 @@ export default function ExploreLayout() {
     TABS.find((tab) => tab.href !== '/explore' && pathname.startsWith(`${tab.href}/`))?.id ??
     'all';
 
-  return (
-    <Screen
-      scroll="auto"
-      header={
-        <PageHeader
-          title={t('explore.title')}
-          presentation="floating"
-          actions={
+  return Group(
+    Embed(
+      <SEO
+        title={t('seo.explore.title')}
+        description={t('seo.explore.description')}
+        robots="index,follow"
+      />,
+    ),
+    Embed(
+      <Tabs value={activeTab} onValueChange={pushTab} pressOpenTab="reselect" variant="underline">
+        {TABS.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
+        ))}
+      </Tabs>,
+    ),
+    Embed(<Slot />),
+  )
+    .screenScroll('auto')
+    .header(
+      Header(t('explore.title'))
+        .presentation('floating')
+        .toolbar(
+          Embed(
             <Button
               appearance="subtle"
               tone="neutral"
@@ -57,22 +72,9 @@ export default function ExploreLayout() {
               icon={RiSearchLine}
               onPress={() => router.push('/search')}
               accessibilityLabel={t('common.search')}
-            />
-          }
-        />
-      }
-    >
-      <SEO
-        title={t('seo.explore.title')}
-        description={t('seo.explore.description')}
-        robots="index,follow"
-      />
-      <Tabs value={activeTab} onValueChange={pushTab} pressOpenTab="reselect" variant="underline">
-        {TABS.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
-        ))}
-      </Tabs>
-      <Slot />
-    </Screen>
-  );
-}
+            />,
+          ),
+        )
+        .inPage(),
+    );
+});

@@ -12,6 +12,8 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
+
 const ICON_SIZE = 20;
 
 /** What the ⋯ menu of a widget item does; the item owns both. */
@@ -44,7 +46,7 @@ export function WidgetItemMenu({ label, onNotInterested, onShare }: WidgetItemMe
           accessibilityLabel="More options"
           accessibilityRole="button"
         >
-          <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
+          {toElement(Icon(RiMoreFill).size('sm').foreground('muted'))}
         </TouchableOpacity>
       </DropdownMenuTrigger>
       <DropdownMenuContent label={label}>

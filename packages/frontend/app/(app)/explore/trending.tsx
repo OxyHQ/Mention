@@ -1,8 +1,8 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { Fragment, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Platform } from 'react-native';
+import { Text, Platform } from 'react-native';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
-import { ScreenScrollView, useScreenReselectHandler } from '@oxy.so/bloom/screen';
+import { useScreenReselectHandler } from '@oxy.so/bloom/screen';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -18,6 +18,8 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
 import { FONT_SIZES } from '@/styles/typography';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
+
+import { Embed, HStack, Icon, ScrollView, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Explore › Trending (route `/explore/trending`).
@@ -221,30 +223,42 @@ export default function ExploreTrendingScreen() {
 
   const renderRow = useCallback(
     (row: TrendRow) =>
-      row.kind === 'header' ? (
-        <View className="px-4 py-2" style={{ backgroundColor: theme.colors.backgroundSecondary }}>
-          <Text className="text-muted-foreground font-medium" style={{ fontSize: FONT_SIZES.sm }}>
-            {row.section.title}
-          </Text>
-        </View>
-      ) : (
-        <View className="px-4">
-          <TrendItemRow
-            trend={row.trend}
-            // Position within THIS section's rendered rows. `trend.rank` is the
-            // rank across the whole unfiltered batch, so it shows gaps here as
-            // soon as a reader hides one — and it means nothing at all in a
-            // history section, whose rows come from a different day's batch.
-            ordinal={row.index + 1}
-            onPress={(trend) => handleTrendPress(trend, row.section, row.index)}
-            // Parity with the widget: a trend could be hidden from the rail but
-            // not from the screen that exists to browse trends.
-            getMenuActions={getTrendMenuActions}
-            showBorder
-            size="large"
-          />
-        </View>
-      ),
+      row.kind === 'header'
+        ? toElement(
+            VStack(
+              Embed(
+                <Text
+                  className="text-muted-foreground font-medium"
+                  style={{ fontSize: FONT_SIZES.sm }}
+                >
+                  {row.section.title}
+                </Text>,
+              ),
+            )
+              .padding('horizontal', 'lg')
+              .padding('vertical', 'sm')
+              .background('surface'),
+          )
+        : toElement(
+            VStack(
+              Embed(
+                <TrendItemRow
+                  trend={row.trend}
+                  // Position within THIS section's rendered rows. `trend.rank` is the
+                  // rank across the whole unfiltered batch, so it shows gaps here as
+                  // soon as a reader hides one — and it means nothing at all in a
+                  // history section, whose rows come from a different day's batch.
+                  ordinal={row.index + 1}
+                  onPress={(trend) => handleTrendPress(trend, row.section, row.index)}
+                  // Parity with the widget: a trend could be hidden from the rail but
+                  // not from the screen that exists to browse trends.
+                  getMenuActions={getTrendMenuActions}
+                  showBorder
+                  size="large"
+                />,
+              ),
+            ).padding('horizontal', 'lg'),
+          ),
     [theme, handleTrendPress, getTrendMenuActions],
   );
 
@@ -252,28 +266,38 @@ export default function ExploreTrendingScreen() {
   // Rendered unconditionally: an entry point that appears only when there
   // happens to be a summary is an entry point most readers never see.
   const renderHeader = useCallback(
-    () => (
-      <View className="px-4 pt-3 pb-1 gap-2">
-        {summary ? (
-          <Text
-            className="text-muted-foreground"
-            style={{ fontSize: FONT_SIZES.sm, lineHeight: 18 }}
-          >
-            {summary}
-          </Text>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/trend-graph')}
-          className="flex-row items-center gap-1 self-start"
-        >
-          <RiNodeTree width={14} height={14} fill={theme.colors.primary} />
-          <Text className="text-primary" style={{ fontSize: FONT_SIZES.sm }}>
-            {t('trendGraph.openLink')}
-          </Text>
-        </Pressable>
-      </View>
-    ),
+    () =>
+      toElement(
+        VStack(
+          Embed(
+            summary ? (
+              <Text
+                className="text-muted-foreground"
+                style={{ fontSize: FONT_SIZES.sm, lineHeight: 18 }}
+              >
+                {summary}
+              </Text>
+            ) : null,
+          ),
+          HStack(
+            Icon(RiNodeTree).size('14').foreground('primary'),
+            Embed(
+              <Text className="text-primary" style={{ fontSize: FONT_SIZES.sm }}>
+                {t('trendGraph.openLink')}
+              </Text>,
+            ),
+          )
+            .align('center')
+            .spacing('xs')
+            .alignSelf('start')
+            .role('button')
+            .onPress(() => router.push('/trend-graph')),
+        )
+          .padding('horizontal', 'lg')
+          .padding('top', 'md')
+          .padding('bottom', 'xs')
+          .spacing('sm'),
+      ),
     [summary, router, theme, t],
   );
 
@@ -294,14 +318,16 @@ export default function ExploreTrendingScreen() {
   // and paginate from the window's end. NATIVE: a virtualized list bound to the
   // Explore screen.
   if (IS_WEB) {
-    return (
-      <ScreenScrollView onEndReached={handleLoadMore} onEndReachedThreshold={0.5}>
-        {renderHeader()}
-        {rows.length === 0
-          ? empty
-          : rows.map((row) => <Fragment key={rowKey(row)}>{renderRow(row)}</Fragment>)}
-        {renderFooter()}
-      </ScreenScrollView>
+    return toElement(
+      ScrollView(
+        Embed(renderHeader()),
+        Embed(
+          rows.length === 0
+            ? empty
+            : rows.map((row) => <Fragment key={rowKey(row)}>{renderRow(row)}</Fragment>),
+        ),
+        Embed(renderFooter()),
+      ).onEndReached(handleLoadMore, 0.5),
     );
   }
 
