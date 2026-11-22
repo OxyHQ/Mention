@@ -1,4 +1,5 @@
 import type React from 'react';
+import { StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { PostVisibility } from '@mention/shared-types/post';
 import { setActiveStore, Store, useListState } from '@oxy.so/bloom-data';
@@ -6,6 +7,8 @@ import { Feed, feedKey } from '@/data/feeds';
 import type { FeedItem } from '@/db/schema';
 import { applyServerViewCounts, usePostsStore } from '@/stores/postsStore';
 import LiveVideoPosterCell from '../LiveVideoPosterCell';
+// The cell draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The profile grids' play count, end to end: a real `postsStore` write must
@@ -109,20 +112,26 @@ const makePost = (id: string, views: number | null): FeedItem => ({
   },
 });
 
-/** Mount inside an async act so the first render's effects settle. */
+/** Mount inside an async act so the first render's effects settle, under the app's theme. */
 async function mount(element: React.ReactElement) {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }
 
-/** The strings the cell paints as labels, as `VideoPosterCell.test.tsx` reads them. */
+/** The strings the cell paints as labels (its metadata texts, under their shadow), as `VideoPosterCell.test.tsx` reads them. */
 function labels(renderer: TestRenderer.ReactTestRenderer): string[] {
   return renderer.root
     .findAll((node) => String(node.type) === 'Text', { deep: true })
-    .filter((node) => typeof (node.props as { className?: unknown }).className === 'string')
+    .filter(
+      (node) =>
+        StyleSheet.flatten((node.props as { style?: StyleProp<TextStyle> }).style)
+          ?.textShadowColor !== undefined,
+    )
     .flatMap((node) => node.children.filter((child): child is string => typeof child === 'string'));
 }
 
@@ -279,22 +288,14 @@ describe('profile grid cells repaint from a server view count', () => {
       usePostsStore.getState().cachePosts(posts);
     });
 
-    let renderer!: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      renderer = TestRenderer.create(
-        // biome-ignore lint/complexity/noUselessFragments: create() takes one element, not an array
-        <>
-          {posts.map((_, index) => (
-            <LiveVideoPosterCell
-              key={index}
-              {...CELL}
-              viewsPostId={`p${index}`}
-              fallbackViews={1}
-            />
-          ))}
-        </>,
-      );
-    });
+    const renderer = await mount(
+      // biome-ignore lint/complexity/noUselessFragments: the provider takes one child, not an array
+      <>
+        {posts.map((_, index) => (
+          <LiveVideoPosterCell key={index} {...CELL} viewsPostId={`p${index}`} fallbackViews={1} />
+        ))}
+      </>,
+    );
 
     // Vacuity floor: without this a broken label traversal would report "no cell
     // moved" as a pass.
