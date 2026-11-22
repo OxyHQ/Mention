@@ -1,10 +1,10 @@
 import type React from 'react';
 import { useCallback } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -12,7 +12,7 @@ import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 
-import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, RawText, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
 
 /**
  * Profile banner picker/preview. Self-contained: reads/writes
@@ -27,9 +27,36 @@ import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-languag
  */
 const BANNER_PREVIEW_STYLE = { width: '100%', aspectRatio: 3 } as const;
 
+/** The hint lines up under the title, past its 22pt glyph and the 12pt gap. */
+const banner = defineTokens({ space: { hintInset: 34 } });
+// What the classes drew, as plain objects (inline, as the classes were).
+/** The edit bar along the preview's bottom: black at 60% under the glyphs. */
+const EDIT_BAR_STYLE: ViewStyle = {
+  position: 'absolute',
+  insetInline: 0,
+  bottom: 0,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+};
+/** The empty banner: a 3:1 drop target at least 112pt tall, its outline dashed. */
+const EMPTY_BANNER_STYLE: ViewStyle = {
+  aspectRatio: 3,
+  minHeight: 112,
+  borderRadius: 16,
+  borderWidth: 1.5,
+  borderStyle: 'dashed',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+};
 export const BannerSection: React.FC = () => {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const colorTokens = useColorTokens();
   const { showBottomSheet, oxyServices } = useAuth();
   const headerImageRef = useAppearanceStore((state) => state.mySettings?.profileHeaderImage ?? '');
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
@@ -81,11 +108,11 @@ export const BannerSection: React.FC = () => {
         )
           .align('center')
           .spacing('md'),
-        Embed(
-          <Text className="text-sm text-muted-foreground pl-[34px]">
-            {t('settings.uploadHeaderHint', 'Recommended: 1500x500px')}
-          </Text>,
-        ),
+        RawText(t('settings.uploadHeaderHint', 'Recommended: 1500x500px'))
+          .font('14')
+          .leading('20px')
+          .foreground('muted')
+          .padding('left', banner.space.hintInset),
       ).spacing('xs'),
       Embed(
         headerImageRef ? (
@@ -105,9 +132,10 @@ export const BannerSection: React.FC = () => {
                   contentFit="cover"
                 />,
               ),
-              Embed(
-                <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/60 px-3 py-2">
-                  {toElement(
+              // A View: the bar spans the preview by its inline insets, which no modifier says.
+              Embed((render) => (
+                <View style={EDIT_BAR_STYLE}>
+                  {render(
                     HStack(
                       Embed(<RiCameraLine width={17} fill={colors.primaryForeground} />),
                       RawText(t('common.edit'))
@@ -119,7 +147,7 @@ export const BannerSection: React.FC = () => {
                       .align('center')
                       .spacing('sm'),
                   )}
-                  {toElement(
+                  {render(
                     VStack(Embed(<RiDeleteBinLine width={17} fill={colors.primaryForeground} />))
                       .frame({ width: '36', height: '36' })
                       .background('black/40')
@@ -133,8 +161,8 @@ export const BannerSection: React.FC = () => {
                       .role('button')
                       .label(`${t('common.remove')} ${t('settings.profileHeader')}`),
                   )}
-                </View>,
-              ),
+                </View>
+              )),
             )
               .background('mutedFill')
               .border('border', 'thin')
@@ -145,8 +173,12 @@ export const BannerSection: React.FC = () => {
               .label(`${t('common.edit')} ${t('settings.profileHeader')}`),
           )
         ) : (
+          // A Pressable: its 1.5pt dashed outline has no modifier.
           <Pressable
-            className="aspect-[3/1] min-h-28 rounded-2xl border-[1.5px] border-dashed border-border bg-muted items-center justify-center gap-2"
+            style={[
+              EMPTY_BANNER_STYLE,
+              { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
+            ]}
             onPress={openHeaderPicker}
             accessibilityRole="button"
             accessibilityLabel={t('settings.uploadHeader', 'Upload header image')}
