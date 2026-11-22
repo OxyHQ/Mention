@@ -1,7 +1,4 @@
-import { tokens } from '@oxy.so/bloom/styles';
-import { Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiInformationLine } from '@oxy.so/bloom/icons/RiInformationLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
@@ -47,7 +44,6 @@ export function CommunityNoteCard({
   onRate,
 }: CommunityNoteCardProps) {
   const { t } = useTranslation();
-  const { colors } = useTheme();
   // Held by the NOTE (`readerStateStore`), not the card: in a feed the card is
   // drawn by a recycled row, and a card-held boolean opened the next post's
   // note and folded this one shut after a scroll away and back.
@@ -58,6 +54,7 @@ export function CommunityNoteCard({
   // the narrowest column the card renders in.
   const isLong = note.text.length > COLLAPSED_NOTE_CHARS;
   const collapsed = !isRate && !expanded && isLong;
+  const noteText = RawText(note.text).foreground('foreground').font('14').leading('20px');
 
   return toElement(
     VStack(
@@ -90,11 +87,7 @@ export function CommunityNoteCard({
               .font('xs'),
           ),
       VStack(
-        RawText(note.text)
-          .foreground('foreground')
-          .font('14')
-          .leading('20px')
-          .lines(collapsed ? 3 : undefined),
+        collapsed ? noteText.lines(3) : noteText,
         collapsed
           ? RawText(t('communityNotes.card.more', { defaultValue: 'Show more' }))
               .foreground('primary')
@@ -104,19 +97,14 @@ export function CommunityNoteCard({
       )
         .disabled(!collapsed)
         .onPress(toggleExpanded),
-      Embed(
-        isRate
-          ? note.sourceUrls.map((url) => (
-              <Pressable
-                key={url}
-                onPress={() => openExternalLink(url)}
-                hitSlop={tokens.hitSlop.sm}
-              >
-                {toElement(RawText(displayUrl(url)).foreground('primary').font('14').lines(2))}
-              </Pressable>
-            ))
-          : null,
-      ),
+      isRate
+        ? note.sourceUrls.map((url) =>
+            VStack(RawText(displayUrl(url)).foreground('primary').font('14').lines(2))
+              .onPress(() => openExternalLink(url))
+              .hitSlop('sm')
+              .id(url),
+          )
+        : null,
       Embed(
         isRate
           ? note.viewerRating
