@@ -8,6 +8,12 @@ import { CommunityNotesScreen } from '../CommunityNotesScreen';
 import { NoteSubmittedSheet } from '../NoteSubmittedSheet';
 import { WritingTipsSheet } from '../WritingTipsSheet';
 import { useCommunityNoteSheets } from '../useCommunityNoteSheets';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 /**
  * The community-note flows around the forms: the explainer sheets, the hub,
@@ -22,10 +28,12 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { text: '#000', textSecondary: '#666' } }),
 }));
 jest.mock('@oxy.so/bloom/icons', () => new Proxy({}, { get: () => () => null }));
 jest.mock('@oxy.so/bloom/page-header', () => ({
+  ...jest.requireActual('@oxy.so/bloom/page-header'),
   PageHeader: ({ accessory }: { accessory?: React.ReactNode }) => accessory ?? null,
 }));
 jest.mock('@oxy.so/bloom/screen', () => ({
@@ -98,7 +106,7 @@ const texts = (tree: TestRenderer.ReactTestRenderer) =>
 function render(element: React.ReactElement) {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(element);
+    tree = TestRenderer.create(themed(element));
   });
   return tree;
 }
