@@ -1,7 +1,7 @@
 import { experienceService } from '@/services/experienceService';
 import { useEffect, useState } from 'react';
 import { ClarityError } from '@clarity.surf/sdk';
-import { ScrollView, Text } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
@@ -22,7 +22,7 @@ import {
   type ExperienceInput,
 } from '@clarity.surf/sdk/experience';
 import type { Organization, SafetyOrganizationIdentity } from '@oxy.so/contracts';
-import { ExperienceEmployerField } from './ExperienceEmployerField';
+import { ExperienceEmployerField, alertText } from './ExperienceEmployerField';
 import { confirmDialog } from '@/utils/alerts';
 
 import {
@@ -147,13 +147,7 @@ export function ExperienceEditor({
             />
           </TextField>,
         ),
-        Embed(
-          invalid ? (
-            <Text accessibilityRole="alert" className="text-error-primary text-sm">
-              {t(`profile.experience.validation.${key}`)}
-            </Text>
-          ) : null,
-        ),
+        invalid ? alertText(t(`profile.experience.validation.${key}`)) : null,
       ).spacing('xs'),
     );
   }
@@ -248,10 +242,9 @@ export function ExperienceEditor({
               .font('14')
               .leading('20px'),
             Embed(textField('description', 5000)),
-            Embed(
-              save.isError || remove.isError ? (
-                <Text accessibilityRole="alert" className="text-error-primary text-sm">
-                  {t(
+            save.isError || remove.isError
+              ? alertText(
+                  t(
                     remove.isError
                       ? 'profile.experience.deleteError'
                       : save.error instanceof ClarityError &&
@@ -261,10 +254,9 @@ export function ExperienceEditor({
                             save.error.code === 'invalid_employer'
                           ? 'profile.experience.validation.employerOxyAccountId'
                           : 'profile.experience.saveError',
-                  )}
-                </Text>
-              ) : null,
-            ),
+                  ),
+                )
+              : null,
           ).spacing('lg'),
         )}
       </ScrollView>

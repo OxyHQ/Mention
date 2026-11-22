@@ -2,7 +2,6 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import { organizationDirectoryQueryKeys } from '@/lib/viewerQueryKeys';
 import { useState } from 'react';
-import { Text } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
@@ -38,6 +37,14 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/**
+ * A field's error, announced as an alert. 14/20 in the inherited ink: its class named the app's
+ * `text-error-primary`, which no stylesheet defines, so it was never drawn red.
+ */
+export function alertText(message: string) {
+  return RawText(message).font('14').leading('20px').role('alert');
+}
 
 /** Selection and neutral creation both address Oxy's one organization directory. */
 export function ExperienceEmployerField({
@@ -315,20 +322,10 @@ export function ExperienceEmployerField({
                         editable={!create.isPending}
                       />,
                     ),
-                    Embed(
-                      createInvalid ? (
-                        <Text accessibilityRole="alert" className="text-error-primary text-sm">
-                          {t('profile.experience.organizationInvalid')}
-                        </Text>
-                      ) : null,
-                    ),
-                    Embed(
-                      create.isError ? (
-                        <Text accessibilityRole="alert" className="text-error-primary text-sm">
-                          {t('profile.experience.organizationCreateError')}
-                        </Text>
-                      ) : null,
-                    ),
+                    createInvalid ? alertText(t('profile.experience.organizationInvalid')) : null,
+                    create.isError
+                      ? alertText(t('profile.experience.organizationCreateError'))
+                      : null,
                     HStack(
                       LButton(LText(t('common.cancel', { defaultValue: 'Cancel' })))
                         .style('plain')
@@ -366,13 +363,7 @@ export function ExperienceEmployerField({
           </>
         ),
       ),
-      Embed(
-        invalid ? (
-          <Text accessibilityRole="alert" className="text-error-primary text-sm">
-            {t('profile.experience.validation.employerOxyAccountId')}
-          </Text>
-        ) : null,
-      ),
+      invalid ? alertText(t('profile.experience.validation.employerOxyAccountId')) : null,
     ).spacing('sm'),
   );
 }

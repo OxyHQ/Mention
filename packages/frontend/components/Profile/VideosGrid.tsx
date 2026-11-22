@@ -174,7 +174,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
       restorationKey={restorationKey}
       data={videoItems}
       renderCell={renderCell}
-      containerClassName="w-full"
+      fullWidth
       ownsScroll={ownsScroll}
       listHeaderComponent={listHeaderComponent}
       listContentHeaderComponent={listContentHeaderComponent}

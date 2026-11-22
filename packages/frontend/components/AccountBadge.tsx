@@ -54,8 +54,6 @@ interface IdentityBadgeVisualProps {
   size?: number;
   /** Icon fill. Defaults to the muted foreground tone. */
   color?: string;
-  /** Layout class for the wrapper (e.g. `self-center ml-1` at a call site). */
-  containerClassName?: string;
   /** Style for the wrapper (e.g. the baseline-nudge transform in UserName). */
   style?: StyleProp<ViewStyle>;
 }
@@ -84,7 +82,6 @@ function IdentityMarker({
   onExplain,
   size = 15,
   color,
-  containerClassName,
   style,
 }: IdentityMarkerProps) {
   const handlePress = useCallback(
@@ -106,12 +103,7 @@ function IdentityMarker({
     // gets from the glyph, so it stays in the accessibility tree — it simply
     // stops being announced as something that can be activated.
     return (
-      <View
-        className={containerClassName}
-        style={style}
-        accessibilityRole="image"
-        accessibilityLabel={a11yLabel}
-      >
+      <View style={style} accessibilityRole="image" accessibilityLabel={a11yLabel}>
         {icon}
       </View>
     );
@@ -123,7 +115,6 @@ function IdentityMarker({
       accessibilityRole="button"
       accessibilityLabel={a11yLabel}
       hitSlop={tokens.hitSlop.md}
-      className={containerClassName}
       style={style}
     >
       {icon}

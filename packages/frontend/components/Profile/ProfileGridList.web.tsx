@@ -26,7 +26,8 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   restorationKey,
   data,
   renderCell,
-  containerClassName,
+  background,
+  fullWidth,
   emptyComponent,
   listHeaderComponent,
   listStickyHeaderComponent,
@@ -62,7 +63,10 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   }, [data]);
 
   return (
-    <div ref={rootRef} className={containerClassName}>
+    <div
+      ref={rootRef}
+      style={{ backgroundColor: background, width: fullWidth ? '100%' : undefined }}
+    >
       <VirtualList
         restorationKey={restorationKey}
         data={rows}
