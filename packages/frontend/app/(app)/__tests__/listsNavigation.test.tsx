@@ -4,6 +4,7 @@ jest.mock('@/hooks/useSupervisionState', () => ({
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 
 /** The real query and service revalidate when this screen regains focus. */
 type AuthState = {
@@ -100,9 +101,11 @@ async function render(): Promise<TestRenderer.ReactTestRenderer> {
   let tree!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     tree = mounted = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <ListsScreen />
-      </QueryClientProvider>,
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
+        <QueryClientProvider client={client}>
+          <ListsScreen />
+        </QueryClientProvider>
+      </BloomProvider>,
     );
   });
   return tree;
@@ -198,9 +201,11 @@ it('revalidates followed lists on return with one batched resolution', async () 
   mockGetFollowing.mockResolvedValue({ items: [{ entityId: 'viewer-2-list' }] });
   await act(async () => {
     tree.update(
-      <QueryClientProvider client={client}>
-        <ListsScreen />
-      </QueryClientProvider>,
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
+        <QueryClientProvider client={client}>
+          <ListsScreen />
+        </QueryClientProvider>
+      </BloomProvider>,
     );
   });
   await waitForList('viewer-2-list');

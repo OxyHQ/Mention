@@ -7,6 +7,7 @@ import type React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 import type { PostUser } from '@mention/shared-types';
 import type { CustomFeedDetail } from '@/services/customFeedsService';
 import enMessages from '@/locales/en.json';
@@ -134,6 +135,7 @@ jest.mock('@oxy.so/core', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       primary: '#1d4ed8',
@@ -276,7 +278,7 @@ jest.mock('@oxy.so/bloom/icons', () => ({
 
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text: RNText };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text: RNText };
 });
 
 jest.mock('@/hooks/useFeedPreferences', () => ({
@@ -338,9 +340,11 @@ async function renderScreen(): Promise<TestRenderer.ReactTestRenderer> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={queryClient}>
-        <CustomFeedTimelineScreen />
-      </QueryClientProvider>,
+      <BloomProvider fonts={false} haptics={false} defaultMode="light">
+        <QueryClientProvider client={queryClient}>
+          <CustomFeedTimelineScreen />
+        </QueryClientProvider>
+      </BloomProvider>,
     );
   });
   await flush();
