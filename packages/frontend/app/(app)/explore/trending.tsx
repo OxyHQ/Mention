@@ -3,7 +3,6 @@ import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { useScreenReselectHandler } from '@oxy.so/bloom/screen';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +24,8 @@ import {
   RawText,
   ScrollView,
   VStack,
+  VirtualList,
+  type VirtualListRow,
   toElement,
 } from '@oxy.so/bloom-language';
 
@@ -52,6 +53,10 @@ type TrendRow =
   | { kind: 'trend'; section: TrendSection; trend: Trend; index: number };
 
 const IS_WEB = Platform.OS === 'web';
+
+function rowKind(row: TrendRow): TrendRow['kind'] {
+  return row.kind;
+}
 
 function rowKey(row: TrendRow): string {
   return row.kind === 'header'
@@ -263,33 +268,33 @@ export default function ExploreTrendingScreen() {
   // The relation graph explains this list, so its way in belongs ON the list.
   // Rendered unconditionally: an entry point that appears only when there
   // happens to be a summary is an entry point most readers never see.
-  const renderHeader = useCallback(
+  const header = useMemo(
     () =>
-      toElement(
-        VStack(
-          summary ? RawText(summary).foreground('muted').font('xs').leading('18px') : null,
-          HStack(
-            Icon(RiNodeTree).size('14').foreground('primary'),
-            RawText(t('trendGraph.openLink')).foreground('primary').font('xs'),
-          )
-            .align('center')
-            .spacing('xs')
-            .alignSelf('start')
-            .role('button')
-            .onPress(() => router.push('/trend-graph')),
+      VStack(
+        summary ? RawText(summary).foreground('muted').font('xs').leading('18px') : null,
+        HStack(
+          Icon(RiNodeTree).size('14').foreground('primary'),
+          RawText(t('trendGraph.openLink')).foreground('primary').font('xs'),
         )
-          .padding('horizontal', 'lg')
-          .padding('top', 'md')
-          .padding('bottom', 'xs')
-          .spacing('sm'),
-      ),
-    [summary, router, theme, t],
+          .align('center')
+          .spacing('xs')
+          .alignSelf('start')
+          .role('button')
+          .onPress(() => router.push('/trend-graph')),
+      )
+        .padding('horizontal', 'lg')
+        .padding('top', 'md')
+        .padding('bottom', 'xs')
+        .spacing('sm'),
+    [summary, router, t],
   );
 
-  const renderFooter = useCallback(() => {
-    if (!historyQuery.isFetchingNextPage) return null;
-    return <ListSkeleton count={2} />;
-  }, [historyQuery.isFetchingNextPage]);
+  const footer = historyQuery.isFetchingNextPage ? Embed(<ListSkeleton count={2} />) : null;
+
+  const renderItem = useCallback(
+    ({ item }: VirtualListRow<TrendRow>) => renderRow(item),
+    [renderRow],
+  );
 
   const isInitialLoading = historyQuery.isPending && visibleTrends.length === 0 && trendsLoading;
 
@@ -305,32 +310,27 @@ export default function ExploreTrendingScreen() {
   if (IS_WEB) {
     return toElement(
       ScrollView(
-        Embed(renderHeader()),
+        header,
         Embed(
           rows.length === 0
             ? empty
             : rows.map((row) => <Fragment key={rowKey(row)}>{renderRow(row)}</Fragment>),
         ),
-        Embed(renderFooter()),
+        footer,
       ).onEndReached(handleLoadMore, 0.5),
     );
   }
 
-  return (
-    <VirtualList
-      screen={{}}
-      data={rows}
-      renderItem={({ item }) => renderRow(item)}
-      getItemType={(row) => row.kind}
-      keyExtractor={rowKey}
-      stickyHeaderIndices={headerIndices}
-      ListHeaderComponent={renderHeader}
-      ListFooterComponent={renderFooter}
-      onEndReached={handleLoadMore}
-      onEndReachedThreshold={0.5}
-      onRefresh={handleRefresh}
-      refreshing={trendsLoading || historyQuery.isRefetching}
-      ListEmptyComponent={empty}
-    />
+  return toElement(
+    VirtualList(rows, renderItem)
+      .screen()
+      .itemType(rowKind)
+      .itemKey(rowKey)
+      .stickyIndices(headerIndices)
+      .headerContent(header)
+      .footerContent(footer)
+      .onEndReached(handleLoadMore, 0.5)
+      .refreshable([trendsLoading || historyQuery.isRefetching, handleRefresh])
+      .emptyState(Embed(empty)),
   );
 }
