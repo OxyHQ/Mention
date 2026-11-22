@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 type ExplainerStep = 0 | 1 | 2;
 
@@ -112,14 +112,16 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
 
   const dots = useMemo(
     () =>
-      STEP_KEYS.map((keys, index) => (
-        <View
-          key={keys.title}
-          className={
-            index === step ? 'w-2 h-2 rounded-full bg-primary' : 'w-2 h-2 rounded-full bg-border'
-          }
-        />
-      )),
+      STEP_KEYS.map((keys, index) =>
+        toElement(
+          VStack()
+            .frame({ width: 'sm', height: 'sm' })
+            .corner('infinite')
+            .when(index === step, (v) => v.background('primary'))
+            .when(!(index === step), (v) => v.background('border')),
+          keys.title,
+        ),
+      ),
     [step],
   );
 
@@ -130,20 +132,37 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
       placement={{ base: 'bottom', md: 'center' }}
       label={t('channels.explainer.title')}
     >
-      <View className="items-center gap-4 py-4">
-        <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center">
-          <RiMegaphoneLine width={40} height={40} fill={colors.primary} />
-        </View>
-        <Text className="text-foreground text-xl font-bold text-center">
-          {t(STEP_KEYS[step].title)}
-        </Text>
-        <Text className="text-muted-foreground text-base leading-6 text-center">
-          {t(STEP_KEYS[step].body)}
-        </Text>
-      </View>
-
-      <View className="flex-row items-center justify-center gap-2 py-4">{dots}</View>
-
+      {toElement(
+        VStack(
+          VStack(Icon(RiMegaphoneLine).size('40').foreground('primary'))
+            .frame({ width: '80', height: '80' })
+            .background('primary/10')
+            .corner('infinite')
+            .align('center')
+            .justify('center'),
+          RawText(t(STEP_KEYS[step].title))
+            .foreground('foreground')
+            .font('xl')
+            .leading('28px')
+            .weight('bold')
+            .textAlign('center'),
+          RawText(t(STEP_KEYS[step].body))
+            .foreground('muted')
+            .font('16')
+            .leading('24px')
+            .textAlign('center'),
+        )
+          .padding('vertical', 'lg')
+          .align('center')
+          .spacing('lg'),
+      )}
+      {toElement(
+        HStack(Embed(dots))
+          .padding('vertical', 'lg')
+          .align('center')
+          .justify('center')
+          .spacing('sm'),
+      )}
       {/*
        * ONE ROW, and each button takes an equal half of it.
        *
@@ -157,20 +176,34 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
        * and Italian "Indietro / Ho capito", both well past any English one, so
        * English is the wrong string to eyeball this with.
        */}
-      <View className="flex-row items-center gap-3">
-        <Button
-          appearance="plain"
-          tone="neutral"
-          size="lg"
-          className="flex-1"
-          onPress={onSecondary}
-        >
-          {isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')}
-        </Button>
-        <Button appearance="solid" tone="accent" size="lg" className="flex-1" onPress={onPrimary}>
-          {isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')}
-        </Button>
-      </View>
+      {toElement(
+        HStack(
+          Embed(
+            <Button
+              appearance="plain"
+              tone="neutral"
+              size="lg"
+              className="flex-1"
+              onPress={onSecondary}
+            >
+              {isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')}
+            </Button>,
+          ),
+          Embed(
+            <Button
+              appearance="solid"
+              tone="accent"
+              size="lg"
+              className="flex-1"
+              onPress={onPrimary}
+            >
+              {isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')}
+            </Button>,
+          ),
+        )
+          .align('center')
+          .spacing('md'),
+      )}
     </Dialog>
   );
 }

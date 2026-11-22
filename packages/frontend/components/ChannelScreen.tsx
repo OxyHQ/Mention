@@ -24,7 +24,6 @@ import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
 
 // Components
 import UserName from './UserName';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { DropdownMenuItem } from '@oxy.so/bloom/dropdown-menu';
 import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
@@ -32,7 +31,6 @@ import { WEB_BASE_URL } from '@/config';
 import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
 import { shareLink } from '@/utils/shareLink';
 import { profileRouteFamily } from '@/components/Profile/profileRoute';
-
 // Profile primitives
 import {
   ChannelActions,
@@ -53,7 +51,17 @@ import {
   type LaneTabInput,
   type ProfileTab,
 } from './Profile';
+
 import { SuggestedUsers } from './suggestions/SuggestedUsers';
+import {
+  Button as LButton,
+  Embed,
+  Icon,
+  TabItem,
+  Tabs as LTabs,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ChannelProfileProps {
   username: string;
@@ -285,13 +293,13 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   const leadingItems = operatesThisChannel ? (
     <>
       <DropdownMenuItem
-        leading={<RiBarChartBoxLine width={22} height={22} fill={colors.text} />}
+        leading={toElement(Icon(RiBarChartBoxLine).size('22').foreground('foreground'))}
         onPress={() => router.push(`/c/${handle}/insights`)}
       >
         {t('insights.title', { defaultValue: 'Insights' })}
       </DropdownMenuItem>
       <DropdownMenuItem
-        leading={<RiSettings3Line width={22} height={22} fill={colors.text} />}
+        leading={toElement(Icon(RiSettings3Line).size('22').foreground('foreground'))}
         onPress={() => router.push(`/c/${handle}/settings`)}
       >
         {t('channels.settings.title', { defaultValue: 'Channel settings' })}
@@ -334,54 +342,62 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     the left-aligned body starts after — so it gets an equal
                     gap on both sides rather than the tighter `mb` a control
                     tucked under a left-aligned name row wanted. */}
-        <View className="mt-4 mb-4">
-          <ChannelActions
-            profileId={profileData.id}
-            isFollowing={profileData.isFollowing}
-            username={profileData.username}
-            FollowButtonComponent={OxyFollowButton}
-          />
-        </View>
+        {toElement(
+          VStack(
+            Embed(
+              <ChannelActions
+                profileId={profileData.id}
+                isFollowing={profileData.isFollowing}
+                username={profileData.username}
+                FollowButtonComponent={OxyFollowButton}
+              />,
+            ),
+          )
+            .margin('top', 'lg')
+            .margin('bottom', 'lg'),
+        )}
       </>
     );
   }, [profileData, isPrivate]);
 
   const summary = useMemo(() => {
     if (!profileData) return null;
-    return (
-      <View>
-        <ProfileContent
-          profileData={profileData}
-          isOwnProfile={false}
-          isPrivate={isPrivate}
-          followingCount={rawFollowingCount ?? 0}
-          followerCount={rawFollowerCount ?? 0}
-          profileHandle={handle}
-          identity={identity}
-          showReplies={false}
-          // The channel's OWN about page. `/@<handle>/about` renders
-          // fine for a channel, which is exactly why this was wrong
-          // and silent: it is the person family's route, and an
-          // account should never be sat on a URL it does not own.
-          aboutHref={`/c/${handle}/about`}
-          // STILL the person family, and deliberately so pending a
-          // decision. These two are not a second `about`: both render
-          // `connections.tsx`, whose tab strip navigates with a
-          // hardcoded `/@` and whose four tabs include `who-may-know`
-          // — a list of accounts the VIEWER might know, which is not
-          // about this profile at all and makes no sense hanging off a
-          // channel. Moving them under `/c/` means making that screen
-          // family-aware AND deciding its tab set per account kind, so
-          // it is its own change rather than a line here.
-          followingHref={`/@${handle}/following`}
-          followersHref={`/@${handle}/followers`}
-          onPostsPress={handlePostsPress}
-          onBoostsPress={handleBoostsPress}
-          onRepliesPress={handleRepliesPress}
-          onLayout={chrome.setContentHeight}
-        />
-        <SuggestedUsers visible={justFollowed} sourceUserId={profileData.id} />
-      </View>
+    return toElement(
+      VStack(
+        Embed(
+          <ProfileContent
+            profileData={profileData}
+            isOwnProfile={false}
+            isPrivate={isPrivate}
+            followingCount={rawFollowingCount ?? 0}
+            followerCount={rawFollowerCount ?? 0}
+            profileHandle={handle}
+            identity={identity}
+            showReplies={false}
+            // The channel's OWN about page. `/@<handle>/about` renders
+            // fine for a channel, which is exactly why this was wrong
+            // and silent: it is the person family's route, and an
+            // account should never be sat on a URL it does not own.
+            aboutHref={`/c/${handle}/about`}
+            // STILL the person family, and deliberately so pending a
+            // decision. These two are not a second `about`: both render
+            // `connections.tsx`, whose tab strip navigates with a
+            // hardcoded `/@` and whose four tabs include `who-may-know`
+            // — a list of accounts the VIEWER might know, which is not
+            // about this profile at all and makes no sense hanging off a
+            // channel. Moving them under `/c/` means making that screen
+            // family-aware AND deciding its tab set per account kind, so
+            // it is its own change rather than a line here.
+            followingHref={`/@${handle}/following`}
+            followersHref={`/@${handle}/followers`}
+            onPostsPress={handlePostsPress}
+            onBoostsPress={handleBoostsPress}
+            onRepliesPress={handleRepliesPress}
+            onLayout={chrome.setContentHeight}
+          />,
+        ),
+        Embed(<SuggestedUsers visible={justFollowed} sourceUserId={profileData.id} />),
+      ),
     );
   }, [
     chrome.setContentHeight,
@@ -403,22 +419,26 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         className="flex-row items-center border-b border-border"
         style={{ backgroundColor: surfaceFill }}
       >
-        <View className="flex-1" style={{ minWidth: 0 }}>
-          <Tabs
-            value={activeDescriptor?.key ?? 'posts'}
-            onValueChange={(id) => onTabPress(profileTabIndex(tabDescriptors, id))}
-            variant="underline"
-          >
-            {tabDescriptors
-              .map((descriptor) => ({
-                id: descriptor.key,
-                label: descriptor.label,
-              }))
-              .map((tab: { id: string; label: string; count?: number }) => (
-                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-              ))}
-          </Tabs>
-        </View>
+        {toElement(
+          VStack(
+            LTabs(
+              [
+                activeDescriptor?.key ?? 'posts',
+                (id) => onTabPress(profileTabIndex(tabDescriptors, id)),
+              ],
+              tabDescriptors
+                .map((descriptor) => ({
+                  id: descriptor.key,
+                  label: descriptor.label,
+                }))
+                .map((tab: { id: string; label: string; count?: number }) =>
+                  TabItem(tab.id, tab.label).count(tab.count),
+                ),
+            ).style('underline'),
+          )
+            .frame({ minWidth: 'none' })
+            .flex('1'),
+        )}
       </View>
     ),
     [activeDescriptor?.key, onTabPress, surfaceFill, tabDescriptors, username],
@@ -433,11 +453,9 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         tone="neutral"
         iconOnly
         icon={
-          subscribed ? (
-            <RiNotification3Fill width={20} height={20} fill={colors.primary} />
-          ) : (
-            RiNotification3Line
-          )
+          subscribed
+            ? toElement(Icon(RiNotification3Fill).size('md').foreground('primary'))
+            : RiNotification3Line
         }
         onPress={toggleSubscription}
         disabled={subLoading}
@@ -453,32 +471,36 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
               })
         }
       />
-      <Button
-        appearance="subtle"
-        tone="neutral"
-        iconOnly
-        leadingIcon={RiUpload2Line}
-        onPress={handleShare}
-        accessibilityLabel={t('profile.actions.share', {
-          handle,
-          defaultValue: "Share @{{handle}}'s profile",
-        })}
-      />
+      {toElement(
+        LButton(Icon(RiUpload2Line))
+          .shape('circle')
+          .style('subtle')
+          .tint('neutral')
+          .onPress(handleShare)
+          .label(
+            t('profile.actions.share', {
+              handle,
+              defaultValue: "Share @{{handle}}'s profile",
+            }),
+          ),
+      )}
       <ProfileMoreMenu
         profileData={profileData}
         viewerOperatesAccount={operatesThisChannel}
         leadingItems={leadingItems}
       >
-        <Button
-          appearance="subtle"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiMoreFill}
-          accessibilityLabel={t('profile.actions.more', {
-            handle,
-            defaultValue: 'More options for @{{handle}}',
-          })}
-        />
+        {toElement(
+          LButton(Icon(RiMoreFill))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .label(
+              t('profile.actions.more', {
+                handle,
+                defaultValue: 'More options for @{{handle}}',
+              }),
+            ),
+        )}
       </ProfileMoreMenu>
     </>
   );
@@ -575,16 +597,22 @@ const ChannelScreen: React.FC = () => {
       {/* `web:z-auto` so this wrapper does not become its own stacking
                 context and trap the sticky header chrome below the panel's
                 bleed-mask/border overlays (see ProfileShell's root). */}
-      <View className="flex-1 web:z-auto">
-        <ChannelProfile
-          username={username}
-          handle={handle}
-          profileData={profileData}
-          loading={loading}
-          notFound={notFound}
-          onRetry={refresh}
-        />
-      </View>
+      {toElement(
+        VStack(
+          Embed(
+            <ChannelProfile
+              username={username}
+              handle={handle}
+              profileData={profileData}
+              loading={loading}
+              notFound={notFound}
+              onRetry={refresh}
+            />,
+          ),
+        )
+          .flex('1')
+          .when('web', (v) => v.zIndex('auto')),
+      )}
     </>
   );
 };

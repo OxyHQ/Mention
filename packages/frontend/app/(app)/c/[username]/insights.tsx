@@ -5,12 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen } from '@oxy.so/bloom/screen';
-
 import { EmptyState } from '@/components/common/EmptyState';
 import LazyInsightsView from '@/components/insights/LazyInsightsView';
+
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { Embed, Header, toElement } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * A CHANNEL's insights — the same dashboard a person gets at `/insights`, about
@@ -42,7 +42,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * ("does this viewer run this channel"), so it gets the same shape, the same
  * shared `operatedAccounts` cache and the same refusal.
  */
-export default function ChannelInsightsScreen() {
+export default screen(function ChannelInsightsScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const routeHandle = String(username ?? '');
   const { t } = useTranslation();
@@ -78,16 +78,12 @@ export default function ChannelInsightsScreen() {
     [accounts, routeHandle],
   );
 
-  const header = (
-    <PageHeader
-      title={t('insights.title')}
-      presentation="floating"
-      // Whose numbers these are. The display name comes straight off the account
-      // DTO; a channel with none falls back to the handle the reader navigated
-      // by, never to a raw id.
-      subtitle={channel?.account.name?.displayName?.trim() || `@${routeHandle}`}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-    />
+  const header = toElement(
+    Header(t('insights.title'))
+      .presentation('floating')
+      .subtitle(channel?.account.name?.displayName?.trim() || `@${routeHandle}`)
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
 
   let content: ReactNode;
@@ -116,9 +112,5 @@ export default function ChannelInsightsScreen() {
     content = <LazyInsightsView accountId={channel.accountId} />;
   }
 
-  return (
-    <Screen scroll="auto" header={header}>
-      {content}
-    </Screen>
-  );
-}
+  return Embed(content).screenScroll('auto').header(Embed(header));
+});

@@ -1,15 +1,10 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback } from 'react';
-import { Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { Button } from '@oxy.so/bloom/button';
-import { Item } from '@oxy.so/bloom/item';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
@@ -20,6 +15,19 @@ import { communityService } from '@/services/communityService';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { CommunitiesPreviewGate } from '@/hooks/useCommunitiesPreview';
+
+import {
+  Avatar as LAvatar,
+  Button as LButton,
+  Embed,
+  Header,
+  RawText,
+  Row,
+  ScrollView,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Who a community's moderators banned from posting in it, and the way to lift a
@@ -60,24 +68,19 @@ function CommunityBansScreen() {
   const renderBan = useCallback(
     (ban: CommunityBan) => {
       const handle = getNormalizedUserHandle(ban.user) ?? '';
-      return (
-        <Item
-          key={ban.user.id}
-          leading={<Avatar source={ban.user.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />}
-          title={displayNameOrHandle(ban.user.name?.displayName, handle ? `@${handle}` : '')}
-          subtitle={ban.reason ?? (handle ? `@${handle}` : undefined)}
-          trailing={
-            <Button
-              size="sm"
-              appearance="subtle"
-              tone="neutral"
-              disabled={unban.isPending}
-              onPress={() => unban.mutate(ban.user.id)}
-            >
-              {t('communities.unban', { defaultValue: 'Lift ban' })}
-            </Button>
-          }
-        />
+      return toElement(
+        Row(displayNameOrHandle(ban.user.name?.displayName, handle ? `@${handle}` : ''))
+          .leadingView(LAvatar(ban.user.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))
+          .subtitle(ban.reason ?? (handle ? `@${handle}` : undefined))
+          .trailing(
+            LButton(LText(t('communities.unban', { defaultValue: 'Lift ban' })))
+              .size('sm')
+              .style('subtle')
+              .tint('neutral')
+              .disabled(unban.isPending)
+              .onPress(() => unban.mutate(ban.user.id)),
+          ),
+        ban.user.id,
       );
     },
     [t, unban],
@@ -85,37 +88,51 @@ function CommunityBansScreen() {
 
   return (
     <Screen
-      header={
-        <PageHeader
-          title={t('communities.bansTitle', { defaultValue: 'Banned from this community' })}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-        />
-      }
+      header={toElement(
+        Header(t('communities.bansTitle', { defaultValue: 'Banned from this community' }))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      )}
     >
       <SignInRequired
         label={t('communities.signInRequired', {
           defaultValue: 'Sign in to manage your communities',
         })}
       >
-        <ScreenScrollView contentContainerClassName="pb-10">
-          {isLoading ? (
-            <View className="py-8">
-              <ListSkeleton />
-            </View>
-          ) : isError ? (
-            <Text className="text-muted-foreground text-[14px] px-4 py-6">
-              {t('communities.bansUnavailable', {
-                defaultValue: 'Only the moderators of this community can see who is banned.',
-              })}
-            </Text>
-          ) : bans.length === 0 ? (
-            <Text className="text-muted-foreground text-[14px] px-4 py-6">
-              {t('communities.noBans', { defaultValue: 'Nobody is banned from this community.' })}
-            </Text>
-          ) : (
-            bans.map(renderBan)
-          )}
-        </ScreenScrollView>
+        {toElement(
+          ScrollView(
+            Embed(
+              isLoading
+                ? toElement(VStack(Embed(<ListSkeleton />)).padding('vertical', '3xl'))
+                : isError
+                  ? toElement(
+                      RawText(
+                        t('communities.bansUnavailable', {
+                          defaultValue:
+                            'Only the moderators of this community can see who is banned.',
+                        }),
+                      )
+                        .padding('horizontal', 'lg')
+                        .padding('vertical', '2xl')
+                        .foreground('muted')
+                        .font('14'),
+                    )
+                  : bans.length === 0
+                    ? toElement(
+                        RawText(
+                          t('communities.noBans', {
+                            defaultValue: 'Nobody is banned from this community.',
+                          }),
+                        )
+                          .padding('horizontal', 'lg')
+                          .padding('vertical', '2xl')
+                          .foreground('muted')
+                          .font('14'),
+                      )
+                    : bans.map(renderBan),
+            ),
+          ).contentView((v) => v.padding('bottom', '4xl')),
+        )}
       </SignInRequired>
     </Screen>
   );
