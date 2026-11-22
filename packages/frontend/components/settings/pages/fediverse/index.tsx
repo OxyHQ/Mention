@@ -108,15 +108,17 @@ function FediverseSharingBody() {
     });
   }, [applyChange, sharing]);
 
+  // The row names the handle it federates as, once there is one.
+  const shareRow = LGroupedSectionItem(t('fediverse.settings.share')).wrapControl();
   return toElement(
     VStack(
       LSettingsSection(
         undefined,
         LGroupedSection(
-          LGroupedSectionItem(t('fediverse.settings.share'))
-            .wrapControl()
-            .description(federatedHandle)
-            .trailing(Embed(<>{toElement(Toggle([sharing, onToggle]).disabled(pending))}</>)),
+          (federatedHandle === undefined
+            ? shareRow
+            : shareRow.description(federatedHandle)
+          ).trailing(Toggle([sharing, onToggle]).disabled(pending)),
         ),
       ).description(t('fediverse.settings.description')),
       LSettingsSection(

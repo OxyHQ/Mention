@@ -157,28 +157,20 @@ export default function MutedLanesScreen() {
                   // identity the server resolved; an owner that could not
                   // be resolved is dropped there, never rendered blank.
                   const handle = getNormalizedUserHandle(entry.owner) || '';
+                  const row = LGroupedSectionItem(entry.lane.name).wrapControl();
                   return toElement(
-                    LGroupedSectionItem(entry.lane.name)
-                      .wrapControl()
-                      .description(handle ? `@${handle}` : undefined)
-                      .trailing(
-                        Embed(
-                          <>
-                            {toElement(
-                              LButton(Text(t('lanes.muted.unmute', { defaultValue: 'Unmute' })))
-                                .size('sm')
-                                .style('subtle')
-                                .tint('danger')
-                                .onPress(() => unmuteMutation.mutate(entry.lane.id))
-                                .label(
-                                  t('lanes.muted.unmute', {
-                                    defaultValue: 'Unmute',
-                                  }),
-                                ),
-                            )}
-                          </>,
+                    (handle ? row.description(`@${handle}`) : row).trailing(
+                      LButton(Text(t('lanes.muted.unmute', { defaultValue: 'Unmute' })))
+                        .size('sm')
+                        .style('subtle')
+                        .tint('danger')
+                        .onPress(() => unmuteMutation.mutate(entry.lane.id))
+                        .label(
+                          t('lanes.muted.unmute', {
+                            defaultValue: 'Unmute',
+                          }),
                         ),
-                      ),
+                    ),
                     entry.lane.id,
                   );
                 })

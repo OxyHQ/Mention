@@ -1,5 +1,4 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import type React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -26,22 +25,16 @@ import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-languag
 const BLOCKED_DOMAINS_QUERY_KEY = ['federation', 'blocked-domains'] as const;
 
 /** A paragraph of the explanatory copy. */
-function Paragraph({ children }: { children: React.ReactNode }) {
-  return toElement(
-    RawText(children).margin('top', 'md').font('md').leading('24px').foreground('muted'),
-  );
-}
+const paragraph = (text: string) =>
+  RawText(text).margin('top', 'md').font('md').leading('24px').foreground('muted');
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return toElement(
-    RawText(children)
-      .margin('top', '3xl')
-      .font('18')
-      .leading('28px')
-      .weight('bold')
-      .foreground('foreground'),
-  );
-}
+const sectionTitle = (text: string) =>
+  RawText(text)
+    .margin('top', '3xl')
+    .font('18')
+    .leading('28px')
+    .weight('bold')
+    .foreground('foreground');
 
 function BlockCard({ block }: { block: PublishedFederationBlock }) {
   const { t } = useTranslation();
@@ -180,26 +173,26 @@ export default function TransparencySettingsPage() {
         .leading('32px')
         .weight('bold')
         .foreground('foreground'),
-      Embed(<Paragraph>{t('transparency.intro')}</Paragraph>),
-      Embed(<Paragraph>{t('transparency.introSource')}</Paragraph>),
-      Embed(<SectionTitle>{t('transparency.whatItDoes.title')}</SectionTitle>),
-      Embed(<Paragraph>{t('transparency.whatItDoes.body')}</Paragraph>),
-      Embed(<Paragraph>{t('transparency.whatItDoes.bluntness')}</Paragraph>),
-      Embed(<Paragraph>{t('transparency.whatItDoes.scope')}</Paragraph>),
-      Embed(<Paragraph>{t('transparency.whatItDoes.limits')}</Paragraph>),
-      Embed(<SectionTitle>{t('transparency.howWeDecide.title')}</SectionTitle>),
-      Embed(<Paragraph>{t('transparency.howWeDecide.corroboration')}</Paragraph>),
-      Embed(<Paragraph>{t('transparency.howWeDecide.judgement')}</Paragraph>),
-      Embed(<Paragraph>{t('transparency.howWeDecide.audit')}</Paragraph>),
-      Embed(<SectionTitle>{t('transparency.list.title')}</SectionTitle>),
+      paragraph(t('transparency.intro')),
+      paragraph(t('transparency.introSource')),
+      sectionTitle(t('transparency.whatItDoes.title')),
+      paragraph(t('transparency.whatItDoes.body')),
+      paragraph(t('transparency.whatItDoes.bluntness')),
+      paragraph(t('transparency.whatItDoes.scope')),
+      paragraph(t('transparency.whatItDoes.limits')),
+      sectionTitle(t('transparency.howWeDecide.title')),
+      paragraph(t('transparency.howWeDecide.corroboration')),
+      paragraph(t('transparency.howWeDecide.judgement')),
+      paragraph(t('transparency.howWeDecide.audit')),
+      sectionTitle(t('transparency.list.title')),
       Embed(
         blocksQuery.isPending ? (
           <ListSkeleton />
         ) : blocksQuery.isError ? (
-          <Paragraph>{t('transparency.list.error')}</Paragraph>
+          toElement(paragraph(t('transparency.list.error')))
         ) : blocks && blocks.length > 0 ? (
           <>
-            <Paragraph>{t('transparency.list.count', { count: blocks.length })}</Paragraph>
+            {toElement(paragraph(t('transparency.list.count', { count: blocks.length })))}
             {blocks.map((block) => (
               <BlockCard key={block.domain} block={block} />
             ))}

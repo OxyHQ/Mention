@@ -4,14 +4,13 @@ import { useThreadPreferencesStore, type VoteStyle } from '@/hooks/useThreadPref
 import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
+import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from 'react-i18next';
 import {
-  Button as LButton,
   Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
   SettingsSection as LSettingsSection,
-  Text,
   Toggle,
   VStack,
   toElement,
@@ -69,21 +68,20 @@ export default function ThreadPreferencesScreen() {
                   )
                     .wrapControl()
                     .trailing(
+                      // A button whose content is Bloom's radio indicator: the
+                      // language's Button takes a glyph and a label, not a view.
                       Embed(
-                        <>
-                          {toElement(
-                            LButton(Text(<RadioIndicator selected={voteStyle === option.value} />))
-                              .size('sm')
-                              .style('subtle')
-                              .tint('neutral')
-                              .onPress(() => setVoteStyle(option.value))
-                              .label(
-                                t(option.labelKey, {
-                                  defaultValue: option.defaultLabel,
-                                }),
-                              ),
-                          )}
-                        </>,
+                        <Button
+                          size="sm"
+                          appearance="subtle"
+                          tone="neutral"
+                          onPress={() => setVoteStyle(option.value)}
+                          accessibilityLabel={t(option.labelKey, {
+                            defaultValue: option.defaultLabel,
+                          })}
+                        >
+                          <RadioIndicator selected={voteStyle === option.value} />
+                        </Button>,
                       ),
                     ),
                   option.value,

@@ -147,17 +147,15 @@ export const EventEditor: React.FC<EventEditorProps> = ({
   return toElement(
     LDialog(
       VStack(
-        Embed(
-          onCapacityChange &&
-            toElement(
-              LTextField(
-                [capacity, onCapacityChange],
-                t('events.capacity', { defaultValue: 'Capacity (leave empty for unlimited)' }),
-              )
-                .keyboard('number-pad')
-                .testID('eventEditorCapacity'),
-            ),
-        ),
+        // No capacity is an empty field: unlimited.
+        onCapacityChange
+          ? LTextField(
+              [capacity ?? '', onCapacityChange],
+              t('events.capacity', { defaultValue: 'Capacity (leave empty for unlimited)' }),
+            )
+              .keyboard('number-pad')
+              .testID('eventEditorCapacity')
+          : null,
         VStack(
           LTextField(
             [name, onNameChange],

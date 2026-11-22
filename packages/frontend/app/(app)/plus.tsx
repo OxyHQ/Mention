@@ -9,7 +9,6 @@ import { CheckoutPreviewBadge } from '@/components/payments/CheckoutPreviewBadge
 import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { SubscriptionPrice, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
-import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { plusPriceMajorUnits, type PlusCadence } from '@/lib/payments/plusCheckout';
 import { Text, Title, Subtitle } from '@oxy.so/bloom/typography';
 import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
@@ -234,8 +233,10 @@ export default screen(function PlusScreen() {
               Embed(
                 selectedPlan?.benefits.map((benefit) =>
                   toElement(
-                    LGroupedSectionItem(benefit.title)
-                      .description(benefit.description)
+                    (benefit.description === undefined
+                      ? LGroupedSectionItem(benefit.title)
+                      : LGroupedSectionItem(benefit.title).description(benefit.description)
+                    )
                       .leadingView(Embed(benefit.icon))
                       .lines(0)
                       .descriptionLines(0),

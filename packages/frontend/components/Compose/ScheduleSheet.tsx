@@ -1,6 +1,8 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, type ViewStyle } from 'react-native';
+import { tokens } from '@oxy.so/bloom/styles';
+
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
@@ -110,7 +112,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   return (
     // The surface, corner radius and drag handle belong to the bottom sheet that
     // hosts this; drawing them again here stacked a second background on it.
-    <View className="px-5 pt-3" style={{ maxHeight: '90%' }}>
+    <View style={SHEET_STYLE}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
@@ -125,12 +127,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         )}
 
         {scheduledAt && (
-          <Card
-            appearance="subtle"
-            border="hairline"
-            radius="radius-16"
-            className="flex-row items-center py-3 px-3.5 mb-4.5"
-          >
+          <Card appearance="subtle" border="hairline" radius="radius-16" style={CURRENT_STYLE}>
             {toElement(
               VStack(
                 RawText(t('compose.schedule.current', { defaultValue: 'Currently scheduled' }))
@@ -187,12 +184,13 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
                       .margin('bottom', '6')
                       .textAlign('left'),
                   )}
-                  <Text
-                    className="text-[11px] text-muted-foreground text-left"
-                    style={{ lineHeight: 14 }}
-                  >
-                    {formatLabel(option.date)}
-                  </Text>
+                  {toElement(
+                    RawText(formatLabel(option.date))
+                      .font('11')
+                      .foreground('muted')
+                      .textAlign('left')
+                      .leading('14px'),
+                  )}
                 </Card>
               )),
             ),
@@ -277,6 +275,25 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
     </View>
   );
 };
+
+// Inline objects, not a StyleSheet: what Tailwind's classes drew here, its
+// off-scale steps named once (`px-3.5`, `mb-4.5`).
+const CURRENT_PADDING_X = 14;
+const CURRENT_MARGIN_BOTTOM = 18;
+/** The sheet's own room inside the bottom sheet (`px-5 pt-3`), at most 90% of it. */
+const SHEET_STYLE = {
+  paddingHorizontal: tokens.space.xl,
+  paddingTop: tokens.space.md,
+  maxHeight: '90%',
+} satisfies ViewStyle;
+/** The current schedule: its text and Clear in one row (`flex-row items-center py-3 px-3.5 mb-4.5`). */
+const CURRENT_STYLE = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingVertical: tokens.space.md,
+  paddingHorizontal: CURRENT_PADDING_X,
+  marginBottom: CURRENT_MARGIN_BOTTOM,
+} satisfies ViewStyle;
 
 const styles = StyleSheet.create({
   // `Field` is full-width by default, so two of them in a row fight over the same

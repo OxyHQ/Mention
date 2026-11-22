@@ -86,22 +86,23 @@ export function MerchantInstallmentSettings({
                 Embed(
                   INSTALLMENT_CAPABILITY_FIXTURES.map((capability) =>
                     toElement(
-                      LGroupedSectionItem(label(capability.family))
-                        .description(
-                          capability.available ? undefined : label('providerUnavailable'),
-                        )
-                        .trailing(
-                          Toggle([
-                            draft.families.includes(capability.family),
-                            (enabled) =>
-                              setDraft({
-                                ...draft,
-                                families: toggle(draft.families, capability.family, enabled),
-                              }),
-                          ])
-                            .label(label(`offer.${capability.family}`))
-                            .disabled(!capability.available),
-                        ),
+                      (capability.available
+                        ? LGroupedSectionItem(label(capability.family))
+                        : LGroupedSectionItem(label(capability.family)).description(
+                            label('providerUnavailable'),
+                          )
+                      ).trailing(
+                        Toggle([
+                          draft.families.includes(capability.family),
+                          (enabled) =>
+                            setDraft({
+                              ...draft,
+                              families: toggle(draft.families, capability.family, enabled),
+                            }),
+                        ])
+                          .label(label(`offer.${capability.family}`))
+                          .disabled(!capability.available),
+                      ),
                       capability.id,
                     ),
                   ),
@@ -158,20 +159,21 @@ export function MerchantInstallmentSettings({
                 Embed(
                   ['USD', 'EUR'].map((currency) =>
                     toElement(
-                      LGroupedSectionItem(currency)
-                        .description(currency === 'EUR' ? label('providerUnavailable') : undefined)
-                        .trailing(
-                          Toggle([
-                            draft.currencies.includes(currency),
-                            (enabled) =>
-                              setDraft({
-                                ...draft,
-                                currencies: toggle(draft.currencies, currency, enabled),
-                              }),
-                          ])
-                            .label(label(`allow.${currency}`))
-                            .disabled(currency === 'EUR'),
-                        ),
+                      (currency === 'EUR'
+                        ? LGroupedSectionItem(currency).description(label('providerUnavailable'))
+                        : LGroupedSectionItem(currency)
+                      ).trailing(
+                        Toggle([
+                          draft.currencies.includes(currency),
+                          (enabled) =>
+                            setDraft({
+                              ...draft,
+                              currencies: toggle(draft.currencies, currency, enabled),
+                            }),
+                        ])
+                          .label(label(`allow.${currency}`))
+                          .disabled(currency === 'EUR'),
+                      ),
                       currency,
                     ),
                   ),
