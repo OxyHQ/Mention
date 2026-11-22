@@ -1,6 +1,15 @@
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { VibbrEventCard } from '../VibbrEventCard';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { StyleSheet } from 'react-native';
+
+/** The card under Bloom's theme, as the app draws it: its language text paints from the theme. */
+const inTheme = (element: React.ReactElement) => (
+  <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>
+);
+const renderInTheme = (element: React.ReactElement) => TestRenderer.create(inTheme(element));
 
 const mockLoad = jest.fn();
 jest.mock('@/lib/references/vibbrEvents', () => {
@@ -51,7 +60,7 @@ afterEach(() => {
 it('reserves the same box while loading, then shows the event, and degrades when it is gone', async () => {
   mockLoad.mockResolvedValue({ items: [card], unavailableIds: [] });
   act(() => {
-    renderer = TestRenderer.create(
+    renderer = renderInTheme(
       <>
         <Text>Feed ready</Text>
         <VibbrEventCard eventId={ID} />
@@ -60,7 +69,9 @@ it('reserves the same box while loading, then shows the event, and degrades when
   });
   expect(screen()).toContain('Feed ready');
   expect(screen()).toContain('Loading Vibbr event');
-  expect(renderer.root.findByProps({ testID: 'vibbr-event-card' }).props.style).toEqual({
+  expect(
+    StyleSheet.flatten(renderer.root.findByProps({ testID: 'vibbr-event-card' }).props.style),
+  ).toMatchObject({
     width: '100%',
     height: 200,
   });
@@ -74,7 +85,7 @@ it('reserves the same box while loading, then shows the event, and degrades when
 it('says so when the event is no longer available', async () => {
   mockLoad.mockResolvedValue({ items: [], unavailableIds: [ID] });
   act(() => {
-    renderer = TestRenderer.create(<VibbrEventCard eventId={ID} />);
+    renderer = renderInTheme(<VibbrEventCard eventId={ID} />);
   });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(100);

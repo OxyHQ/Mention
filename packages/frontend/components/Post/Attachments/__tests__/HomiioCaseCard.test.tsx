@@ -1,7 +1,16 @@
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 import { HomiioCaseCard } from '../HomiioCaseCard';
 import { homiioCases } from '@/lib/references/homiioCases';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { StyleSheet } from 'react-native';
+
+/** The card under Bloom's theme, as the app draws it: its language text paints from the theme. */
+const inTheme = (element: React.ReactElement) => (
+  <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>
+);
+const renderInTheme = (element: React.ReactElement) => TestRenderer.create(inTheme(element));
 
 const mockLoad = jest.fn();
 let mockVisible = true;
@@ -32,7 +41,13 @@ const publicCase = {
 };
 let renderer: TestRenderer.ReactTestRenderer;
 const screen = () => JSON.stringify(renderer.toJSON());
-const box = () => renderer.root.findByProps({ testID: 'homiio-case-card' }).props.style;
+/** The box the card reserves: its width and height. */
+const box = () => {
+  const { width, height } = StyleSheet.flatten(
+    renderer.root.findByProps({ testID: 'homiio-case-card' }).props.style,
+  );
+  return { width, height };
+};
 beforeEach(() => {
   jest.useFakeTimers();
   mockLoad.mockReset();
@@ -46,7 +61,7 @@ afterEach(() => {
 it('keeps the surrounding feed usable during a hung provider, and reserves identical card height', async () => {
   mockLoad.mockReturnValue(new Promise(() => {}));
   act(() => {
-    renderer = TestRenderer.create(
+    renderer = renderInTheme(
       <>
         <Text>Feed ready</Text>
         <HomiioCaseCard caseId="case-1" />
@@ -68,7 +83,7 @@ it('shows only current public fields and clears them on withdrawal', async () =>
     .mockResolvedValueOnce({ items: [publicCase], unavailableIds: [] })
     .mockResolvedValueOnce({ items: [], unavailableIds: ['case-1'] });
   act(() => {
-    renderer = TestRenderer.create(<HomiioCaseCard caseId="case-1" />);
+    renderer = renderInTheme(<HomiioCaseCard caseId="case-1" />);
   });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(16);
@@ -92,7 +107,7 @@ it('does not resolve a hidden card until it becomes visible', async () => {
   mockVisible = false;
   mockLoad.mockResolvedValue({ items: [publicCase], unavailableIds: [] });
   act(() => {
-    renderer = TestRenderer.create(<HomiioCaseCard caseId="case-1" />);
+    renderer = renderInTheme(<HomiioCaseCard caseId="case-1" />);
   });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(16);
@@ -100,7 +115,7 @@ it('does not resolve a hidden card until it becomes visible', async () => {
   expect(mockLoad).not.toHaveBeenCalled();
   mockVisible = true;
   act(() => {
-    renderer.update(<HomiioCaseCard caseId="case-1" />);
+    renderer.update(inTheme(<HomiioCaseCard caseId="case-1" />));
   });
   await act(async () => {
     await jest.advanceTimersByTimeAsync(16);

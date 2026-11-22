@@ -1,7 +1,16 @@
+import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Linking } from 'react-native';
 import { CommerceCard } from '../CommerceCard';
 import { commerceService } from '@/services/commerceService';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { StyleSheet } from 'react-native';
+
+/** The card under Bloom's theme, as the app draws it: its language text paints from the theme. */
+const inTheme = (element: React.ReactElement) => (
+  <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>
+);
+const renderInTheme = (element: React.ReactElement) => TestRenderer.create(inTheme(element));
 
 let mockSnapshot: { status: string; value?: unknown } = { status: 'loading' };
 jest.mock('@/hooks/useVisibleReference', () => ({ useVisibleReference: () => mockSnapshot }));
@@ -39,9 +48,11 @@ afterEach(() => {
 
 it('reserves space but offers no outgoing action until current facts are ready', () => {
   act(() => {
-    renderer = TestRenderer.create(<CommerceCard referenceId="mercaria:product:p1" height={240} />);
+    renderer = renderInTheme(<CommerceCard referenceId="mercaria:product:p1" height={240} />);
   });
-  expect(renderer.root.findByProps({ testID: 'commerce-card' }).props.style).toEqual({
+  expect(
+    StyleSheet.flatten(renderer.root.findByProps({ testID: 'commerce-card' }).props.style),
+  ).toMatchObject({
     height: 240,
   });
   expect(links()).toHaveLength(0);
@@ -61,9 +72,7 @@ it('uses the canonical formatter, shows sold state, and removes both price and h
   };
   const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   act(() => {
-    renderer = TestRenderer.create(
-      <CommerceCard referenceId="mercaria:product:p1" postId="post-1" />,
-    );
+    renderer = renderInTheme(<CommerceCard referenceId="mercaria:product:p1" postId="post-1" />);
   });
   expect(formatPrice).toHaveBeenCalledWith('es');
   expect(screen()).toContain('129,00 €');
@@ -75,12 +84,16 @@ it('uses the canonical formatter, shows sold state, and removes both price and h
   expect(open).toHaveBeenCalledWith('https://mercaria.co/products/p1');
   expect(commerceService.recordMetric).toHaveBeenCalledWith('posts', 'post-1', 'handoff');
   mockSnapshot = { status: 'loading' };
-  act(() => renderer.update(<CommerceCard referenceId="mercaria:product:p1" postId="post-1" />));
+  act(() =>
+    renderer.update(inTheme(<CommerceCard referenceId="mercaria:product:p1" postId="post-1" />)),
+  );
   expect(screen()).not.toContain('129,00 €');
   expect(screen()).not.toContain('Current item');
   expect(links()).toHaveLength(0);
   mockSnapshot = { status: 'unavailable' };
-  act(() => renderer.update(<CommerceCard referenceId="mercaria:product:p1" postId="post-1" />));
+  act(() =>
+    renderer.update(inTheme(<CommerceCard referenceId="mercaria:product:p1" postId="post-1" />)),
+  );
   expect(screen()).toContain('currently unavailable');
 });
 
@@ -93,7 +106,7 @@ it('renders collection handoff without fabricating product pricing', () => {
     },
   };
   act(() => {
-    renderer = TestRenderer.create(<CommerceCard referenceId="mercaria:collection:c1" />);
+    renderer = renderInTheme(<CommerceCard referenceId="mercaria:collection:c1" />);
   });
   expect(screen()).toContain('A collection');
   expect(screen()).not.toContain('€');

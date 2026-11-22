@@ -1,6 +1,7 @@
 import type React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import JobCard from '../JobCard';
 import type { PostJobContent } from '@mention/shared-types';
 
@@ -18,6 +19,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   getNormalizedUserHandle: (user: { username?: string } | null) => user?.username ?? null,
 }));
 
@@ -26,6 +28,7 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/badge', () => ({
+  ...jest.requireActual('@oxy.so/bloom/badge'),
   Badge: ({ content }: { content: string }) => content,
 }));
 
@@ -50,7 +53,10 @@ function job(overrides: Partial<PostJobContent> = {}): PostJobContent {
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   TestRenderer.act(() => {
-    renderer = TestRenderer.create(element);
+    // Under Bloom's theme, as the app draws it: the card's language text paints from it.
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>,
+    );
   });
   return renderer;
 }

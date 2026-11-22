@@ -4,6 +4,7 @@ import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 're
 import { Text } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import PollCard from '../PollCard';
 import type { PollDetail } from '@/services/pollService';
 
@@ -83,7 +84,10 @@ async function render(
   let renderer!: ReactTestRenderer;
   await TestRenderer.act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>{element}</QueryClientProvider>,
+      // Under Bloom's theme, as the app draws it: the card's language text paints from it.
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>{element}</QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   // The poll arrives through React Query; let its fetch resolve and commit.

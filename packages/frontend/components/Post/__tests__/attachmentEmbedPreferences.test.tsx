@@ -2,6 +2,7 @@ import { Profiler } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource } from '@mention/shared-types';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import PostAttachmentsRow from '../PostAttachmentsRow';
 import PostAttachmentExternalEmbed from '../Attachments/PostAttachmentExternalEmbed';
 import { ExternalEmbedPlayer } from '../Attachments/ExternalEmbedPlayer';
@@ -59,7 +60,12 @@ const urls: Record<EmbedPlayerSource, string> = {
   flickr: 'https://www.flickr.com/photos/user/albums/123',
   bandcamp: 'https://artist.bandcamp.com/track/song',
 };
-const row = (url: string) => <PostAttachmentsRow postId="p" text={url} />;
+// Under Bloom's theme, as the app draws it: the embed's language card paints from it.
+const row = (url: string) => (
+  <BloomThemeProvider fonts={false}>
+    <PostAttachmentsRow postId="p" text={url} />
+  </BloomThemeProvider>
+);
 let renderer: TestRenderer.ReactTestRenderer;
 const embedCount = () => renderer.root.findAllByType(PostAttachmentExternalEmbed).length;
 
