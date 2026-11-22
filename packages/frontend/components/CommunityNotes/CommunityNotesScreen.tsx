@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Screen } from '@oxy.so/bloom/screen';
 import type { TFunction } from 'i18next';
 import type {
   CommunityNoteRating,
@@ -24,6 +23,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /** A note together with the post it is about. */
 export interface CommunityNoteEntry {
@@ -70,7 +70,7 @@ interface CommunityNotesScreenProps {
  * The community-notes hub: rate notes, your ratings, your notes. Data comes from
  * the caller — CrowdSource owns every list here.
  */
-export function CommunityNotesScreen({
+export const CommunityNotesScreen = screen(function CommunityNotesScreen({
   toRate,
   rated,
   written,
@@ -117,87 +117,75 @@ export function CommunityNotesScreen({
     }),
   }[tab];
 
-  return (
-    <Screen
-      header={toElement(
-        Header(t('communityNotes.hub.title', { defaultValue: 'Community notes' }))
-          .backLabel(t('common.back', { defaultValue: 'Back' }))
-          .accessory(
-            LTabs(
-              [tab, (id) => setTab(id as TabId)],
-              [
-                {
-                  id: 'rate',
-                  label: t('communityNotes.hub.tabRate', { defaultValue: 'Rate notes' }),
-                },
-                {
-                  id: 'ratings',
-                  label: t('communityNotes.hub.tabRatings', { defaultValue: 'Your ratings' }),
-                },
-                {
-                  id: 'notes',
-                  label: t('communityNotes.hub.tabNotes', { defaultValue: 'Your notes' }),
-                },
-              ].map((tab: { id: string; label: string; count?: number }) =>
-                TabItem(tab.id, tab.label).count(tab.count),
-              ),
-            ).style('underline'),
-          )
-          .inPage(),
-      )}
-    >
-      {toElement(
-        ScrollView(
-          RawText(intro)
-            .padding('horizontal', 'lg')
-            .foreground('foreground')
-            .font('md')
-            .leading('20px'),
-          Embed(
-            entries.length === 0 ? (
-              <EmptyState title={empty} sticker="communityNotes" />
-            ) : (
-              entries.map(({ post, note }) =>
-                toElement(
-                  VStack(
-                    VStack(
-                      Embed(
-                        <PostItem post={post} isNested openPostEngagement={openPostEngagement} />,
-                      ),
-                    ).padding('horizontal', 'lg'),
-                    VStack(
-                      Embed(
-                        <CommunityNoteCard
-                          note={note}
-                          variant="rate"
-                          onRate={
-                            tab === 'notes' || !sheets.canRate
-                              ? undefined
-                              : (rating) =>
-                                  sheets.openRateReasons(note, rating, (done) =>
-                                    setLocalRatings((current) => ({ ...current, [note.id]: done })),
-                                  )
-                          }
-                        />,
-                      ),
-                      tab === 'notes'
-                        ? RawText(statusLabel(note.status, t))
-                            .foreground('muted')
-                            .margin('top', 'sm')
-                            .font('sm')
-                        : null,
-                    ).padding('horizontal', 'lg'),
-                  )
-                    .padding('bottom', '2xl')
-                    .border('border', 'thin', 'bottom')
-                    .spacing('md'),
-                  note.id,
+  return ScrollView(
+    RawText(intro).padding('horizontal', 'lg').foreground('foreground').font('md').leading('20px'),
+    Embed(
+      entries.length === 0 ? (
+        <EmptyState title={empty} sticker="communityNotes" />
+      ) : (
+        entries.map(({ post, note }) =>
+          toElement(
+            VStack(
+              VStack(
+                Embed(<PostItem post={post} isNested openPostEngagement={openPostEngagement} />),
+              ).padding('horizontal', 'lg'),
+              VStack(
+                Embed(
+                  <CommunityNoteCard
+                    note={note}
+                    variant="rate"
+                    onRate={
+                      tab === 'notes' || !sheets.canRate
+                        ? undefined
+                        : (rating) =>
+                            sheets.openRateReasons(note, rating, (done) =>
+                              setLocalRatings((current) => ({ ...current, [note.id]: done })),
+                            )
+                    }
+                  />,
                 ),
-              )
-            ),
+                tab === 'notes'
+                  ? RawText(statusLabel(note.status, t))
+                      .foreground('muted')
+                      .margin('top', 'sm')
+                      .font('sm')
+                  : null,
+              ).padding('horizontal', 'lg'),
+            )
+              .padding('bottom', '2xl')
+              .border('border', 'thin', 'bottom')
+              .spacing('md'),
+            note.id,
           ),
-        ).contentView((v) => v.padding('bottom', '4xl').padding('top', 'lg').spacing('2xl')),
-      )}
-    </Screen>
-  );
-}
+        )
+      ),
+    ),
+  )
+    .contentView((v) => v.padding('bottom', '4xl').padding('top', 'lg').spacing('2xl'))
+    .header(
+      Header(t('communityNotes.hub.title', { defaultValue: 'Community notes' }))
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .accessory(
+          LTabs(
+            [tab, (id) => setTab(id as TabId)],
+            [
+              {
+                id: 'rate',
+                label: t('communityNotes.hub.tabRate', { defaultValue: 'Rate notes' }),
+              },
+              {
+                id: 'ratings',
+                label: t('communityNotes.hub.tabRatings', { defaultValue: 'Your ratings' }),
+              },
+              {
+                id: 'notes',
+                label: t('communityNotes.hub.tabNotes', { defaultValue: 'Your notes' }),
+              },
+            ].map((tab: { id: string; label: string; count?: number }) =>
+              TabItem(tab.id, tab.label).count(tab.count),
+            ),
+          ).style('underline'),
+        )
+        .inPage(),
+    );
+});

@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { StyleSheet, TouchableOpacity, RefreshControl, type ViewStyle } from 'react-native';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
@@ -27,6 +27,7 @@ import {
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 /** How long typing settles before it becomes a new query key. */
@@ -165,7 +166,7 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
 
 LabelerCard.displayName = 'LabelerCard';
 
-const LabelersScreen: React.FC = () => {
+export default screen(function LabelersScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -267,73 +268,68 @@ const LabelersScreen: React.FC = () => {
     [toggleSubscription],
   );
 
-  return (
-    <Screen
-      header={toElement(
-        Header(t('labelers.title', { defaultValue: 'Content Labels' }))
-          .backLabel(t('common.back', { defaultValue: 'Back' }))
-          .inPage(),
-      )}
+  // The pull's spinner is tinted on iOS only (`tintColor`), so the scroller stays Bloom's.
+  return Embed(
+    <ScreenScrollView
+      refreshControl={
+        <RefreshControl
+          refreshing={isFetching}
+          onRefresh={() => {
+            void refetch();
+          }}
+          tintColor={theme.colors.primary}
+        />
+      }
     >
-      <ScreenScrollView
-        refreshControl={
-          <RefreshControl
-            refreshing={isFetching}
-            onRefresh={() => {
-              void refetch();
-            }}
-            tintColor={theme.colors.primary}
-          />
-        }
-      >
-        {toElement(
+      {toElement(
+        VStack(
+          LSearch([search, setSearch])
+            .label(t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' }))
+            .onClearText(() => setSearch('')),
+        )
+          .margin('horizontal', 'lg')
+          .margin('top', 'sm')
+          .margin('bottom', 'xs'),
+      )}
+
+      {isLoading ? (
+        <ListSkeleton />
+      ) : labelers.length === 0 ? (
+        <EmptyState
+          sticker="labelers"
+          title={t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
+          subtitle={t('labelers.emptySubtitle', {
+            defaultValue: 'Try adjusting your search or check back later.',
+          })}
+          containerStyle={{ paddingTop: 60 }}
+        />
+      ) : (
+        toElement(
           VStack(
-            LSearch([search, setSearch])
-              .label(t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' }))
-              .onClearText(() => setSearch('')),
+            labelers.map((item) => {
+              const id = String(item._id || item.id);
+              return Embed(
+                <LabelerCard
+                  labeler={item}
+                  onSubscribeToggle={handleSubscribeToggle}
+                  subscribing={subscribingIds.has(id)}
+                />,
+              ).id(id);
+            }),
           )
-            .margin('horizontal', 'lg')
-            .margin('top', 'sm')
-            .margin('bottom', 'xs'),
-        )}
-
-        {isLoading ? (
-          <ListSkeleton />
-        ) : labelers.length === 0 ? (
-          <EmptyState
-            sticker="labelers"
-            title={t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
-            subtitle={t('labelers.emptySubtitle', {
-              defaultValue: 'Try adjusting your search or check back later.',
-            })}
-            containerStyle={{ paddingTop: 60 }}
-          />
-        ) : (
-          toElement(
-            VStack(
-              labelers.map((item) => {
-                const id = String(item._id || item.id);
-                return Embed(
-                  <LabelerCard
-                    labeler={item}
-                    onSubscribeToggle={handleSubscribeToggle}
-                    subscribing={subscribingIds.has(id)}
-                  />,
-                ).id(id);
-              }),
-            )
-              .padding('horizontal', 'lg')
-              .padding('top', 'sm')
-              .padding('bottom', 'lg')
-              .spacing('sm'),
-          )
-        )}
-      </ScreenScrollView>
-    </Screen>
+            .padding('horizontal', 'lg')
+            .padding('top', 'sm')
+            .padding('bottom', 'lg')
+            .spacing('sm'),
+        )
+      )}
+    </ScreenScrollView>,
+  ).header(
+    Header(t('labelers.title', { defaultValue: 'Content Labels' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-};
-
-export default LabelersScreen;
+});
 
 const styles = StyleSheet.create({
   subscribeBtn: {

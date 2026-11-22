@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
@@ -34,6 +34,7 @@ import {
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 /** A label's slug: 12/16, the platform's monospace on native (the web drew the inherited face). */
@@ -164,7 +165,7 @@ const ActionChips = React.memo(
 
 ActionChips.displayName = 'ActionChips';
 
-const LabelerDetailScreen: React.FC = () => {
+export default screen(function LabelerDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -290,37 +291,25 @@ const LabelerDetailScreen: React.FC = () => {
   const labelerId = labeler ? String(labeler._id || labeler.id) : '';
 
   if (loading) {
-    return (
-      <Screen
-        header={toElement(
-          Header(t('labelers.detailTitle', { defaultValue: 'Labeler' }))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .inPage(),
-        )}
-      >
-        {toElement(ScrollView(Embed(<DetailSkeleton />)))}
-      </Screen>
+    return ScrollView(Embed(<DetailSkeleton />)).header(
+      Header(t('labelers.detailTitle', { defaultValue: 'Labeler' }))
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .inPage(),
     );
   }
 
   if (!labeler) {
-    return (
-      <Screen
-        header={toElement(
-          Header(t('labelers.detailTitle', { defaultValue: 'Labeler' }))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .inPage(),
-        )}
-      >
-        {toElement(
-          ScrollView(
-            RawText(t('labelers.notFound', { defaultValue: 'Labeler not found.' }))
-              .font('md')
-              .foreground('muted'),
-          ).contentView((v) => v.flex('1').justify('center').align('center')),
-        )}
-      </Screen>
-    );
+    return ScrollView(
+      RawText(t('labelers.notFound', { defaultValue: 'Labeler not found.' }))
+        .font('md')
+        .foreground('muted'),
+    )
+      .contentView((v) => v.flex('1').justify('center').align('center'))
+      .header(
+        Header(t('labelers.detailTitle', { defaultValue: 'Labeler' }))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .inPage(),
+      );
   }
 
   const body = (
@@ -513,31 +502,26 @@ const LabelerDetailScreen: React.FC = () => {
     </>
   );
 
-  return (
-    <Screen
-      header={toElement(
-        Header(labeler.name)
-          .backLabel(t('common.back', { defaultValue: 'Back' }))
-          .inPage(),
-      )}
+  // The pull's spinner is tinted on iOS only (`tintColor`), so the scroller stays Bloom's.
+  return Embed(
+    <ScreenScrollView
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+        />
+      }
     >
-      <ScreenScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-      >
-        {body}
-      </ScreenScrollView>
-    </Screen>
+      {body}
+    </ScreenScrollView>,
+  ).header(
+    Header(labeler.name)
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-};
-
-export default LabelerDetailScreen;
+});
 
 const styles = StyleSheet.create({
   scrollContent: {
