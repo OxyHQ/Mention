@@ -3,7 +3,7 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo, useState, type ReactNode } from 'react';
 import { DropdownMenu, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
-import { Text, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 
@@ -439,8 +439,10 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       <DropdownMenuTrigger asChild label={t('postActions.title', { defaultValue: 'Post options' })}>
         <TouchableOpacity
           hitSlop={tokens.hitSlop.md}
-          className={compact ? 'ml-auto shrink-0 px-2' : 'px-2'}
-          style={{ marginTop: compact ? 0 : headerTopOffset }}
+          style={[
+            compact ? styles.menuButtonCompact : styles.menuButton,
+            { marginTop: compact ? 0 : headerTopOffset },
+          ]}
         >
           {toElement(Icon(RiMoreFill).size('18').foreground('muted'))}
         </TouchableOpacity>
@@ -461,14 +463,15 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   );
   const identityHandle =
     hasDisplayName && user.handle ? (
-      <Text
-        className="text-muted-foreground text-[15px] leading-tight"
-        style={{ flexShrink: 10, minWidth: 0 }}
-        numberOfLines={1}
-        ellipsizeMode="tail"
-      >
-        {`${detail ? '' : '\u00A0'}@${user.handle}`}
-      </Text>
+      toElement(
+        RawText(`${detail ? '' : '\u00A0'}@${user.handle}`)
+          .foreground('muted')
+          .font('md')
+          .leading('close')
+          .frame({ minWidth: 'none' })
+          .shrink('first')
+          .lines(1),
+      )
     ) : null;
   const identityBadge = (
     <AccountBadge
@@ -480,14 +483,11 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   );
 
   return (
-    <View className="flex-row items-start justify-between" style={{ paddingHorizontal }}>
+    <View style={[styles.header, { paddingHorizontal }]}>
       {compact ? null : avatar}
-      <View className="flex-1 min-w-0" style={{ gap: HEADER_CONTENT_GAP }}>
+      <View style={styles.content}>
         {contextTop}
-        <View
-          className={compact ? 'flex-row items-center' : 'flex-row items-end'}
-          style={{ gap: ROW_GAP }}
-        >
+        <View style={compact ? styles.identityLineCompact : styles.identityLine}>
           {compact ? avatar : null}
           {/* Bluesky-style identity line: the display name takes the space it
               needs (no width cap); the @handle gives way first (shrinks
@@ -498,7 +498,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             toElement(
               HStack(
                 RawText(
-                  headerAuthors.map((a, i) => {
+                  ...headerAuthors.flatMap((a, i) => {
                     const isLast = i === headerAuthors.length - 1;
                     // A channel signing with its writer is not a list of
                     // co-authors: the channel published it and a person wrote
@@ -513,24 +513,22 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                             : t('collab.and', { defaultValue: ' and ' })
                           : ', ';
                     // Each first name links to that author's own profile; falls
-                    // back to plain text when the author has no resolvable handle.
-                    return (
-                      <React.Fragment key={`${a.handle || 'author'}-${i}`}>
-                        {separator}
-                        {linkAuthors && a.href ? (
-                          <Link
-                            href={a.href}
-                            push
-                            onPress={stopAtLink}
-                            accessibilityLabel={a.firstName}
-                          >
-                            {a.firstName}
-                          </Link>
-                        ) : (
-                          <Text>{a.firstName}</Text>
-                        )}
-                      </React.Fragment>
-                    );
+                    // back to a plain span when the author has no resolvable handle.
+                    return [
+                      separator,
+                      linkAuthors && a.href
+                        ? Embed(
+                            <Link
+                              href={a.href}
+                              push
+                              onPress={stopAtLink}
+                              accessibilityLabel={a.firstName}
+                            >
+                              {a.firstName}
+                            </Link>,
+                          )
+                        : RawText(a.firstName),
+                    ];
                   }),
                 )
                   .frame({ minWidth: 'none' })
@@ -554,10 +552,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               disable={disableHoverCard}
               style={{ minWidth: 0, flexShrink: 1 }}
             >
-              <View
-                className={detail ? 'items-start' : 'flex-row items-end flex-shrink'}
-                style={{ minWidth: 0 }}
-              >
+              <View style={detail ? styles.identityDetail : styles.identity}>
                 {detail ? (
                   <>
                     {toElement(HStack(Embed(identityName), Embed(identityBadge)).align('center'))}
@@ -655,12 +650,15 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 .label('Reposted'),
             )}
           {compact ? menuButton : null}
-          {showReply && (
-            <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
-              {toElement(Icon(RiChat3Fill).size('xs').foreground('muted'))}
-              {toElement(RawText('Replied').foreground('muted').font('xs').leading('16px'))}
-            </View>
-          )}
+          {showReply &&
+            toElement(
+              HStack(
+                Icon(RiChat3Fill).size('xs').foreground('muted'),
+                RawText('Replied').foreground('muted').font('xs').leading('16px'),
+              )
+                .align('center')
+                .spacing('sm'),
+            )}
         </View>
         {bylineSlot}
         {children ? toElement(VStack(Embed(children))) : null}
@@ -671,3 +669,16 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 };
 
 export default React.memo(PostHeader);
+
+// The header's frame, as React Native views: the identity line's children are
+// ranked against each other for space (see the identity line below).
+const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  content: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', minWidth: 0, gap: HEADER_CONTENT_GAP },
+  identityLine: { flexDirection: 'row', alignItems: 'flex-end', gap: ROW_GAP },
+  identityLineCompact: { flexDirection: 'row', alignItems: 'center', gap: ROW_GAP },
+  identity: { flexDirection: 'row', alignItems: 'flex-end', flexShrink: 1, minWidth: 0 },
+  identityDetail: { alignItems: 'flex-start', minWidth: 0 },
+  menuButton: { paddingHorizontal: 8 },
+  menuButtonCompact: { marginLeft: 'auto', flexShrink: 0, paddingHorizontal: 8 },
+});
