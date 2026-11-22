@@ -5,16 +5,33 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Pressable, StyleSheet } from 'react-native';
-import { Card } from '@oxy.so/bloom/card';
 import { StatBar } from '@oxy.so/bloom/stat-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { pollService, PollContractError, type PollDetailOption } from '@/services/pollService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Card,
+  type Child,
+  Embed,
+  HStack,
+  RawText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('PollCard');
+
+/** The poll's outlined card, filling its cell. */
+function pollCard(...children: Child[]) {
+  return Card(...children)
+    .style('outline')
+    .radius('lg')
+    .padding('all', 'md')
+    .frame({ width: 'full' })
+    .flex('1');
+}
 
 interface PollCardProps {
   pollId: string;
@@ -99,77 +116,66 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
     }
   };
 
-  if (loading)
-    return (
-      <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
-        <PollSkeleton />
-      </Card>
-    );
+  if (loading) return toElement(pollCard(Embed(<PollSkeleton />)));
 
   if (error || !poll) return null;
 
   const locked = ended || (hasVoted && !poll.isMultipleChoice);
 
-  return (
-    <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
-      {toElement(
-        RawText(poll.question)
-          .foreground('foreground')
-          .font('16')
-          .leading('normal')
-          .weight('semibold')
-          .margin('bottom', 'sm')
-          .lines(3),
-      )}
-      {toElement(
-        VStack(
-          Embed(
-            poll.options.map((opt: PollDetailOption) => {
-              const pct = totalVotes > 0 ? opt.voteCount / totalVotes : 0;
-              return (
-                <Pressable
-                  key={opt._id}
-                  onPress={() => handleVote(opt._id)}
-                  hitSlop={tokens.hitSlop.md}
-                  disabled={locked || voting}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${opt.text}, ${Math.round(pct * 100)}%`}
-                  style={({ pressed }) => [
-                    styles.option,
-                    pressed || locked ? styles.optionDimmed : null,
-                  ]}
-                >
-                  <StatBar
-                    label={opt.text}
-                    value={pct * 100}
-                    max={100}
-                    icon={toElement(
-                      RawText(Math.round(pct * 100), '%')
-                        .foreground('foreground')
-                        .font('14')
-                        .leading('20px')
-                        .weight('semibold'),
-                    )}
-                  />
-                </Pressable>
-              );
-            }),
-          ),
-        ).spacing('xs'),
-      )}
-      {toElement(
-        HStack(
-          RawText(totalVotes, ' votes').foreground('muted').font('xs').leading('16px'),
-          RawText('·').foreground('muted'),
-          RawText(ended ? 'Ended' : 'Active')
-            .foreground('muted')
-            .font('xs')
-            .leading('16px'),
-        )
-          .spacing('6')
-          .margin('top', '10'),
-      )}
-    </Card>
+  return toElement(
+    pollCard(
+      RawText(poll.question)
+        .foreground('foreground')
+        .font('16')
+        .leading('normal')
+        .weight('semibold')
+        .margin('bottom', 'sm')
+        .lines(3),
+      VStack(
+        Embed(
+          poll.options.map((opt: PollDetailOption) => {
+            const pct = totalVotes > 0 ? opt.voteCount / totalVotes : 0;
+            return (
+              <Pressable
+                key={opt._id}
+                onPress={() => handleVote(opt._id)}
+                hitSlop={tokens.hitSlop.md}
+                disabled={locked || voting}
+                accessibilityRole="button"
+                accessibilityLabel={`${opt.text}, ${Math.round(pct * 100)}%`}
+                style={({ pressed }) => [
+                  styles.option,
+                  pressed || locked ? styles.optionDimmed : null,
+                ]}
+              >
+                <StatBar
+                  label={opt.text}
+                  value={pct * 100}
+                  max={100}
+                  icon={toElement(
+                    RawText(Math.round(pct * 100), '%')
+                      .foreground('foreground')
+                      .font('14')
+                      .leading('20px')
+                      .weight('semibold'),
+                  )}
+                />
+              </Pressable>
+            );
+          }),
+        ),
+      ).spacing('xs'),
+      HStack(
+        RawText(totalVotes, ' votes').foreground('muted').font('xs').leading('16px'),
+        RawText('·').foreground('muted'),
+        RawText(ended ? 'Ended' : 'Active')
+          .foreground('muted')
+          .font('xs')
+          .leading('16px'),
+      )
+        .spacing('6')
+        .margin('top', '10'),
+    ),
   );
 };
 
