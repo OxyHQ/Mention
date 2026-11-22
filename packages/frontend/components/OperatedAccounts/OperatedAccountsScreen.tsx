@@ -4,14 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Item } from '@oxy.so/bloom/item';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { accountNameMaxLength, getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useRefreshJoinedCommunitiesAfterCreate } from '@/hooks/useCommunities';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -23,6 +20,8 @@ import {
   Embed,
   Field as LField,
   Header,
+  InputGroup,
+  InputGroupAddon,
   RawText,
   Row,
   ScrollView,
@@ -30,6 +29,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * The accounts of one member-operated kind you operate, and the one place to
@@ -75,7 +75,10 @@ export interface OperatedAccountsScreenProps {
   copy: OperatedAccountsCopy;
 }
 
-export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenProps) {
+export const OperatedAccountsScreen = screen(function OperatedAccountsScreen({
+  kind,
+  copy,
+}: OperatedAccountsScreenProps) {
   const router = useRouter();
   const { t } = useTranslation();
   const { user, oxyServices, canUsePrivateApi } = useAuth();
@@ -142,110 +145,95 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
     [router],
   );
 
-  return (
-    <Screen
-      reselect={{ refresh: refetch }}
-      header={toElement(
-        Header(copy.title)
-          .backLabel(t('common.back', { defaultValue: 'Back' }))
-          .inPage(),
-      )}
-    >
-      <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>
-        {toElement(
-          ScrollView(
-            VStack(
-              RawText(copy.createTitle)
-                .foreground('foreground')
-                .font('18')
-                .leading('28px')
-                .weight('bold'),
-              RawText(copy.createSubtitle).foreground('muted').font('sm').margin('top', 'xs'),
-            )
-              .padding('horizontal', 'lg')
-              .padding('top', 'lg')
-              .padding('bottom', 'sm'),
-            VStack(
-              LField(
-                undefined,
-                Embed(
-                  <InputGroup>
-                    <InputGroupAddon>@</InputGroupAddon>
-                    <TextFieldInput
-                      label={copy.handleLabel}
-                      placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
-                      value={handle}
-                      onChangeText={setHandle}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </InputGroup>,
-                ),
-              ).error(
-                handleError
-                  ? t('channels.handleInvalid', {
-                      defaultValue: '3–30 characters: letters, numbers, _ or -',
-                    })
-                  : null,
+  return Embed(
+    <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>
+      {toElement(
+        ScrollView(
+          VStack(
+            RawText(copy.createTitle)
+              .foreground('foreground')
+              .font('18')
+              .leading('28px')
+              .weight('bold'),
+            RawText(copy.createSubtitle).foreground('muted').font('sm').margin('top', 'xs'),
+          )
+            .padding('horizontal', 'lg')
+            .padding('top', 'lg')
+            .padding('bottom', 'sm'),
+          VStack(
+            LField(
+              undefined,
+              InputGroup(
+                InputGroupAddon('@'),
+                TextField([handle, setHandle], copy.handleLabel)
+                  .placeholder(t('channels.handlePlaceholder', { defaultValue: 'handle' }))
+                  .autocapitalize('none')
+                  .autocorrect(false),
               ),
-              TextField([title, setTitle], copy.titleLabel)
-                .placeholder(copy.titleLabel)
-                .maxLength(accountNameMaxLength(kind)),
-              Embed(
-                <Item
-                  onPress={
-                    canCreate && !createMutation.isPending ? createMutation.mutate : undefined
-                  }
-                  disabled={!canCreate || createMutation.isPending}
-                  title={
-                    createMutation.isPending
-                      ? t('channels.creating', { defaultValue: 'Creating…' })
-                      : copy.create
-                  }
-                />,
-              ),
-            )
-              .padding('horizontal', 'lg')
-              .spacing('md'),
-            VStack(
-              RawText(copy.yours)
-                .foreground('foreground')
-                .font('18')
-                .leading('28px')
-                .weight('bold'),
-            )
-              .padding('horizontal', 'lg')
-              .padding('top', '3xl')
-              .padding('bottom', 'sm'),
-            Embed(
-              isLoading
-                ? toElement(VStack(Embed(<ListSkeleton />)).padding('vertical', '3xl'))
-                : ofKind.length === 0
-                  ? toElement(
-                      RawText(copy.none)
-                        .padding('horizontal', 'lg')
-                        .padding('vertical', 'md')
-                        .foreground('muted')
-                        .font('14'),
-                    )
-                  : ofKind.map((account) => {
-                      const accountHandle = getNormalizedUserHandle(account.account) ?? '';
-                      return toElement(
-                        Row(
-                          displayNameOrHandle(
-                            account.account.name?.displayName,
-                            accountHandle ? `@${accountHandle}` : '',
-                          ),
-                        )
-                          .onPress(() => openAccount(account))
-                          .subtitle(accountHandle ? `@${accountHandle}` : undefined),
-                        account.accountId,
-                      );
-                    }),
+            ).error(
+              handleError
+                ? t('channels.handleInvalid', {
+                    defaultValue: '3–30 characters: letters, numbers, _ or -',
+                  })
+                : null,
             ),
-          ).contentView((v) => v.padding('bottom', '4xl')),
-        )}
-      </SignInRequired>
-    </Screen>
-  );
-}
+            TextField([title, setTitle], copy.titleLabel)
+              .placeholder(copy.titleLabel)
+              .maxLength(accountNameMaxLength(kind)),
+            Embed(
+              <Item
+                onPress={canCreate && !createMutation.isPending ? createMutation.mutate : undefined}
+                disabled={!canCreate || createMutation.isPending}
+                title={
+                  createMutation.isPending
+                    ? t('channels.creating', { defaultValue: 'Creating…' })
+                    : copy.create
+                }
+              />,
+            ),
+          )
+            .padding('horizontal', 'lg')
+            .spacing('md'),
+          VStack(
+            RawText(copy.yours).foreground('foreground').font('18').leading('28px').weight('bold'),
+          )
+            .padding('horizontal', 'lg')
+            .padding('top', '3xl')
+            .padding('bottom', 'sm'),
+          Embed(
+            isLoading
+              ? toElement(VStack(Embed(<ListSkeleton />)).padding('vertical', '3xl'))
+              : ofKind.length === 0
+                ? toElement(
+                    RawText(copy.none)
+                      .padding('horizontal', 'lg')
+                      .padding('vertical', 'md')
+                      .foreground('muted')
+                      .font('14'),
+                  )
+                : ofKind.map((account) => {
+                    const accountHandle = getNormalizedUserHandle(account.account) ?? '';
+                    return toElement(
+                      Row(
+                        displayNameOrHandle(
+                          account.account.name?.displayName,
+                          accountHandle ? `@${accountHandle}` : '',
+                        ),
+                      )
+                        .onPress(() => openAccount(account))
+                        .subtitle(accountHandle ? `@${accountHandle}` : undefined),
+                      account.accountId,
+                    );
+                  }),
+          ),
+        ).contentView((v) => v.padding('bottom', '4xl')),
+      )}
+    </SignInRequired>,
+  )
+    .onReselect(refetch)
+    .header(
+      Header(copy.title)
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .inPage(),
+    );
+});

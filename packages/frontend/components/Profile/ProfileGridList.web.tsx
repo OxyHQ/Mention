@@ -1,4 +1,4 @@
-import { VirtualList } from '@oxy.so/bloom/list';
+import { Embed, Group, VirtualList, toElement } from '@oxy.so/bloom-language';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions } from 'react-native';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
@@ -67,20 +67,8 @@ export function ProfileGridList<T extends ProfileGridEntry>({
       ref={rootRef}
       style={{ backgroundColor: background, width: fullWidth ? '100%' : undefined }}
     >
-      <VirtualList
-        restorationKey={restorationKey}
-        data={rows}
-        keyExtractor={rowKey}
-        estimatedItemSize={itemSize + GAP}
-        overscan={OVERSCAN_ROWS}
-        ListHeaderComponent={
-          <>
-            {listHeaderComponent}
-            {listStickyHeaderComponent}
-          </>
-        }
-        ListEmptyComponent={emptyComponent}
-        renderItem={({ item: row }) => (
+      {toElement(
+        VirtualList(rows, ({ item: row }) => (
           // The row's own height carries the gap below it, so the measured row
           // spaces the next one exactly as the estimate does.
           <div
@@ -101,8 +89,14 @@ export function ProfileGridList<T extends ProfileGridEntry>({
               </div>
             ))}
           </div>
-        )}
-      />
+        ))
+          .restorationKey(restorationKey)
+          .itemKey(rowKey)
+          .estimatedItemSize(itemSize + GAP)
+          .tuning({ overscan: OVERSCAN_ROWS })
+          .headerContent(Group(Embed(listHeaderComponent), Embed(listStickyHeaderComponent)))
+          .emptyState(emptyComponent ? Embed(emptyComponent) : undefined),
+      )}
     </div>
   );
 }
