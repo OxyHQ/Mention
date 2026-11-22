@@ -4,7 +4,6 @@ import { memo, useCallback, useState } from 'react';
 import { TouchableOpacity } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
@@ -13,7 +12,6 @@ import { RiFlagLine } from '@oxy.so/bloom/icons/RiFlagLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiLoader4Line } from '@oxy.so/bloom/icons/RiLoader4Line';
 import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import type {
   JobEmploymentType,
@@ -31,6 +29,7 @@ import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 import {
   Badge as LBadge,
+  Card as LCard,
   Embed,
   HStack,
   Icon,
@@ -127,7 +126,6 @@ const ExternalJobReportSheet = memo(function ExternalJobReportSheet({
   onClose,
 }: ExternalJobReportSheetProps) {
   const { t } = useTranslation();
-  const theme = useTheme();
   const [submitting, setSubmitting] = useState<JobReportReason | null>(null);
 
   const submit = useCallback(
@@ -221,7 +219,6 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
 }: JobDiscoveryResultCardProps) {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = useTheme();
   const vocabulary = useJobVocabulary();
 
   const isFirstParty = job.source.type === 'first_party';
@@ -256,130 +253,111 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
   const salaryLabel = formatSalary(job.salary);
   const postedLabel = job.publishedAt ? formatTimeAgo(job.publishedAt) : null;
 
-  return (
-    <Card
-      radius="radius-16"
-      onPress={open}
-      className="mx-4 mb-3 p-4"
-      accessibilityRole="button"
-      accessibilityLabel={job.title}
-      appearance="outline"
-    >
-      {toElement(
+  return toElement(
+    LCard(
+      HStack(
+        VStack(
+          LText(job.title).font('headline').weight('bold').lines(2),
+          LText(job.employer.name).margin('top', '2xs').foreground('muted').font('body-2').lines(1),
+        ).flex('1'),
+        Embed(
+          <TouchableOpacity
+            onPress={() => onToggleSave(job)}
+            hitSlop={tokens.hitSlop.md}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isSaved
+                ? t('jobs.discovery.unsave', { defaultValue: 'Remove from saved' })
+                : t('jobs.discovery.save', { defaultValue: 'Save job' })
+            }
+          >
+            {isSaved
+              ? toElement(Icon(RiBookmarkFill).size('md').foreground('primary'))
+              : toElement(Icon(RiBookmarkLine).size('md').foreground('muted'))}
+          </TouchableOpacity>,
+        ),
+      )
+        .align('start')
+        .justify('between')
+        .spacing('sm'),
+      badges.length > 0
+        ? HStack(
+            badges.map((label, index) =>
+              LBadge(label).color('default').style('outlined').size('sm').id(`${label}-${index}`),
+            ),
+          )
+            .wrap()
+            .spacing('6')
+            .margin('top', '10')
+        : null,
+      salaryLabel ? LText(salaryLabel).margin('top', 'sm').font('body').weight('semibold') : null,
+      job.snippet
+        ? LText(job.snippet).margin('top', 'sm').foreground('muted').font('body-2').lines(2)
+        : null,
+      // Clear source/canonical attribution — never presented as a Mention
+      // listing unless it genuinely resolves to one of this app's own routes.
+      Embed(<Divider style={{ marginTop: 12 }} />),
+      HStack(
         HStack(
-          VStack(
-            LText(job.title).font('headline').weight('bold').lines(2),
-            LText(job.employer.name)
-              .margin('top', '2xs')
-              .foreground('muted')
-              .font('body-2')
-              .lines(1),
-          ).flex('1'),
+          appPath
+            ? Icon(RiCheckboxCircleFill).size('14').foreground('primary')
+            : Icon(RiGlobalLine).size('14').foreground('textTertiary'),
+          LText(
+            appPath
+              ? t('jobs.discovery.onMention', { defaultValue: 'On Mention' })
+              : t('jobs.discovery.viaSource', {
+                  defaultValue: '{{domain}} · via Clarity',
+                  domain: job.source.domain,
+                }),
+            postedLabel ? ` · ${postedLabel}` : '',
+          )
+            .shrink('normal')
+            .foreground('muted')
+            .font('caption-1')
+            .lines(1),
+        )
+          .flex('1')
+          .align('center')
+          .spacing('6'),
+        HStack(
           Embed(
             <TouchableOpacity
-              onPress={() => onToggleSave(job)}
+              onPress={share}
               hitSlop={tokens.hitSlop.md}
               accessibilityRole="button"
-              accessibilityLabel={
-                isSaved
-                  ? t('jobs.discovery.unsave', { defaultValue: 'Remove from saved' })
-                  : t('jobs.discovery.save', { defaultValue: 'Save job' })
-              }
+              accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}
             >
-              {isSaved
-                ? toElement(Icon(RiBookmarkFill).size('md').foreground('primary'))
-                : toElement(Icon(RiBookmarkLine).size('md').foreground('muted'))}
+              {toElement(Icon(RiShareForwardLine).size('sm').foreground('muted'))}
             </TouchableOpacity>,
           ),
-        )
-          .align('start')
-          .justify('between')
-          .spacing('sm'),
-      )}
-      {badges.length > 0
-        ? toElement(
-            HStack(
-              Embed(
-                badges.map((label, index) =>
-                  toElement(
-                    LBadge(label).color('default').style('outlined').size('sm'),
-                    `${label}-${index}`,
-                  ),
-                ),
-              ),
-            )
-              .wrap()
-              .spacing('6')
-              .margin('top', '10'),
-          )
-        : null}
-      {salaryLabel
-        ? toElement(LText(salaryLabel).margin('top', 'sm').font('body').weight('semibold'))
-        : null}
-      {job.snippet
-        ? toElement(
-            LText(job.snippet).margin('top', 'sm').foreground('muted').font('body-2').lines(2),
-          )
-        : null}
-      {/* Clear source/canonical attribution — never presented as a Mention
-          listing unless it genuinely resolves to one of this app's own
-          routes. */}
-      <Divider style={{ marginTop: 12 }} />
-      {toElement(
-        HStack(
-          HStack(
-            appPath
-              ? Icon(RiCheckboxCircleFill).size('14').foreground('primary')
-              : Icon(RiGlobalLine).size('14').foreground('textTertiary'),
-            LText(
-              appPath
-                ? t('jobs.discovery.onMention', { defaultValue: 'On Mention' })
-                : t('jobs.discovery.viaSource', {
-                    defaultValue: '{{domain}} · via Clarity',
-                    domain: job.source.domain,
-                  }),
-              postedLabel ? ` · ${postedLabel}` : '',
-            )
-              .shrink('normal')
-              .foreground('muted')
-              .font('caption-1')
-              .lines(1),
-          )
-            .flex('1')
-            .align('center')
-            .spacing('6'),
-          HStack(
-            Embed(
+          Embed(
+            !appPath ? (
               <TouchableOpacity
-                onPress={share}
+                onPress={() => onReport(job)}
                 hitSlop={tokens.hitSlop.md}
                 accessibilityRole="button"
-                accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}
+                accessibilityLabel={t('jobs.discovery.report', { defaultValue: 'Report' })}
               >
-                {toElement(Icon(RiShareForwardLine).size('sm').foreground('muted'))}
-              </TouchableOpacity>,
-            ),
-            Embed(
-              !appPath ? (
-                <TouchableOpacity
-                  onPress={() => onReport(job)}
-                  hitSlop={tokens.hitSlop.md}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('jobs.discovery.report', { defaultValue: 'Report' })}
-                >
-                  {toElement(Icon(RiFlagLine).size('sm').foreground('muted'))}
-                </TouchableOpacity>
-              ) : null,
-            ),
-          )
-            .align('center')
-            .spacing('md'),
+                {toElement(Icon(RiFlagLine).size('sm').foreground('muted'))}
+              </TouchableOpacity>
+            ) : null,
+          ),
         )
-          .padding('top', 'md')
           .align('center')
-          .justify('between'),
-      )}
-    </Card>
+          .spacing('md'),
+      )
+        .padding('top', 'md')
+        .align('center')
+        .justify('between'),
+    )
+      .style('outline')
+      .radius('lg')
+      .padding('lg')
+      .margin('horizontal', 'lg')
+      .margin('bottom', 'md')
+      .onPress(open)
+      .role('button')
+      .label(job.title),
   );
 });
 
