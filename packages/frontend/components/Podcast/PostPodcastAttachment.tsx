@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import { Text, View, type DimensionValue, type ViewInstance } from 'react-native';
+import { Text, View, type DimensionValue, type ViewInstance, type ViewStyle } from 'react-native';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { PostPodcastContent } from '@mention/shared-types/post';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
@@ -9,6 +10,11 @@ import { PodcastCard } from './PodcastCard';
 import { PodcastSaveButton } from './PodcastSaveButton';
 
 import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+
+// The card's box stays a view (it is measured for visibility and sized by its post);
+// this draws its classes, `rounded-2xl overflow-hidden`. Its status text stays
+// React Native's Text, a polite live region the language has no modifier for.
+const attachmentBox: ViewStyle = { borderRadius: 16, overflow: 'hidden' };
 
 /** Even cached pre-migration feed objects contribute ONLY their ID. */
 export function PostPodcastAttachment({
@@ -27,17 +33,13 @@ export function PostPodcastAttachment({
   onPress?: () => void;
 }) {
   const { t } = useTranslation();
+  const colors = useColorTokens();
   const cardRef = useRef<ViewInstance>(null);
   const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
   const state = useVisibleReference(syraPodcastCards, podcast.syraPodcastId, visible);
   const value = state.status === 'ready' ? state.value : undefined;
   return (
-    <View
-      ref={cardRef}
-      testID="syra-podcast-card"
-      style={{ width, height }}
-      className="rounded-2xl overflow-hidden"
-    >
+    <View ref={cardRef} testID="syra-podcast-card" style={[attachmentBox, { width, height }]}>
       {value ? (
         <PodcastCard
           title={value.title}
@@ -53,7 +55,7 @@ export function PostPodcastAttachment({
         toElement(
           VStack(
             Embed(
-              <Text accessibilityLiveRegion="polite" className="text-muted-foreground">
+              <Text accessibilityLiveRegion="polite" style={{ color: colors.mutedForeground }}>
                 {state.status === 'loading'
                   ? t('podcast.loading', { defaultValue: 'Loading Syra podcast…' })
                   : t('podcast.unavailable', { defaultValue: 'This Syra podcast is unavailable' })}

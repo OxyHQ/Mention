@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import { View, RefreshControl } from 'react-native';
+import { RefreshControl } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
@@ -33,8 +33,13 @@ import {
   RawText,
   Text as LText,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+
+const liveColors = defineTokens({
+  color: { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR },
+});
 
 const SectionHeader = ({
   icon,
@@ -151,18 +156,18 @@ const LiveRoomsScreen = () => {
           VStack(
             Embed(
               <SectionHeader
-                icon={
-                  <View
-                    className="w-9 h-9 items-center justify-center rounded-full"
-                    style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
-                  >
-                    <RiBroadcastLine
-                      width={18}
-                      height={18}
-                      fill={LIVE_INDICATOR_FOREGROUND_COLOR}
-                    />
-                  </View>
-                }
+                icon={toElement(
+                  VStack(
+                    Icon(RiBroadcastLine)
+                      .size('18')
+                      .foreground(liveColors.color.LIVE_INDICATOR_FOREGROUND_COLOR),
+                  )
+                    .frame({ width: '36', height: '36' })
+                    .background(liveColors.color.LIVE_INDICATOR_COLOR)
+                    .corner('infinite')
+                    .align('center')
+                    .justify('center'),
+                )}
                 title={t('agora.liveNow')}
                 subtitle="Join the conversation"
               />,

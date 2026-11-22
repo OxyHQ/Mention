@@ -1,9 +1,21 @@
+import type { ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { FollowingAvatars } from './FollowingAvatars';
 import type { VideoFeedTab } from '@/hooks/useVideoFeed';
 
 import { Embed, HStack, Text as LText, toElement } from '@oxy.so/bloom-language';
+
+// Each tab stays Bloom's PressableScale: it announces itself selected, which the
+// language has no modifier for. This draws its classes:
+// `min-h-11 flex-row items-center justify-center gap-1.5`.
+const tabStyle: ViewStyle = {
+  minHeight: 44,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+};
 
 interface VideoFeedTabsProps {
   value: VideoFeedTab;
@@ -22,7 +34,7 @@ export function VideoFeedTabs({ value, onValueChange }: VideoFeedTabsProps) {
             accessibilityRole="tab"
             aria-selected={value === tab}
             onPress={() => onValueChange(tab)}
-            className="min-h-11 flex-row items-center justify-center gap-1.5"
+            style={tabStyle}
             testID={`video-feed-tab-${tab}`}
           >
             {toElement(

@@ -1,12 +1,33 @@
-import { View } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Text } from '@oxy.so/bloom/typography';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 
-import { Embed, Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
-const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
+import {
+  Embed,
+  Icon,
+  Text as LText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+
+// Tailwind's violet-500, neutral-100 and neutral-600 as NativeWind painted them.
+const appColors = defineTokens({
+  color: {
+    hexFFFFFF: '#FFFFFF',
+    violet500: '#8e51ff',
+    neutral100: '#f5f5f5',
+    neutral600: '#525252',
+  },
+});
+// The label's 12px line over its 10pt size (a leading is a ratio of the size).
+const bubbleTokens = defineTokens({ leading: { label: 12 / 10 } });
+
+// The avatar's box stays a view: it hides its avatar from assistive technology,
+// which the language has no modifier for. This draws `relative h-8 w-8`.
+const avatarBox: ViewStyle = { position: 'relative', width: 32, height: 32 };
 
 interface VideoRepostBubbleProps {
   visible: boolean;
@@ -20,23 +41,40 @@ export function VideoRepostBubble({ visible, onAddThought }: VideoRepostBubblePr
   const { t } = useTranslation();
   if (!visible || !user) return null;
   const avatar = (
-    <View className="relative h-8 w-8" aria-hidden importantForAccessibility="no-hide-descendants">
+    <View style={avatarBox} aria-hidden importantForAccessibility="no-hide-descendants">
       <AccountAvatar account={user} source={user.avatar} size={32} />
-      <View className="absolute -bottom-0.5 -right-1 h-4 w-4 items-center justify-center rounded-full bg-violet-500">
-        {toElement(Icon(RiRepeat2Line).size('10').foreground(appColors.color.hexFFFFFF))}
-      </View>
+      {toElement(
+        VStack(Icon(RiRepeat2Line).size('10').foreground(appColors.color.hexFFFFFF))
+          .frame({ width: 'lg', height: 'lg' })
+          .background(appColors.color.violet500)
+          .corner('infinite')
+          .position({ bottom: '-2xs', right: '-xs' })
+          .align('center')
+          .justify('center'),
+      )}
     </View>
   );
   if (!onAddThought) return toElement(VStack(Embed(avatar)).frame({ width: '64' }).align('center'));
   const label = t('videos.addThought');
   return toElement(
     VStack(
-      Embed(
-        <View className="relative w-16 items-center rounded-2xl bg-neutral-100 px-2 py-2">
-          <Text className="text-center text-[10px] leading-3 text-neutral-600">{label}</Text>
-          <View className="absolute -bottom-1 h-2 w-2 rotate-45 bg-neutral-100" />
-        </View>,
-      ),
+      VStack(
+        LText(label)
+          .textAlign('center')
+          .font('2xs')
+          .leading(bubbleTokens.leading.label)
+          .foreground(appColors.color.neutral600),
+        VStack()
+          .frame({ width: 'sm', height: 'sm' })
+          .background(appColors.color.neutral100)
+          .position({ bottom: '-xs' })
+          .rotation('45'),
+      )
+        .padding('sm')
+        .frame({ width: '64' })
+        .background(appColors.color.neutral100)
+        .corner('lg')
+        .align('center'),
       Embed(avatar),
     )
       .frame({ width: '64' })
