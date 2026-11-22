@@ -6,6 +6,7 @@ import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import type { CommerceReference } from '@mention/shared-types/commerce';
 import { Dimensions, Linking, View } from 'react-native';
 import { useScreenVisible } from '@oxy.so/bloom/screen';
+import { Search } from '@oxy.so/bloom/search';
 import { isNotFoundError } from '@/utils/apiError';
 import {
   FeaturedCollectionObserver,
@@ -35,7 +36,6 @@ import {
   Embed,
   HStack,
   RawText,
-  Search as LSearch,
   Text as LText,
   Toggle,
   VStack,
@@ -195,12 +195,18 @@ export function ProfileShop({
       'product-controls',
       toElement(
         VStack(
-          LSearch([searchText, setSearchText])
-            .label(t('commerce.searchProducts'))
-            .onClearText(() => setSearchText(''))
-            .autocapitalize('none')
-            .autocorrect(false)
-            .maxLength(200),
+          // Bloom's Search as JSX: the language's Search has no `.maxLength()`.
+          Embed(
+            <Search
+              label={t('commerce.searchProducts')}
+              value={searchText}
+              onChangeText={setSearchText}
+              onClearText={() => setSearchText('')}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={200}
+            />,
+          ),
           Embed(
             <Select
               value={effectiveSort}
