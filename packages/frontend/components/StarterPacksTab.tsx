@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
@@ -13,11 +14,12 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 export function StarterPacksTab() {
   const router = useRouter();
   const { t } = useTranslation();
+  const colors = useColorTokens();
   const { user, canUsePrivateApi } = useAuth();
   const [loading, setLoading] = useState(true);
   const [packs, setPacks] = useState<StarterPackSummary[]>([]);
@@ -108,13 +110,12 @@ export function StarterPacksTab() {
       contentContainerStyle={styles.list}
       ListHeaderComponent={
         <TouchableOpacity
-          className="bg-primary"
-          style={styles.createButton}
+          style={[styles.createButton, { backgroundColor: colors.primary }]}
           onPress={() => router.push('/starter-packs/create')}
         >
-          <Text className="text-primary-foreground" style={styles.createButtonText}>
-            {t('starterPacks.create')}
-          </Text>
+          {toElement(
+            RawText(t('starterPacks.create')).foreground('onPrimary').weight('bold').font('md'),
+          )}
         </TouchableOpacity>
       }
     />
@@ -126,5 +127,4 @@ const styles = StyleSheet.create({
   cardWrapper: { marginBottom: 8 },
   emptyState: { paddingVertical: 36, paddingHorizontal: 20 },
   createButton: { paddingVertical: 12, borderRadius: 20, alignItems: 'center', marginBottom: 16 },
-  createButtonText: { fontWeight: '700', fontSize: 15 },
 });
