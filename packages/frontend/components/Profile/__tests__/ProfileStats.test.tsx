@@ -1,6 +1,12 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileStats } from '../ProfileStats';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('react-i18next', () => ({
@@ -23,7 +29,7 @@ const BASE_PROPS: React.ComponentProps<typeof ProfileStats> = {
 async function renderedText(props: React.ComponentProps<typeof ProfileStats>): Promise<string[]> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(<ProfileStats {...props} />);
+    renderer = TestRenderer.create(themed(<ProfileStats {...props} />));
   });
   const text = renderer.root
     .findAll((node) => String(node.type) === 'Text', { deep: true })
