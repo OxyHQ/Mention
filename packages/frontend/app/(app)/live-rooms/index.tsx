@@ -256,7 +256,9 @@ const LiveRoomsScreen = () => {
                 tintColor={theme.colors.primary}
               />
             }
-            contentContainerClassName="pb-6"
+            // Its old `pb-6` class: Bloom lays it out in a content view of its own.
+            contentView
+            contentContainerStyle={{ paddingBottom: 24 }}
           >
             {body}
           </ScreenScrollView>
