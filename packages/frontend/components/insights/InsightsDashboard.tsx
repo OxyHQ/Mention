@@ -1,6 +1,6 @@
 import type React from 'react';
 import { Fragment, useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, type TextStyle, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -27,7 +27,6 @@ import {
 } from '@oxy.so/bloom/accordion';
 import PostItem from '@/components/Feed/PostItem';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
-import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import type { AccountInsights, EngagementRatios } from '@/services/insightsService';
 import type { HydratedPost } from '@mention/shared-types';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -55,6 +54,9 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** The refresh line, 12/16 as `text-xs` drew it; its ink is the muted colour. */
+const UPDATED_STYLE: TextStyle = { fontSize: 12, lineHeight: 16 };
 
 const PERIOD_OPTIONS = [
   { labelKey: 'insights.period.7days', value: 7 },
@@ -295,7 +297,11 @@ export function InsightsDashboard({
             .justify('between')
             .spacing('sm'),
           Embed(
-            <Text className="text-xs text-muted-foreground" accessibilityLiveRegion="polite">
+            // Bloom's Text: its live region (it announces the refresh) has no modifier.
+            <Text
+              style={[UPDATED_STYLE, { color: colors.textSecondary }]}
+              accessibilityLiveRegion="polite"
+            >
               {isFetching ? t('insights.updating') : `${range} · UTC`}
             </Text>,
           ),
