@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -9,7 +9,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useRouter } from '@/lib/navigation/router';
-import { cn } from '@/lib/utils';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import type { User } from '@oxy.so/core';
@@ -28,11 +28,25 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+// Kept as React Native's TouchableOpacity (the language has no node for its fading
+// press); its style draws what its classes drew.
+const touchables = {
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  create: { marginTop: 20, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+} satisfies Record<string, ViewStyle>;
 import { screen } from '@oxy.so/bloom-language/router';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 export default screen(function CreateStarterPackScreen() {
+  const colors = useColorTokens();
   const router = useRouter();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
@@ -155,10 +169,7 @@ export default screen(function CreateStarterPackScreen() {
                   results.map((u, index) => (
                     <React.Fragment key={u.id}>
                       {index > 0 && toElement(LDivider())}
-                      <TouchableOpacity
-                        className="flex-row items-center justify-between px-3 py-2.5"
-                        onPress={() => addMember(u)}
-                      >
+                      <TouchableOpacity style={touchables.resultRow} onPress={() => addMember(u)}>
                         {toElement(
                           RawText('@', u.username, ' · ', u.name.displayName).foreground(
                             'foreground',
@@ -205,10 +216,11 @@ export default screen(function CreateStarterPackScreen() {
             <TouchableOpacity
               disabled={saving || !name.trim()}
               onPress={onCreate}
-              className={cn(
-                'mt-5 py-3 rounded-[10px] items-center bg-primary',
-                !name.trim() && 'opacity-60',
-              )}
+              style={[
+                touchables.create,
+                { backgroundColor: colors.primary },
+                !name.trim() && { opacity: 0.6 },
+              ]}
             >
               {toElement(
                 RawText(saving ? 'Creating...' : 'Create Starter Pack')

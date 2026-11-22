@@ -1,14 +1,13 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, TouchableOpacity, ScrollView } from 'react-native';
+import { Platform, TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { useRouter } from '@/lib/navigation/router';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { listsService } from '@/services/listsService';
 import { createLogger } from '@oxy.so/core/logger';
@@ -19,11 +18,29 @@ import {
   HStack,
   Icon,
   RawText,
+  SpinnerIcon,
   VStack,
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
+
+// Tailwind's `rounded-full` as NativeWind drew it on a TouchableOpacity, which the
+// language has no node for (its press fades the row's opacity).
+const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+const touchables = {
+  create: { borderRadius: PILL_RADIUS, paddingHorizontal: 20, paddingVertical: 10 },
+  // Tailwind's `flex-1`: grow, shrink and a 0% basis.
+  rowLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+  },
+  newRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+} satisfies Record<string, ViewStyle>;
 
 const logger = createLogger('AddToListSheet');
 
@@ -57,7 +74,7 @@ function extractMemberIds(list: unknown): string[] {
  */
 export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToListSheetProps) {
   const router = useRouter();
-  const theme = useTheme();
+  const colors = useColorTokens();
   const { t } = useTranslation();
   const [rows, setRows] = useState<ListRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,7 +220,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
               Embed(
                 <TouchableOpacity
                   onPress={goCreate}
-                  className="bg-primary rounded-full px-5 py-2.5"
+                  style={[touchables.create, { backgroundColor: colors.primary }]}
                 >
                   {toElement(
                     RawText(t('lists.createList', { defaultValue: 'Create list' }))
@@ -231,15 +248,20 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
                           toggle twice. The box carries the accessible name; the label
                           area is only a bigger touch target for the same toggle. */ Embed(
                     <TouchableOpacity
-                      className="flex-row items-center gap-3 flex-1"
+                      style={touchables.rowLabel}
                       onPress={() => toggle(row)}
                       disabled={row.pending}
                       activeOpacity={0.7}
                       accessible={false}
                     >
-                      <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
-                        {toElement(Icon(RiListUnordered).size('18').foreground('foreground'))}
-                      </View>
+                      {toElement(
+                        VStack(Icon(RiListUnordered).size('18').foreground('foreground'))
+                          .frame({ width: '36', height: '36' })
+                          .background('mutedFill')
+                          .corner('lg')
+                          .align('center')
+                          .justify('center'),
+                      )}
                       {toElement(
                         RawText(row.title)
                           .foreground('foreground')
@@ -250,17 +272,11 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
                       )}
                     </TouchableOpacity>,
                   ),
-                  Embed(
-                    row.pending ? (
-                      <SpinnerIcon size={18} className="text-primary" />
-                    ) : (
-                      toElement(
-                        LCheckbox([row.hasUser, () => toggle(row)])
-                          .size('lg')
-                          .label(row.title),
-                      )
-                    ),
-                  ),
+                  row.pending
+                    ? SpinnerIcon().size('18').tint('primary')
+                    : LCheckbox([row.hasUser, () => toggle(row)])
+                        .size('lg')
+                        .label(row.title),
                 )
                   .padding('vertical', 'md')
                   .border('border', 'thin', 'bottom')
@@ -271,14 +287,19 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
             )}
 
             <TouchableOpacity
-              className="flex-row items-center gap-3 py-3.5"
+              style={touchables.newRow}
               onPress={goCreate}
               activeOpacity={0.7}
               accessibilityRole="button"
             >
-              <View className="w-9 h-9 rounded-lg items-center justify-center bg-primary">
-                {toElement(Icon(RiAddLine).size('md').foreground(appColors.color.hexfff))}
-              </View>
+              {toElement(
+                VStack(Icon(RiAddLine).size('md').foreground(appColors.color.hexfff))
+                  .frame({ width: '36', height: '36' })
+                  .background('primary')
+                  .corner('lg')
+                  .align('center')
+                  .justify('center'),
+              )}
               {toElement(
                 RawText(t('lists.addTo.newList', { defaultValue: 'New list' }))
                   .foreground('primary')

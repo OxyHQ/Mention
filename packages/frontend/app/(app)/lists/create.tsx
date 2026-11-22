@@ -1,18 +1,18 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
 import { Screen } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { useRouter } from '@/lib/navigation/router';
 import { logger } from '@oxy.so/core/logger';
 import { useTranslation } from 'react-i18next';
-import { cn } from '@/lib/utils';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import type { User } from '@oxy.so/core';
 
@@ -30,9 +30,23 @@ import {
   toElement,
 } from '@oxy.so/bloom-language';
 
+// Kept as React Native's TouchableOpacity (the language has no node for its fading
+// press); its style draws what its classes drew.
+const touchables = {
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  create: { marginTop: 20, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+} satisfies Record<string, ViewStyle>;
+
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 function CreateListScreen() {
+  const colors = useColorTokens();
   const router = useRouter();
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
@@ -165,10 +179,7 @@ function CreateListScreen() {
                     results.map((u, index) => (
                       <React.Fragment key={u.id}>
                         {index > 0 && toElement(LDivider())}
-                        <TouchableOpacity
-                          className="flex-row items-center justify-between px-3 py-2.5"
-                          onPress={() => addMember(u)}
-                        >
+                        <TouchableOpacity style={touchables.resultRow} onPress={() => addMember(u)}>
                           {toElement(
                             RawText('@', u.username, ' • ', u.name.displayName).foreground(
                               'foreground',
@@ -219,10 +230,11 @@ function CreateListScreen() {
               <TouchableOpacity
                 disabled={saving || !title.trim()}
                 onPress={onCreate}
-                className={cn(
-                  'mt-5 py-3 rounded-[10px] items-center bg-primary',
-                  !title.trim() && 'opacity-60',
-                )}
+                style={[
+                  touchables.create,
+                  { backgroundColor: colors.primary },
+                  !title.trim() && { opacity: 0.6 },
+                ]}
               >
                 {toElement(
                   RawText(saving ? t('lists.create.saving') : t('lists.create.createButton'))

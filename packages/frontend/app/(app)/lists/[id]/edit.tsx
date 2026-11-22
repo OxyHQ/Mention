@@ -2,16 +2,14 @@ import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Screen } from '@oxy.so/bloom/screen';
 import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -36,9 +34,22 @@ import {
   Icon,
   RawText,
   ScrollView,
+  SpinnerIcon,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+// Kept as React Native's TouchableOpacity (the language has no node for its fading
+// press); its style draws what its classes drew.
+const touchables = {
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+} satisfies Record<string, ViewStyle>;
 
 interface MemberProfile {
   id: string;
@@ -63,7 +74,6 @@ function EditListMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const listId = String(id);
   const { oxyServices } = useAuth();
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
@@ -294,7 +304,7 @@ function EditListMembersScreen() {
                     <React.Fragment key={u.id}>
                       {index > 0 && toElement(LDivider())}
                       <TouchableOpacity
-                        className="flex-row items-center gap-3 px-3 py-2.5"
+                        style={touchables.resultRow}
                         onPress={() => addMember(u)}
                         disabled={already || busy}
                         activeOpacity={0.7}
@@ -313,17 +323,15 @@ function EditListMembersScreen() {
                               .lines(1),
                           ).flex('1'),
                         )}
-                        {busy ? (
-                          <SpinnerIcon size={18} className="text-primary" />
-                        ) : already ? (
-                          toElement(Icon(RiCheckboxCircleFill).size('22').foreground('primary'))
-                        ) : (
-                          toElement(
-                            RawText(t('lists.create.add', { defaultValue: 'Add' }))
-                              .foreground('primary')
-                              .weight('semibold'),
-                          )
-                        )}
+                        {busy
+                          ? toElement(SpinnerIcon().size('18').tint('primary'))
+                          : already
+                            ? toElement(Icon(RiCheckboxCircleFill).size('22').foreground('primary'))
+                            : toElement(
+                                RawText(t('lists.create.add', { defaultValue: 'Add' }))
+                                  .foreground('primary')
+                                  .weight('semibold'),
+                              )}
                       </TouchableOpacity>
                     </React.Fragment>
                   );
@@ -391,13 +399,13 @@ function EditListMembersScreen() {
                                   defaultValue: 'Remove',
                                 })}
                               >
-                                {busy ? (
-                                  <SpinnerIcon size={18} className="text-destructive" />
-                                ) : (
-                                  toElement(
-                                    Icon(RiIndeterminateCircleFill).size('lg').foreground('error'),
-                                  )
-                                )}
+                                {busy
+                                  ? toElement(SpinnerIcon().size('18').tint('destructive'))
+                                  : toElement(
+                                      Icon(RiIndeterminateCircleFill)
+                                        .size('lg')
+                                        .foreground('error'),
+                                    )}
                               </TouchableOpacity>,
                             ),
                           )

@@ -1,8 +1,7 @@
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
@@ -17,14 +16,13 @@ import { Search } from '@oxy.so/bloom/search';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { starterPacksService } from '@/services/starterPacksService';
 import { confirmDestructive } from '@/utils/alerts';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
 import type { User } from '@oxy.so/core';
 
@@ -40,9 +38,31 @@ import {
   RawText,
   Row,
   ScrollView,
+  SpinnerIcon,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+
+// Kept as React Native's TouchableOpacity (the language has no node for its fading
+// press); its style draws what its classes drew.
+const touchables = {
+  save: {
+    marginTop: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  delete: {
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+} satisfies Record<string, ViewStyle>;
 import { screen } from '@oxy.so/bloom-language/router';
 
 interface MemberProfile {
@@ -72,7 +92,7 @@ export default screen(function EditStarterPackScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const packId = String(id);
   const { user, oxyServices } = useAuth();
-  const theme = useTheme();
+  const colors = useColorTokens();
   const back = useScreenBack();
   const { t } = useTranslation();
 
@@ -482,14 +502,15 @@ export default screen(function EditStarterPackScreen() {
       <TouchableOpacity
         disabled={savingDetails || !name.trim()}
         onPress={saveDetails}
-        className={cn(
-          'mt-5 py-3 rounded-[10px] items-center bg-primary flex-row justify-center gap-2',
-          (savingDetails || !name.trim()) && 'opacity-60',
-        )}
+        style={[
+          touchables.save,
+          { backgroundColor: colors.primary },
+          (savingDetails || !name.trim()) && { opacity: 0.6 },
+        ]}
         accessibilityRole="button"
         accessibilityLabel="Save starter pack"
       >
-        {savingDetails && <SpinnerIcon size={16} className="text-primary-foreground" />}
+        {savingDetails && toElement(SpinnerIcon().size('sm').tint('onPrimary'))}
         {toElement(
           RawText(savingDetails ? 'Saving...' : 'Save changes')
             .foreground('onPrimary')
@@ -500,7 +521,7 @@ export default screen(function EditStarterPackScreen() {
     Embed(
       <TouchableOpacity
         onPress={deletePack}
-        className="mt-3 py-3 rounded-[10px] items-center border border-border"
+        style={[touchables.delete, { borderColor: colors.border }]}
         accessibilityRole="button"
         accessibilityLabel="Delete starter pack"
       >
