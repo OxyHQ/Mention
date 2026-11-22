@@ -4,6 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { muteWordsService, type SerializedMuteWord } from '@/services/muteWordsService';
 import HiddenWordsScreen from '@/components/settings/pages/privacy/hidden-words';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The muted-words screen must REPORT every change it lands, and only the ones it
@@ -50,6 +51,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     isDark: false,
     colors: {
@@ -72,6 +74,7 @@ jest.mock('@oxy.so/bloom/loading', () => {
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
 jest.mock('@oxy.so/bloom/settings-modal', () => ({
+  ...jest.requireActual('@oxy.so/bloom/settings-modal'),
   SettingsSection: require('react-native').View,
 }));
 jest.mock('@oxy.so/bloom/grouped-section', () => require('@/test-support/bloomGroupedSection'));
@@ -94,7 +97,10 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@oxy.so/bloom/admonition', () => ({ Admonition: () => null }));
+jest.mock('@oxy.so/bloom/admonition', () => ({
+  ...jest.requireActual('@oxy.so/bloom/admonition'),
+  Admonition: () => null,
+}));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/context/MentionSettingsContext', () => ({ useSettingsBack: () => jest.fn() }));
 
@@ -138,9 +144,11 @@ async function openScreen(): Promise<TestRenderer.ReactTestRenderer> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <HiddenWordsScreen />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <HiddenWordsScreen />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   await flush();

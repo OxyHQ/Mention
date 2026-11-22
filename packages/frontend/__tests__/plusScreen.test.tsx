@@ -1,6 +1,11 @@
 jest.mock('@oxy.so/bloom/typography', () => {
   const text = ({ children }: { children: React.ReactNode }) => <span>{children}</span>;
-  return { Text: text, Title: text, Subtitle: text };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/typography'),
+    Text: text,
+    Title: text,
+    Subtitle: text,
+  };
 });
 jest.mock('@/hooks/useCheckoutConfiguration', () => ({
   useCheckoutConfiguration: () => undefined,
@@ -40,6 +45,7 @@ jest.mock('@/components/payments/CheckoutPreviewBadge', () => ({
 import TestRenderer, { act } from 'react-test-renderer';
 import type { SubscriptionPriceValue } from '@oxy.so/bloom/subscription-plans';
 import PlusScreen from '@/app/(app)/plus';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 let mockOffer: {
   productId?: string;
@@ -120,14 +126,21 @@ jest.mock('@oxy.so/bloom/subscription-plans', () => ({
   },
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { primary: '#000' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ colors: { primary: '#000' } }),
+}));
 
 /** /plus opens checkout without inventing or substituting a commercial price. */
 it('preserves production coming-soon gating before payment activation', () => {
   mockPurchaseAvailable = false;
   mockPaymentDialog.mockClear();
   act(() => {
-    TestRenderer.create(<PlusScreen />);
+    TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    );
   });
   expect(mockGroupTitles).toEqual(
     expect.arrayContaining(['plus.freeBenefitSocial', 'plus.benefitMono']),
@@ -146,7 +159,11 @@ it('displays the exact published offer price instead of a static bundle price', 
     price: { amountMinorUnits: 2999, currency: 'USD', interval: 'month' },
   };
   act(() => {
-    TestRenderer.create(<PlusScreen />);
+    TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    );
   });
   expect(mockPrice).toMatchObject({
     amount: 29.99,
@@ -156,7 +173,11 @@ it('displays the exact published offer price instead of a static bundle price', 
 
 it('defaults monthly, passes the selected annual offer to the sheet and locks cadence while open', () => {
   act(() => {
-    TestRenderer.create(<PlusScreen />);
+    TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    );
   });
   expect(mockCadence).toBe('month');
   act(() => mockCadenceProps.onValueChange('year'));
@@ -175,7 +196,11 @@ it('shows the shared currency estimate without replacing the approved USD price'
   };
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<PlusScreen />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    );
   });
   expect(mockFormatUsd).toHaveBeenCalledWith(599);
   expect(mockPrice).toMatchObject({ amount: 5.99, currency: 'USD' });
@@ -187,7 +212,11 @@ it('keeps an actual catalogue request failure distinct from a planned launch', (
   mockPurchaseAvailable = false;
   mockOffer = null;
   act(() => {
-    TestRenderer.create(<PlusScreen />);
+    TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    );
   });
   expect(mockPrimary.children).toBe('plus.payment.pricingUnavailable');
   expect(mockPrimary.disabled).toBe(true);
@@ -208,7 +237,11 @@ it('opens captured review synchronously and removes it when account/session chan
   };
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    tree = TestRenderer.create(<PlusScreen />);
+    tree = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    );
   });
   act(() => mockPrimary.onPress());
   expect(mockPreparedProps?.review).toMatchObject({ amountMinorUnits: 599, interval: 'month' });
@@ -216,7 +249,13 @@ it('opens captured review synchronously and removes it when account/session chan
   mockUserId = 'account-b';
   mockSessionId = 'session-b';
   mockPreparedProps = null;
-  act(() => tree?.update(<PlusScreen />));
+  act(() =>
+    tree?.update(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    ),
+  );
   expect(mockPreparedProps).toBeNull();
   act(() => mockPrimary.onPress());
   expect((mockPreparedProps as { operationKey: string } | null)?.operationKey).not.toBe(earlierKey);
@@ -230,7 +269,11 @@ it('groups all Plus benefits and renders both selectors under the same row', () 
   mockGroupTitles = [];
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    tree = TestRenderer.create(<PlusScreen />);
+    tree = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PlusScreen />
+      </BloomThemeProvider>,
+    );
   });
   const row = tree?.root.findByProps({ testID: 'plus-plan-selectors' });
   expect(row?.props.style.flexDirection).toBe('row');

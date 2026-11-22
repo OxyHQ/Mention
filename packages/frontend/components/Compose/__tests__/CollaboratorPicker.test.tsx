@@ -2,6 +2,7 @@ import type React from 'react';
 import { Text, TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import CollaboratorPicker, { type CollaboratorUser } from '../CollaboratorPicker';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * Inviting collaborators is now reached from the people icon in the attachment
@@ -46,6 +47,7 @@ jest.mock('@oxy.so/bloom/icons', () => ({
   RiSearchLine: () => null,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
 jest.mock('@oxy.so/core/logger', () => ({ logger: { error: jest.fn() } }));
@@ -66,17 +68,26 @@ function render(props: Partial<React.ComponentProps<typeof CollaboratorPicker>> 
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <CollaboratorPicker
-        selected={[]}
-        onChange={() => {}}
-        expanded={false}
-        onExpandedChange={() => {}}
-        {...props}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <CollaboratorPicker
+          selected={[]}
+          onChange={() => {}}
+          expanded={false}
+          onExpandedChange={() => {}}
+          {...props}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('CollaboratorPicker failed to render');
   return tree;
+}
+
+/** What the picker drew inside Bloom's theme: `null` while it draws nothing. */
+function drawn(tree: TestRenderer.ReactTestRenderer) {
+  const provider = tree.toJSON();
+  if (provider === null || Array.isArray(provider)) return provider;
+  return provider.children;
 }
 
 function textContent(tree: TestRenderer.ReactTestRenderer): string {
@@ -100,7 +111,7 @@ describe('CollaboratorPicker', () => {
     // The entry point moved to the attachment row, so an empty, closed picker
     // has nothing to say — and must not reserve a strip of the composer to
     // say it.
-    expect(tree.toJSON()).toBeNull();
+    expect(drawn(tree)).toBeNull();
 
     act(() => tree.unmount());
   });

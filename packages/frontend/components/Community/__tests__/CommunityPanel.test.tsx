@@ -16,6 +16,7 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { CommunityPanel } from '../CommunityPanel';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * What a community's page offers: posting in it, hosted here or remote; its
@@ -63,7 +64,9 @@ describe('CommunityPanel', () => {
     let hosted!: TestRenderer.ReactTestRenderer;
     act(() => {
       hosted = TestRenderer.create(
-        <CommunityPanel communityId="forum-1" username="forum" hosted />,
+        <BloomThemeProvider fonts={false}>
+          <CommunityPanel communityId="forum-1" username="forum" hosted />
+        </BloomThemeProvider>,
       );
     });
     expect(labels(hosted)).toEqual(['Post in this community', 'communities.settings.edit']);
@@ -82,7 +85,9 @@ describe('CommunityPanel', () => {
     let remote!: TestRenderer.ReactTestRenderer;
     act(() => {
       remote = TestRenderer.create(
-        <CommunityPanel communityId="lemmy-1" username="lemmy@lemmy.world" hosted={false} />,
+        <BloomThemeProvider fonts={false}>
+          <CommunityPanel communityId="lemmy-1" username="lemmy@lemmy.world" hosted={false} />
+        </BloomThemeProvider>,
       );
     });
     expect(labels(remote)).toEqual(['Post in this community']);

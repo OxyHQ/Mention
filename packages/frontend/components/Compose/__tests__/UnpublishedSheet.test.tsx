@@ -2,6 +2,7 @@ import type React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import UnpublishedSheet from '../UnpublishedSheet';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The reported bug was discoverability, not plumbing: the scheduled-posts
@@ -55,6 +56,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -258,12 +260,14 @@ function renderSheet(overrides: Partial<React.ComponentProps<typeof UnpublishedS
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <UnpublishedSheet
-        onClose={() => {}}
-        onLoadDraft={() => {}}
-        currentDraftId={null}
-        {...overrides}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <UnpublishedSheet
+          onClose={() => {}}
+          onLoadDraft={() => {}}
+          currentDraftId={null}
+          {...overrides}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('UnpublishedSheet failed to render');
@@ -433,7 +437,9 @@ describe('UnpublishedSheet', () => {
     mockScheduled.scheduledPosts = [];
     act(() => {
       tree.update(
-        <UnpublishedSheet onClose={() => {}} onLoadDraft={() => {}} currentDraftId={null} />,
+        <BloomThemeProvider fonts={false}>
+          <UnpublishedSheet onClose={() => {}} onLoadDraft={() => {}} currentDraftId={null} />
+        </BloomThemeProvider>,
       );
     });
 
@@ -535,7 +541,9 @@ describe('UnpublishedSheet', () => {
     mockServerDrafts.serverDrafts = [];
     act(() => {
       tree.update(
-        <UnpublishedSheet onClose={() => {}} onLoadDraft={() => {}} currentDraftId={null} />,
+        <BloomThemeProvider fonts={false}>
+          <UnpublishedSheet onClose={() => {}} onLoadDraft={() => {}} currentDraftId={null} />
+        </BloomThemeProvider>,
       );
     });
 

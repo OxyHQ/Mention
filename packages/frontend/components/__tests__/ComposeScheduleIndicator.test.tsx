@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import ComposeScheduleIndicator from '@/components/Compose/ComposeScheduleIndicator';
 import PostHeader from '@/components/Post/PostHeader';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The publish time belongs in the author row's time slot — the spot that reads
@@ -52,6 +53,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -64,7 +66,10 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
+jest.mock('@oxy.so/bloom/hooks', () => ({
+  ...jest.requireActual('@oxy.so/bloom/hooks'),
+  useHaptics: () => jest.fn(),
+}));
 jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
@@ -117,7 +122,13 @@ describe('ComposeScheduleIndicator', () => {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       tree = TestRenderer.create(
-        <ComposeScheduleIndicator scheduledLabel={SCHEDULED_LABEL} onPress={() => {}} {...props} />,
+        <BloomThemeProvider fonts={false}>
+          <ComposeScheduleIndicator
+            scheduledLabel={SCHEDULED_LABEL}
+            onPress={() => {}}
+            {...props}
+          />
+        </BloomThemeProvider>,
       );
     });
     if (!tree) throw new Error('ComposeScheduleIndicator failed to render');
@@ -228,10 +239,10 @@ describe('ComposeScheduleIndicator', () => {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       tree = TestRenderer.create(
-        <>
+        <BloomThemeProvider fonts={false}>
           <PostHeader user={{ displayName: 'Nate', handle: 'nate' }} timeSlot={slot} />
           <PostHeader user={{ displayName: 'Nate', handle: 'nate' }} timeSlot={slot} />
-        </>,
+        </BloomThemeProvider>,
       );
     });
     if (!tree) throw new Error('PostHeader failed to render');
@@ -258,7 +269,9 @@ describe('PostHeader — the time slot the composer writes into', () => {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       tree = TestRenderer.create(
-        <PostHeader user={{ displayName: 'Nate', handle: 'nate' }} timeSlot={timeSlot} />,
+        <BloomThemeProvider fonts={false}>
+          <PostHeader user={{ displayName: 'Nate', handle: 'nate' }} timeSlot={timeSlot} />
+        </BloomThemeProvider>,
       );
     });
     if (!tree) throw new Error('PostHeader failed to render');

@@ -2,11 +2,14 @@ import type { SettingsPageSection } from '@oxy.so/bloom/settings-modal';
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import AppearanceSettingsContent from '../pages/appearance';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 const mockSave = jest.fn();
 const mockChangeMode = jest.fn();
 const mockToast = jest.fn();
 let mockSections: SettingsPageSection[];
+/** What Bloom's select was last handed, so a test can work it as a person does. */
+let mockSelectProps: { onChange: (value: string) => void } | undefined;
 jest.mock('@/stores/appearanceStore', () => ({
   useAppearanceStore: (selector: (state: unknown) => unknown) =>
     selector({ mySettings: { appearance: {} }, updateMySettings: mockSave }),
@@ -18,10 +21,18 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     changeThemeMode: mockChangeMode,
   }),
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useBloomTheme: () => ({ mode: 'system' }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useBloomTheme: () => ({ mode: 'system' }),
+}));
 jest.mock('@oxy.so/bloom/settings-modal', () => ({
   SettingsGeneralPage: ({ sections }: { sections: SettingsPageSection[] }) => {
     mockSections = sections;
+    return null;
+  },
+  // The language draws its SettingsSelect from here; it records what it is handed.
+  SettingsSelect: (props: { onChange: (value: string) => void }) => {
+    mockSelectProps = props;
     return null;
   },
 }));
@@ -44,11 +55,23 @@ beforeEach(() => {
 afterEach(() => {
   act(() => renderer?.unmount());
 });
+/**
+ * The props Bloom's select receives for a row's control. A row's control is a
+ * language element, so it is drawn to reach them.
+ */
 function control(section: string, row: string) {
-  return (
-    mockSections.find((item) => item.key === section)!.rows.find((item) => item.key === row)!
-      .control as React.ReactElement<{ onChange: (value: string) => void }>
-  ).props;
+  const element = mockSections
+    .find((item) => item.key === section)
+    ?.rows.find((item) => item.key === row)?.control as React.ReactElement | undefined;
+  if (!element) throw new Error(`no control for ${section}/${row}`);
+  mockSelectProps = undefined;
+  let drawn!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    drawn = TestRenderer.create(<BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>);
+  });
+  act(() => drawn.unmount());
+  if (!mockSelectProps) throw new Error(`${section}/${row} drew no select`);
+  return mockSelectProps;
 }
 it.each([null, new Error('Save unavailable')])(
   'reports a failed preference save and clears pending state (%s)',
@@ -56,9 +79,14 @@ it.each([null, new Error('Save unavailable')])(
     if (result instanceof Error) mockSave.mockRejectedValue(result);
     else mockSave.mockResolvedValue(result);
     act(() => {
-      renderer = TestRenderer.create(<AppearanceSettingsContent />);
+      renderer = TestRenderer.create(
+        <BloomThemeProvider fonts={false}>
+          <AppearanceSettingsContent />
+        </BloomThemeProvider>,
+      );
     });
-    await act(async () => control('reading', 'length').onChange('more'));
+    const select = control('reading', 'length');
+    await act(async () => select.onChange('more'));
     expect(mockSave).toHaveBeenCalledWith({
       appearance: { postTextExpand: 'more', postReadMoreAction: 'openPost', collapseLongBio: true },
     });
@@ -69,9 +97,14 @@ it.each([null, new Error('Save unavailable')])(
 it('handles rejected theme persistence without an unhandled promise or permanent spinner', async () => {
   mockChangeMode.mockRejectedValue(new Error('Theme unavailable'));
   act(() => {
-    renderer = TestRenderer.create(<AppearanceSettingsContent />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <AppearanceSettingsContent />
+      </BloomThemeProvider>,
+    );
   });
-  await act(async () => control('theme', 'mode').onChange('dark'));
+  const select = control('theme', 'mode');
+  await act(async () => select.onChange('dark'));
   expect(mockToast).toHaveBeenCalledWith('Theme unavailable');
   expect(mockSections.find((item) => item.key === 'reading')!.action).toBeUndefined();
 });

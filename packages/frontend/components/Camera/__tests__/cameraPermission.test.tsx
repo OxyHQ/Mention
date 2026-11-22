@@ -36,6 +36,8 @@ jest.mock('expo-camera', () => ({
  * anything — the progress arc only exists while recording.
  */
 jest.mock('react-native-reanimated', () => ({
+  // Reanimated's own mock beside these: Bloom's motion (which the language draws with) reads it at import.
+  ...jest.requireActual('react-native-reanimated/mock'),
   __esModule: true,
   default: { createAnimatedComponent: (component: unknown) => component, View: 'Animated.View' },
   useAnimatedProps: () => ({}),
@@ -74,11 +76,12 @@ jest.mock('@oxy.so/bloom/button', () => ({
 }));
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text };
 });
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { CameraCapture } from '../CameraCapture';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /** Every string the tree renders, flattened — the screen as a reader reads it. */
 function textOf(renderer: TestRenderer.ReactTestRenderer): string {
@@ -102,9 +105,11 @@ function mount() {
     // Gesture Handler 3 enforces its root view under Jest too (2.x skipped the
     // check in a test environment); the app's root is `AppProviders`.
     renderer = TestRenderer.create(
-      <GestureHandlerRootView>
-        <CameraCapture onCaptured={jest.fn()} onClose={jest.fn()} />
-      </GestureHandlerRootView>,
+      <BloomThemeProvider fonts={false}>
+        <GestureHandlerRootView>
+          <CameraCapture onCaptured={jest.fn()} onClose={jest.fn()} />
+        </GestureHandlerRootView>
+      </BloomThemeProvider>,
     );
   });
   return renderer!;

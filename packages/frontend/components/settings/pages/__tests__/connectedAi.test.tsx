@@ -4,6 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import ConnectedAiScreen from '../connected-ai';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * Settings → Connected AI lists the AI connectors authorized for THIS
@@ -94,9 +95,11 @@ async function render(): Promise<TestRenderer.ReactTestRenderer> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={queryClient}>
-        <ConnectedAiScreen />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={queryClient}>
+          <ConnectedAiScreen />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   // Let the Oxy query settle.

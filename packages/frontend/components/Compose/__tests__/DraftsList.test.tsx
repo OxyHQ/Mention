@@ -1,6 +1,7 @@
 import type React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import type { Draft } from '@/hooks/useDrafts';
 import type { DraftListItem } from '@/hooks/useDraftsList';
 import { DraftConflictError } from '@/utils/draftSession';
@@ -62,6 +63,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -133,15 +135,18 @@ function deviceItem(): DraftListItem {
 function renderList(overrides: Partial<React.ComponentProps<typeof DraftsList>> = {}) {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
+    // The language's leaves paint from Bloom's theme, so the list renders inside one.
     tree = TestRenderer.create(
-      <DraftsList
-        onLoadDraft={() => {}}
-        onPreviewDraft={() => {}}
-        currentDraftId={null}
-        onPreviewServerDraft={() => {}}
-        onEditServerDraft={() => {}}
-        {...overrides}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <DraftsList
+          onLoadDraft={() => {}}
+          onPreviewDraft={() => {}}
+          currentDraftId={null}
+          onPreviewServerDraft={() => {}}
+          onEditServerDraft={() => {}}
+          {...overrides}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('DraftsList failed to render');

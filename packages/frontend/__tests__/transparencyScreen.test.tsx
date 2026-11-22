@@ -8,6 +8,7 @@ import enMessages from '@/locales/en.json';
 // `jest.mock` calls are hoisted above this import, so the screen loads with
 // every module boundary below already swapped for its test double.
 import TransparencyScreen from '@/components/settings/pages/fediverse/transparency';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The public moderation transparency page.
@@ -125,9 +126,11 @@ async function renderScreen(): Promise<ReactTestInstance> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={queryClient}>
-        <TransparencyScreen />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={queryClient}>
+          <TransparencyScreen />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   await act(async () => {

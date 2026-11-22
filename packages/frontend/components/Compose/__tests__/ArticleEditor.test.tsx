@@ -2,6 +2,7 @@ import type React from 'react';
 import { Modal, TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ArticleEditor } from '../ArticleEditor';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The article editor is a long-form writing surface, and the two things worth
@@ -40,7 +41,10 @@ jest.mock('@oxy.so/bloom/dialog', () => {
 jest.mock('@oxy.so/bloom/text-field', () => {
   const { TextInput: RNTextInput } =
     jest.requireActual<typeof import('react-native')>('react-native');
-  return { TextFieldInput: (props: Record<string, unknown>) => <RNTextInput {...props} /> };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/text-field'),
+    TextFieldInput: (props: Record<string, unknown>) => <RNTextInput {...props} />,
+  };
 });
 jest.mock('@oxy.so/bloom/textarea', () => {
   const { TextInput: RNTextInput } =
@@ -49,6 +53,7 @@ jest.mock('@oxy.so/bloom/textarea', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -67,16 +72,18 @@ function renderEditor(overrides: Partial<React.ComponentProps<typeof ArticleEdit
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <ArticleEditor
-        visible
-        title="On scheduling"
-        body="A long body that must survive a round trip."
-        onTitleChange={noop}
-        onBodyChange={noop}
-        onSave={noop}
-        onClose={noop}
-        {...overrides}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <ArticleEditor
+          visible
+          title="On scheduling"
+          body="A long body that must survive a round trip."
+          onTitleChange={noop}
+          onBodyChange={noop}
+          onSave={noop}
+          onClose={noop}
+          {...overrides}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('ArticleEditor failed to render');
@@ -130,7 +137,9 @@ describe('ArticleEditor surface', () => {
     // header slot is a node the real Dialog mounts into its nav bar.
     let rendered: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
-      rendered = TestRenderer.create(saveSlot);
+      rendered = TestRenderer.create(
+        <BloomThemeProvider fonts={false}>{saveSlot}</BloomThemeProvider>,
+      );
     });
     if (!rendered) throw new Error('The header slot failed to render');
 
@@ -162,15 +171,17 @@ describe('ArticleEditor surface', () => {
   it('keeps the title and body across an open, close and reopen', () => {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     const render = (visible: boolean) => (
-      <ArticleEditor
-        visible={visible}
-        title="On scheduling"
-        body="A long body that must survive a round trip."
-        onTitleChange={noop}
-        onBodyChange={noop}
-        onSave={noop}
-        onClose={noop}
-      />
+      <BloomThemeProvider fonts={false}>
+        <ArticleEditor
+          visible={visible}
+          title="On scheduling"
+          body="A long body that must survive a round trip."
+          onTitleChange={noop}
+          onBodyChange={noop}
+          onSave={noop}
+          onClose={noop}
+        />
+      </BloomThemeProvider>
     );
 
     act(() => {

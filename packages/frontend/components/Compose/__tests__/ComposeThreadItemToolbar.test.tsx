@@ -5,6 +5,7 @@ import { RiTimeFill } from '@oxy.so/bloom/icons/RiTimeFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import type { ThreadItem } from '@/hooks/useThreadManager';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * A CONTINUATION box's attachment row carries the same controls the first box's
@@ -40,6 +41,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -53,7 +55,10 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
-jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
+jest.mock('@oxy.so/bloom/hooks', () => ({
+  ...jest.requireActual('@oxy.so/bloom/hooks'),
+  useHaptics: () => jest.fn(),
+}));
 // Bloom's button entry is untranspiled source. The stand-in keeps Button's
 // contract as Bloom's own tests pin it: a button with the given name, disabled
 // and busy both announced and both refusing a press, and the glyph painted in
@@ -220,51 +225,53 @@ function renderItem(
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <ComposeThreadItem
-        item={baseItem}
-        // Required since the mention summary reads every rendition of a body,
-        // not just the primary one. Defaulted here rather than made optional on
-        // the component: a caller that forgets it would silently stop counting
-        // the language variants toward the post's mentions.
-        variantTexts={[]}
-        isFocused
-        isPosting={false}
-        postingMode={postingMode}
-        publishAs={null}
-        onMentionValueChange={noop}
-        onFocus={noop}
-        onRemove={noop}
-        onMediaPress={noop}
-        onPollPress={noop}
-        onLocationPress={noop}
-        onGifPress={noop}
-        onEmojiPress={noop}
-        onSourcesPress={noop}
-        onArticlePress={noop}
-        onEventPress={noop}
-        onRoomPress={noop}
-        onPollTitleChange={noop}
-        onPollOptionChange={noop}
-        onPollOptionAdd={noop}
-        onPollOptionRemove={noop}
-        onPollRemove={noop}
-        onLocationRemove={noop}
-        onMediaRemove={noop}
-        onMediaMove={noop}
-        onMediaAltPress={noop}
-        onArticleRemove={noop}
-        onEventRemove={noop}
-        onRoomRemove={noop}
-        onReplyPermissionChange={noop}
-        onQuotesDisabledChange={noop}
-        onSensitiveToggle={noop}
-        onPodcastPress={noop}
-        onPodcastRemove={noop}
-        getFileDownloadUrl={(id: string) => id}
-        textInputRef={noop}
-        styles={styles}
-        {...overrides}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <ComposeThreadItem
+          item={baseItem}
+          // Required since the mention summary reads every rendition of a body,
+          // not just the primary one. Defaulted here rather than made optional on
+          // the component: a caller that forgets it would silently stop counting
+          // the language variants toward the post's mentions.
+          variantTexts={[]}
+          isFocused
+          isPosting={false}
+          postingMode={postingMode}
+          publishAs={null}
+          onMentionValueChange={noop}
+          onFocus={noop}
+          onRemove={noop}
+          onMediaPress={noop}
+          onPollPress={noop}
+          onLocationPress={noop}
+          onGifPress={noop}
+          onEmojiPress={noop}
+          onSourcesPress={noop}
+          onArticlePress={noop}
+          onEventPress={noop}
+          onRoomPress={noop}
+          onPollTitleChange={noop}
+          onPollOptionChange={noop}
+          onPollOptionAdd={noop}
+          onPollOptionRemove={noop}
+          onPollRemove={noop}
+          onLocationRemove={noop}
+          onMediaRemove={noop}
+          onMediaMove={noop}
+          onMediaAltPress={noop}
+          onArticleRemove={noop}
+          onEventRemove={noop}
+          onRoomRemove={noop}
+          onReplyPermissionChange={noop}
+          onQuotesDisabledChange={noop}
+          onSensitiveToggle={noop}
+          onPodcastPress={noop}
+          onPodcastRemove={noop}
+          getFileDownloadUrl={(id: string) => id}
+          textInputRef={noop}
+          styles={styles}
+          {...overrides}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('ComposeThreadItem failed to render');

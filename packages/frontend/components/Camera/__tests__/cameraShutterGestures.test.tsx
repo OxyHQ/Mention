@@ -27,6 +27,8 @@ jest.mock('expo-camera', () => {
   };
 });
 jest.mock('react-native-reanimated', () => ({
+  // Reanimated's own mock beside these: Bloom's motion (which the language draws with) reads it at import.
+  ...jest.requireActual('react-native-reanimated/mock'),
   __esModule: true,
   default: { createAnimatedComponent: (component: unknown) => component, View: 'Animated.View' },
   useAnimatedProps: () => ({}),
@@ -44,9 +46,13 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: { error: jest.fn() } }));
 jest.mock('@oxy.so/bloom/button', () => ({
   Button: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock('@oxy.so/bloom/typography', () => ({ Text: 'Text' }));
+jest.mock('@oxy.so/bloom/typography', () => ({
+  ...jest.requireActual('@oxy.so/bloom/typography'),
+  Text: 'Text',
+}));
 
 import { CameraCapture } from '../CameraCapture';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 let renderer: TestRenderer.ReactTestRenderer | undefined;
 const captured = jest.fn();
@@ -76,9 +82,11 @@ function ready() {
 async function mount(mode: 'Photo' | 'Video') {
   act(() => {
     renderer = TestRenderer.create(
-      <GestureHandlerRootView>
-        <CameraCapture onCaptured={captured} onClose={jest.fn()} />
-      </GestureHandlerRootView>,
+      <BloomThemeProvider fonts={false}>
+        <GestureHandlerRootView>
+          <CameraCapture onCaptured={captured} onClose={jest.fn()} />
+        </GestureHandlerRootView>
+      </BloomThemeProvider>,
     );
   });
   if (mode === 'Video') act(() => button('Video').props.onPress());

@@ -1,6 +1,7 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import AltTextSheet from '../AltTextSheet';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The alt-text sheet's language tabs, and the tint that made one invisible.
@@ -23,6 +24,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -59,14 +61,16 @@ function renderSheet() {
   let created: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     created = TestRenderer.create(
-      <AltTextSheet
-        imageUrl="https://example.invalid/x.png"
-        languageTags={['en', 'es-ES']}
-        initialTag="en"
-        getAlt={() => ''}
-        onSave={() => {}}
-        onClose={() => {}}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <AltTextSheet
+          imageUrl="https://example.invalid/x.png"
+          languageTags={['en', 'es-ES']}
+          initialTag="en"
+          getAlt={() => ''}
+          onSave={() => {}}
+          onClose={() => {}}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!created) throw new Error('AltTextSheet failed to render');

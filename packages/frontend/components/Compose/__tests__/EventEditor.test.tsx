@@ -2,6 +2,7 @@ import type React from 'react';
 import { Modal } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { EventEditor } from '../EventEditor';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 const mockDialogProps: Record<string, unknown>[] = [];
 
@@ -73,6 +74,7 @@ jest.mock('@oxy.so/bloom/textarea', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -90,6 +92,26 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const noop = () => {};
 
+/**
+ * The Save action the editor hands the Dialog's header, as Bloom's Button
+ * draws it: the header takes a language element, so it is rendered to reach
+ * the button's own props.
+ */
+function headerSave(): { disabled?: boolean; onPress: () => void } {
+  const header = mockDialogProps.at(-1)?.header as { right: React.ReactElement };
+  let drawn!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    drawn = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>{header.right}</BloomThemeProvider>,
+    );
+  });
+  const button = drawn.root.findAll(
+    (n) => n.props.testID === 'eventEditorSave' && typeof n.type !== 'string',
+  )[0];
+  if (!button) throw new Error('no Save action in the header');
+  return button.props;
+}
+
 const renderEditor = (
   date: string,
   onDateChange: (next: string) => void,
@@ -99,19 +121,21 @@ const renderEditor = (
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <EventEditor
-        visible
-        name={name}
-        date={date}
-        location=""
-        description=""
-        onNameChange={noop}
-        onDateChange={onDateChange}
-        onLocationChange={noop}
-        onDescriptionChange={noop}
-        onSave={onSave}
-        onClose={noop}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <EventEditor
+          visible
+          name={name}
+          date={date}
+          location=""
+          description=""
+          onNameChange={noop}
+          onDateChange={onDateChange}
+          onLocationChange={noop}
+          onDescriptionChange={noop}
+          onSave={onSave}
+          onClose={noop}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('EventEditor failed to render');
@@ -216,14 +240,10 @@ describe('EventEditor date field', () => {
           (n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string',
         ),
       ).toHaveLength(1);
-      const save = (
-        mockDialogProps.at(-1)?.header as {
-          right: React.ReactElement<{ disabled?: boolean; onPress: () => void }>;
-        }
-      ).right;
-      expect(save.props.disabled).toBe(true);
+      const save = headerSave();
+      expect(save.disabled).toBe(true);
       // Even a press that slips past `disabled` must not close the editor.
-      save.props.onPress();
+      save.onPress();
       expect(onSave).not.toHaveBeenCalled();
 
       act(() => tree.unmount());
@@ -251,13 +271,9 @@ describe('EventEditor date field', () => {
         (n) => n.props.testID === 'eventEditorTimeError' && typeof n.type === 'string',
       ),
     ).toHaveLength(0);
-    const save = (
-      mockDialogProps.at(-1)?.header as {
-        right: React.ReactElement<{ disabled?: boolean; onPress: () => void }>;
-      }
-    ).right;
-    expect(save.props.disabled).toBe(false);
-    save.props.onPress();
+    const save = headerSave();
+    expect(save.disabled).toBe(false);
+    save.onPress();
     expect(onSave).toHaveBeenCalledTimes(1);
 
     act(() => tree.unmount());
@@ -303,19 +319,21 @@ describe('EventEditor surface', () => {
     let tree: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       tree = TestRenderer.create(
-        <EventEditor
-          visible
-          name="Launch party"
-          date={new Date(2026, 4, 3, 18, 45).toISOString()}
-          location=""
-          description=""
-          onNameChange={noop}
-          onDateChange={noop}
-          onLocationChange={noop}
-          onDescriptionChange={noop}
-          onSave={noop}
-          onClose={onClose}
-        />,
+        <BloomThemeProvider fonts={false}>
+          <EventEditor
+            visible
+            name="Launch party"
+            date={new Date(2026, 4, 3, 18, 45).toISOString()}
+            location=""
+            description=""
+            onNameChange={noop}
+            onDateChange={noop}
+            onLocationChange={noop}
+            onDescriptionChange={noop}
+            onSave={noop}
+            onClose={onClose}
+          />
+        </BloomThemeProvider>,
       );
     });
 
@@ -363,7 +381,12 @@ describe('EventEditor surface', () => {
     // empty form on the second open — and this is the assertion that catches it.
     if (!tree) throw new Error('EventEditor failed to re-render');
     const values = tree.root
-      .findAll((node) => node.props.value !== undefined && node.props.onChangeText !== undefined)
+      // A language field binds Bloom's `onValueChange`; the time field is still React Native's `onChangeText`.
+      .findAll(
+        (node) =>
+          node.props.value !== undefined &&
+          (node.props.onChangeText ?? node.props.onValueChange) !== undefined,
+      )
       .map((node) => node.props.value);
     expect(values).toEqual(expect.arrayContaining(['Launch party', 'Berlin', 'Bring cake']));
 
@@ -374,14 +397,11 @@ describe('EventEditor surface', () => {
 describe('EventEditor name requirement', () => {
   // The Save button is handed to the Dialog header, so the recorded props are
   // where it lives.
-  const lastHeaderAction = () => {
-    const props = mockDialogProps[mockDialogProps.length - 1];
-    return (props.header as { right: React.ReactElement<{ disabled?: boolean }> }).right;
-  };
+  const lastHeaderAction = headerSave;
 
   it('keeps Save disabled and says why while the event has no name', () => {
     const tree = renderEditor(new Date(2026, 4, 3).toISOString(), noop, '   ');
-    expect(lastHeaderAction().props.disabled).toBe(true);
+    expect(lastHeaderAction().disabled).toBe(true);
     expect(
       tree.root.findAll(
         (n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string',
@@ -392,7 +412,7 @@ describe('EventEditor name requirement', () => {
 
   it('enables Save and drops the hint once the event is named', () => {
     const tree = renderEditor(new Date(2026, 4, 3).toISOString(), noop, 'Launch party');
-    expect(lastHeaderAction().props.disabled).toBe(false);
+    expect(lastHeaderAction().disabled).toBe(false);
     expect(
       tree.root.findAll(
         (n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string',
@@ -407,28 +427,28 @@ it.each(['0', '-1', '2.5', '1000001'])('refuses invalid optional capacity %s', (
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <EventEditor
-        visible
-        name="Meeting"
-        date={new Date(Date.now() + 86400000).toISOString()}
-        location=""
-        description=""
-        capacity={capacity}
-        onCapacityChange={() => {}}
-        onNameChange={() => {}}
-        onDateChange={() => {}}
-        onLocationChange={() => {}}
-        onDescriptionChange={() => {}}
-        onSave={save}
-        onClose={() => {}}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <EventEditor
+          visible
+          name="Meeting"
+          date={new Date(Date.now() + 86400000).toISOString()}
+          location=""
+          description=""
+          capacity={capacity}
+          onCapacityChange={() => {}}
+          onNameChange={() => {}}
+          onDateChange={() => {}}
+          onLocationChange={() => {}}
+          onDescriptionChange={() => {}}
+          onSave={save}
+          onClose={() => {}}
+        />
+      </BloomThemeProvider>,
     );
   });
-  const header = mockDialogProps[mockDialogProps.length - 1].header as {
-    right: React.ReactElement<{ disabled: boolean; onPress(): void }>;
-  };
-  expect(header.right.props.disabled).toBe(true);
-  act(() => header.right.props.onPress());
+  const header = headerSave();
+  expect(header.disabled).toBe(true);
+  act(() => header.onPress());
   expect(save).not.toHaveBeenCalled();
   act(() => tree.unmount());
 });

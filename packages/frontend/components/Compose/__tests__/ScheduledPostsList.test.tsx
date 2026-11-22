@@ -4,6 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import type { HydratedPost } from '@mention/shared-types';
 import { scheduledPostFixture } from '@/__fixtures__/scheduledPost';
 import ScheduledPostsList from '../ScheduledPostsList';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * Two properties matter on this row and neither is visible from reading it:
@@ -28,6 +29,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -77,16 +79,18 @@ function renderList(overrides: Partial<React.ComponentProps<typeof ScheduledPost
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <ScheduledPostsList
-        posts={[post()]}
-        isLoading={false}
-        isError={false}
-        onRetry={() => {}}
-        onPreview={() => {}}
-        onEdit={() => {}}
-        onCancel={async () => {}}
-        {...overrides}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <ScheduledPostsList
+          posts={[post()]}
+          isLoading={false}
+          isError={false}
+          onRetry={() => {}}
+          onPreview={() => {}}
+          onEdit={() => {}}
+          onCancel={async () => {}}
+          {...overrides}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('ScheduledPostsList failed to render');

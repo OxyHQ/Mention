@@ -6,6 +6,7 @@ import { waitUntil } from '@/test-support/waitUntil';
 import { commerceService } from '@/services/commerceService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import CommercePickerSheet from '../CommercePickerSheet';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 jest.mock('@/services/commerceService', () => ({
   commerceService: { products: jest.fn(), storeCollections: jest.fn() },
@@ -28,8 +29,9 @@ jest.mock('@oxy.so/bloom/button', () => {
 jest.mock('@oxy.so/bloom/search', () => {
   const { TextInput } = jest.requireActual('react-native');
   return {
-    Search: ({ onChangeText }: { onChangeText: (value: string) => void }) => (
-      <TextInput testID="picker-search" onChangeText={onChangeText} />
+    // The language's Search binds Bloom's `onValueChange`.
+    Search: ({ onValueChange }: { onValueChange: (value: string) => void }) => (
+      <TextInput testID="picker-search" onValueChange={onValueChange} />
     ),
   };
 });
@@ -71,14 +73,16 @@ it.each(['products', 'collections'] as const)(
     );
     act(() => {
       renderer = TestRenderer.create(
-        <QueryClientProvider client={client}>
-          <CommercePickerSheet
-            accountId="account"
-            selected={[]}
-            onSelect={jest.fn()}
-            onClose={jest.fn()}
-          />
-        </QueryClientProvider>,
+        <BloomThemeProvider fonts={false}>
+          <QueryClientProvider client={client}>
+            <CommercePickerSheet
+              accountId="account"
+              selected={[]}
+              onSelect={jest.fn()}
+              onClose={jest.fn()}
+            />
+          </QueryClientProvider>
+        </BloomThemeProvider>,
       );
     });
     if (mode === 'collections') {
@@ -116,14 +120,16 @@ it.each([
   service.storeCollections.mockResolvedValue(result as never);
   act(() => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <CommercePickerSheet
-          accountId="account"
-          selected={[]}
-          onSelect={jest.fn()}
-          onClose={jest.fn()}
-        />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <CommercePickerSheet
+            accountId="account"
+            selected={[]}
+            onSelect={jest.fn()}
+            onClose={jest.fn()}
+          />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   if (mode === 'collections')
@@ -158,14 +164,16 @@ it.each(['products', 'collections'] as const)(
     );
     act(() => {
       renderer = TestRenderer.create(
-        <QueryClientProvider client={client}>
-          <CommercePickerSheet
-            accountId="account"
-            selected={[]}
-            onSelect={jest.fn()}
-            onClose={jest.fn()}
-          />
-        </QueryClientProvider>,
+        <BloomThemeProvider fonts={false}>
+          <QueryClientProvider client={client}>
+            <CommercePickerSheet
+              accountId="account"
+              selected={[]}
+              onSelect={jest.fn()}
+              onClose={jest.fn()}
+            />
+          </QueryClientProvider>
+        </BloomThemeProvider>,
       );
     });
     if (mode === 'collections')
@@ -202,9 +210,11 @@ it('starts a separate cursor history when the product search changes', async () 
   );
   act(() => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <CommercePickerSheet selected={[]} onSelect={jest.fn()} onClose={jest.fn()} />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <CommercePickerSheet selected={[]} onSelect={jest.fn()} onClose={jest.fn()} />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   const rows = () => renderer.root.findAllByType(FlatList)[0]?.props.data ?? [];
@@ -213,7 +223,7 @@ it('starts a separate cursor history when the product search changes', async () 
     renderer.root.findByType(FlatList).props.onEndReached({ distanceFromEnd: 0 }),
   );
   await waitUntil(() => rows().length === 2, 'second initial product page');
-  act(() => renderer.root.findByProps({ testID: 'picker-search' }).props.onChangeText('chairs'));
+  act(() => renderer.root.findByProps({ testID: 'picker-search' }).props.onValueChange('chairs'));
   await waitUntil(
     () => rows().length === 1 && rows()[0].title === 'chairs',
     'new search first page',
@@ -240,14 +250,16 @@ it('starts a separate collection cursor history for each account and viewer', as
       }) as never,
   );
   const render = (accountId: string) => (
-    <QueryClientProvider client={client}>
-      <CommercePickerSheet
-        accountId={accountId}
-        selected={[]}
-        onSelect={jest.fn()}
-        onClose={jest.fn()}
-      />
-    </QueryClientProvider>
+    <BloomThemeProvider fonts={false}>
+      <QueryClientProvider client={client}>
+        <CommercePickerSheet
+          accountId={accountId}
+          selected={[]}
+          onSelect={jest.fn()}
+          onClose={jest.fn()}
+        />
+      </QueryClientProvider>
+    </BloomThemeProvider>
   );
   act(() => {
     renderer = TestRenderer.create(render('account-a'));

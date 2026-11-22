@@ -3,6 +3,7 @@ import { Text, TextInput, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { MentionTextInputHandle } from '@/components/MentionTextInput';
 import VariantEditor from '../VariantEditor';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 // Keep the renderer boundary isolated; the account policy has its own contract tests.
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
@@ -29,6 +30,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { border: '#333', primary: '#70f', textSecondary: '#777' } }),
 }));
 
@@ -84,33 +86,35 @@ it('keeps the toolbar mounted and wires the active rendition input', () => {
 
   act(() => {
     renderer = TestRenderer.create(
-      <VariantEditor
-        itemId="main"
-        tag="es"
-        item={emptyItem}
-        primaryText="Hello"
-        sharedMedia={[{ id: 'shared-image', type: 'image' }]}
-        hasArticle
-        userAvatar={undefined}
-        userVerified={false}
-        isFocused
-        isPosting={false}
-        isTranslating={false}
-        getFileDownloadUrl={(id) => id}
-        mentions={[]}
-        onMentionValueChange={onMentionValueChange}
-        onFocus={onFocus}
-        onTranslate={onTranslate}
-        onSharedAltPress={jest.fn()}
-        onOwnAltPress={jest.fn()}
-        onPickOwnMedia={onPickOwnMedia}
-        onRemoveOwnMedia={jest.fn()}
-        onUseSharedMedia={jest.fn()}
-        onArticlePress={onArticlePress}
-        onArticleReset={jest.fn()}
-        textInputRef={ref}
-        toolbar={<Text>Persistent toolbar</Text>}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <VariantEditor
+          itemId="main"
+          tag="es"
+          item={emptyItem}
+          primaryText="Hello"
+          sharedMedia={[{ id: 'shared-image', type: 'image' }]}
+          hasArticle
+          userAvatar={undefined}
+          userVerified={false}
+          isFocused
+          isPosting={false}
+          isTranslating={false}
+          getFileDownloadUrl={(id) => id}
+          mentions={[]}
+          onMentionValueChange={onMentionValueChange}
+          onFocus={onFocus}
+          onTranslate={onTranslate}
+          onSharedAltPress={jest.fn()}
+          onOwnAltPress={jest.fn()}
+          onPickOwnMedia={onPickOwnMedia}
+          onRemoveOwnMedia={jest.fn()}
+          onUseSharedMedia={jest.fn()}
+          onArticlePress={onArticlePress}
+          onArticleReset={jest.fn()}
+          textInputRef={ref}
+          toolbar={<Text>Persistent toolbar</Text>}
+        />
+      </BloomThemeProvider>,
     );
   });
 

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FlatList, Text, TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import GifPickerSheet from '../GifPickerSheet';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 const mockGet = jest.fn();
 jest.mock('@/utils/api', () => ({
@@ -13,7 +14,10 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 const mockTranslate = (key: string) => key;
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: mockTranslate }) }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
+  useTheme: () => ({ colors: {} }),
+}));
 jest.mock('@oxy.so/bloom/search', () => ({
   Search: (props: object) => {
     const { TextInput } = require('react-native');
@@ -41,7 +45,7 @@ async function settle() {
   });
 }
 async function search(query: string) {
-  act(() => tree.root.findByType(TextInput).props.onChangeText(query));
+  act(() => tree.root.findByType(TextInput).props.onValueChange(query));
   await act(async () => {
     await jest.advanceTimersByTimeAsync(500);
   });
@@ -56,9 +60,11 @@ beforeEach(async () => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   await act(async () => {
     tree = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <GifPickerSheet onClose={() => {}} onSelectGif={async () => {}} />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <GifPickerSheet onClose={() => {}} onSelectGif={async () => {}} />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   await settle();

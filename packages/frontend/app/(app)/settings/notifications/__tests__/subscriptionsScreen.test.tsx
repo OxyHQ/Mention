@@ -6,6 +6,7 @@ import enMessages from '@/locales/en.json';
 import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
 import { useSubscription } from '@/components/Profile/hooks/useSubscription';
 import { waitUntil } from '@/test-support/waitUntil';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 const mockRankingChanged = jest.fn();
 // Keep the renderer boundary isolated; the account policy has its own contract tests.
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
@@ -167,6 +168,7 @@ jest.mock('@oxy.so/bloom/skeleton', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       primary: '#0000ff',
@@ -189,7 +191,7 @@ jest.mock('@oxy.so/bloom/loading', () => {
 
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  return { ...jest.requireActual('@oxy.so/bloom/typography'), Text };
 });
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
@@ -321,9 +323,11 @@ async function renderScreen(client: QueryClient) {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <ActivitySubscriptionsScreen />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <ActivitySubscriptionsScreen />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   await settle(client);
@@ -576,9 +580,11 @@ describe('activity subscriptions screen', () => {
     await act(async () => {
       renderers.push(
         TestRenderer.create(
-          <QueryClientProvider client={client}>
-            <ProfileBellProbe />
-          </QueryClientProvider>,
+          <BloomThemeProvider fonts={false}>
+            <QueryClientProvider client={client}>
+              <ProfileBellProbe />
+            </QueryClientProvider>
+          </BloomThemeProvider>,
         ),
       );
     });

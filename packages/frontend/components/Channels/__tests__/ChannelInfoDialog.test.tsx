@@ -1,4 +1,5 @@
 import type React from 'react';
+import { StyleSheet } from 'react-native';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 /**
@@ -28,6 +29,7 @@ const mockTranslate = jest.fn((key: string) => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { text: '#000', textSecondary: '#666', primary: '#7c3aed' } }),
 }));
 jest.mock('react-i18next', () => ({
@@ -88,10 +90,18 @@ jest.mock('@oxy.so/bloom/button', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    Button: ({ children, onPress }: { children: MockNode; onPress: () => void }) =>
+    Button: ({
+      children,
+      onPress,
+      style,
+    }: {
+      children: MockNode;
+      onPress: () => void;
+      style?: unknown;
+    }) =>
       ReactActual.createElement(
         Pressable,
-        { onPress, accessibilityRole: 'button' },
+        { onPress, accessibilityRole: 'button', style },
         ReactActual.createElement(Text, null, children),
       ),
   };
@@ -99,15 +109,27 @@ jest.mock('@oxy.so/bloom/button', () => {
 
 import { ChannelInfoDialogProvider, showChannelInfo } from '../ChannelInfoDialog';
 import enStrings from '@/locales/en.json';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 const COPY = enStrings.channels.explainer;
 
 function mount(): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   TestRenderer.act(() => {
-    renderer = TestRenderer.create(<ChannelInfoDialogProvider />);
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <ChannelInfoDialogProvider />
+      </BloomThemeProvider>,
+    );
   });
   return renderer;
+}
+
+/** What the host drew inside Bloom's theme: `null` while it draws nothing. */
+function drawn(renderer: ReactTestRenderer) {
+  const provider = renderer.toJSON();
+  if (provider === null || Array.isArray(provider)) return provider;
+  return provider.children;
 }
 
 /** Every string the render put on screen. */
@@ -156,7 +178,7 @@ describe('the host is inert until something asks for the explainer', () => {
   it('renders nothing and translates nothing when mounted at boot', () => {
     const renderer = mount();
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
     expect(mockTranslate).not.toHaveBeenCalled();
 
     unmount(renderer);
@@ -200,7 +222,7 @@ describe('the explainer opens, steps and closes', () => {
     expect(textOf(renderer)).not.toContain(COPY.back);
 
     press(renderer, COPY.cancel);
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
 
     unmount(renderer);
   });
@@ -214,7 +236,7 @@ describe('the explainer opens, steps and closes', () => {
     press(renderer, COPY.next);
     press(renderer, COPY.next);
     press(renderer, COPY.done);
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
 
     TestRenderer.act(() => {
       showChannelInfo();
@@ -241,23 +263,24 @@ describe('the explainer opens, steps and closes', () => {
    *
    * Stacked, the card grows tall enough on a phone to push the copy it is
    * explaining off the top of the sheet, and the second button lands under the
-   * thumb that just pressed the first. The className is what is asserted because
-   * it is what decides this: `react-native-css` emits real CSS on web and a
-   * runtime style on native, so there is no single computed value both platforms
-   * expose to a renderer test. The width behaviour that className produces is
-   * verified in a real browser instead, at the narrowest supported viewport and
-   * in the language with the longest labels.
+   * thumb that just pressed the first. The layout is what is asserted because
+   * it is what decides this: the row's `flexDirection` and each button's
+   * `flex` (grow and shrink from nothing), as the language hands them to the
+   * hosts. The width behaviour they produce is verified in a real browser
+   * instead, at the narrowest supported viewport and in the language with the
+   * longest labels.
    */
   it('puts both buttons on one row, each taking half of it', () => {
     const renderer = mount();
     TestRenderer.act(() => {
       showChannelInfo();
     });
+    const styleOf = (node: ReactTestInstance) => StyleSheet.flatten(node.props?.style) ?? {};
 
     const rows = renderer.root.findAll(
       (node) =>
-        typeof node.props?.className === 'string' &&
-        node.props.className.includes('flex-row') &&
+        node.type === 'View' &&
+        styleOf(node).flexDirection === 'row' &&
         textIn(node).includes(COPY.next) &&
         textIn(node).includes(COPY.cancel),
       { deep: true },
@@ -267,8 +290,10 @@ describe('the explainer opens, steps and closes', () => {
     // Each half, so the split cannot move when the labels do (they change on
     // every card and in every language).
     const halves = renderer.root.findAll(
-      (node) =>
-        typeof node.props?.className === 'string' && node.props.className.includes('flex-1'),
+      (node) => {
+        const style = styleOf(node);
+        return style.flexGrow === 1 && style.flexShrink === 1 && style.flexBasis === '0%';
+      },
       { deep: true },
     );
     const labelled = new Set(halves.map((node) => textIn(node)).filter(Boolean));

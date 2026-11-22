@@ -3,6 +3,7 @@ import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons';
 import ComposeLanguageSheet from '../ComposeLanguageSheet';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The post's languages, now a sheet behind the bottom bar's pill rather than a
@@ -27,6 +28,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: { primary: '#7c3aed', text: '#fff', textTertiary: '#888' },
   }),
@@ -84,14 +86,16 @@ function render(props: Partial<React.ComponentProps<typeof ComposeLanguageSheet>
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <ComposeLanguageSheet
-        primaryTag="en"
-        variantTags={[]}
-        activeTag="en"
-        canAdd
-        {...handlers}
-        {...props}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <ComposeLanguageSheet
+          primaryTag="en"
+          variantTags={[]}
+          activeTag="en"
+          canAdd
+          {...handlers}
+          {...props}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!renderer) throw new Error('sheet did not render');

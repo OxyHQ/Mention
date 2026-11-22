@@ -1,9 +1,10 @@
 import type React from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { HydratedPost } from '@mention/shared-types';
 import { scheduledPostFixture } from '@/__fixtures__/scheduledPost';
 import ScheduledPostPreview from '../ScheduledPostPreview';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The promise this screen makes is that what you see is what will publish, and
@@ -36,6 +37,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -146,15 +148,17 @@ function renderPreview(overrides: Partial<React.ComponentProps<typeof ScheduledP
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <ScheduledPostPreview
-        post={post()}
-        onBack={() => {}}
-        onEdit={() => {}}
-        onPublishNow={async () => {}}
-        onCancel={async () => {}}
-        onCancelled={() => {}}
-        {...overrides}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <ScheduledPostPreview
+          post={post()}
+          onBack={() => {}}
+          onEdit={() => {}}
+          onPublishNow={async () => {}}
+          onCancel={async () => {}}
+          onCancelled={() => {}}
+          {...overrides}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('ScheduledPostPreview failed to render');
@@ -209,8 +213,11 @@ describe('ScheduledPostPreview', () => {
   it('renders the post inert, so a preview tap cannot open a 404 or like an unpublished post', () => {
     const tree = renderPreview();
 
+    // The inert wrapper is a language stack: React Native's host `View`, its
+    // `pointerEvents` in its style (which React Native hands the view as the prop).
     const inert = tree.root.findAll(
-      (node) => node.type === View && node.props.pointerEvents === 'none',
+      (node) =>
+        node.type === 'View' && StyleSheet.flatten(node.props.style)?.pointerEvents === 'none',
     );
     expect(inert).toHaveLength(1);
     expect(inert[0].findAllByType(Text).some((node) => node.props.children === 'POST ITEM')).toBe(

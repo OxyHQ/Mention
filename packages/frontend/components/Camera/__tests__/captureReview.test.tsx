@@ -1,5 +1,6 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { CaptureReview } from '../CaptureReview';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 const mockPlayer = { play: jest.fn(), pause: jest.fn() };
 jest.mock('expo-video', () => ({ useVideoPlayer: () => mockPlayer }));
 jest.mock('@oxy.so/bloom/video-view', () => ({ VideoView: () => null }));
@@ -19,19 +20,31 @@ test('pauses video review during the transfer and resumes after failure', () => 
   };
   let renderer: ReactTestRenderer;
   act(() => {
-    renderer = create(<CaptureReview {...props} />);
+    renderer = create(
+      <BloomThemeProvider fonts={false}>
+        <CaptureReview {...props} />
+      </BloomThemeProvider>,
+    );
   });
   expect(mockPlayer.play).toHaveBeenCalledTimes(1);
   act(() =>
     renderer.update(
-      <CaptureReview {...props} busy uploadProgress={{ phase: 'hash', loaded: 50, total: 100 }} />,
+      <BloomThemeProvider fonts={false}>
+        <CaptureReview {...props} busy uploadProgress={{ phase: 'hash', loaded: 50, total: 100 }} />
+      </BloomThemeProvider>,
     ),
   );
   expect(mockPlayer.pause).toHaveBeenCalledTimes(1);
   const progress = renderer!.root.findAllByProps({ accessibilityRole: 'progressbar' })[0];
   expect(progress.props.accessibilityLabel).toBe('camera.preparing');
   expect(progress.props.accessibilityValue).toEqual({ min: 0, max: 100, now: 50 });
-  act(() => renderer.update(<CaptureReview {...props} uploadFailed />));
+  act(() =>
+    renderer.update(
+      <BloomThemeProvider fonts={false}>
+        <CaptureReview {...props} uploadFailed />
+      </BloomThemeProvider>,
+    ),
+  );
   expect(mockPlayer.play).toHaveBeenCalledTimes(2);
   act(() => renderer.unmount());
 });

@@ -1,6 +1,8 @@
 import type React from 'react';
+import { StyleSheet } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import ScheduleSheet, { parseDateTime } from '../ScheduleSheet';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 const mockToast = jest.fn();
 
@@ -12,6 +14,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...jest.requireActual('@oxy.so/bloom/theme'),
   useTheme: () => ({ colors: { border: '#333', card: '#fff', error: '#dc2626' } }),
 }));
 
@@ -55,14 +58,16 @@ const renderSheet = (onSelect: (date: Date) => void, scheduledAt: Date | null = 
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <ScheduleSheet
-        scheduledAt={scheduledAt}
-        options={[]}
-        onSelect={onSelect}
-        onClear={() => {}}
-        onClose={() => {}}
-        formatLabel={(date) => date.toISOString()}
-      />,
+      <BloomThemeProvider fonts={false}>
+        <ScheduleSheet
+          scheduledAt={scheduledAt}
+          options={[]}
+          onSelect={onSelect}
+          onClear={() => {}}
+          onClose={() => {}}
+          formatLabel={(date) => date.toISOString()}
+        />
+      </BloomThemeProvider>,
     );
   });
   if (!tree) throw new Error('ScheduleSheet failed to render');
@@ -154,7 +159,8 @@ describe('ScheduleSheet custom time', () => {
     const close = byTestID(tree, 'scheduleSheetClose');
     const apply = byTestID(tree, 'scheduleSheetApply');
     expect(close.parent).toBe(apply.parent);
-    expect(close.parent?.props.className).toContain('flex-row');
+    // The footer is a language row: a host whose style lays its children out in a row.
+    expect(StyleSheet.flatten(close.parent?.props.style)?.flexDirection).toBe('row');
     act(() => tree.unmount());
   });
 });
