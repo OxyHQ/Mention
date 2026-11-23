@@ -140,6 +140,9 @@ it('uses the same animated actions vertically on video and keeps Save visible an
     count: 3,
   });
   expect(action(renderer, 'Like').onPress()).toBe(false);
+  // The overflow menu mounts its rows once open, as its trigger's press opens it.
+  const menu = renderer.root.find((node) => String(node.type) === 'DropdownMenu');
+  act(() => menu.props.onOpenChange(true));
   const entries = renderer.root.findAll((node) => String(node.type) === 'DropdownMenuItem');
   expect(entries).toHaveLength(1);
   act(() => action(renderer, 'Save').onPress());
