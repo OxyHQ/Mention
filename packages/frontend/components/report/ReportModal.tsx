@@ -18,9 +18,10 @@ import {
   VStack,
   defineTokens,
   toElement,
+  VStack as LVStack,
+  toElement as LtoElement,
+  Embed as LEmbed,
 } from '@oxy.so/bloom-language';
-
-import { VStack as LVStack, toElement as LtoElement } from '@oxy.so/bloom-language';
 
 const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
 
@@ -98,15 +99,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
         {render(
           HStack(
             Embed(
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-                onPress={handleCancel}
-                style={CLOSE_STYLE}
-                activeOpacity={0.7}
-              >
-                {render(Icon(RiCloseLine).size('md').foreground('foreground'))}
-              </TouchableOpacity>,
+              LtoElement(
+                LVStack(LEmbed(render(Icon(RiCloseLine).size('md').foreground('foreground'))))
+                  .padding('all', 'sm')
+                  .zIndex('floating')
+                  .role('button')
+                  .label(t('common.close', { defaultValue: 'Close' }))
+                  .onPress(handleCancel)
+                  .pressFade('70'),
+              ),
             ),
             RawText('Report Post')
               .foreground('foreground')

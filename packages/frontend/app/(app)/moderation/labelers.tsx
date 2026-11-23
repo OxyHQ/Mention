@@ -27,6 +27,7 @@ import {
   Embed as LEmbed,
   ScrollView,
   toElement as LtoElement,
+  VStack as LVStack,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -79,90 +80,104 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
   const labelCount = labeler.labelDefinitions?.length ?? 0;
 
   return toElement(
-    Embed((render) => (
-      <TouchableOpacity
-        style={[CARD_STYLE, { backgroundColor: colorTokens.muted }]}
-        onPress={() => router.push(`/moderation/labelers/${id}`)}
-        activeOpacity={0.7}
-      >
-        {render(
-          HStack(
-            HStack(
-              RawText(labeler.name)
-                .font('16')
-                .leading('normal')
-                .weight('bold')
-                .foreground('foreground')
-                .lines(1),
-              labeler.isOfficial
-                ? officialBadge(t('labelers.official', { defaultValue: 'Official' }))
-                : null,
-            )
-              .flex('1')
-              .align('center')
-              .spacing('sm')
-              .wrap(),
-            Embed(
-              <TouchableOpacity
-                style={[
-                  styles.subscribeBtn,
-                  labeler.isSubscribed
-                    ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
-                    : { backgroundColor: theme.colors.primary },
-                ]}
-                onPress={() => onSubscribeToggle(id, !!labeler.isSubscribed)}
-                disabled={subscribing}
-                activeOpacity={0.7}
-              >
-                {render(
-                  subscribing
-                    ? Loading().style('inline').size('sm')
-                    : RawText(
-                        labeler.isSubscribed
-                          ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
-                          : t('labelers.subscribe', { defaultValue: 'Subscribe' }),
-                      )
-                        .font('sm')
-                        .weight('semibold')
-                        .foreground(labeler.isSubscribed ? 'foreground' : 'white'),
-                )}
-              </TouchableOpacity>,
+    Embed((render) =>
+      LtoElement(
+        LVStack(
+          LEmbed(
+            render(
+              HStack(
+                HStack(
+                  RawText(labeler.name)
+                    .font('16')
+                    .leading('normal')
+                    .weight('bold')
+                    .foreground('foreground')
+                    .lines(1),
+                  labeler.isOfficial
+                    ? officialBadge(t('labelers.official', { defaultValue: 'Official' }))
+                    : null,
+                )
+                  .flex('1')
+                  .align('center')
+                  .spacing('sm')
+                  .wrap(),
+                Embed(
+                  <TouchableOpacity
+                    style={[
+                      styles.subscribeBtn,
+                      labeler.isSubscribed
+                        ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
+                        : { backgroundColor: theme.colors.primary },
+                    ]}
+                    onPress={() => onSubscribeToggle(id, !!labeler.isSubscribed)}
+                    disabled={subscribing}
+                    activeOpacity={0.7}
+                  >
+                    {render(
+                      subscribing
+                        ? Loading().style('inline').size('sm')
+                        : RawText(
+                            labeler.isSubscribed
+                              ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
+                              : t('labelers.subscribe', { defaultValue: 'Subscribe' }),
+                          )
+                            .font('sm')
+                            .weight('semibold')
+                            .foreground(labeler.isSubscribed ? 'foreground' : 'white'),
+                    )}
+                  </TouchableOpacity>,
+                ),
+              )
+                .align('start')
+                .justify('between')
+                .spacing('md'),
             ),
-          )
-            .align('start')
-            .justify('between')
-            .spacing('md'),
-        )}
-        {labeler.description
-          ? render(
-              RawText(labeler.description).font('14').leading('20px').foreground('muted').lines(2),
-            )
-          : null}
-        {render(
-          HStack(
-            RawText(
-              t('labelers.subscriberCount', {
-                count: labeler.subscriberCount,
-                defaultValue: '{{count}} subscribers',
-              }),
-            )
-              .font('sm')
-              .foreground('muted'),
-            RawText('·').font('sm').foreground('muted'),
-            RawText(
-              t('labelers.labelCount', {
-                count: labelCount,
-                defaultValue: '{{count}} labels',
-              }),
-            )
-              .font('sm')
-              .foreground('muted'),
-          )
-            .align('center')
-            .spacing('6'),
-        )}
-      </TouchableOpacity>
-    )),
+          ),
+          LEmbed(
+            labeler.description
+              ? render(
+                  RawText(labeler.description)
+                    .font('14')
+                    .leading('20px')
+                    .foreground('muted')
+                    .lines(2),
+                )
+              : null,
+          ),
+          LEmbed(
+            render(
+              HStack(
+                RawText(
+                  t('labelers.subscriberCount', {
+                    count: labeler.subscriberCount,
+                    defaultValue: '{{count}} subscribers',
+                  }),
+                )
+                  .font('sm')
+                  .foreground('muted'),
+                RawText('·').font('sm').foreground('muted'),
+                RawText(
+                  t('labelers.labelCount', {
+                    count: labelCount,
+                    defaultValue: '{{count}} labels',
+                  }),
+                )
+                  .font('sm')
+                  .foreground('muted'),
+              )
+                .align('center')
+                .spacing('6'),
+            ),
+          ),
+        )
+          .padding('all', 'lg')
+          .background('mutedFill')
+          .corner('lg')
+          .spacing('sm')
+          .onPress(() => router.push(`/moderation/labelers/${id}`))
+          .pressFade('70'),
+      ),
+    ),
   );
 });
 
