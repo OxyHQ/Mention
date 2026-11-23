@@ -4,9 +4,8 @@
  * Six hundred and forty lines of static `StyleSheet.create` data that sat at the
  * bottom of `ComposeScreen.tsx`, between the component and the session gate that
  * wraps it. Nothing here reads the theme or any prop — the theme-dependent colours
- * are applied inline at their call sites, and the one mention of
- * `theme.colors.primary` below is in a comment explaining why a connector is
- * painted inline rather than from here.
+ * are applied inline at their call sites (the thread's timeline is the language's,
+ * `timelineLineBelow`/`timelineLineAbove` in `composeLayout`).
  *
  * Split out because it is the largest piece of that file that is not the
  * component: moving it takes `ComposeScreen.tsx` from 4,105 lines to ~3,460
@@ -25,9 +24,6 @@ import { StyleSheet } from 'react-native';
 // the carousel — so this import is the same one `ComposeScreen.tsx` makes, not a
 // constant duplicated to make the move work.
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
-// Centres the thread timeline on the avatar. Also already shared — the component
-// imports it from the same module.
-import { TIMELINE_LINE_OFFSET } from './composeLayout';
 
 export const composeStyles = StyleSheet.create({
   cancelButton: {
@@ -208,39 +204,12 @@ export const composeStyles = StyleSheet.create({
     minHeight: 32,
     textAlignVertical: 'top',
   },
-  // Timeline connector styles
   threadScrollView: {
     flex: 1,
   },
   threadScrollContent: {
     flexGrow: 1,
     paddingBottom: 80,
-  },
-  threadContainer: {
-    position: 'relative',
-  },
-  // The connector's COLOUR is not here: it is `tokenAlpha(primary, 0.2)` beside
-  // every connector <View>. `theme.colors.primary` resolves to `rgb(0 98 157)`,
-  // so the `${primary}30` this used to interpolate was a malformed colour
-  // string that react-native-web read back as FULLY OPAQUE — a solid primary bar
-  // between the avatars instead of the faint 19% line the suffix asked for.
-  itemConnectorLine: {
-    position: 'absolute',
-    left: TIMELINE_LINE_OFFSET,
-    top: 60, // below avatar: 12px pad + 40px avatar + 8px gap
-    bottom: 0,
-    width: 2,
-    borderRadius: 9999,
-    zIndex: -1,
-  },
-  itemConnectorLineAbove: {
-    position: 'absolute',
-    left: TIMELINE_LINE_OFFSET,
-    top: 0,
-    height: 4, // from container top to 8px before avatar (12px pad - 8px gap)
-    width: 2,
-    borderRadius: 9999,
-    zIndex: -1,
   },
   // Article attachment styles (still used in main compose)
   articleAttachmentWrapper: {
