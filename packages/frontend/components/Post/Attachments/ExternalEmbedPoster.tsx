@@ -6,7 +6,15 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
 
-import { Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+import {
+  Icon,
+  VStack,
+  defineTokens,
+  toElement,
+  Embed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 const posterTokens = defineTokens({ color: { white: 'white' } });
 
 interface ExternalEmbedPosterProps {
@@ -60,39 +68,44 @@ export function ExternalEmbedPoster({
 
   // The frame and its scrim are pinned with React Native's `inset`, as the
   // classes drew them; the language pins a view by its four edges instead.
-  return (
-    <View style={styles.frame} pointerEvents="box-none">
-      {thumb && !thumbErrored ? (
-        <Image
-          source={thumbSources}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          onError={() => setThumbErrored(true)}
-        />
-      ) : null}
-      <View style={styles.scrim} />
-      {/* React Native's Pressable: while the player loads it has no press and
-      stays in the focus order, as it was; the language takes a press-less
-      stack out of it. */}
-      <Pressable
-        onPress={active ? undefined : onPressPlay}
-        accessibilityRole="button"
-        style={styles.play}
-      >
-        {active ? (
-          <SpinnerIcon size={36} color="white" />
-        ) : (
-          toElement(
-            VStack(Icon(RiPlayFill).size('2xl').foreground(posterTokens.color.white))
-              .frame({ height: '64', width: '64' })
-              .background('black/60')
-              .corner('infinite')
-              .align('center')
-              .justify('center'),
-          )
-        )}
-      </Pressable>
-    </View>
+  return LtoElement(
+    LVStack(
+      Embed(
+        thumb && !thumbErrored ? (
+          <Image
+            source={thumbSources}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            onError={() => setThumbErrored(true)}
+          />
+        ) : null,
+      ),
+      Embed(<View style={styles.scrim} />),
+      /* React Native's Pressable: while the player loads it has no press and
+        stays in the focus order, as it was; the language takes a press-less
+        stack out of it. */ Embed(
+        <Pressable
+          onPress={active ? undefined : onPressPlay}
+          accessibilityRole="button"
+          style={styles.play}
+        >
+          {active ? (
+            <SpinnerIcon size={36} color="white" />
+          ) : (
+            toElement(
+              VStack(Icon(RiPlayFill).size('2xl').foreground(posterTokens.color.white))
+                .frame({ height: '64', width: '64' })
+                .background('black/60')
+                .corner('infinite')
+                .align('center')
+                .justify('center'),
+            )
+          )}
+        </Pressable>,
+      ),
+    )
+      .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+      .allowsHitTesting('children'),
   );
 }
 
