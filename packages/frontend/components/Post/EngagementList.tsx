@@ -1,8 +1,5 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-import type React from 'react';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Screen } from '@oxy.so/bloom/screen';
-import { VirtualList } from '@oxy.so/bloom/list';
 import type { Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
@@ -15,7 +12,8 @@ import { logger } from '@oxy.so/core/logger';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
 
-import { Button as LButton, Header, Icon, toElement } from '@oxy.so/bloom-language';
+import { Button as LButton, Embed, Header, Icon, VirtualList } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /** Placeholder rows painted while the first page of engagers loads. */
 const SKELETON_ROW_COUNT = 8;
@@ -27,7 +25,12 @@ interface EngagementListProps {
   onNavigate?: (href: Href) => void;
 }
 
-const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose, onNavigate }) => {
+export default screen(function EngagementList({
+  postId,
+  type,
+  onClose,
+  onNavigate,
+}: EngagementListProps) {
   const router = useRouter();
   const { t } = useTranslation();
   const requestGeneration = useRef(0);
@@ -128,58 +131,49 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose, 
     [handleUserPress],
   );
 
-  return (
-    <Screen
-      header={toElement(
-        Header(title)
-          .onBack(null)
-          .safeArea(false)
-          .toolbar(
-            LButton(Icon(RiCloseLine))
-              .shape('circle')
-              .style('subtle')
-              .tint('neutral')
-              .label(t('common.close', { defaultValue: 'Close' }))
-              .onPress(onClose),
-          )
-          .inPage(),
-      )}
-    >
-      <VirtualList
-        screen={{}}
-        data={loading || failed ? [] : users}
-        renderItem={renderUser}
-        keyExtractor={(item) => item.id}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={loadingMore ? <ListSkeleton count={2} /> : undefined}
-        ListEmptyComponent={
-          loading ? (
-            <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
-          ) : failed ? (
-            <EmptyState
-              error={{
-                title: t('post.engagement.loadError', { defaultValue: "Couldn't load this list" }),
-                message: t('post.engagement.loadErrorMessage', {
-                  defaultValue: 'Check your connection and try again.',
-                }),
-                onRetry: () => loadUsers(),
-              }}
-            />
-          ) : (
-            <EmptyState
-              title={
-                type === 'likes'
-                  ? t('post.engagement.noLikes', { defaultValue: 'No likes yet' })
-                  : t('post.engagement.noBoosts', { defaultValue: 'No reposts yet' })
-              }
-              sticker="postNoEngagement"
-            />
-          )
-        }
-      />
-    </Screen>
-  );
-};
-
-export default EngagementList;
+  return VirtualList(loading || failed ? [] : users, renderUser)
+    .screen()
+    .itemKey((item: PostUser) => item.id)
+    .onEndReached(handleLoadMore, 0.5)
+    .footerContent(loadingMore ? Embed(<ListSkeleton count={2} />) : undefined)
+    .emptyState(
+      Embed(
+        loading ? (
+          <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
+        ) : failed ? (
+          <EmptyState
+            error={{
+              title: t('post.engagement.loadError', { defaultValue: "Couldn't load this list" }),
+              message: t('post.engagement.loadErrorMessage', {
+                defaultValue: 'Check your connection and try again.',
+              }),
+              onRetry: () => loadUsers(),
+            }}
+          />
+        ) : (
+          <EmptyState
+            title={
+              type === 'likes'
+                ? t('post.engagement.noLikes', { defaultValue: 'No likes yet' })
+                : t('post.engagement.noBoosts', { defaultValue: 'No reposts yet' })
+            }
+            sticker="postNoEngagement"
+          />
+        ),
+      ),
+    )
+    .header(
+      Header(title)
+        .onBack(null)
+        .safeArea(false)
+        .toolbar(
+          LButton(Icon(RiCloseLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .label(t('common.close', { defaultValue: 'Close' }))
+            .onPress(onClose),
+        )
+        .inPage(),
+    );
+});
