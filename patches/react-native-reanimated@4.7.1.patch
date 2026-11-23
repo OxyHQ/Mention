@@ -1,0 +1,150 @@
+diff --git a/lib/module/mappers.native.js b/lib/module/mappers.native.js
+index 75dd0115ee50ea89914e28aa3889364e23ff410c..f98fde7afc627698c1a9e274f72d0e91c7c0d792 100644
+--- a/lib/module/mappers.native.js
++++ b/lib/module/mappers.native.js
+@@ -68,6 +68,9 @@ function createMapperRegistry() {
+   let mapperRunFinalizers = [];
+   global.__requestMapperRunFinalizer = finalizer => {
+     mapperRunFinalizers.push(finalizer);
++    if (!processingMappers) {
++      scheduleMapperRun();
++    }
+   };
+   let isAnyMapperDirty = false;
+   function mapperRun() {
+@@ -95,15 +98,29 @@ function createMapperRegistry() {
+       for (const finalizer of finalizers) {
+         finalizer();
+       }
++      // A mapper marked dirty by an earlier one in this run, or a finalizer requested by one, runs
++      // on the next frame.
++      if (isAnyMapperDirty || mapperRunFinalizers.length > 0) {
++        scheduleMapperRun();
++      }
+     }
+   }
+   const schedulingFunction = globalThis.requestAnimationFrameFinalizer;
++  // A run is scheduled only when a mapper is dirty or a finalizer waits for one: a frame with
++  // neither has nothing to run, and running every frame kept the UI thread awake at idle.
++  let mapperRunScheduled = false;
++
+   function scheduledMapperRun() {
++    mapperRunScheduled = false;
+     mapperRun();
+-    // We always run mappers on native.
+-    schedulingFunction(scheduledMapperRun);
+   }
+-  schedulingFunction(scheduledMapperRun);
++
++  function scheduleMapperRun() {
++    if (!mapperRunScheduled) {
++      mapperRunScheduled = true;
++      schedulingFunction(scheduledMapperRun);
++    }
++  }
+   global.__mapperRun = mapperRun;
+   function extractInputs(inputs, resultArray) {
+     if (Array.isArray(inputs)) {
+@@ -138,10 +155,16 @@ function createMapperRegistry() {
+       mappers.set(mapper.id, mapper);
+       sortedMappers = [];
+       isAnyMapperDirty = true;
++      if (!processingMappers) {
++        scheduleMapperRun();
++      }
+       for (const sv of mapper.inputs) {
+         sv.addListener(mapper.id, () => {
+           mapper.dirty = true;
+           isAnyMapperDirty = true;
++          if (!processingMappers) {
++            scheduleMapperRun();
++          }
+         });
+       }
+     },
+@@ -151,6 +174,9 @@ function createMapperRegistry() {
+         mappers.delete(mapper.id);
+         sortedMappers = [];
+         isAnyMapperDirty = true;
++        if (!processingMappers) {
++          scheduleMapperRun();
++        }
+         for (const sv of mapper.inputs) {
+           sv.removeListener(mapper.id);
+         }
+diff --git a/src/mappers.native.ts b/src/mappers.native.ts
+index 740b5c31aff39e0d1d11bba2f99dcdc929dca060..e9ece6c1b07b10d9ef953cd79d8609c48f178a73 100644
+--- a/src/mappers.native.ts
++++ b/src/mappers.native.ts
+@@ -78,6 +78,9 @@ function createMapperRegistry() {
+   let mapperRunFinalizers: (() => void)[] = [];
+   global.__requestMapperRunFinalizer = (finalizer: () => void) => {
+     mapperRunFinalizers.push(finalizer);
++    if (!processingMappers) {
++      scheduleMapperRun();
++    }
+   };
+ 
+   let isAnyMapperDirty = false;
+@@ -107,18 +110,31 @@ function createMapperRegistry() {
+       for (const finalizer of finalizers) {
+         finalizer();
+       }
++      // A mapper marked dirty by an earlier one in this run, or a finalizer requested by one, runs
++      // on the next frame.
++      if (isAnyMapperDirty || mapperRunFinalizers.length > 0) {
++        scheduleMapperRun();
++      }
+     }
+   }
+ 
+   const schedulingFunction = globalThis.requestAnimationFrameFinalizer;
+ 
++  // A run is scheduled only when a mapper is dirty or a finalizer waits for one: a frame with
++  // neither has nothing to run, and running every frame kept the UI thread awake at idle.
++  let mapperRunScheduled = false;
++
+   function scheduledMapperRun() {
++    mapperRunScheduled = false;
+     mapperRun();
+-    // We always run mappers on native.
+-    schedulingFunction(scheduledMapperRun);
+   }
+ 
+-  schedulingFunction(scheduledMapperRun);
++  function scheduleMapperRun() {
++    if (!mapperRunScheduled) {
++      mapperRunScheduled = true;
++      schedulingFunction(scheduledMapperRun);
++    }
++  }
+ 
+   global.__mapperRun = mapperRun;
+ 
+@@ -164,10 +180,16 @@ function createMapperRegistry() {
+       mappers.set(mapper.id, mapper);
+       sortedMappers = [];
+       isAnyMapperDirty = true;
++      if (!processingMappers) {
++        scheduleMapperRun();
++      }
+       for (const sv of mapper.inputs) {
+         sv.addListener(mapper.id, () => {
+           mapper.dirty = true;
+           isAnyMapperDirty = true;
++          if (!processingMappers) {
++            scheduleMapperRun();
++          }
+         });
+       }
+     },
+@@ -177,6 +199,9 @@ function createMapperRegistry() {
+         mappers.delete(mapper.id);
+         sortedMappers = [];
+         isAnyMapperDirty = true;
++        if (!processingMappers) {
++          scheduleMapperRun();
++        }
+         for (const sv of mapper.inputs) {
+           sv.removeListener(mapper.id);
+         }

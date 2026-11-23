@@ -195,6 +195,25 @@ Mention moves to 0.89.
 Provenance and the native gates:
 `docs/audits/2026-10-31-predictive-back/source-validation.md`.
 
+The frame-loop hunks (`FabricUIManager`, `MountItemDispatcher`,
+`FabricEventDispatcher`, `JavaTimerManager`, `NativeAnimatedModule` and
+`NativeAnimatedNodesManager`) make React Native's four `ReactChoreographer`
+loops run only when they have work. Upstream re-posts each one every vsync while
+the app is in the foreground, so an idle screen woke the main thread 60 to 120
+times a second for nothing: Fabric's mount dispatch, the event beat, the timer
+check and the Animated driver. Now a queued mount item, view command or pre
+mount item, a C++ animation or a module (`requestDispatchFrame`) asks for
+Fabric's frame; an event or the C++ event beat asks for the beat's frame, as
+upstream's `useOptimizedEventBatchingOnAndroid` experiment did; a timer is
+reached by a wake posted for the moment it is due; Animated runs frames while an
+animation is active and asks for a dispatch frame for its queued operations.
+Work queued off the UI thread asks through the UI handler, because that thread
+may hold a lock the UI thread takes inside a `ReactChoreographer` frame (posting
+from the JS thread deadlocked the timer path). Idle Home with Reduce Motion on
+the Pixel 8a: about 60 main-thread frames a second before, about 4 after
+(with the Worklets and Reanimated patches below). Remove these hunks when
+upstream schedules these frames on demand.
+
 # react-native-css 3.1.0-rc.0
 
 Backport of [nativewind/react-native-css#511](https://github.com/nativewind/react-native-css/pull/511).
@@ -256,3 +275,27 @@ pager itself, past the Compose view. The pages are Android views and the pager h
 focus targets of its own, so the search reaches the same views. 10.0.3 (the latest)
 still builds on Compose 1.7.8 with plain `FrameLayout` page hosts. Remove the patch
 once the pager builds on Compose 1.8 or later, or hosts its pages this way upstream.
+
+# react-native-worklets 0.13.1
+
+The UI runtime's `requestAnimationFrame` polyfill
+(`runLoop/uiRuntime/requestAnimationFrame`) asked for a native frame at the end
+of every frame, whether or not a callback was queued, so the UI runtime ran a
+JavaScript call every vsync for the life of the app. It now asks for a frame
+when a callback or a frame finalizer is queued, and not otherwise. A frame with
+neither only drained microtasks, which every job scheduled on the runtime drains
+as it finishes. Both the source (`src/`, which Metro resolves) and the compiled
+`lib/module` copy are patched. Remove it when upstream requests frames on
+demand.
+
+# react-native-reanimated 4.7.1
+
+The mapper registry (`mappers.native`) re-queued its run as a frame finalizer
+from every run ("We always run mappers on native"), which with the Worklets
+patch above would still have asked for a frame every vsync. A run is now
+scheduled when a mapper is started, stopped or marked dirty by one of its shared
+values, or a mapper-run finalizer (`__requestMapperRunFinalizer`, the batched
+prop flush) is requested outside a run; a mapper left dirty by a run, or a
+finalizer requested during one, schedules the next. Mappers still run in the
+same frame finalizer as before. Remove it when upstream schedules mapper runs on
+demand.
