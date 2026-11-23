@@ -3150,7 +3150,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.composeArea}>
           <View style={{ flex: 1 }}>
             {/* Header: Bloom's floating header, so its controls are the floating glass (44) and
-                its centred title has the room the header gives it. */}
+                its title has the room the header gives it. */}
             <PageHeader
               title={
                 isEditMode
@@ -3159,7 +3159,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? t('common.reply')
                     : t('compose.newPost')
               }
-              titleAlign="center"
+              // At the start, after the close control: centred between it and the actions group the
+              // 44pt controls leave too little room ("Nueva pu…" on a Pixel 8a).
               titleReveal="always"
               safeArea={false}
               backLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}

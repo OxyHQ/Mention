@@ -71,8 +71,8 @@ describe('the composer footer', () => {
 describe('the composer header', () => {
   it('is Bloom’s header: the tab closes with an X, the pushed composer goes back', () => {
     // "New post" (the tab) had no way out; "Reply" (pushed) had a back arrow. The header is
-    // Bloom's floating PageHeader, so its controls are the floating glass and its title is centred
-    // in the room the header gives it.
+    // Bloom's floating PageHeader, so its controls are the floating glass and its title has the room
+    // the header gives it, at the start (centred, it was cut off).
     const header = screen.slice(screen.indexOf('{/* Header'), screen.indexOf('</Button.Group>'));
     expect(header).toContain('<PageHeader');
     expect(header).toMatch(/presentation === 'tab'\s*\?/);
@@ -80,5 +80,6 @@ describe('the composer header', () => {
     expect(header).toContain('testID="compose-close"');
     expect(header).toContain('onBack={');
     expect(header).toContain('<Button.Group');
+    expect(header).not.toContain('titleAlign="center"');
   });
 });
