@@ -23,7 +23,6 @@ import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
 
 // Components
 import UserName from './UserName';
-import { DropdownMenuItem } from '@oxy.so/bloom/dropdown-menu';
 import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
@@ -56,6 +55,7 @@ import {
   Button as LButton,
   Embed,
   Icon,
+  Item,
   TabItem,
   Tabs as LTabs,
   VStack,
@@ -124,7 +124,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   onRetry,
 }) => {
   const router = useRouter();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
   const { colors } = useTheme();
   // The tab row pins over the scrolling channel feed, so it paints the colour
@@ -297,22 +297,20 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   // a channel has no such header, because it is never anybody's "own profile":
   // no session's subject can be a channel, so the menu is where its operators'
   // actions live.
-  const leadingItems = operatesThisChannel ? (
-    <>
-      <DropdownMenuItem
-        leading={toElement(Icon(RiBarChartBoxLine).size('22').foreground('foreground'))}
-        onPress={() => router.push(`/c/${handle}/insights`)}
-      >
-        {t('insights.title', { defaultValue: 'Insights' })}
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        leading={toElement(Icon(RiSettings3Line).size('22').foreground('foreground'))}
-        onPress={() => router.push(`/c/${handle}/settings`)}
-      >
-        {t('channels.settings.title', { defaultValue: 'Channel settings' })}
-      </DropdownMenuItem>
-    </>
-  ) : undefined;
+  const leadingItems = operatesThisChannel
+    ? [
+        Item(t('insights.title', { defaultValue: 'Insights' }))
+          .icon(RiBarChartBoxLine)
+          .iconSize('22')
+          .iconForeground('foreground')
+          .onPress(() => router.push(`/c/${handle}/insights`)),
+        Item(t('channels.settings.title', { defaultValue: 'Channel settings' }))
+          .icon(RiSettings3Line)
+          .iconSize('22')
+          .iconForeground('foreground')
+          .onPress(() => router.push(`/c/${handle}/settings`)),
+      ]
+    : undefined;
 
   // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
   // That literal was true of the LOGIN identity — a channel can never be signed
@@ -489,30 +487,25 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           ),
       )}
       {toElement(
-        // The trigger hands its press and name to its child (`asChild`): draw the button as
-        // its own host with `render`, not behind a toElement boundary.
-        Embed((render) => (
-          <ProfileMoreMenu
-            profileData={profileData}
-            viewerOperatesAccount={operatesThisChannel}
-            leadingItems={leadingItems}
-          >
-            {
-              render(
-                LButton(Icon(RiMoreFill))
-                  .shape('circle')
-                  .style('subtle')
-                  .tint('neutral')
-                  .label(
-                    t('profile.actions.more', {
-                      handle,
-                      defaultValue: 'More options for @{{handle}}',
-                    }),
-                  ),
-              ) as React.ReactElement
-            }
-          </ProfileMoreMenu>
-        )),
+        ProfileMoreMenu(
+          LButton(Icon(RiMoreFill))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .label(
+              t('profile.actions.more', {
+                handle,
+                defaultValue: 'More options for @{{handle}}',
+              }),
+            ),
+          {
+            profileData,
+            viewerOperatesAccount: operatesThisChannel,
+            canUsePrivateApi,
+            leadingItems,
+            t,
+          },
+        ),
       )}
     </>
   );
