@@ -1,13 +1,11 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
-import { Platform, TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
+import { TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useRouter } from '@/lib/navigation/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@oxy.so/bloom/toast';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackCollection } from '@/services/starterPacksService';
@@ -17,27 +15,20 @@ import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 
 import {
   Checkbox as LCheckbox,
+  defineTokens,
   Embed,
   HStack,
   Icon,
   RawText,
   SpinnerIcon,
-  VStack,
-  defineTokens,
   toElement,
-} from '@oxy.so/bloom-language';
-import {
-  Embed as LEmbed,
-  VStack as LVStack,
-  toElement as LtoElement,
+  VStack,
 } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
-// Tailwind's `rounded-full` as NativeWind drew it on a TouchableOpacity, which the
-// language has no node for (its press fades the row's opacity).
-const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+// The label area of a row: it stays a TouchableOpacity because it is no accessibility
+// element of its own (`accessible={false}`), which the language does not write.
 const touchables = {
-  create: { borderRadius: PILL_RADIUS, paddingHorizontal: 20, paddingVertical: 10 },
   // Tailwind's `flex-1`: grow, shrink and a 0% basis.
   rowLabel: {
     flexDirection: 'row',
@@ -47,7 +38,6 @@ const touchables = {
     flexShrink: 1,
     flexBasis: '0%',
   },
-  newRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
 } satisfies Record<string, ViewStyle>;
 
 const logger = createLogger('AddToStarterPackSheet');
@@ -103,7 +93,6 @@ export function AddToStarterPackSheet({
   onClose,
 }: AddToStarterPackSheetProps) {
   const router = useRouter();
-  const colors = useColorTokens();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { user, canUsePrivateApi } = useAuth();
@@ -228,16 +217,12 @@ export function AddToStarterPackSheet({
           .font('18')
           .leading('28px')
           .weight('bold'),
-        Embed(
-          <TouchableOpacity
-            onPress={onClose}
-            hitSlop={tokens.hitSlop.md}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          >
-            {toElement(Icon(RiCloseLine).size('22').foreground('muted'))}
-          </TouchableOpacity>,
-        ),
+        VStack(Icon(RiCloseLine).size('22').foreground('muted'))
+          .onPress(onClose)
+          .hitSlop('md')
+          .role('button')
+          .label(t('common.close', { defaultValue: 'Close' }))
+          .pressFade(),
       )
         .align('center')
         .justify('between')
@@ -258,9 +243,9 @@ export function AddToStarterPackSheet({
                 .leading('20px')
                 .textAlign('center'),
               Embed(
-                LtoElement(
-                  LVStack(
-                    LEmbed(
+                toElement(
+                  VStack(
+                    Embed(
                       toElement(
                         RawText(t('common.retry', { defaultValue: 'Try again' }))
                           .foreground('primary')
@@ -291,20 +276,19 @@ export function AddToStarterPackSheet({
                 .font('14')
                 .leading('20px')
                 .textAlign('center'),
-              Embed(
-                <TouchableOpacity
-                  onPress={goCreate}
-                  style={[touchables.create, { backgroundColor: colors.primary }]}
-                >
-                  {toElement(
-                    RawText(t('starterPacks.create', { defaultValue: 'Create starter pack' }))
-                      .foreground('onPrimary')
-                      .font('14')
-                      .leading('20px')
-                      .weight('semibold'),
-                  )}
-                </TouchableOpacity>,
-              ),
+              VStack(
+                RawText(t('starterPacks.create', { defaultValue: 'Create starter pack' }))
+                  .foreground('onPrimary')
+                  .font('14')
+                  .leading('20px')
+                  .weight('semibold'),
+              )
+                .padding('horizontal', 'xl')
+                .padding('vertical', '10')
+                .background('primary')
+                .corner('infinite')
+                .onPress(goCreate)
+                .pressFade(),
             )
               .padding('vertical', '3xl')
               .align('center')
@@ -360,27 +344,26 @@ export function AddToStarterPackSheet({
               ),
             )}
 
-            <TouchableOpacity
-              style={touchables.newRow}
-              onPress={goCreate}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-            >
-              {toElement(
+            {toElement(
+              HStack(
                 VStack(Icon(RiAddLine).size('md').foreground(appColors.color.hexfff))
                   .frame({ width: '36', height: '36' })
                   .background('primary')
                   .corner('lg')
                   .align('center')
                   .justify('center'),
-              )}
-              {toElement(
                 RawText(t('starterPacks.addTo.newPack', { defaultValue: 'New starter pack' }))
                   .foreground('primary')
                   .font('md')
                   .weight('semibold'),
-              )}
-            </TouchableOpacity>
+              )
+                .padding('vertical', '14')
+                .align('center')
+                .spacing('md')
+                .onPress(goCreate)
+                .role('button')
+                .pressFade('70'),
+            )}
           </ScrollView>
         ),
       ),

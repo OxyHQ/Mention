@@ -387,24 +387,27 @@ function FeedMarketplaceScreen() {
             Embed(
               SORT_OPTIONS_CONFIG.map((opt) => {
                 const active = opt.id === sortBy;
-                return (
-                  <TouchableOpacity
-                    key={opt.id}
-                    style={classStyles.sortOption}
-                    onPress={() => handleSortPress(opt.id)}
-                    activeOpacity={0.7}
-                  >
-                    {toElement(
-                      RawText(t(opt.labelKey))
-                        .font('14')
-                        .leading('20px')
-                        .weight(active ? 'bold' : 'medium')
-                        .foreground(active ? 'primary' : 'muted'),
-                    )}
-                    {active && (
-                      <View style={[styles.sortIndicator, { backgroundColor: colors.primary }]} />
-                    )}
-                  </TouchableOpacity>
+                return toElement(
+                  VStack(
+                    RawText(t(opt.labelKey))
+                      .font('14')
+                      .leading('20px')
+                      .weight(active ? 'bold' : 'medium')
+                      .foreground(active ? 'primary' : 'muted'),
+                    active
+                      ? Embed(
+                          <View
+                            style={[styles.sortIndicator, { backgroundColor: colors.primary }]}
+                          />,
+                        )
+                      : null,
+                  )
+                    .flex('1')
+                    .align('center')
+                    .padding('vertical', '10')
+                    .onPress(() => handleSortPress(opt.id))
+                    .pressFade('70'),
+                  opt.id,
                 );
               }),
             ),
@@ -530,19 +533,10 @@ function FeedMarketplaceScreen() {
   );
 }
 
-// The category pills' scroller and the sort options stay React Native (a horizontal
-// ScrollView and TouchableOpacity, which the language has no node for); these draw
-// what their classes drew.
+// The category pills' scroller stays React Native (a horizontal ScrollView); this draws
+// what its class drew.
 const classStyles = {
   pills: { marginTop: 12 },
-  sortOption: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: '0%',
-    alignItems: 'center',
-    paddingVertical: 10,
-    position: 'relative',
-  },
 } satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({

@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
-import { useColorTokens } from '@oxy.so/bloom/theme';
+import { StyleSheet } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
@@ -12,18 +11,11 @@ import { starterPacksService, type StarterPackSummary } from '@/services/starter
 import { EmptyState } from '@/components/common/EmptyState';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
-import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
-
-import {
-  Embed as LEmbed,
-  VirtualList as LVirtualList,
-  toElement as LtoElement,
-} from '@oxy.so/bloom-language';
+import { Embed, RawText, VStack, VirtualList, toElement } from '@oxy.so/bloom-language';
 
 export function StarterPacksTab() {
   const router = useRouter();
   const { t } = useTranslation();
-  const colors = useColorTokens();
   const { user, canUsePrivateApi } = useAuth();
   const [loading, setLoading] = useState(true);
   const [packs, setPacks] = useState<StarterPackSummary[]>([]);
@@ -105,8 +97,8 @@ export function StarterPacksTab() {
     );
   };
 
-  return LtoElement(
-    LVirtualList(packs, renderItem)
+  return toElement(
+    VirtualList(packs, renderItem)
       .screen()
       .itemKey((item: StarterPackSummary) => String(item._id || item.id))
       .contentMargins('left', 'lg')
@@ -114,16 +106,14 @@ export function StarterPacksTab() {
       .contentMargins('top', 'sm')
       .contentMargins('bottom', '3xl')
       .headerContent(
-        LEmbed(
-          <TouchableOpacity
-            style={[styles.createButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/starter-packs/create')}
-          >
-            {toElement(
-              RawText(t('starterPacks.create')).foreground('onPrimary').weight('bold').font('md'),
-            )}
-          </TouchableOpacity>,
-        ),
+        VStack(RawText(t('starterPacks.create')).foreground('onPrimary').weight('bold').font('md'))
+          .padding('vertical', 'md')
+          .background('primary')
+          .corner('xl')
+          .align('center')
+          .margin('bottom', 'lg')
+          .onPress(() => router.push('/starter-packs/create'))
+          .pressFade(),
       ),
   );
 }
@@ -132,5 +122,4 @@ const styles = StyleSheet.create({
   list: { paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 32 },
   cardWrapper: { marginBottom: 8 },
   emptyState: { paddingVertical: 36, paddingHorizontal: 20 },
-  createButton: { paddingVertical: 12, borderRadius: 20, alignItems: 'center', marginBottom: 16 },
 });
