@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Text, TouchableOpacity, StyleSheet, View, type TextStyle } from 'react-native';
+import { Text, StyleSheet, View, type TextStyle } from 'react-native';
 import { Link } from '@/lib/navigation/router';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
@@ -12,6 +12,8 @@ import { AccountBadge } from '@/components/AccountBadge';
 import type { UserNameProps } from '@/components/Profile/types';
 
 import { Embed, RawText, toElement } from '@oxy.so/bloom-language';
+
+import { Embed as LEmbed, VStack, toElement as LtoElement } from '@oxy.so/bloom-language';
 
 const UserName: React.FC<UserNameProps> = ({
   name,
@@ -107,31 +109,33 @@ const UserName: React.FC<UserNameProps> = ({
             handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null,
           ]}
         >
-          {isFederated && copyableHandle ? (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={handleCopyHandle}
-              style={styles.handleShrink}
-            >
-              {handleText}
-            </TouchableOpacity>
-          ) : (
-            handleText
-          )}
+          {isFederated && copyableHandle
+            ? LtoElement(
+                VStack(LEmbed(handleText))
+                  .frame({ minWidth: 'none' })
+                  .shrink('normal')
+                  .onPress(handleCopyHandle)
+                  .pressFade('70'),
+              )
+            : handleText}
           {handleTrailing}
         </View>
       );
     } else if (isFederated && copyableHandle) {
-      handleLineNode = (
-        <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
-          <Text
-            style={[handleLook, styles.handle, style?.handle]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            @{handle}
-          </Text>
-        </TouchableOpacity>
+      handleLineNode = LtoElement(
+        VStack(
+          LEmbed(
+            <Text
+              style={[handleLook, styles.handle, style?.handle]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              @{handle}
+            </Text>,
+          ),
+        )
+          .onPress(handleCopyHandle)
+          .pressFade('70'),
       );
     } else {
       handleLineNode = (

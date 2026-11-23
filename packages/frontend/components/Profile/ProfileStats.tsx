@@ -1,11 +1,17 @@
 import { memo, useCallback } from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
 
 import { Embed, HStack, RawText, toElement } from '@oxy.so/bloom-language';
+
+import {
+  Embed as LEmbed,
+  HStack as LHStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 /** A stat's count and its label, at 15pt: the count bold in the foreground, the label muted. */
 const statNumber = (value: string) =>
@@ -47,51 +53,76 @@ export const ProfileStats = memo(function ProfileStats({
     HStack(
       Embed(
         (render) =>
-          followingCount !== undefined && (
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={handleFollowingPress}
-              disabled={!followingHref}
-            >
-              {render(statNumber(formatCompactNumber(followingCount)))}
-              {render(statLabel(t('profile.following')))}
-            </TouchableOpacity>
+          followingCount !== undefined &&
+          LtoElement(
+            LHStack(
+              LEmbed(render(statNumber(formatCompactNumber(followingCount)))),
+              LEmbed(render(statLabel(t('profile.following')))),
+            )
+              .align('center')
+              .spacing('xs')
+              .onPress(handleFollowingPress)
+              .disabled(!followingHref)
+              .pressFade(),
           ),
       ),
       Embed(
         (render) =>
-          followerCount !== undefined && (
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={handleFollowersPress}
-              disabled={!followersHref}
-            >
-              {render(statNumber(formatCompactNumber(followerCount)))}
-              {render(
-                statLabel(t(accountKind === 'community' ? 'profile.members' : 'profile.followers')),
-              )}
-            </TouchableOpacity>
+          followerCount !== undefined &&
+          LtoElement(
+            LHStack(
+              LEmbed(render(statNumber(formatCompactNumber(followerCount)))),
+              LEmbed(
+                render(
+                  statLabel(
+                    t(accountKind === 'community' ? 'profile.members' : 'profile.followers'),
+                  ),
+                ),
+              ),
+            )
+              .align('center')
+              .spacing('xs')
+              .onPress(handleFollowersPress)
+              .disabled(!followersHref)
+              .pressFade(),
           ),
       ),
-      Embed((render) => (
-        <TouchableOpacity style={styles.statItem} onPress={onPostsPress}>
-          {render(statNumber(formatCompactNumber(postsCount ?? 0)))}
-          {render(statLabel(t('profile.stats.posts', { count: postsCount ?? 0 })))}
-        </TouchableOpacity>
-      )),
-      Embed((render) => (
-        <TouchableOpacity style={styles.statItem} onPress={onBoostsPress}>
-          {render(statNumber(formatCompactNumber(boostsCount ?? 0)))}
-          {render(statLabel(t('profile.stats.boosts', { count: boostsCount ?? 0 })))}
-        </TouchableOpacity>
-      )),
+      Embed((render) =>
+        LtoElement(
+          LHStack(
+            LEmbed(render(statNumber(formatCompactNumber(postsCount ?? 0)))),
+            LEmbed(render(statLabel(t('profile.stats.posts', { count: postsCount ?? 0 })))),
+          )
+            .align('center')
+            .spacing('xs')
+            .onPress(onPostsPress)
+            .pressFade(),
+        ),
+      ),
+      Embed((render) =>
+        LtoElement(
+          LHStack(
+            LEmbed(render(statNumber(formatCompactNumber(boostsCount ?? 0)))),
+            LEmbed(render(statLabel(t('profile.stats.boosts', { count: boostsCount ?? 0 })))),
+          )
+            .align('center')
+            .spacing('xs')
+            .onPress(onBoostsPress)
+            .pressFade(),
+        ),
+      ),
       Embed(
         (render) =>
-          showReplies && (
-            <TouchableOpacity style={styles.statItem} onPress={onRepliesPress}>
-              {render(statNumber(formatCompactNumber(repliesCount ?? 0)))}
-              {render(statLabel(t('profile.stats.replies', { count: repliesCount ?? 0 })))}
-            </TouchableOpacity>
+          showReplies &&
+          LtoElement(
+            LHStack(
+              LEmbed(render(statNumber(formatCompactNumber(repliesCount ?? 0)))),
+              LEmbed(render(statLabel(t('profile.stats.replies', { count: repliesCount ?? 0 })))),
+            )
+              .align('center')
+              .spacing('xs')
+              .onPress(onRepliesPress)
+              .pressFade(),
           ),
       ),
       reputationTotal !== undefined
