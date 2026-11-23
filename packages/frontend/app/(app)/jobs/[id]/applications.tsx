@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Badge } from '@oxy.so/bloom/badge';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
 import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
@@ -16,6 +15,7 @@ import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailShe
 import { EmptyState } from '@/components/common/EmptyState';
 
 import {
+  Badge as LBadge,
   Card as LCard,
   Chip as LChip,
   Embed,
@@ -195,14 +195,7 @@ export default Lscreen(function JobApplicationsScreen() {
           .weight('semibold')
           .lines(1)
           .onPress(() => openApplication(item)),
-        Embed(
-          <Badge
-            content={item.status}
-            color={STATUS_TONE[item.status]}
-            variant="subtle"
-            size="sm"
-          />,
-        ),
+        LBadge(item.status).style('subtle').color(STATUS_TONE[item.status]).size('sm'),
       )
         .align('start')
         .justify('between')

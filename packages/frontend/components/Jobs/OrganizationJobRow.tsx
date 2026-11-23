@@ -2,7 +2,6 @@ import type { Href } from '@/lib/navigation/router';
 import { memo, useCallback } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Badge } from '@oxy.so/bloom/badge';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
@@ -10,7 +9,6 @@ import { useJobVocabulary } from '@/utils/jobVocabulary';
 import {
   Badge as LBadge,
   Card as LCard,
-  Embed,
   HStack,
   RawText,
   Text as LText,
@@ -109,16 +107,9 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
     LCard(
       HStack(
         LText(job.title).grow().font('headline').weight('bold').lines(2),
-        Embed(
-          !isPublished ? (
-            <Badge
-              content={job.status}
-              color={STATUS_TONE[job.status]}
-              variant="subtle"
-              size="sm"
-            />
-          ) : null,
-        ),
+        !isPublished
+          ? LBadge(job.status).style('subtle').color(STATUS_TONE[job.status]).size('sm')
+          : null,
       )
         .align('start')
         .justify('between')

@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Badge } from '@oxy.so/bloom/badge';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
@@ -19,6 +18,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { EmptyState } from '@/components/common/EmptyState';
 
 import {
+  Badge as LBadge,
   Button as LButton,
   Card as LCard,
   Embed,
@@ -246,14 +246,10 @@ export default screen(function MyJobsScreen() {
                     Row(job.title)
                       .subtitle(`${employerLabel(job.employerOxyUserId)} · ${dateLabel}`)
                       .trailing(
-                        Embed(
-                          <Badge
-                            content={job.status}
-                            color={STATUS_TONE[job.status]}
-                            variant="subtle"
-                            size="sm"
-                          />,
-                        ),
+                        LBadge(job.status)
+                          .style('subtle')
+                          .color(STATUS_TONE[job.status])
+                          .size('sm'),
                       )
                       .onPress(() => editJob(job)),
                     HStack(
