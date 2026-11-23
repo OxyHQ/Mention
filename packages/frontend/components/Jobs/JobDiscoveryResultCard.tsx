@@ -1,7 +1,5 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import type { Href } from '@/lib/navigation/router';
 import { memo, useCallback, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -260,22 +258,20 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
           LText(job.title).font('headline').weight('bold').lines(2),
           LText(job.employer.name).margin('top', '2xs').foreground('muted').font('body-2').lines(1),
         ).flex('1'),
-        Embed(
-          <TouchableOpacity
-            onPress={() => onToggleSave(job)}
-            hitSlop={tokens.hitSlop.md}
-            accessibilityRole="button"
-            accessibilityLabel={
-              isSaved
-                ? t('jobs.discovery.unsave', { defaultValue: 'Remove from saved' })
-                : t('jobs.discovery.save', { defaultValue: 'Save job' })
-            }
-          >
-            {isSaved
-              ? toElement(Icon(RiBookmarkFill).size('md').foreground('primary'))
-              : toElement(Icon(RiBookmarkLine).size('md').foreground('muted'))}
-          </TouchableOpacity>,
-        ),
+        VStack(
+          isSaved
+            ? Icon(RiBookmarkFill).size('md').foreground('primary')
+            : Icon(RiBookmarkLine).size('md').foreground('muted'),
+        )
+          .onPress(() => onToggleSave(job))
+          .hitSlop('md')
+          .role('button')
+          .label(
+            isSaved
+              ? t('jobs.discovery.unsave', { defaultValue: 'Remove from saved' })
+              : t('jobs.discovery.save', { defaultValue: 'Save job' }),
+          )
+          .pressFade(),
       )
         .align('start')
         .justify('between')
@@ -320,28 +316,20 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
           .align('center')
           .spacing('6'),
         HStack(
-          Embed(
-            <TouchableOpacity
-              onPress={share}
-              hitSlop={tokens.hitSlop.md}
-              accessibilityRole="button"
-              accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}
-            >
-              {toElement(Icon(RiShareForwardLine).size('sm').foreground('muted'))}
-            </TouchableOpacity>,
-          ),
-          Embed(
-            !appPath ? (
-              <TouchableOpacity
-                onPress={() => onReport(job)}
-                hitSlop={tokens.hitSlop.md}
-                accessibilityRole="button"
-                accessibilityLabel={t('jobs.discovery.report', { defaultValue: 'Report' })}
-              >
-                {toElement(Icon(RiFlagLine).size('sm').foreground('muted'))}
-              </TouchableOpacity>
-            ) : null,
-          ),
+          VStack(Icon(RiShareForwardLine).size('sm').foreground('muted'))
+            .onPress(share)
+            .hitSlop('md')
+            .role('button')
+            .label(t('jobs.detail.share', { defaultValue: 'Share' }))
+            .pressFade(),
+          !appPath
+            ? VStack(Icon(RiFlagLine).size('sm').foreground('muted'))
+                .onPress(() => onReport(job))
+                .hitSlop('md')
+                .role('button')
+                .label(t('jobs.discovery.report', { defaultValue: 'Report' }))
+                .pressFade()
+            : null,
         )
           .align('center')
           .spacing('md'),
