@@ -1,18 +1,10 @@
 import { handleKey } from '@mention/shared-types/handle';
 import { useDebouncedCallback } from '@oxy.so/bloom/hooks';
-import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import {
-  Platform,
-  View,
-  TouchableOpacity,
-  type ViewStyle,
-  type TextInputSelectionChangeEvent,
-  type TextInputInstance,
-} from 'react-native';
+import type { TextInputSelectionChangeEvent, TextInputInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { skipToken, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -25,7 +17,6 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import {
   searchService,
   captureSearchHistoryEpoch,
@@ -459,43 +450,9 @@ function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardDa
   return starterPackId(pack) ? starterPackCardData(pack) : null;
 }
 
-// Rows, chips and buttons stay React Native's TouchableOpacity (the language has no
-// node for its fading press), and the refresh track a view hidden from assistive
-// technology; these draw what their classes drew.
-const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
-const searchTouchables = {
-  row: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  profileRow: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  retry: {
-    alignSelf: 'flex-start',
-    borderRadius: PILL_RADIUS,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  chip: { borderRadius: PILL_RADIUS, paddingHorizontal: 12, paddingVertical: 6 },
-  refreshTrack: { height: 2, width: '100%', overflow: 'hidden' },
-} satisfies Record<string, ViewStyle>;
-
 function SearchIndex() {
   const router = useRouter();
   const { t } = useTranslation();
-  const colors = useColorTokens();
   // The box is autofocused; leaving by a result or a tab must not carry the
   // keyboard onto the next screen.
   useDismissKeyboardOnBlur();
@@ -1193,19 +1150,18 @@ function SearchIndex() {
                 .leading('28px')
                 .weight('bold')
                 .foreground('foreground'),
-              Embed(
-                item.action ? (
-                  <TouchableOpacity onPress={item.action.onPress} hitSlop={tokens.hitSlop.md}>
-                    {toElement(
-                      RawText(item.action.label)
-                        .font('14')
-                        .leading('20px')
-                        .weight('semibold')
-                        .foreground('primary'),
-                    )}
-                  </TouchableOpacity>
-                ) : null,
-              ),
+              item.action
+                ? VStack(
+                    RawText(item.action.label)
+                      .font('14')
+                      .leading('20px')
+                      .weight('semibold')
+                      .foreground('primary'),
+                  )
+                    .onPress(item.action.onPress)
+                    .hitSlop('md')
+                    .pressFade()
+                : null,
             )
               .padding('horizontal', 'md')
               .padding('top', 'lg')
@@ -1216,35 +1172,36 @@ function SearchIndex() {
           );
 
         case 'recent':
-          return (
-            <TouchableOpacity
-              style={[searchTouchables.row, { borderColor: colors.border }]}
-              onPress={() => handleRecentPress(item.term)}
-              accessibilityRole="button"
-            >
-              {toElement(
-                HStack(
-                  Icon(RiTimeLine).size('18').foreground('muted'),
-                  RawText(item.term)
-                    .flex('1')
-                    .font('16')
-                    .leading('normal')
-                    .foreground('foreground')
-                    .lines(1),
-                )
+          return toElement(
+            HStack(
+              HStack(
+                Icon(RiTimeLine).size('18').foreground('muted'),
+                RawText(item.term)
                   .flex('1')
-                  .align('center')
-                  .spacing('md'),
-              )}
-              <TouchableOpacity
-                onPress={() => void handleRemoveRecent(item.term)}
-                hitSlop={tokens.hitSlop.md}
-                accessibilityRole="button"
-                accessibilityLabel={t('search.removeRecent', 'Remove from recent searches')}
-              >
-                {toElement(Icon(RiCloseLine).size('sm').foreground('textTertiary'))}
-              </TouchableOpacity>
-            </TouchableOpacity>
+                  .font('16')
+                  .leading('normal')
+                  .foreground('foreground')
+                  .lines(1),
+              )
+                .flex('1')
+                .align('center')
+                .spacing('md'),
+              VStack(Icon(RiCloseLine).size('sm').foreground('textTertiary'))
+                .onPress(() => void handleRemoveRecent(item.term))
+                .hitSlop('md')
+                .role('button')
+                .label(t('search.removeRecent', 'Remove from recent searches'))
+                .pressFade(),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'md')
+              .frame({ width: 'full' })
+              .border('border', 'thin', 'bottom')
+              .align('center')
+              .justify('between')
+              .onPress(() => handleRecentPress(item.term))
+              .role('button')
+              .pressFade(),
           );
 
         case 'trend':
@@ -1274,21 +1231,21 @@ function SearchIndex() {
           return toElement(
             VStack(
               RawText(t('error.fetch_trends')).font('14').leading('20px').foreground('muted'),
-              Embed(
-                <TouchableOpacity
-                  onPress={() => void fetchTrends()}
-                  style={[searchTouchables.retry, { backgroundColor: colors.muted }]}
-                  accessibilityRole="button"
-                >
-                  {toElement(
-                    RawText(t('search.retry', 'Retry'))
-                      .font('14')
-                      .leading('20px')
-                      .weight('semibold')
-                      .foreground('primary'),
-                  )}
-                </TouchableOpacity>,
-              ),
+              VStack(
+                RawText(t('search.retry', 'Retry'))
+                  .font('14')
+                  .leading('20px')
+                  .weight('semibold')
+                  .foreground('primary'),
+              )
+                .padding('horizontal', 'lg')
+                .padding('vertical', 'sm')
+                .background('mutedFill')
+                .corner('infinite')
+                .alignSelf('start')
+                .onPress(() => void fetchTrends())
+                .role('button')
+                .pressFade(),
             )
               .padding('horizontal', 'md')
               .padding('vertical', 'lg')
@@ -1309,26 +1266,26 @@ function SearchIndex() {
                 .foreground('muted'),
               HStack(
                 Embed(
-                  SEARCH_OPERATORS.map((operator) => (
-                    <TouchableOpacity
-                      key={operator.operator}
-                      onPress={() => handleOperatorPress(operator.insert)}
-                      style={[searchTouchables.chip, { backgroundColor: colors.muted }]}
-                      accessibilityRole="button"
-                      accessibilityLabel={t(
-                        `search.operator.${operator.labelKey}`,
-                        operator.description,
-                      )}
-                    >
-                      {toElement(
+                  SEARCH_OPERATORS.map((operator) =>
+                    toElement(
+                      VStack(
                         RawText(operator.operator)
                           .font('xs')
                           .leading('16px')
                           .weight('medium')
                           .foreground('muted'),
-                      )}
-                    </TouchableOpacity>
-                  )),
+                      )
+                        .padding('horizontal', 'md')
+                        .padding('vertical', '6')
+                        .background('mutedFill')
+                        .corner('infinite')
+                        .onPress(() => handleOperatorPress(operator.insert))
+                        .role('button')
+                        .label(t(`search.operator.${operator.labelKey}`, operator.description))
+                        .pressFade(),
+                      operator.operator,
+                    ),
+                  ),
                 ),
               )
                 .wrap()
@@ -1356,22 +1313,25 @@ function SearchIndex() {
                 .foreground('muted'),
               HStack(
                 Embed(
-                  item.values.map((value) => (
-                    <TouchableOpacity
-                      key={value}
-                      onPress={() => handleOperatorValuePress(item.token, value)}
-                      style={[searchTouchables.chip, { backgroundColor: colors.muted }]}
-                      accessibilityRole="button"
-                    >
-                      {toElement(
+                  item.values.map((value) =>
+                    toElement(
+                      VStack(
                         RawText(`${item.token.prefix}:${value}`)
                           .font('xs')
                           .leading('16px')
                           .weight('medium')
                           .foreground('muted'),
-                      )}
-                    </TouchableOpacity>
-                  )),
+                      )
+                        .padding('horizontal', 'md')
+                        .padding('vertical', '6')
+                        .background('mutedFill')
+                        .corner('infinite')
+                        .onPress(() => handleOperatorValuePress(item.token, value))
+                        .role('button')
+                        .pressFade(),
+                      value,
+                    ),
+                  ),
                 ),
               )
                 .wrap()
@@ -1385,24 +1345,27 @@ function SearchIndex() {
           );
 
         case 'goToProfile':
-          return (
-            <TouchableOpacity
-              style={[searchTouchables.profileRow, { borderColor: colors.border }]}
-              onPress={() => handleGoToProfile(item.handle)}
-              accessibilityRole="button"
-            >
-              {toElement(Icon(RiUserLine).size('18').foreground('muted'))}
-              {toElement(
-                RawText(
-                  t('search.suggestions.goToProfile', 'Go to @{{handle}}', { handle: item.handle }),
-                )
-                  .flex('1')
-                  .font('16')
-                  .leading('normal')
-                  .foreground('foreground')
-                  .lines(1),
-              )}
-            </TouchableOpacity>
+          return toElement(
+            HStack(
+              Icon(RiUserLine).size('18').foreground('muted'),
+              RawText(
+                t('search.suggestions.goToProfile', 'Go to @{{handle}}', { handle: item.handle }),
+              )
+                .flex('1')
+                .font('16')
+                .leading('normal')
+                .foreground('foreground')
+                .lines(1),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'md')
+              .frame({ width: 'full' })
+              .border('border', 'thin', 'bottom')
+              .align('center')
+              .spacing('md')
+              .onPress(() => handleGoToProfile(item.handle))
+              .role('button')
+              .pressFade(),
           );
 
         // Loading is checked before the error state so a retry/refetch shows
@@ -1507,46 +1470,43 @@ function SearchIndex() {
         }
 
         case 'hashtag':
-          return (
-            <TouchableOpacity
-              style={[searchTouchables.row, { borderColor: colors.border }]}
-              onPress={() => handleOpenHashtag(item.hashtag.tag)}
-              accessibilityRole="button"
-            >
-              {toElement(
-                HStack(
-                  VStack(
-                    RawText('#').font('xl').leading('28px').weight('bold').foreground('primary'),
-                  )
-                    .frame({ width: '4xl', height: '4xl' })
-                    .background('primary/10')
-                    .corner('infinite')
-                    .align('center')
-                    .justify('center'),
-                  VStack(
-                    RawText('#', item.hashtag.tag)
-                      .font('16')
-                      .leading('normal')
-                      .weight('semibold')
-                      .foreground('foreground')
-                      .lines(1),
-                    RawText(
-                      formatCompactNumber(item.hashtag.count),
-                      ' ',
-                      t('search.posts', 'posts'),
-                    )
-                      .margin('top', '2xs')
-                      .font('14')
-                      .leading('20px')
-                      .foreground('muted'),
-                  ).flex('1'),
-                )
-                  .flex('1')
+          return toElement(
+            HStack(
+              HStack(
+                VStack(RawText('#').font('xl').leading('28px').weight('bold').foreground('primary'))
+                  .frame({ width: '4xl', height: '4xl' })
+                  .background('primary/10')
+                  .corner('infinite')
                   .align('center')
-                  .spacing('md'),
-              )}
-              {toElement(Icon(RiArrowRightSLine).size('sm').foreground('textTertiary'))}
-            </TouchableOpacity>
+                  .justify('center'),
+                VStack(
+                  RawText('#', item.hashtag.tag)
+                    .font('16')
+                    .leading('normal')
+                    .weight('semibold')
+                    .foreground('foreground')
+                    .lines(1),
+                  RawText(formatCompactNumber(item.hashtag.count), ' ', t('search.posts', 'posts'))
+                    .margin('top', '2xs')
+                    .font('14')
+                    .leading('20px')
+                    .foreground('muted'),
+                ).flex('1'),
+              )
+                .flex('1')
+                .align('center')
+                .spacing('md'),
+              Icon(RiArrowRightSLine).size('sm').foreground('textTertiary'),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', 'md')
+              .frame({ width: 'full' })
+              .border('border', 'thin', 'bottom')
+              .align('center')
+              .justify('between')
+              .onPress(() => handleOpenHashtag(item.hashtag.tag))
+              .role('button')
+              .pressFade(),
           );
 
         case 'list': {
@@ -1573,8 +1533,6 @@ function SearchIndex() {
       }
     },
     [
-      colors.border,
-      colors.muted,
       t,
       activeTab,
       handleRecentPress,
@@ -1661,16 +1619,19 @@ function SearchIndex() {
                     It sits in the layout (a fixed-height track that is empty
                     when idle) rather than overlaying the list, so results
                     never shift by a pixel when it appears. */}
-            <View style={searchTouchables.refreshTrack} accessibilityElementsHidden>
-              {refreshing
-                ? toElement(
-                    VStack()
+            {toElement(
+              VStack(
+                refreshing
+                  ? VStack()
                       .frame({ height: 'full', width: 'full' })
                       .background('primary/60')
-                      .testID('search-refreshing'),
-                  )
-                : null}
-            </View>
+                      .testID('search-refreshing')
+                  : null,
+              )
+                .frame({ height: '2xs', width: 'full' })
+                .clipped()
+                .accessibilityHidden(),
+            )}
           </StickySection>
           {/* ONE scroll container for every state — suggestions, results,
                     loading, error and empty all render through this list as ROWS,
