@@ -3,7 +3,6 @@ import type React from 'react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
@@ -181,7 +180,7 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
                             onPress={() => handleEmojiPress(emoji)}
                             activeOpacity={0.6}
                           >
-                            <Text style={styles.emojiText}>{emoji}</Text>
+                            {toElement(RawText(emoji).font(EMOJI_FONT))}
                           </TouchableOpacity>
                         )),
                       ),
@@ -222,15 +221,15 @@ const TAB = {
   borderBottomWidth: 2,
 } satisfies ViewStyle;
 
+/** A glyph's size: 28pt on the web, 26pt on a device. */
+const EMOJI_FONT = Platform.OS === 'web' ? '28' : '3xl';
+
 const styles = StyleSheet.create({
   emojiCell: {
     flex: 1,
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  emojiText: {
-    fontSize: Platform.OS === 'web' ? 28 : 26,
   },
 });
 

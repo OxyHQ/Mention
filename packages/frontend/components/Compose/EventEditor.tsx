@@ -1,5 +1,4 @@
 import React from 'react';
-import { View } from 'react-native';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
 import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -186,8 +185,8 @@ export const EventEditor: React.FC<EventEditorProps> = ({
               />
             </Field>,
           ),
-          Embed(
-            <View style={{ width: 120 }}>
+          VStack(
+            Embed(
               <TextField>
                 <TextFieldInput
                   label={t('compose.event.time', { defaultValue: 'Time' })}
@@ -199,9 +198,9 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                   aria-invalid={timeInvalid || undefined}
                   testID="eventEditorTimeField"
                 />
-              </TextField>
-            </View>,
-          ),
+              </TextField>,
+            ),
+          ).frame({ width: '120' }),
         ).spacing('md'),
         timeInvalid
           ? VStack(
