@@ -30,14 +30,6 @@ import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
 import { TIMELINE_LINE_OFFSET } from './composeLayout';
 
 export const composeStyles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-    // keep header clean (no divider)
-  },
   cancelButton: {
     padding: 8,
   },
@@ -100,32 +92,6 @@ export const composeStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* header and icon tweaks */
-  headerTitle: {
-    position: 'absolute',
-    // Centre against the header itself, never against whatever uneven number of
-    // actions happens to be visible on either side.
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none', // Don't block touches on buttons
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-    zIndex: 1,
-  },
-  iconBtn: {
-    marginLeft: 8,
-  },
-  backBtn: {
-    marginRight: 6,
-    zIndex: 1,
-  },
-
   /* the footer: the batch's pills, then the submit slot */
   bottomBar: {
     flexDirection: 'row',
