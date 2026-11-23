@@ -27,7 +27,6 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   Pressable,
@@ -93,7 +92,6 @@ import { AudienceMenu, type ComposeAudience } from '@/components/Compose/Audienc
 import { isPrivateMention } from '@/utils/postReplies';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { SEO } from '@/components/SEO';
-import { Button } from '@oxy.so/bloom/button';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
@@ -261,6 +259,20 @@ const JobPickerSheet = lazy(() => import('@/components/Compose/JobPickerSheet'))
 // Pre-computed stable style objects using layout constants
 const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
 const avatarMarginStyle = { marginRight: 12 };
+
+/** A posting mode beside the switch: its name (primary while chosen) over what it does. */
+function modeOption(active: boolean, label: string, description: string) {
+  return VStack(
+    RawText(label)
+      .foreground(active ? 'primary' : 'foreground')
+      .font('16')
+      .weight('semibold')
+      .margin('bottom', '2xs'),
+    RawText(description).foreground('muted').font('xs').textAlign('center'),
+  )
+    .grow()
+    .align('center');
+}
 
 export interface ComposeScreenProps {
   presentation?: ComposePresentation;
@@ -3279,129 +3291,124 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   .font('18')
                   .weight('bold')
                   .allowsHitTesting(false),
-                Embed(
-                  // `marginLeft: 'auto'` pushes the actions to the end: the language's
-                  // margins take space tokens only.
-                  <View style={styles.headerIcons}>
-                    {toElement(
-                      LButton(Icon(RiMoreFill))
-                        .shape('circle')
-                        .style('subtle')
-                        .tint('neutral')
-                        .margin('left', 'sm')
-                        .onPress(() => setShowModeToggle(!showModeToggle))
-                        .label(
-                          showModeToggle
-                            ? t('compose.hideModeOptions.a11y', {
-                                defaultValue: 'Hide posting mode options',
-                              })
-                            : t('compose.showModeOptions.a11y', {
-                                defaultValue: 'Show posting mode options',
-                              }),
-                        ),
-                    )}
-                    <Button
-                      appearance="subtle"
-                      tone="neutral"
-                      iconOnly
-                      icon={toElement(Icon(RiDraftLine).size('md').foreground('foreground'))}
-                      style={styles.iconBtn}
-                      disabled={switchingDraft || isPosting}
-                      onPress={() => {
-                        let active = true;
-                        const opened = presentSheet((surface) => (
-                          <Suspense fallback={null}>
-                            <UnpublishedSheet
-                              onClose={() => surface.dismiss()}
-                              onLoadDraft={async (draft: Draft) => {
-                                // A sheet opened before a publish began cannot
-                                // switch away from the draft being published.
-                                if (switchingDraftRef.current || isPublishing()) return;
-                                switchingDraftRef.current = true;
-                                setSwitchingDraft(true);
-                                let saved = false;
-                                try {
-                                  const result = await prepareDraftSwitch(
-                                    draft.id,
-                                    () => latestDraftSnapshot.current,
-                                    getDraftSession,
-                                    async (snapshot) => {
-                                      await saveDraftNow(snapshot);
-                                      saved = true;
-                                    },
-                                    readDraft,
-                                    () => active && composerMountedRef.current,
-                                  );
-                                  if (result.status === 'cancelled') return;
-                                  if (result.status === 'changed') {
-                                    surface.dismiss();
-                                    toast(
-                                      t('compose.draftChangedRetry', {
-                                        defaultValue: 'Your draft changed while saving. Try again.',
-                                      }),
-                                      { type: 'error' },
-                                    );
-                                    return;
-                                  }
-                                  if (result.status === 'missing') {
-                                    surface.dismiss();
-                                    toast(
-                                      t('compose.draftMissing', {
-                                        defaultValue: 'This draft is no longer available.',
-                                      }),
-                                      { type: 'error' },
-                                    );
-                                    return;
-                                  }
+                HStack(
+                  LButton(Icon(RiMoreFill))
+                    .shape('circle')
+                    .style('subtle')
+                    .tint('neutral')
+                    .margin('left', 'sm')
+                    .onPress(() => setShowModeToggle(!showModeToggle))
+                    .label(
+                      showModeToggle
+                        ? t('compose.hideModeOptions.a11y', {
+                            defaultValue: 'Hide posting mode options',
+                          })
+                        : t('compose.showModeOptions.a11y', {
+                            defaultValue: 'Show posting mode options',
+                          }),
+                    ),
+                  LButton(Icon(RiDraftLine).size('md').foreground('foreground'))
+                    .shape('circle')
+                    .style('subtle')
+                    .tint('neutral')
+                    .margin('left', 'sm')
+                    .disabled(switchingDraft || isPosting)
+                    .onPress(() => {
+                      let active = true;
+                      const opened = presentSheet((surface) => (
+                        <Suspense fallback={null}>
+                          <UnpublishedSheet
+                            onClose={() => surface.dismiss()}
+                            onLoadDraft={async (draft: Draft) => {
+                              // A sheet opened before a publish began cannot
+                              // switch away from the draft being published.
+                              if (switchingDraftRef.current || isPublishing()) return;
+                              switchingDraftRef.current = true;
+                              setSwitchingDraft(true);
+                              let saved = false;
+                              try {
+                                const result = await prepareDraftSwitch(
+                                  draft.id,
+                                  () => latestDraftSnapshot.current,
+                                  getDraftSession,
+                                  async (snapshot) => {
+                                    await saveDraftNow(snapshot);
+                                    saved = true;
+                                  },
+                                  readDraft,
+                                  () => active && composerMountedRef.current,
+                                );
+                                if (result.status === 'cancelled') return;
+                                if (result.status === 'changed') {
                                   surface.dismiss();
-                                  if (result.status === 'ready') handleResumeDraft(result.draft);
-                                } catch (error) {
-                                  logger.error('Failed to switch draft', error);
-                                  if (active && composerMountedRef.current) {
-                                    surface.dismiss();
-                                    if (error instanceof DraftReadError || saved) {
-                                      toast(
-                                        t('compose.deviceDrafts.loadError', {
-                                          defaultValue:
-                                            "We couldn't load the drafts saved on this device",
-                                        }),
-                                        { type: 'error' },
-                                      );
-                                    }
-                                  }
-                                } finally {
-                                  switchingDraftRef.current = false;
-                                  if (composerMountedRef.current) setSwitchingDraft(false);
+                                  toast(
+                                    t('compose.draftChangedRetry', {
+                                      defaultValue: 'Your draft changed while saving. Try again.',
+                                    }),
+                                    { type: 'error' },
+                                  );
+                                  return;
                                 }
-                              }}
-                              currentDraftId={currentDraftId}
-                            />
-                          </Suspense>
-                        ));
-                        void opened.then(
-                          () => {
-                            active = false;
-                          },
-                          () => {
-                            active = false;
-                          },
-                        );
-                      }}
-                      accessibilityLabel={t('compose.openDrafts.a11y', {
+                                if (result.status === 'missing') {
+                                  surface.dismiss();
+                                  toast(
+                                    t('compose.draftMissing', {
+                                      defaultValue: 'This draft is no longer available.',
+                                    }),
+                                    { type: 'error' },
+                                  );
+                                  return;
+                                }
+                                surface.dismiss();
+                                if (result.status === 'ready') handleResumeDraft(result.draft);
+                              } catch (error) {
+                                logger.error('Failed to switch draft', error);
+                                if (active && composerMountedRef.current) {
+                                  surface.dismiss();
+                                  if (error instanceof DraftReadError || saved) {
+                                    toast(
+                                      t('compose.deviceDrafts.loadError', {
+                                        defaultValue:
+                                          "We couldn't load the drafts saved on this device",
+                                      }),
+                                      { type: 'error' },
+                                    );
+                                  }
+                                }
+                              } finally {
+                                switchingDraftRef.current = false;
+                                if (composerMountedRef.current) setSwitchingDraft(false);
+                              }
+                            }}
+                            currentDraftId={currentDraftId}
+                          />
+                        </Suspense>
+                      ));
+                      void opened.then(
+                        () => {
+                          active = false;
+                        },
+                        () => {
+                          active = false;
+                        },
+                      );
+                    })
+                    .label(
+                      t('compose.openDrafts.a11y', {
                         defaultValue: 'Open drafts and scheduled posts',
-                      })}
-                    />
-                    {toElement(
-                      LButton(Icon(RiDeleteBinLine))
-                        .shape('circle')
-                        .style('subtle')
-                        .tint('neutral')
-                        .margin('left', 'sm')
-                        .onPress(() => setClearAllOpen(true))
-                        .label(t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })),
-                    )}
-                  </View>,
-                ),
+                      }),
+                    ),
+                  LButton(Icon(RiDeleteBinLine))
+                    .shape('circle')
+                    .style('subtle')
+                    .tint('neutral')
+                    .margin('left', 'sm')
+                    .onPress(() => setClearAllOpen(true))
+                    .label(t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })),
+                )
+                  .align('center')
+                  .margin('left', 'auto')
+                  .zIndex('raised'),
               )
                 .align('center')
                 .padding('horizontal', 'lg')
@@ -3449,70 +3456,37 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       .border('border', 'thin', 'bottom'),
                   ),
               ),
-              /* Mode Toggle Section */ Embed(
-                showModeToggle && (
-                  <View
-                    style={[
-                      { backgroundColor: colorTokens.muted, borderColor: colorTokens.border },
-                      styles.modeToggleContainer,
-                    ]}
-                  >
-                    <View style={styles.modeToggleRow}>
-                      <View style={styles.modeOption}>
-                        <Text
-                          style={[
-                            {
-                              color:
-                                postingMode === 'thread'
-                                  ? colorTokens.primary
-                                  : colorTokens.foreground,
-                            },
-                            styles.modeLabel,
-                          ]}
-                        >
-                          {t('compose.thread.title')}
-                        </Text>
-                        <Text
-                          style={[{ color: colorTokens.mutedForeground }, styles.modeDescription]}
-                        >
-                          {t('compose.thread.postAsLinked')}
-                        </Text>
-                      </View>
-                      <View style={styles.modeToggle}>
-                        {toElement(
-                          Toggle([
-                            postingMode === 'beast',
-                            (value) => {
-                              haptic('light');
-                              setPostingMode(value ? 'beast' : 'thread');
-                            },
-                          ]).label(t('compose.thread.beastMode')),
-                        )}
-                      </View>
-                      <View style={styles.modeOption}>
-                        <Text
-                          style={[
-                            {
-                              color:
-                                postingMode === 'beast'
-                                  ? colorTokens.primary
-                                  : colorTokens.foreground,
-                            },
-                            styles.modeLabel,
-                          ]}
-                        >
-                          {t('compose.thread.beastMode')}
-                        </Text>
-                        <Text
-                          style={[{ color: colorTokens.mutedForeground }, styles.modeDescription]}
-                        >
-                          {t('compose.thread.postAllAtOnce')}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ),
-              ),
+              /* Mode Toggle Section */ showModeToggle
+                ? VStack(
+                    HStack(
+                      modeOption(
+                        postingMode === 'thread',
+                        t('compose.thread.title'),
+                        t('compose.thread.postAsLinked'),
+                      ),
+                      VStack(
+                        Toggle([
+                          postingMode === 'beast',
+                          (value) => {
+                            haptic('light');
+                            setPostingMode(value ? 'beast' : 'thread');
+                          },
+                        ]).label(t('compose.thread.beastMode')),
+                      ).margin('horizontal', 'xl'),
+                      modeOption(
+                        postingMode === 'beast',
+                        t('compose.thread.beastMode'),
+                        t('compose.thread.postAllAtOnce'),
+                      ),
+                    )
+                      .align('center')
+                      .justify('between'),
+                  )
+                    .padding('horizontal', 'lg')
+                    .padding('vertical', 'md')
+                    .background('mutedFill')
+                    .border('border', 'thin', 'bottom')
+                : null,
               /* Main composer and thread section */ Embed(
                 <ScrollView
                   style={styles.threadScrollView}
@@ -4272,37 +4246,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     {/* Adding an item changes the post/thread structure, not a
                 language rendition. Keep it reachable from every language;
                 the new item immediately appears in the active rendition too. */}
-                    <TouchableOpacity
-                      style={styles.postContainer}
-                      onPress={() => {
-                        const newId = addThread(
-                          postingMode === 'beast'
-                            ? { replyPermission, reviewReplies, quotesDisabled, isSensitive }
-                            : undefined,
-                        );
-                        if (newId) {
-                          setFocusedItemId(newId);
-                          const tryFocus = (attempt: number) => {
-                            if (attempt > 5) return;
-                            requestAnimationFrame(() => {
-                              const ref = isPrimaryTab
-                                ? threadTextInputRefs.current[newId]
-                                : variantTextInputRefs.current[newId];
-                              if (ref) {
-                                ref.focus();
-                              } else {
-                                setTimeout(() => tryFocus(attempt + 1), 50);
-                              }
-                            });
-                          };
-                          tryFocus(0);
-                        }
-                      }}
-                    >
-                      {showThreadTimeline ? (
-                        <View style={[connector, styles.itemConnectorLineAbove]} />
-                      ) : null}
-                      {toElement(
+                    {toElement(
+                      VStack(
+                        showThreadTimeline
+                          ? Embed(<View style={[connector, styles.itemConnectorLineAbove]} />)
+                          : null,
                         HStack(
                           Embed(
                             <TouchableOpacity activeOpacity={0.7}>
@@ -4333,8 +4281,35 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         )
                           .align('start')
                           .padding('horizontal', 'lg'),
-                      )}
-                    </TouchableOpacity>
+                      )
+                        .spacing('md')
+                        .padding('vertical', 'md')
+                        .onPress(() => {
+                          const newId = addThread(
+                            postingMode === 'beast'
+                              ? { replyPermission, reviewReplies, quotesDisabled, isSensitive }
+                              : undefined,
+                          );
+                          if (newId) {
+                            setFocusedItemId(newId);
+                            const tryFocus = (attempt: number) => {
+                              if (attempt > 5) return;
+                              requestAnimationFrame(() => {
+                                const ref = isPrimaryTab
+                                  ? threadTextInputRefs.current[newId]
+                                  : variantTextInputRefs.current[newId];
+                                if (ref) {
+                                  ref.focus();
+                                } else {
+                                  setTimeout(() => tryFocus(attempt + 1), 50);
+                                }
+                              });
+                            };
+                            tryFocus(0);
+                          }
+                        })
+                        .pressFade(),
+                    )}
                   </View>
                 </ScrollView>,
               ),
