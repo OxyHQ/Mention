@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { CardBody, CardDescription, CardHeader } from '@oxy.so/bloom/card';
 
-import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { WizardProgress, type WizardStep } from '@oxy.so/bloom/wizard';
 import { TopicPicker } from '@/components/interests/TopicPicker';
 import { requestSettings } from '@/components/settings/settingsRoutes';
@@ -11,7 +10,6 @@ import { LazyWhoToFollowTab } from '@/components/sharedRouteScreens';
 import { useCompleteWelcome } from '@/hooks/useWelcome';
 import { useLocalSearchParams, useRouter, type Href } from '@/lib/navigation/router';
 import { WelcomeStarterPacks } from './WelcomeStarterPacks';
-
 import {
   Button as LButton,
   Embed,
@@ -20,6 +18,7 @@ import {
   Text,
   toElement,
   Embed as LEmbed,
+  PageFooter as LPageFooter,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -151,14 +150,19 @@ export const WelcomeScreen = screen(function WelcomeScreen() {
     )
     .footer(
       LEmbed(
-        <PageFooter scrim="always" actions={primaryAction}>
-          {/* Always present, so the primary action stays on the right on every step. */}
-          <Button.Group separated>
-            {step > 0
-              ? toElement(LButton(Text(t('welcome.back'))).onPress(() => setStep(step - 1)))
-              : null}
-          </Button.Group>
-        </PageFooter>,
+        toElement(
+          LPageFooter(
+            /* Always present, so the primary action stays on the right on every step. */ LEmbed(
+              <Button.Group separated>
+                {step > 0
+                  ? toElement(LButton(Text(t('welcome.back'))).onPress(() => setStep(step - 1)))
+                  : null}
+              </Button.Group>,
+            ),
+          )
+            .scrollEdge('always')
+            .toolbar(LEmbed(primaryAction)),
+        ),
       ),
       { placement: 'overlay' },
     );
