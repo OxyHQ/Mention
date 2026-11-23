@@ -338,10 +338,6 @@ export const composeStyles = StyleSheet.create({
     position: 'relative',
     zIndex: 2, // Above the timeline line
   },
-  threadItemWithTimeline: {
-    position: 'relative',
-    zIndex: 2, // Above the timeline line
-  },
   // Article attachment styles (still used in main compose)
   articleAttachmentWrapper: {
     position: 'relative',
@@ -361,11 +357,6 @@ export const composeStyles = StyleSheet.create({
     borderRadius: 0,
     backgroundColor: 'transparent',
     justifyContent: 'space-between',
-  },
-  // Poll attachment card styles (for thread items)
-  pollAttachmentWrapper: {
-    position: 'relative',
-    alignSelf: 'flex-start',
   },
   pollAttachmentRemoveButton: {
     position: 'absolute',

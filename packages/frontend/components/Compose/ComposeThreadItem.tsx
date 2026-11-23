@@ -53,20 +53,14 @@ const appColors = defineTokens({ color: { hex5e5e5e: '#5e5e5e' } });
  * unstyled row.
  */
 export interface ComposeThreadItemStyles {
-  threadItemWithTimeline: ViewStyle;
   itemConnectorLineAbove: ViewStyle;
   itemConnectorLine: ViewStyle;
   timelineForeground: ViewStyle;
-  postContainer: ViewStyle;
-  unfocusedItem: ViewStyle;
-  beastSeparator: ViewStyle;
   threadTextInput: TextStyle;
-  toolbarWrapper: ViewStyle;
   removeThreadBtn: ViewStyle;
   mediaPreviewContainer: ViewStyle;
   mediaPreviewScroll: ViewStyle;
   mediaPreviewItem: ViewStyle;
-  pollAttachmentWrapper: ViewStyle;
   pollAttachmentRemoveButton: ViewStyle;
   mediaPreviewImage: ImageStyle;
   mediaReorderControls: ViewStyle;
@@ -342,406 +336,418 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
             </>
           ) : null,
         ),
-        Embed(
-          <View style={styles.threadItemWithTimeline}>
-            {/* The SAME header the first box carries, and the same one the published
+        /* Above the timeline line. */
+        VStack(
+          Embed(
+            <>
+              {/* The SAME header the first box carries, and the same one the published
             post will: avatar, display name and handle. In beast mode the avatar
             is also the control that changes them, and this row is the whole
             disclosure of which account the post goes out as. */}
-            <ComposeIdentityHeader
-              publishAs={publishAs}
-              onPressAvatar={handlePublishAsPress}
-              timeSlot={timeSlot}
-            >
-              <MentionTextInput
-                ref={handleTextInputRef}
-                // Same rule as the main composer's input: the colour is the theme's
-                // (MentionTextInput's own foreground), never a literal. A hardcoded
-                // `#111111` here is what made a thread reply's own text invisible
-                // against the dark background.
-                style={styles.threadTextInput}
-                placeholder={t('compose.thread.placeholder')}
-                value={item.text}
-                mentions={item.mentions}
-                onValueChange={handleMentionValueChange}
-                onFocus={handleFocus}
-                multiline
-              />
-              {/* Who this item will address — a thread item is its own post, so it
+              <ComposeIdentityHeader
+                publishAs={publishAs}
+                onPressAvatar={handlePublishAsPress}
+                timeSlot={timeSlot}
+              >
+                <MentionTextInput
+                  ref={handleTextInputRef}
+                  // Same rule as the main composer's input: the colour is the theme's
+                  // (MentionTextInput's own foreground), never a literal. A hardcoded
+                  // `#111111` here is what made a thread reply's own text invisible
+                  // against the dark background.
+                  style={styles.threadTextInput}
+                  placeholder={t('compose.thread.placeholder')}
+                  value={item.text}
+                  mentions={item.mentions}
+                  onValueChange={handleMentionValueChange}
+                  onFocus={handleFocus}
+                  multiline
+                />
+                {/* Who this item will address — a thread item is its own post, so it
               carries its own mentions and its own pasted profile links. */}
-              <ComposeMentionSummary
-                texts={[item.text, ...variantTexts]}
-                mentions={item.mentions}
-              />
-              {toElement(
-                HStack(
-                  Embed(
-                    <ComposeToolbar
-                      onMediaPress={handleMediaPress}
-                      onPollPress={handlePollPress}
-                      onLocationPress={handleLocationPress}
-                      onGifPress={handleGifPress}
-                      onEmojiPress={handleEmojiPress}
-                      onSourcesPress={handleSourcesPress}
-                      onArticlePress={handleArticlePress}
-                      onEventPress={handleEventPress}
-                      onRoomPress={handleRoomPress}
-                      onCommercePress={
-                        onCommercePress ? () => onCommercePress(threadId) : undefined
-                      }
-                      onPodcastPress={handlePodcastPress}
-                      onLanePress={handleLanePress}
-                      hasLocation={!!item.location}
-                      hasPoll={item.showPollCreator}
-                      hasMedia={item.mediaIds.length > 0}
-                      hasSources={item.sources.length > 0}
-                      hasArticle={itemHasArticle}
-                      hasEvent={itemHasEvent}
-                      hasRoom={itemHasRoom}
-                      hasPodcast={itemHasPodcast}
-                      hasLane={Boolean(item.laneId)}
-                      disabled={isPosting}
-                    />,
-                  ),
-                )
-                  .justify('between')
-                  .align('center')
-                  .margin('top', 'xs'),
-              )}
-            </ComposeIdentityHeader>
-            {/* A sibling of the header rather than a child of it: the button is
+                <ComposeMentionSummary
+                  texts={[item.text, ...variantTexts]}
+                  mentions={item.mentions}
+                />
+                {toElement(
+                  HStack(
+                    Embed(
+                      <ComposeToolbar
+                        onMediaPress={handleMediaPress}
+                        onPollPress={handlePollPress}
+                        onLocationPress={handleLocationPress}
+                        onGifPress={handleGifPress}
+                        onEmojiPress={handleEmojiPress}
+                        onSourcesPress={handleSourcesPress}
+                        onArticlePress={handleArticlePress}
+                        onEventPress={handleEventPress}
+                        onRoomPress={handleRoomPress}
+                        onCommercePress={
+                          onCommercePress ? () => onCommercePress(threadId) : undefined
+                        }
+                        onPodcastPress={handlePodcastPress}
+                        onLanePress={handleLanePress}
+                        hasLocation={!!item.location}
+                        hasPoll={item.showPollCreator}
+                        hasMedia={item.mediaIds.length > 0}
+                        hasSources={item.sources.length > 0}
+                        hasArticle={itemHasArticle}
+                        hasEvent={itemHasEvent}
+                        hasRoom={itemHasRoom}
+                        hasPodcast={itemHasPodcast}
+                        hasLane={Boolean(item.laneId)}
+                        disabled={isPosting}
+                      />,
+                    ),
+                  )
+                    .justify('between')
+                    .align('center')
+                    .margin('top', 'xs'),
+                )}
+              </ComposeIdentityHeader>
+              {/* A sibling of the header rather than a child of it: the button is
             absolutely positioned against this row's own box, and rendering it
             after the header is what puts it above the content it overlaps. */}
-            <TouchableOpacity style={styles.removeThreadBtn} onPress={handleRemove}>
-              {toElement(Icon(RiCloseLine).size('18').foreground(appColors.color.hex5e5e5e))}
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.removeThreadBtn} onPress={handleRemove}>
+                {toElement(Icon(RiCloseLine).size('18').foreground(appColors.color.hex5e5e5e))}
+              </TouchableOpacity>
 
-            {/* Thread item attachments row */}
-            {itemHasAttachments && (
-              <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={scrollPaddingStyle}
-                >
-                  {item.mediaIds.map((mediaItem, mediaIndex) => {
-                    const mediaUrl = getFileDownloadUrl(mediaItem.id);
-                    const mediaCount = item.mediaIds.length;
-                    return (
-                      <View
-                        key={mediaItem.id}
-                        style={[
-                          { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
-                          styles.mediaPreviewItem,
-                        ]}
-                      >
-                        <ComposeMediaPreview
-                          type={mediaItem.type}
-                          uri={mediaUrl}
-                          imageStyle={styles.mediaPreviewImage}
-                        />
-                        {mediaItem.type === 'image' ? (
-                          <ComposeAltButton
-                            hasAlt={Boolean(mediaItem.alt?.trim())}
-                            raised={mediaCount > 1}
-                            onPress={() => onMediaAltPress(threadId, mediaItem)}
-                          />
-                        ) : null}
-                        {mediaCount > 1 ? (
-                          <View style={[styles.mediaReorderControls, pointerEventsBoxNone]}>
-                            <TouchableOpacity
-                              onPress={() => onMediaMove(threadId, mediaItem.id, 'left')}
-                              disabled={mediaIndex === 0}
-                              style={[
-                                styles.mediaReorderButton,
-                                { backgroundColor: theme.colors.background },
-                                mediaIndex === 0 && styles.mediaReorderButtonDisabled,
-                              ]}
-                            >
-                              <RiArrowLeftLine
-                                width={14}
-                                height={14}
-                                fill={
-                                  mediaIndex === 0
-                                    ? theme.colors.textTertiary
-                                    : theme.colors.textSecondary
-                                }
-                              />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => onMediaMove(threadId, mediaItem.id, 'right')}
-                              disabled={mediaIndex === mediaCount - 1}
-                              style={[
-                                styles.mediaReorderButton,
-                                { backgroundColor: theme.colors.background },
-                                mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled,
-                              ]}
-                            >
-                              <RiArrowRightSLine
-                                width={14}
-                                height={14}
-                                fill={
-                                  mediaIndex === mediaCount - 1
-                                    ? theme.colors.textTertiary
-                                    : theme.colors.textSecondary
-                                }
-                              />
-                            </TouchableOpacity>
-                          </View>
-                        ) : null}
-                        <TouchableOpacity
-                          onPress={() => onMediaRemove(threadId, mediaItem.id)}
-                          style={[{ backgroundColor: colorTokens.card }, styles.mediaRemoveButton]}
-                          hitSlop={tokens.hitSlop.sm}
+              {/* Thread item attachments row */}
+              {itemHasAttachments && (
+                <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={scrollPaddingStyle}
+                  >
+                    {item.mediaIds.map((mediaItem, mediaIndex) => {
+                      const mediaUrl = getFileDownloadUrl(mediaItem.id);
+                      const mediaCount = item.mediaIds.length;
+                      return (
+                        <View
+                          key={mediaItem.id}
+                          style={[
+                            {
+                              borderColor: colorTokens.border,
+                              backgroundColor: colorTokens.muted,
+                            },
+                            styles.mediaPreviewItem,
+                          ]}
                         >
-                          {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                  {/* Thread item article preview */}
-                  {itemHasArticle &&
-                    item.article &&
-                    toElement(
-                      VStack(
-                        Embed(
+                          <ComposeMediaPreview
+                            type={mediaItem.type}
+                            uri={mediaUrl}
+                            imageStyle={styles.mediaPreviewImage}
+                          />
+                          {mediaItem.type === 'image' ? (
+                            <ComposeAltButton
+                              hasAlt={Boolean(mediaItem.alt?.trim())}
+                              raised={mediaCount > 1}
+                              onPress={() => onMediaAltPress(threadId, mediaItem)}
+                            />
+                          ) : null}
+                          {mediaCount > 1 ? (
+                            <View style={[styles.mediaReorderControls, pointerEventsBoxNone]}>
+                              <TouchableOpacity
+                                onPress={() => onMediaMove(threadId, mediaItem.id, 'left')}
+                                disabled={mediaIndex === 0}
+                                style={[
+                                  styles.mediaReorderButton,
+                                  { backgroundColor: theme.colors.background },
+                                  mediaIndex === 0 && styles.mediaReorderButtonDisabled,
+                                ]}
+                              >
+                                <RiArrowLeftLine
+                                  width={14}
+                                  height={14}
+                                  fill={
+                                    mediaIndex === 0
+                                      ? theme.colors.textTertiary
+                                      : theme.colors.textSecondary
+                                  }
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => onMediaMove(threadId, mediaItem.id, 'right')}
+                                disabled={mediaIndex === mediaCount - 1}
+                                style={[
+                                  styles.mediaReorderButton,
+                                  { backgroundColor: theme.colors.background },
+                                  mediaIndex === mediaCount - 1 &&
+                                    styles.mediaReorderButtonDisabled,
+                                ]}
+                              >
+                                <RiArrowRightSLine
+                                  width={14}
+                                  height={14}
+                                  fill={
+                                    mediaIndex === mediaCount - 1
+                                      ? theme.colors.textTertiary
+                                      : theme.colors.textSecondary
+                                  }
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          ) : null}
                           <TouchableOpacity
+                            onPress={() => onMediaRemove(threadId, mediaItem.id)}
                             style={[
-                              {
-                                borderColor: colorTokens.border,
-                                backgroundColor: colorTokens.muted,
-                              },
-                              styles.articleAttachmentWrapper,
-                              {
-                                borderColor: theme.colors.border,
-                                backgroundColor: theme.colors.backgroundSecondary,
-                              },
+                              { backgroundColor: colorTokens.card },
+                              styles.mediaRemoveButton,
                             ]}
-                            activeOpacity={0.85}
-                            onPress={handleArticlePress}
+                            hitSlop={tokens.hitSlop.sm}
                           >
-                            <PostArticlePreview
-                              title={item.article.title}
-                              body={item.article.body}
+                            {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                    {/* Thread item article preview */}
+                    {itemHasArticle &&
+                      item.article &&
+                      toElement(
+                        VStack(
+                          Embed(
+                            <TouchableOpacity
+                              style={[
+                                {
+                                  borderColor: colorTokens.border,
+                                  backgroundColor: colorTokens.muted,
+                                },
+                                styles.articleAttachmentWrapper,
+                                {
+                                  borderColor: theme.colors.border,
+                                  backgroundColor: theme.colors.backgroundSecondary,
+                                },
+                              ]}
+                              activeOpacity={0.85}
                               onPress={handleArticlePress}
-                              style={styles.articleAttachmentPreview}
-                            />
-                          </TouchableOpacity>,
-                        ),
-                        Embed(
-                          <TouchableOpacity
-                            onPress={handleArticleRemove}
-                            style={[
-                              { backgroundColor: colorTokens.card },
-                              styles.pollAttachmentRemoveButton,
-                            ]}
-                            hitSlop={tokens.hitSlop.sm}
-                          >
-                            {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                          </TouchableOpacity>,
-                        ),
-                      ).alignSelf('start'),
-                    )}
-                  {/* Thread item event preview */}
-                  {itemHasEvent &&
-                    item.event &&
-                    toElement(
-                      VStack(
-                        Embed(
-                          <TouchableOpacity
-                            style={[
-                              {
-                                borderColor: colorTokens.border,
-                                backgroundColor: colorTokens.muted,
-                              },
-                              styles.articleAttachmentWrapper,
-                              {
-                                borderColor: theme.colors.border,
-                                backgroundColor: theme.colors.backgroundSecondary,
-                              },
-                            ]}
-                            activeOpacity={0.85}
-                            onPress={handleEventPress}
-                          >
-                            <PostAttachmentEvent
-                              name={item.event.name}
-                              date={item.event.date}
-                              location={item.event.location}
+                            >
+                              <PostArticlePreview
+                                title={item.article.title}
+                                body={item.article.body}
+                                onPress={handleArticlePress}
+                                style={styles.articleAttachmentPreview}
+                              />
+                            </TouchableOpacity>,
+                          ),
+                          Embed(
+                            <TouchableOpacity
+                              onPress={handleArticleRemove}
+                              style={[
+                                { backgroundColor: colorTokens.card },
+                                styles.pollAttachmentRemoveButton,
+                              ]}
+                              hitSlop={tokens.hitSlop.sm}
+                            >
+                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
+                            </TouchableOpacity>,
+                          ),
+                        ).alignSelf('start'),
+                      )}
+                    {/* Thread item event preview */}
+                    {itemHasEvent &&
+                      item.event &&
+                      toElement(
+                        VStack(
+                          Embed(
+                            <TouchableOpacity
+                              style={[
+                                {
+                                  borderColor: colorTokens.border,
+                                  backgroundColor: colorTokens.muted,
+                                },
+                                styles.articleAttachmentWrapper,
+                                {
+                                  borderColor: theme.colors.border,
+                                  backgroundColor: theme.colors.backgroundSecondary,
+                                },
+                              ]}
+                              activeOpacity={0.85}
                               onPress={handleEventPress}
-                              style={styles.articleAttachmentPreview}
-                            />
-                          </TouchableOpacity>,
-                        ),
-                        Embed(
-                          <TouchableOpacity
-                            onPress={handleEventRemove}
-                            style={[
-                              { backgroundColor: colorTokens.card },
-                              styles.pollAttachmentRemoveButton,
-                            ]}
-                            hitSlop={tokens.hitSlop.sm}
-                          >
-                            {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                          </TouchableOpacity>,
-                        ),
-                      ).alignSelf('start'),
+                            >
+                              <PostAttachmentEvent
+                                name={item.event.name}
+                                date={item.event.date}
+                                location={item.event.location}
+                                onPress={handleEventPress}
+                                style={styles.articleAttachmentPreview}
+                              />
+                            </TouchableOpacity>,
+                          ),
+                          Embed(
+                            <TouchableOpacity
+                              onPress={handleEventRemove}
+                              style={[
+                                { backgroundColor: colorTokens.card },
+                                styles.pollAttachmentRemoveButton,
+                              ]}
+                              hitSlop={tokens.hitSlop.sm}
+                            >
+                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
+                            </TouchableOpacity>,
+                          ),
+                        ).alignSelf('start'),
+                      )}
+                    {(item.commerce ?? []).map((ref) =>
+                      toElement(
+                        VStack(
+                          Embed(
+                            <CommerceCard
+                              referenceId={commerceReferenceKey(ref)}
+                              style={COMMERCE_CARD}
+                            />,
+                          ),
+                          Embed(
+                            <TouchableOpacity
+                              accessibilityRole="button"
+                              accessibilityLabel={t('commerce.remove', {
+                                defaultValue: 'Remove commerce attachment',
+                              })}
+                              onPress={() =>
+                                onCommerceRemove?.(threadId, commerceReferenceKey(ref))
+                              }
+                              style={[
+                                { backgroundColor: colorTokens.card },
+                                styles.pollAttachmentRemoveButton,
+                              ]}
+                            >
+                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
+                            </TouchableOpacity>,
+                          ),
+                        ).alignSelf('start'),
+                        commerceReferenceKey(ref),
+                      ),
                     )}
-                  {(item.commerce ?? []).map((ref) =>
-                    toElement(
-                      VStack(
-                        Embed(
-                          <CommerceCard
-                            referenceId={commerceReferenceKey(ref)}
-                            style={COMMERCE_CARD}
-                          />,
-                        ),
-                        Embed(
-                          <TouchableOpacity
-                            accessibilityRole="button"
-                            accessibilityLabel={t('commerce.remove', {
-                              defaultValue: 'Remove commerce attachment',
-                            })}
-                            onPress={() => onCommerceRemove?.(threadId, commerceReferenceKey(ref))}
-                            style={[
-                              { backgroundColor: colorTokens.card },
-                              styles.pollAttachmentRemoveButton,
-                            ]}
-                          >
-                            {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                          </TouchableOpacity>,
-                        ),
-                      ).alignSelf('start'),
-                      commerceReferenceKey(ref),
-                    ),
-                  )}
-                  {/* Thread item podcast preview */}
-                  {itemHasPodcast &&
-                    item.podcast &&
-                    toElement(
-                      VStack(
-                        Embed(
-                          <View
-                            style={[
-                              {
-                                borderColor: colorTokens.border,
-                                backgroundColor: colorTokens.card,
-                              },
-                              styles.articleAttachmentWrapper,
-                            ]}
-                          >
-                            <PostPodcastAttachment
-                              podcast={item.podcast}
-                              width={320}
-                              height={120}
-                              showSaveButton={false}
-                              onPress={handlePodcastPress}
-                            />
-                          </View>,
-                        ),
-                        Embed(
-                          <TouchableOpacity
-                            onPress={handlePodcastRemove}
-                            style={[
-                              { backgroundColor: colorTokens.card },
-                              styles.pollAttachmentRemoveButton,
-                            ]}
-                            hitSlop={tokens.hitSlop.sm}
-                          >
-                            {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                          </TouchableOpacity>,
-                        ),
-                      ).alignSelf('start'),
-                    )}
-                  {/* Thread item room preview */}
-                  {itemHasRoom &&
-                    item.room &&
-                    toElement(
-                      VStack(
-                        Embed(
-                          <View
-                            style={[
-                              styles.articleAttachmentWrapper,
-                              {
-                                borderColor: theme.colors.border,
-                                backgroundColor: theme.colors.backgroundSecondary,
-                              },
-                            ]}
-                          >
-                            <RoomCard
-                              room={{
-                                _id: item.room.roomId,
-                                title: item.room.title,
-                                status: item.room.status || 'scheduled',
-                                topic: item.room.topic,
-                                participants: [],
-                                host: item.room.host || '',
-                              }}
-                              variant="compact"
-                              style={styles.articleAttachmentPreview}
-                            />
-                          </View>,
-                        ),
-                        Embed(
-                          <TouchableOpacity
-                            onPress={handleRoomRemove}
-                            style={[
-                              { backgroundColor: colorTokens.card },
-                              styles.pollAttachmentRemoveButton,
-                            ]}
-                            hitSlop={tokens.hitSlop.sm}
-                          >
-                            {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                          </TouchableOpacity>,
-                        ),
-                      ).alignSelf('start'),
-                    )}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Thread item poll creator */}
-            {item.showPollCreator && (
-              <PollCreator
-                pollTitle={item.pollTitle || ''}
-                onTitleChange={handlePollTitleChange}
-                pollOptions={item.pollOptions}
-                onOptionChange={(index, value) => onPollOptionChange(threadId, index, value)}
-                onAddOption={handlePollOptionAdd}
-                onRemoveOption={(index) => onPollOptionRemove(threadId, index)}
-                onRemove={handlePollRemove}
-                style={pollMarginStyle}
-              />
-            )}
-
-            {/* Thread item location display */}
-            {item.location && (
-              <LocationDisplay
-                location={item.location}
-                onRemove={handleLocationRemove}
-                style={pollMarginStyle}
-              />
-            )}
-
-            {/* Per-item interaction settings (beast mode only) */}
-            {postingMode === 'beast' &&
-              toElement(
-                VStack(
-                  Embed(
-                    <InteractionSettingsPills
-                      replyPermission={item.replyPermission}
-                      quotesDisabled={item.quotesDisabled}
-                      isSensitive={item.isSensitive}
-                      onReplyPermissionChange={handleReplyPermissionChange}
-                      onQuotesDisabledChange={handleQuotesDisabledChange}
-                      onSensitiveToggle={handleSensitiveToggle}
-                    />,
-                  ),
-                )
-                  .margin('left', composeSpace.space.bottomLeftPad)
-                  .padding('horizontal', 'lg'),
+                    {/* Thread item podcast preview */}
+                    {itemHasPodcast &&
+                      item.podcast &&
+                      toElement(
+                        VStack(
+                          Embed(
+                            <View
+                              style={[
+                                {
+                                  borderColor: colorTokens.border,
+                                  backgroundColor: colorTokens.card,
+                                },
+                                styles.articleAttachmentWrapper,
+                              ]}
+                            >
+                              <PostPodcastAttachment
+                                podcast={item.podcast}
+                                width={320}
+                                height={120}
+                                showSaveButton={false}
+                                onPress={handlePodcastPress}
+                              />
+                            </View>,
+                          ),
+                          Embed(
+                            <TouchableOpacity
+                              onPress={handlePodcastRemove}
+                              style={[
+                                { backgroundColor: colorTokens.card },
+                                styles.pollAttachmentRemoveButton,
+                              ]}
+                              hitSlop={tokens.hitSlop.sm}
+                            >
+                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
+                            </TouchableOpacity>,
+                          ),
+                        ).alignSelf('start'),
+                      )}
+                    {/* Thread item room preview */}
+                    {itemHasRoom &&
+                      item.room &&
+                      toElement(
+                        VStack(
+                          Embed(
+                            <View
+                              style={[
+                                styles.articleAttachmentWrapper,
+                                {
+                                  borderColor: theme.colors.border,
+                                  backgroundColor: theme.colors.backgroundSecondary,
+                                },
+                              ]}
+                            >
+                              <RoomCard
+                                room={{
+                                  _id: item.room.roomId,
+                                  title: item.room.title,
+                                  status: item.room.status || 'scheduled',
+                                  topic: item.room.topic,
+                                  participants: [],
+                                  host: item.room.host || '',
+                                }}
+                                variant="compact"
+                                style={styles.articleAttachmentPreview}
+                              />
+                            </View>,
+                          ),
+                          Embed(
+                            <TouchableOpacity
+                              onPress={handleRoomRemove}
+                              style={[
+                                { backgroundColor: colorTokens.card },
+                                styles.pollAttachmentRemoveButton,
+                              ]}
+                              hitSlop={tokens.hitSlop.sm}
+                            >
+                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
+                            </TouchableOpacity>,
+                          ),
+                        ).alignSelf('start'),
+                      )}
+                  </ScrollView>
+                </View>
               )}
-          </View>,
-        ),
+
+              {/* Thread item poll creator */}
+              {item.showPollCreator && (
+                <PollCreator
+                  pollTitle={item.pollTitle || ''}
+                  onTitleChange={handlePollTitleChange}
+                  pollOptions={item.pollOptions}
+                  onOptionChange={(index, value) => onPollOptionChange(threadId, index, value)}
+                  onAddOption={handlePollOptionAdd}
+                  onRemoveOption={(index) => onPollOptionRemove(threadId, index)}
+                  onRemove={handlePollRemove}
+                  style={pollMarginStyle}
+                />
+              )}
+
+              {/* Thread item location display */}
+              {item.location && (
+                <LocationDisplay
+                  location={item.location}
+                  onRemove={handleLocationRemove}
+                  style={pollMarginStyle}
+                />
+              )}
+
+              {/* Per-item interaction settings (beast mode only) */}
+              {postingMode === 'beast' &&
+                toElement(
+                  VStack(
+                    Embed(
+                      <InteractionSettingsPills
+                        replyPermission={item.replyPermission}
+                        quotesDisabled={item.quotesDisabled}
+                        isSensitive={item.isSensitive}
+                        onReplyPermissionChange={handleReplyPermissionChange}
+                        onQuotesDisabledChange={handleQuotesDisabledChange}
+                        onSensitiveToggle={handleSensitiveToggle}
+                      />,
+                    ),
+                  )
+                    .margin('left', composeSpace.space.bottomLeftPad)
+                    .padding('horizontal', 'lg'),
+                )}
+            </>,
+          ),
+        ).zIndex('2'),
       )
         .spacing('md')
         .padding('vertical', 'md')
