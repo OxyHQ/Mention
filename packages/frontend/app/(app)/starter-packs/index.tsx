@@ -99,9 +99,7 @@ export default function StarterPacksScreen() {
             backLabel={t('common.back', { defaultValue: 'Back' })}
             actions={
               canUsePrivateApi ? (
-                <Button size="sm" onPress={() => router.push('/starter-packs/create')}>
-                  New
-                </Button>
+                <Button onPress={() => router.push('/starter-packs/create')}>New</Button>
               ) : undefined
             }
           />

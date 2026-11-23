@@ -193,7 +193,6 @@ const LiveRoomsScreen = () => {
                 <Button
                   appearance="solid"
                   tone="accent"
-                  size="sm"
                   leadingIcon={RiAddLine}
                   onPress={openCreateSheet}
                 >

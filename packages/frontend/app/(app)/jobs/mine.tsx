@@ -146,12 +146,7 @@ export default function MyJobsScreen() {
       backLabel={t('common.back', { defaultValue: 'Back' })}
       actions={
         canUsePrivateApi ? (
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="sm"
-            onPress={() => router.push('/jobs/create')}
-          >
+          <Button appearance="solid" tone="accent" onPress={() => router.push('/jobs/create')}>
             {t('jobs.mine.create', { defaultValue: 'Create job' })}
           </Button>
         ) : undefined

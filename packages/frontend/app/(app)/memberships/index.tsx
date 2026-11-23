@@ -30,7 +30,7 @@ export default function MembershipsScreen() {
       onBack={() => router.back()}
       actions={
         canUsePrivateApi ? (
-          <Button size="sm" onPress={() => router.push('/memberships/create')}>
+          <Button onPress={() => router.push('/memberships/create')}>
             {t('memberships.create', 'Create community')}
           </Button>
         ) : undefined

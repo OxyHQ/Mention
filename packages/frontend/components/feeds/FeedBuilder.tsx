@@ -960,7 +960,7 @@ export function FeedBuilder({
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             canUsePrivateApi ? (
-              <Button size="sm" onPress={handleSave} disabled={!canSave} loading={saving}>
+              <Button onPress={handleSave} disabled={!canSave} loading={saving}>
                 {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
               </Button>
             ) : undefined

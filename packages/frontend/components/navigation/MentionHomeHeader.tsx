@@ -45,7 +45,6 @@ export function MentionHomeHeader() {
               appearance="outline"
               tone="neutral"
               iconOnly
-              size="md"
               leadingIcon={shell.drawerOpen ? RiCloseLine : RiMenuLine}
               accessibilityLabel={t('navigation.menu')}
               aria-expanded={shell.drawerOpen}

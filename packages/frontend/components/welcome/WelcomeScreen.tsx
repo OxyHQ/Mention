@@ -90,7 +90,7 @@ export function WelcomeScreen() {
         <PageHeader
           onBack={null}
           actions={
-            <Button size="sm" appearance="subtle" tone="neutral" onPress={finish}>
+            <Button appearance="subtle" tone="neutral" onPress={finish}>
               {t('welcome.skip')}
             </Button>
           }
