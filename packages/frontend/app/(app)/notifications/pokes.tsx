@@ -21,6 +21,12 @@ import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { Embed, HStack, Header, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
+
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
 
@@ -174,15 +180,20 @@ export default function PokesScreen() {
             .font('md')
             .weight('bold'),
           Embed(
-            onToggle && (
-              <TouchableOpacity onPress={onToggle} activeOpacity={0.7}>
-                <Text style={[styles.seeAll, { color: theme.colors.primary }]}>
-                  {showAll
-                    ? t('pokes.showLess', { defaultValue: 'Show less' })
-                    : t('pokes.seeAll', { defaultValue: 'See all' })}
-                </Text>
-              </TouchableOpacity>
-            ),
+            onToggle &&
+              LtoElement(
+                LVStack(
+                  LEmbed(
+                    <Text style={[styles.seeAll, { color: theme.colors.primary }]}>
+                      {showAll
+                        ? t('pokes.showLess', { defaultValue: 'Show less' })
+                        : t('pokes.seeAll', { defaultValue: 'See all' })}
+                    </Text>,
+                  ),
+                )
+                  .onPress(onToggle)
+                  .pressFade('70'),
+              ),
           ),
         )
           .padding('horizontal', 'lg')
