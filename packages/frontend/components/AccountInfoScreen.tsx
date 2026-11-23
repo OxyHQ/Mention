@@ -33,8 +33,7 @@ import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedPr
 import { profileRouteFamily, type ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
-import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
-import { Screen } from '@oxy.so/bloom/screen';
+import { resolveProfileColor, type ProfileColor } from '@oxy.so/bloom/color-presets';
 import { useTheme } from '@oxy.so/bloom/theme';
 
 import {
@@ -44,9 +43,11 @@ import {
   Header,
   Icon,
   ScrollView,
+  type ScrollViewNode,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const ABOUT_AVATAR_SIZE = 80;
 
@@ -89,47 +90,54 @@ function AccountInfoScreenContent({ routedFamily }: { routedFamily: ProfileRoute
   const account = useProfileAccount(useRoutedProfileUsername());
   const { profileData, loading: profileLoading, notFound, refresh } = account;
   const canonicalHref = useProfileCanonicalHref({ routedFamily, account, subpath: 'about' });
-  const { t } = useTranslation();
 
   if (canonicalHref) {
     return <Redirect href={canonicalHref} />;
   }
 
-  const color = resolveProfileColor(profileData?.design.color);
-
-  // As in ProfileShell: the profile's colour (preset or seed) is the Screen's
-  // claim, which themes the whole shell on a split layout.
-  //
-  // Same back-nav header the sibling profile sub-screens (followers / following /
-  // connections) render, shared by the loading / not-found / loaded states.
-  const content = toElement(
-    ScrollView(
-      Embed(
-        <AccountInfoContent
-          profileData={profileData}
-          profileLoading={profileLoading}
-          notFound={notFound}
-          onRetry={refresh}
-        />,
-      ),
+  const content = ScrollView(
+    Embed(
+      <AccountInfoContent
+        profileData={profileData}
+        profileLoading={profileLoading}
+        notFound={notFound}
+        onRetry={refresh}
+      />,
     ),
   );
-  if (Platform.OS === 'web' && routedFamily === 'person') return content;
+  // On the web a person's About page is drawn inside the profile shell's Screen.
+  if (Platform.OS === 'web' && routedFamily === 'person') return toElement(content);
   return (
-    <Screen
-      scroll={Platform.OS === 'web' ? 'auto' : 'content'}
-      colorPreset={color?.colorPreset}
-      seed={color?.seed}
-      header={toElement(
-        Header(t('profile.about.title', { defaultValue: 'About' }))
-          .backLabel(t('common.back', { defaultValue: 'Back' }))
-          .inPage(),
-      )}
-    >
-      {content}
-    </Screen>
+    <AccountInfoPage color={resolveProfileColor(profileData?.design.color)} content={content} />
   );
 }
+
+/**
+ * The About page as a screen of its own. As in ProfileShell: the profile's
+ * colour (preset or seed) is the Screen's claim, which themes the whole shell on
+ * a split layout. Same back-nav header the sibling profile sub-screens
+ * (followers / following / connections) render, shared by the loading /
+ * not-found / loaded states.
+ */
+const AccountInfoPage = screen(function AccountInfoPage({
+  color,
+  content,
+}: {
+  color: ProfileColor | undefined;
+  content: ScrollViewNode;
+}) {
+  const { t } = useTranslation();
+  const page = content.screenScroll(Platform.OS === 'web' ? 'auto' : 'content').header(
+    Header(t('profile.about.title', { defaultValue: 'About' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
+  );
+  return color?.colorPreset
+    ? page.colorPreset(color.colorPreset)
+    : color?.seed
+      ? page.seed(color.seed)
+      : page;
+});
 
 interface AccountInfoContentProps {
   profileData: ProfileData | null;

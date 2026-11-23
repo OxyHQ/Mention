@@ -1,4 +1,3 @@
-import { Screen } from '@oxy.so/bloom/screen';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { ConnectionsHeader } from '@/components/Profile/ConnectionsHeader';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
@@ -41,8 +40,10 @@ import {
   Text as LText,
   VStack,
   VirtualList,
+  type VirtualListView,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 type TabType = ConnectionTab;
 
@@ -568,19 +569,32 @@ function ConnectionsContent({
     .contentMargins('bottom', 'xl')
     .refreshable({ refreshing: activeRefreshing, onRefresh: refreshCurrent });
   // Only a paged tab asks for its next page.
-  const list = toElement(
-    listKind !== null ? connections.onEndReached(loadMoreConnections) : connections,
-  );
-  return Platform.OS === 'web' ? (
-    list
-  ) : (
-    <Screen
-      scroll="content"
-      colorPreset={color?.colorPreset}
-      seed={color?.seed}
-      header={<ConnectionsHeader username={username} profileData={profileData} />}
-    >
-      {list}
-    </Screen>
+  const list = listKind !== null ? connections.onEndReached(loadMoreConnections) : connections;
+  // On the web the list is drawn inside the profile shell's Screen.
+  if (Platform.OS === 'web') return toElement(list);
+  return (
+    <ConnectionsPage color={color} username={username} profileData={profileData} list={list} />
   );
 }
+
+/** The connections as a screen of their own: the profile's colour is its claim (see ProfileShell). */
+const ConnectionsPage = screen(function ConnectionsPage({
+  color,
+  username,
+  profileData,
+  list,
+}: {
+  color: ProfileColor | undefined;
+  username: string;
+  profileData: ProfileData | null;
+  list: VirtualListView;
+}) {
+  const page = list
+    .screenScroll('content')
+    .header(Embed(<ConnectionsHeader username={username} profileData={profileData} />));
+  return color?.colorPreset
+    ? page.colorPreset(color.colorPreset)
+    : color?.seed
+      ? page.seed(color.seed)
+      : page;
+});
