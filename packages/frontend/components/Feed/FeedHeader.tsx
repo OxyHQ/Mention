@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
@@ -11,6 +11,10 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Text } from '@oxy.so/bloom/typography';
+import { Surface } from '@oxy.so/bloom/surface';
+
+/** A radius past half the height: the lens and the paint clamp it to a capsule. */
+const CAPSULE = 9999;
 
 interface FeedHeaderProps {
   showComposeButton?: boolean;
@@ -32,7 +36,12 @@ export const FeedHeader = memo<FeedHeaderProps>(
     }, [onComposePress, router]);
     if (!showComposeButton || hideHeader || !user) return null;
     return (
-      <View className="m-3 min-h-14 flex-row items-center gap-3 rounded-full bg-surface px-3 py-3">
+      // On the glass the bar and the header controls are on: Bloom's lens material, a capsule.
+      <Surface
+        material="lens"
+        radius={CAPSULE}
+        className="m-3 min-h-14 flex-row items-center gap-3 px-3 py-3"
+      >
         <PressableScale
           onPress={compose}
           accessibilityRole="button"
@@ -69,7 +78,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
           accessibilityLabel={t('compose.toolbar.media')}
           onPress={() => router.push('/compose')}
         />
-      </View>
+      </Surface>
     );
   },
 );
