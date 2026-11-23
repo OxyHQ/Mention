@@ -2,7 +2,6 @@ import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Screen } from '@oxy.so/bloom/screen';
 import { listsService, type MentionList } from '@/services/listsService';
 import { entityFollowService } from '@/services/entityFollowService';
 import { subscribeToListChanges } from '@/services/listMutations';
@@ -23,7 +22,9 @@ import {
   Text as LText,
   VStack,
   toElement,
+  Group,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
 
@@ -47,7 +48,7 @@ function toListCardData(list: MentionList): ListCardData {
   };
 }
 
-function ListsScreen() {
+const ListsScreen = screen(function ListsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { canUsePrivateApi, user } = useAuth();
@@ -191,45 +192,43 @@ function ListsScreen() {
       )
     );
 
-  return (
-    <>
-      <SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />
-      <Screen
-        reselect={{ refresh: refreshLists }}
-        header={toElement(
-          Header(t('lists.title'))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .toolbar(
-              Embed(
-                canUsePrivateApi
-                  ? toElement(
-                      LButton(LText(t('lists.new')))
-                        .size('sm')
-                        .onPress(() => router.push('/lists/create')),
-                    )
-                  : undefined,
-              ),
-            )
-            .inPage(),
-        )}
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(<SEO title={t('seo.lists.title')} description={t('seo.lists.description')} />),
+    Embed(
+      <SignInRequired
+        label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
+        description={t('lists.signInRequiredDesc', {
+          defaultValue:
+            'Lists group the accounts you want to read together. The ones you create or follow appear here.',
+        })}
       >
-        <SignInRequired
-          label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
-          description={t('lists.signInRequiredDesc', {
-            defaultValue:
-              'Lists group the accounts you want to read together. The ones you create or follow appear here.',
-          })}
-        >
-          {toElement(
-            ScrollView(Embed(content)).contentView((v) =>
-              v.padding('horizontal', 'md').padding('top', '10'),
-            ),
-          )}
-        </SignInRequired>
-      </Screen>
-    </>
-  );
-}
+        {toElement(
+          ScrollView(Embed(content)).contentView((v) =>
+            v.padding('horizontal', 'md').padding('top', '10'),
+          ),
+        )}
+      </SignInRequired>,
+    ),
+  )
+    .onReselect(refreshLists)
+    .header(
+      Header(t('lists.title'))
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .toolbar(
+          Embed(
+            canUsePrivateApi
+              ? toElement(
+                  LButton(LText(t('lists.new')))
+                    .size('sm')
+                    .onPress(() => router.push('/lists/create')),
+                )
+              : undefined,
+          ),
+        )
+        .inPage(),
+    );
+});
 
 export default function AvailableListsScreen() {
   return (

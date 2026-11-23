@@ -2,7 +2,6 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
 import { TextInput, type TextStyle } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Screen } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 
@@ -45,13 +44,13 @@ import {
   ScrollView,
   VStack,
   toElement,
-} from '@oxy.so/bloom-language';
-
-import {
   Embed as LEmbed,
   VStack as LVStack,
   toElement as LtoElement,
+  Group,
 } from '@oxy.so/bloom-language';
+
+import { screen } from '@oxy.so/bloom-language/router';
 
 const lanesLogger = createLogger('Lanes');
 
@@ -83,7 +82,7 @@ function ModeIcon({ mode, size, fill }: { mode: LaneDisplayMode; size: number; f
  * posts stay in everybody's feeds and stay reachable by URL. It is curation, not
  * privacy, and the copy has to carry that or somebody will use it as one.
  */
-export default function LanesScreen() {
+export default screen(function LanesScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const colorTokens = useColorTokens();
@@ -93,11 +92,9 @@ export default function LanesScreen() {
   const [editingLaneId, setEditingLaneId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
 
-  const header = toElement(
-    Header(t('lanes.title', { defaultValue: 'Lanes' }))
-      .backLabel(t('common.back', { defaultValue: 'Back' }))
-      .inPage(),
-  );
+  const header = Header(t('lanes.title', { defaultValue: 'Lanes' }))
+    .backLabel(t('common.back', { defaultValue: 'Back' }))
+    .inPage();
 
   const lanesQueryKey = viewerQueryKeys.ownedLanes(user?.id);
   const {
@@ -285,240 +282,230 @@ export default function LanesScreen() {
   );
 
   if (!isAuthenticated) {
-    return (
-      <Screen header={header}>
-        <OxyAuthPrompt
-          label={t('lanes.signInRequired', { defaultValue: 'Sign in to manage your lanes' })}
-          description={t('lanes.signInRequiredDesc', {
-            defaultValue:
-              'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
-          })}
-        />
-      </Screen>
-    );
+    return Embed(
+      <OxyAuthPrompt
+        label={t('lanes.signInRequired', { defaultValue: 'Sign in to manage your lanes' })}
+        description={t('lanes.signInRequiredDesc', {
+          defaultValue:
+            'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
+        })}
+      />,
+    ).header(header);
   }
 
   const atCap = lanes.length >= MAX_LANES_PER_OWNER;
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(
       <SEO
         title={t('lanes.title', { defaultValue: 'Lanes' })}
         description={t('lanes.description', {
           defaultValue:
             'Keep separate tracks of your posts and decide which ones reach your profile.',
         })}
-      />
-      <Screen header={header}>
-        {toElement(
-          ScrollView(
-            LGroupedSection(
-              HStack(
-                Icon(RiInformationFill).size('md').foreground('primary'),
-                RawText(
-                  t('lanes.description', {
-                    defaultValue:
-                      'Keep separate tracks of your posts and decide which ones reach your profile.',
-                  }),
-                )
-                  .flex('1')
-                  .font('sm')
-                  .foreground('foreground'),
+      />,
+    ),
+    ScrollView(
+      LGroupedSection(
+        HStack(
+          Icon(RiInformationFill).size('md').foreground('primary'),
+          RawText(
+            t('lanes.description', {
+              defaultValue:
+                'Keep separate tracks of your posts and decide which ones reach your profile.',
+            }),
+          )
+            .flex('1')
+            .font('sm')
+            .foreground('foreground'),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', '14')
+          .align('center')
+          .spacing('md'),
+      ),
+      LGroupedSection(
+        HStack(
+          Icon(RiNodeTree).size('md').foreground('muted'),
+          Embed(
+            <TextInput
+              style={[laneNameInput, { color: colorTokens.foreground }]}
+              placeholder={t('lanes.namePlaceholder', { defaultValue: 'Lane name' })}
+              placeholderTextColor={colors.textSecondary}
+              value={input}
+              onChangeText={setInput}
+              maxLength={MAX_LANE_NAME_LENGTH}
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={handleAdd}
+              editable={!createMutation.isPending && !atCap}
+            />,
+          ),
+          Embed(
+            createMutation.isPending
+              ? toElement(LLoading().style('inline').size('sm'))
+              : LtoElement(
+                  LVStack(
+                    LEmbed(
+                      <RiAddCircleLine
+                        width={26}
+                        height={26}
+                        fill={
+                          input.trim().length === 0 || atCap ? colors.textSecondary : colors.primary
+                        }
+                      />,
+                    ),
+                  )
+                    .role('button')
+                    .label(t('lanes.addLane', { defaultValue: 'New lane' }))
+                    .disabled(input.trim().length === 0 || atCap)
+                    .onPress(handleAdd)
+                    .pressFade('70'),
+                ),
+          ),
+        )
+          .padding('horizontal', 'lg')
+          .padding('vertical', 'md')
+          .align('center')
+          .spacing('md'),
+        atCap
+          ? VStack(
+              RawText(
+                t('lanes.atCap', {
+                  count: MAX_LANES_PER_OWNER,
+                  defaultValue: 'You can have at most {{count}} lanes.',
+                }),
               )
-                .padding('horizontal', 'lg')
-                .padding('vertical', '14')
-                .align('center')
-                .spacing('md'),
-            ),
-            LGroupedSection(
-              HStack(
-                Icon(RiNodeTree).size('md').foreground('muted'),
+                .font('sm')
+                .foreground('muted'),
+            )
+              .padding('horizontal', 'lg')
+              .padding('bottom', 'md')
+          : null,
+      ).title(t('lanes.addLane', { defaultValue: 'New lane' })),
+      LGroupedSection(
+        Embed(
+          isLoading ? (
+            <ListSkeleton />
+          ) : isError ? (
+            toElement(
+              VStack(
                 Embed(
-                  <TextInput
-                    style={[laneNameInput, { color: colorTokens.foreground }]}
-                    placeholder={t('lanes.namePlaceholder', { defaultValue: 'Lane name' })}
-                    placeholderTextColor={colors.textSecondary}
-                    value={input}
-                    onChangeText={setInput}
-                    maxLength={MAX_LANE_NAME_LENGTH}
-                    autoCorrect={false}
-                    returnKeyType="done"
-                    onSubmitEditing={handleAdd}
-                    editable={!createMutation.isPending && !atCap}
+                  <EmptyState
+                    title={t('lanes.loadFailed', {
+                      defaultValue: 'Failed to load your lanes',
+                    })}
+                    error={{
+                      title: t('lanes.loadFailed', {
+                        defaultValue: 'Failed to load your lanes',
+                      }),
+                      message: t('common.tryAgain', { defaultValue: 'Try again' }),
+                      onRetry: async () => {
+                        await refetch();
+                      },
+                    }}
                   />,
                 ),
+              ).padding('vertical', 'lg'),
+            )
+          ) : lanes.length === 0 ? (
+            toElement(
+              VStack(
                 Embed(
-                  createMutation.isPending
-                    ? toElement(LLoading().style('inline').size('sm'))
-                    : LtoElement(
-                        LVStack(
-                          LEmbed(
-                            <RiAddCircleLine
-                              width={26}
-                              height={26}
-                              fill={
-                                input.trim().length === 0 || atCap
-                                  ? colors.textSecondary
-                                  : colors.primary
-                              }
-                            />,
-                          ),
-                        )
-                          .role('button')
-                          .label(t('lanes.addLane', { defaultValue: 'New lane' }))
-                          .disabled(input.trim().length === 0 || atCap)
-                          .onPress(handleAdd)
-                          .pressFade('70'),
-                      ),
+                  <EmptyState
+                    title={t('lanes.empty', { defaultValue: 'No lanes yet' })}
+                    sticker="lanes"
+                  />,
                 ),
-              )
-                .padding('horizontal', 'lg')
-                .padding('vertical', 'md')
-                .align('center')
-                .spacing('md'),
-              atCap
-                ? VStack(
-                    RawText(
-                      t('lanes.atCap', {
-                        count: MAX_LANES_PER_OWNER,
-                        defaultValue: 'You can have at most {{count}} lanes.',
-                      }),
-                    )
-                      .font('sm')
-                      .foreground('muted'),
-                  )
-                    .padding('horizontal', 'lg')
-                    .padding('bottom', 'md')
-                : null,
-            ).title(t('lanes.addLane', { defaultValue: 'New lane' })),
-            LGroupedSection(
-              Embed(
-                isLoading ? (
-                  <ListSkeleton />
-                ) : isError ? (
-                  toElement(
-                    VStack(
+              ).padding('vertical', 'lg'),
+            )
+          ) : (
+            lanes.map((lane) =>
+              lane.id === editingLaneId
+                ? toElement(
+                    HStack(
+                      Icon(RiEditBoxLine).size('md').foreground('muted'),
                       Embed(
-                        <EmptyState
-                          title={t('lanes.loadFailed', {
-                            defaultValue: 'Failed to load your lanes',
-                          })}
-                          error={{
-                            title: t('lanes.loadFailed', {
-                              defaultValue: 'Failed to load your lanes',
-                            }),
-                            message: t('common.tryAgain', { defaultValue: 'Try again' }),
-                            onRetry: async () => {
-                              await refetch();
-                            },
-                          }}
+                        <TextInput
+                          style={[laneNameInput, { color: colorTokens.foreground }]}
+                          value={editingName}
+                          onChangeText={setEditingName}
+                          maxLength={MAX_LANE_NAME_LENGTH}
+                          autoCorrect={false}
+                          autoFocus
+                          returnKeyType="done"
+                          onSubmitEditing={() => handleSaveRename(lane)}
+                          editable={!renameMutation.isPending}
                         />,
                       ),
-                    ).padding('vertical', 'lg'),
-                  )
-                ) : lanes.length === 0 ? (
-                  toElement(
-                    VStack(
                       Embed(
-                        <EmptyState
-                          title={t('lanes.empty', { defaultValue: 'No lanes yet' })}
-                          sticker="lanes"
-                        />,
-                      ),
-                    ).padding('vertical', 'lg'),
-                  )
-                ) : (
-                  lanes.map((lane) =>
-                    lane.id === editingLaneId
-                      ? toElement(
-                          HStack(
-                            Icon(RiEditBoxLine).size('md').foreground('muted'),
-                            Embed(
-                              <TextInput
-                                style={[laneNameInput, { color: colorTokens.foreground }]}
-                                value={editingName}
-                                onChangeText={setEditingName}
-                                maxLength={MAX_LANE_NAME_LENGTH}
-                                autoCorrect={false}
-                                autoFocus
-                                returnKeyType="done"
-                                onSubmitEditing={() => handleSaveRename(lane)}
-                                editable={!renameMutation.isPending}
-                              />,
-                            ),
-                            Embed(
-                              LtoElement(
-                                LVStack(
-                                  LEmbed(
-                                    toElement(
-                                      RawText(t('common.save', { defaultValue: 'Save' }))
-                                        .font('sm')
-                                        .weight('semibold')
-                                        .foreground('primary'),
-                                    ),
-                                  ),
-                                )
-                                  .role('button')
-                                  .label(t('common.save', { defaultValue: 'Save' }))
-                                  .onPress(() => handleSaveRename(lane))
-                                  .pressFade('70'),
+                        LtoElement(
+                          LVStack(
+                            LEmbed(
+                              toElement(
+                                RawText(t('common.save', { defaultValue: 'Save' }))
+                                  .font('sm')
+                                  .weight('semibold')
+                                  .foreground('primary'),
                               ),
                             ),
                           )
-                            .padding('horizontal', 'lg')
-                            .padding('vertical', 'md')
-                            .align('center')
-                            .spacing('md'),
-                          lane.id,
-                        )
-                      : toElement(
-                          LGroupedSectionItem(lane.name)
-                            .leadingView(
-                              Embed(
-                                <ModeIcon
-                                  mode={lane.displayMode}
-                                  size={20}
-                                  fill={colors.textSecondary}
-                                />,
-                              ),
-                            )
-                            .description(
-                              `${t('lanes.postCount', {
-                                count: lane.postCount ?? 0,
-                                defaultValue: '{{count}} posts',
-                              })} · ${modeLabel(lane.displayMode)}`,
-                            )
-                            .onPress(() => openLaneMenu(lane)),
-                          lane.id,
+                            .role('button')
+                            .label(t('common.save', { defaultValue: 'Save' }))
+                            .onPress(() => handleSaveRename(lane))
+                            .pressFade('70'),
                         ),
-                  )
-                ),
-              ),
-            ).title(t('lanes.yourLanes', { defaultValue: 'Your lanes' })),
-            VStack(
-              Embed(
-                LANE_DISPLAY_MODES.map((mode) =>
-                  toElement(
-                    RawText(
-                      RawText(modeLabel(mode)).weight('semibold'),
-                      ` — ${modeDescription(mode)}`,
+                      ),
                     )
-                      .font('xs')
-                      .foreground('muted'),
-                    mode,
+                      .padding('horizontal', 'lg')
+                      .padding('vertical', 'md')
+                      .align('center')
+                      .spacing('md'),
+                    lane.id,
+                  )
+                : toElement(
+                    LGroupedSectionItem(lane.name)
+                      .leadingView(
+                        Embed(
+                          <ModeIcon
+                            mode={lane.displayMode}
+                            size={20}
+                            fill={colors.textSecondary}
+                          />,
+                        ),
+                      )
+                      .description(
+                        `${t('lanes.postCount', {
+                          count: lane.postCount ?? 0,
+                          defaultValue: '{{count}} posts',
+                        })} · ${modeLabel(lane.displayMode)}`,
+                      )
+                      .onPress(() => openLaneMenu(lane)),
+                    lane.id,
                   ),
-                ),
-              ),
             )
-              .padding('horizontal', 'lg')
-              .padding('top', 'sm')
-              .padding('bottom', '2xl')
-              .spacing('xs'),
-          )
-            .contentView((v) => v.padding('vertical', 'sm'))
-            .keyboardTaps('handled'),
-        )}
-      </Screen>
-    </>
-  );
-}
+          ),
+        ),
+      ).title(t('lanes.yourLanes', { defaultValue: 'Your lanes' })),
+      VStack(
+        Embed(
+          LANE_DISPLAY_MODES.map((mode) =>
+            toElement(
+              RawText(RawText(modeLabel(mode)).weight('semibold'), ` — ${modeDescription(mode)}`)
+                .font('xs')
+                .foreground('muted'),
+              mode,
+            ),
+          ),
+        ),
+      )
+        .padding('horizontal', 'lg')
+        .padding('top', 'sm')
+        .padding('bottom', '2xl')
+        .spacing('xs'),
+    )
+      .contentView((v) => v.padding('vertical', 'sm'))
+      .keyboardTaps('handled'),
+  ).header(header);
+});

@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { useRouter, useFocusEffect } from '@/lib/navigation/router';
@@ -22,9 +21,11 @@ import {
   Text,
   VStack,
   toElement,
+  Group,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
-export default function StarterPacksScreen() {
+export default screen(function StarterPacksScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { canUsePrivateApi } = useAuth();
@@ -105,44 +106,43 @@ export default function StarterPacksScreen() {
     )
   );
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(
       <SEO
         title="Starter Packs"
         description="Curated collections of accounts to follow"
         robots="index,follow"
-      />
-      <Screen
-        header={toElement(
-          Header(t('starterPacks.title'))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .toolbar(
-              Embed(
-                canUsePrivateApi
-                  ? toElement(
-                      LButton(Text('New'))
-                        .size('sm')
-                        .onPress(() => router.push('/starter-packs/create')),
-                    )
-                  : undefined,
-              ),
-            )
-            .inPage(),
-        )}
+      />,
+    ),
+    Embed(
+      <SignInRequired
+        label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
+        description={t('starterPacks.signInRequiredDesc', {
+          defaultValue: 'A starter pack is a set of accounts you recommend following together.',
+        })}
       >
-        <SignInRequired
-          label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
-          description={t('starterPacks.signInRequiredDesc', {
-            defaultValue: 'A starter pack is a set of accounts you recommend following together.',
-          })}
-        >
-          {toElement(
-            ScrollView(Embed(content)).contentView((v) =>
-              v.padding('horizontal', 'md').padding('top', '10'),
-            ),
-          )}
-        </SignInRequired>
-      </Screen>
-    </>
+        {toElement(
+          ScrollView(Embed(content)).contentView((v) =>
+            v.padding('horizontal', 'md').padding('top', '10'),
+          ),
+        )}
+      </SignInRequired>,
+    ),
+  ).header(
+    Header(t('starterPacks.title'))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .toolbar(
+        Embed(
+          canUsePrivateApi
+            ? toElement(
+                LButton(Text('New'))
+                  .size('sm')
+                  .onPress(() => router.push('/starter-packs/create')),
+              )
+            : undefined,
+        ),
+      )
+      .inPage(),
   );
-}
+});

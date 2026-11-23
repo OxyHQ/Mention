@@ -1,9 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
-import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { Screen } from '@oxy.so/bloom/screen';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
@@ -51,8 +49,9 @@ import {
   type Child,
   Embed as LEmbed,
   ScrollView,
-  toElement as LtoElement,
+  Group,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 /**
@@ -288,7 +287,7 @@ const FeedRow = ({
   );
 };
 
-const FeedsScreen: React.FC = () => {
+const FeedsScreen = screen(function FeedsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -568,44 +567,39 @@ const FeedsScreen: React.FC = () => {
     </>
   );
 
-  return (
-    <>
-      <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
-      <Screen
-        reselect={{ refresh: onRefresh }}
-        header={toElement(
-          Header(t('feeds.title'))
-            .toolbar(
-              LButton(Icon(RiSettings3Line))
-                .shape('circle')
-                .style('subtle')
-                .tint('neutral')
-                .onPress(() => requestSettings('/settings/feed'))
-                .label(t('sidebar.settings', { defaultValue: 'Settings' })),
-            )
-            .inPage(),
-        )}
-        // The page's own action; the shell's compose FAB steps aside for it.
-        primaryAction={
-          canEdit ? (
-            <Fab
-              size="md"
-              onPress={() => router.push('/feeds/new')}
-              icon={RiAddLine}
-              accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
-            />
-          ) : undefined
-        }
-      >
-        {LtoElement(
-          ScrollView(LEmbed(content))
-            .refreshable({ refreshing: refreshing, onRefresh: onRefresh }, { ios: 'primary' })
-            .contentMargins('horizontal', 'lg'),
-        )}
-      </Screen>
-    </>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  const page = Group(
+    LEmbed(<SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />),
+    ScrollView(LEmbed(content))
+      .refreshable({ refreshing: refreshing, onRefresh: onRefresh }, { ios: 'primary' })
+      .contentMargins('horizontal', 'lg'),
+  )
+    .onReselect(onRefresh)
+    .header(
+      Header(t('feeds.title'))
+        .toolbar(
+          LButton(Icon(RiSettings3Line))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(() => requestSettings('/settings/feed'))
+            .label(t('sidebar.settings', { defaultValue: 'Settings' })),
+        )
+        .inPage(),
+    );
+  if (!canEdit) return page;
+  // The page's own action; the shell's compose FAB steps aside for it.
+  return page.floatingAction(
+    LEmbed(
+      <Fab
+        size="md"
+        onPress={() => router.push('/feeds/new')}
+        icon={RiAddLine}
+        accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
+      />,
+    ),
   );
-};
+});
 
 const styles = StyleSheet.create({
   scrollContent: {

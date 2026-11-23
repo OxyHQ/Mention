@@ -1,7 +1,6 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useRouter, useLocalSearchParams, useFocusEffect } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { starterPacksService } from '@/services/starterPacksService';
@@ -30,7 +29,9 @@ import {
   Text as LText,
   VStack,
   toElement,
+  Group,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 interface MemberProfile {
   id: string;
@@ -50,7 +51,7 @@ interface StarterPackDetail {
   memberCount?: number;
 }
 
-export default function StarterPackDetailScreen() {
+export default screen(function StarterPackDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -250,55 +251,50 @@ export default function StarterPackDetailScreen() {
     </>
   ) : null;
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(
       <SEO
         robots="index,follow"
         title={pack?.name || 'Starter Pack'}
         description={pack?.description || 'A curated collection of accounts to follow'}
-      />
-      <Screen
-        header={toElement(
-          Header(pack?.name || 'Starter Pack')
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .toolbar(
-              Embed(
-                isOwner
-                  ? toElement(
-                      LButton(LText('Edit'))
-                        .onPress(handleEdit)
-                        .label('Edit starter pack')
-                        .tint('accent')
-                        .style('plain'),
-                    )
-                  : undefined,
-              ),
-            )
-            .inPage(),
-        )}
-      >
-        {toElement(
-          ScrollView(
-            Embed(
-              error ? (
-                toElement(
-                  VStack(LText(error).foreground('destructive'))
-                    .padding('vertical', '64')
-                    .align('center')
-                    .justify('center'),
-                )
-              ) : loading ? (
-                <DetailSkeleton />
-              ) : (
-                packBody
-              ),
-            ),
-          ),
-        )}
-      </Screen>
-    </>
+      />,
+    ),
+    ScrollView(
+      Embed(
+        error ? (
+          toElement(
+            VStack(LText(error).foreground('destructive'))
+              .padding('vertical', '64')
+              .align('center')
+              .justify('center'),
+          )
+        ) : loading ? (
+          <DetailSkeleton />
+        ) : (
+          packBody
+        ),
+      ),
+    ),
+  ).header(
+    Header(pack?.name || 'Starter Pack')
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .toolbar(
+        Embed(
+          isOwner
+            ? toElement(
+                LButton(LText('Edit'))
+                  .onPress(handleEdit)
+                  .label('Edit starter pack')
+                  .tint('accent')
+                  .style('plain'),
+              )
+            : undefined,
+        ),
+      )
+      .inPage(),
   );
-}
+});
 
 const styles = StyleSheet.create({
   followAllButton: {
