@@ -1,30 +1,79 @@
-import type { ReactElement } from 'react';
-import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@oxy.so/bloom/dropdown-menu';
-import { ReplySettingsMenuItems, type ReplySettingsMenuItemsProps } from './ReplySettingsMenuItems';
+  Divider,
+  Item,
+  Menu,
+  Section,
+  menu,
+  type Child,
+  type MenuView,
+} from '@oxy.so/bloom-language';
+import {
+  GRANULAR_REPLY_OPTIONS,
+  toggleGranularPermission,
+  type ReplyPermission,
+} from './replyPermission';
 
-interface ReplySettingsMenuProps extends ReplySettingsMenuItemsProps {
-  /** The control that opens the menu; it receives the press handler. */
-  children: ReactElement;
+/** Who can reply to a post and whether it can be quoted, and what changes them. */
+export interface ReplySettings {
+  replyPermission: ReplyPermission[];
+  onReplyPermissionChange: (permissions: ReplyPermission[]) => void;
+  quotesDisabled: boolean;
+  onQuotesDisabledChange: (disabled: boolean) => void;
+}
+
+type ReplySettingsRowsProps = ReplySettings & { t: TFunction };
+
+/**
+ * The composer's who-can-reply menu around the control that opens it, as
+ * Bloom's DropdownMenu (`.menuStyle('dropdown')`: a sheet on native, an
+ * anchored menu on web). Its rows are built only while it is open.
+ */
+export function ReplySettingsMenu(trigger: Child, options: ReplySettingsRowsProps): MenuView {
+  return Menu(trigger, ReplySettingsRows(options))
+    .menuStyle('dropdown')
+    .label(options.t('compose.replySettings.title'));
 }
 
 /**
- * The composer's who-can-reply menu: a sheet on native, an anchored menu on web.
+ * Who can reply (anyone or nobody, a choice; or the granular audiences, each
+ * a toggle) and whether the post can be quoted. Rows keep the menu open so
+ * several audiences can be chosen in one visit.
  */
-export function ReplySettingsMenu({ children, ...settings }: ReplySettingsMenuProps) {
-  const { t } = useTranslation();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild label={t('compose.replySettings.title')}>
-        {children}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent label={t('compose.replySettings.title')}>
-        <ReplySettingsMenuItems {...settings} />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+const ReplySettingsRows = menu(function ReplySettingsRows({
+  replyPermission,
+  onReplyPermissionChange,
+  quotesDisabled,
+  onQuotesDisabledChange,
+  t,
+}: ReplySettingsRowsProps) {
+  const isAnyone = replyPermission.includes('anyone');
+  const isNobody = replyPermission.includes('nobody');
+  const isGranular = !isAnyone && !isNobody;
+
+  return [
+    Section(
+      Item(t('compose.replySettings.anyone')).tag('anyone').keepOpen(),
+      Item(t('compose.replySettings.nobody')).tag('nobody').keepOpen(),
+    )
+      .title(t('compose.replySettings.whoCanReply'))
+      .selection([
+        isAnyone ? 'anyone' : isNobody ? 'nobody' : undefined,
+        (value) => onReplyPermissionChange([value]),
+      ]),
+    Divider(),
+    GRANULAR_REPLY_OPTIONS.map((option) =>
+      Item(t(option.labelKey))
+        .checked(isGranular && replyPermission.includes(option.value))
+        .keepOpen()
+        .onPress(() =>
+          onReplyPermissionChange(toggleGranularPermission(replyPermission, option.value)),
+        ),
+    ),
+    Divider(),
+    Item(t('compose.replySettings.allowQuotes'))
+      .checked(!quotesDisabled)
+      .keepOpen()
+      .onPress(() => onQuotesDisabledChange(!quotesDisabled)),
+  ];
+});
