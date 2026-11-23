@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import ComposeThreadItem, { type ComposeThreadItemStyles } from '../ComposeThreadItem';
 import type { ThreadItem } from '@/hooks/useThreadManager';
@@ -14,13 +14,13 @@ import { BloomThemeProvider } from '@oxy.so/bloom/theme';
  * which is a lie the author only discovers after publishing.
  *
  * The connectors carry no text and no accessibility role, so nothing but their
- * STYLE identifies them. The composer owns the stylesheet and passes it in, so
- * these cases pass sentinel style objects and look for those exact objects in
- * the rendered tree — an assertion that cannot pass by finding some other View.
+ * STYLE identifies them: the language draws each (`timelineLineAbove` and
+ * `timelineLineBelow` in `composeLayout`) as an absolute 2pt line under its
+ * siblings, the one above the avatar 4pt tall, the one below starting 60pt down.
+ * No other View in the row is drawn that way.
  */
 
-const CONNECTOR_ABOVE = { __marker: 'connector-above' } as const;
-const CONNECTOR_BELOW = { __marker: 'connector-below' } as const;
+type Connector = 'above' | 'below';
 
 // The podcast preview reaches the ESM-only Oxy client; the timeline does not need it.
 jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({
@@ -138,14 +138,9 @@ const item: ThreadItem = {
   publishAs: null,
 };
 
-/**
- * Only the four entries this row reads for layout carry real values; the rest
- * are distinct empty objects, since the component just forwards them.
- */
+/** Every entry is a distinct empty object: the component just forwards them. */
 const styles = new Proxy({} as Record<string, object>, {
   get(target, key: string) {
-    if (key === 'itemConnectorLineAbove') return CONNECTOR_ABOVE;
-    if (key === 'itemConnectorLine') return CONNECTOR_BELOW;
     if (!(key in target)) target[key] = {};
     return target[key];
   },
@@ -207,26 +202,17 @@ function renderItem(postingMode: 'thread' | 'beast') {
   return tree;
 }
 
-/** Every View styled with the given sentinel connector style. */
-function connectors(tree: TestRenderer.ReactTestRenderer, marker: object) {
+/** Every View drawn as the given connector. */
+function connectors(tree: TestRenderer.ReactTestRenderer, which: Connector) {
   return tree.root.findAllByType(View).filter((node) => {
-    const style = node.props.style;
-    return Array.isArray(style) ? style.includes(marker) : style === marker;
+    const style = StyleSheet.flatten(node.props.style) ?? {};
+    const line = style.position === 'absolute' && style.width === 2 && style.zIndex === -1;
+    return line && (which === 'above' ? style.height === 4 : style.top === 60);
   });
 }
 
-function connectorCount(tree: TestRenderer.ReactTestRenderer, marker: object): number {
-  return connectors(tree, marker).length;
-}
-
-/** Every `backgroundColor` this node declares in inline style, flattened. */
-function inlineBackgroundColors(style: unknown): unknown[] {
-  const entries = Array.isArray(style) ? style : [style];
-  return entries
-    .filter(
-      (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
-    )
-    .flatMap((entry) => ('backgroundColor' in entry ? [entry.backgroundColor] : []));
+function connectorCount(tree: TestRenderer.ReactTestRenderer, which: Connector): number {
+  return connectors(tree, which).length;
 }
 
 describe('ComposeThreadItem — the timeline between avatars', () => {
@@ -239,8 +225,8 @@ describe('ComposeThreadItem — the timeline between avatars', () => {
   it('draws the connector above and below in THREAD mode', () => {
     const tree = renderItem('thread');
 
-    expect(connectorCount(tree, CONNECTOR_ABOVE)).toBe(1);
-    expect(connectorCount(tree, CONNECTOR_BELOW)).toBe(1);
+    expect(connectorCount(tree, 'above')).toBe(1);
+    expect(connectorCount(tree, 'below')).toBe(1);
 
     act(() => tree.unmount());
   });
@@ -248,8 +234,8 @@ describe('ComposeThreadItem — the timeline between avatars', () => {
   it('draws NEITHER connector in beast mode, where the posts are independent', () => {
     const tree = renderItem('beast');
 
-    expect(connectorCount(tree, CONNECTOR_ABOVE)).toBe(0);
-    expect(connectorCount(tree, CONNECTOR_BELOW)).toBe(0);
+    expect(connectorCount(tree, 'above')).toBe(0);
+    expect(connectorCount(tree, 'below')).toBe(0);
 
     act(() => tree.unmount());
   });
@@ -264,17 +250,17 @@ describe('ComposeThreadItem — the timeline between avatars', () => {
    * for that string, byte-identical to unsuffixed primary). The line rendered as
    * a solid saturated bar down the composer.
    *
-   * So the tint is Bloom's `tokenAlpha`: the primary token's own colour at a
-   * fifth of its alpha, one well-formed colour, never a token with a hex suffix.
+   * So the tint is the language's `primary/20`: the primary token's own colour at
+   * a fifth of its alpha, one well-formed colour, never a token with a hex suffix.
    */
   it('tints the connector with the primary token at 20%, never a hex-suffixed token', () => {
     const tree = renderItem('thread');
 
-    for (const marker of [CONNECTOR_ABOVE, CONNECTOR_BELOW]) {
-      const [node] = connectors(tree, marker);
-      expect(inlineBackgroundColors(node.props.style)).toEqual([
+    for (const which of ['above', 'below'] as const) {
+      const [node] = connectors(tree, which);
+      expect(StyleSheet.flatten(node.props.style)?.backgroundColor).toEqual(
         expect.stringMatching(/^rgba\(\d+, \d+, \d+, 0\.2\)$/),
-      ]);
+      );
     }
 
     act(() => tree.unmount());

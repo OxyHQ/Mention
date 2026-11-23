@@ -262,13 +262,6 @@ export const composeStyles = StyleSheet.create({
     backgroundColor: 'transparent',
     justifyContent: 'space-between',
   },
-  pollAttachmentRemoveButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
-  },
   // Media preview styles. `overflow: visible` has no language modifier, so the
   // views that carry it stay views.
   mediaPreviewContainer: {
@@ -296,13 +289,6 @@ export const composeStyles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  mediaRemoveButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
-  },
   mediaReorderControls: {
     position: 'absolute',
     left: 8,
@@ -312,13 +298,6 @@ export const composeStyles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 2,
-  },
-  mediaReorderButton: {
-    borderRadius: 999,
-    padding: 6,
-  },
-  mediaReorderButtonDisabled: {
-    opacity: 0.4,
   },
   // Link attachment styles — the Bloom LinkPreviewCard owns its own border,
   // radius and surface, so the carousel wrapper only positions the card and its

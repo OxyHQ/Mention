@@ -1,6 +1,5 @@
 import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
 import { commerceReferenceKey } from '@/utils/commerceReferences';
-import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, useMemo } from 'react';
 import {
   View,
@@ -21,7 +20,7 @@ import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { tokenAlpha, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 // Deep imports rather than this directory's own barrel: the barrel re-exports
 // eight sheets, so naming it from inside `components/Compose/` pulled all of them
@@ -38,7 +37,13 @@ import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { MentionTextValue } from '@/utils/mentions';
 
-import { BOTTOM_LEFT_PAD, composeSpace } from './composeLayout';
+import {
+  BOTTOM_LEFT_PAD,
+  cardRemoveControl,
+  composeSpace,
+  timelineLineAbove,
+  timelineLineBelow,
+} from './composeLayout';
 
 import { Embed, HStack, Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
 
@@ -53,19 +58,12 @@ const appColors = defineTokens({ color: { hex5e5e5e: '#5e5e5e' } });
  * unstyled row.
  */
 export interface ComposeThreadItemStyles {
-  itemConnectorLineAbove: ViewStyle;
-  itemConnectorLine: ViewStyle;
   timelineForeground: ViewStyle;
   threadTextInput: TextStyle;
   mediaPreviewContainer: ViewStyle;
   mediaPreviewScroll: ViewStyle;
-  mediaPreviewItem: ViewStyle;
-  pollAttachmentRemoveButton: ViewStyle;
   mediaPreviewImage: ImageStyle;
   mediaReorderControls: ViewStyle;
-  mediaReorderButton: ViewStyle;
-  mediaReorderButtonDisabled: ViewStyle;
-  mediaRemoveButton: ViewStyle;
   articleAttachmentWrapper: ViewStyle;
   articleAttachmentPreview: ViewStyle;
 }
@@ -198,9 +196,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     textInputRef,
     styles,
   }) => {
-    const theme = useTheme();
     const colorTokens = useColorTokens();
-    const connector = { backgroundColor: tokenAlpha(colorTokens.primary, 0.2) };
     // The item's article, poll and room cards' frame.
     const cardStyle = [
       styles.articleAttachmentWrapper,
@@ -326,20 +322,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     // hairline under each), and a box the author is not writing in is dimmed.
     return toElement(
       VStack(
-        Embed(
-          showTimeline ? (
-            <>
-              {/* The connector's colour is Bloom's `tokenAlpha`, never an
-                interpolated hex-alpha suffix on `theme.colors.primary` — that token
-                resolves to `rgb(0 98 157)`, so `${primary}30` yields a malformed
-                string react-native-web reads back as FULLY OPAQUE, painting a solid
-                bar instead of the faint line. Geometry (incl. `left`) lives in the
-                composer's own sheet entries. */}
-              <View style={[connector, styles.itemConnectorLineAbove]} />
-              <View style={[connector, styles.itemConnectorLine]} />
-            </>
-          ) : null,
-        ),
+        showTimeline ? timelineLineAbove() : null,
+        showTimeline ? timelineLineBelow() : null,
         /* Above the timeline line. */
         VStack(
           Embed(
@@ -431,83 +415,54 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                     {item.mediaIds.map((mediaItem, mediaIndex) => {
                       const mediaUrl = getFileDownloadUrl(mediaItem.id);
                       const mediaCount = item.mediaIds.length;
-                      return (
-                        <View
-                          key={mediaItem.id}
-                          style={[
-                            {
-                              borderColor: colorTokens.border,
-                              backgroundColor: colorTokens.muted,
-                            },
-                            styles.mediaPreviewItem,
-                          ]}
-                        >
-                          <ComposeMediaPreview
-                            type={mediaItem.type}
-                            uri={mediaUrl}
-                            imageStyle={styles.mediaPreviewImage}
-                          />
-                          {mediaItem.type === 'image' ? (
-                            <ComposeAltButton
-                              hasAlt={Boolean(mediaItem.alt?.trim())}
-                              raised={mediaCount > 1}
-                              onPress={() => onMediaAltPress(threadId, mediaItem)}
-                            />
-                          ) : null}
-                          {mediaCount > 1 ? (
-                            <View style={[styles.mediaReorderControls, pointerEventsBoxNone]}>
-                              <TouchableOpacity
-                                onPress={() => onMediaMove(threadId, mediaItem.id, 'left')}
-                                disabled={mediaIndex === 0}
-                                style={[
-                                  styles.mediaReorderButton,
-                                  { backgroundColor: colorTokens.background },
-                                  mediaIndex === 0 && styles.mediaReorderButtonDisabled,
-                                ]}
-                              >
-                                <RiArrowLeftLine
-                                  width={14}
-                                  height={14}
-                                  fill={
-                                    mediaIndex === 0
-                                      ? theme.colors.textTertiary
-                                      : theme.colors.textSecondary
-                                  }
-                                />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => onMediaMove(threadId, mediaItem.id, 'right')}
-                                disabled={mediaIndex === mediaCount - 1}
-                                style={[
-                                  styles.mediaReorderButton,
-                                  { backgroundColor: colorTokens.background },
-                                  mediaIndex === mediaCount - 1 &&
-                                    styles.mediaReorderButtonDisabled,
-                                ]}
-                              >
-                                <RiArrowRightSLine
-                                  width={14}
-                                  height={14}
-                                  fill={
-                                    mediaIndex === mediaCount - 1
-                                      ? theme.colors.textTertiary
-                                      : theme.colors.textSecondary
-                                  }
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          ) : null}
-                          <TouchableOpacity
-                            onPress={() => onMediaRemove(threadId, mediaItem.id)}
-                            style={[
-                              { backgroundColor: colorTokens.card },
-                              styles.mediaRemoveButton,
-                            ]}
-                            hitSlop={tokens.hitSlop.sm}
-                          >
-                            {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                          </TouchableOpacity>
-                        </View>
+                      return toElement(
+                        VStack(
+                          Embed(
+                            <ComposeMediaPreview
+                              type={mediaItem.type}
+                              uri={mediaUrl}
+                              imageStyle={styles.mediaPreviewImage}
+                            />,
+                          ),
+                          mediaItem.type === 'image'
+                            ? Embed(
+                                <ComposeAltButton
+                                  hasAlt={Boolean(mediaItem.alt?.trim())}
+                                  raised={mediaCount > 1}
+                                  onPress={() => onMediaAltPress(threadId, mediaItem)}
+                                />,
+                              )
+                            : null,
+                          // The row stays a view: its style's `pointerEvents: 'box-none'`
+                          // is what the web draws (the language's is the web's own).
+                          mediaCount > 1
+                            ? Embed(
+                                <View style={[styles.mediaReorderControls, pointerEventsBoxNone]}>
+                                  {toElement(
+                                    reorderStep(RiArrowLeftLine, mediaIndex === 0, () =>
+                                      onMediaMove(threadId, mediaItem.id, 'left'),
+                                    ),
+                                  )}
+                                  {toElement(
+                                    reorderStep(
+                                      RiArrowRightSLine,
+                                      mediaIndex === mediaCount - 1,
+                                      () => onMediaMove(threadId, mediaItem.id, 'right'),
+                                    ),
+                                  )}
+                                </View>,
+                              )
+                            : null,
+                          cardRemoveControl(() => onMediaRemove(threadId, mediaItem.id)).hitSlop(
+                            'sm',
+                          ),
+                        )
+                          .frame({ width: '280', height: composeSpace.space.cardHeight })
+                          .background('mutedFill')
+                          .border('border', 'thin')
+                          .corner('15')
+                          .clipped(),
+                        mediaItem.id,
                       );
                     })}
                     {/* Thread item article preview */}
@@ -529,18 +484,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               />
                             </TouchableOpacity>,
                           ),
-                          Embed(
-                            <TouchableOpacity
-                              onPress={handleArticleRemove}
-                              style={[
-                                { backgroundColor: colorTokens.card },
-                                styles.pollAttachmentRemoveButton,
-                              ]}
-                              hitSlop={tokens.hitSlop.sm}
-                            >
-                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                            </TouchableOpacity>,
-                          ),
+                          cardRemoveControl(handleArticleRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
                     {/* Thread item event preview */}
@@ -563,18 +507,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               />
                             </TouchableOpacity>,
                           ),
-                          Embed(
-                            <TouchableOpacity
-                              onPress={handleEventRemove}
-                              style={[
-                                { backgroundColor: colorTokens.card },
-                                styles.pollAttachmentRemoveButton,
-                              ]}
-                              hitSlop={tokens.hitSlop.sm}
-                            >
-                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                            </TouchableOpacity>,
-                          ),
+                          cardRemoveControl(handleEventRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
                     {(item.commerce ?? []).map((ref) =>
@@ -586,23 +519,13 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               style={COMMERCE_CARD}
                             />,
                           ),
-                          Embed(
-                            <TouchableOpacity
-                              accessibilityRole="button"
-                              accessibilityLabel={t('commerce.remove', {
-                                defaultValue: 'Remove commerce attachment',
-                              })}
-                              onPress={() =>
-                                onCommerceRemove?.(threadId, commerceReferenceKey(ref))
-                              }
-                              style={[
-                                { backgroundColor: colorTokens.card },
-                                styles.pollAttachmentRemoveButton,
-                              ]}
-                            >
-                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                            </TouchableOpacity>,
-                          ),
+                          cardRemoveControl(() =>
+                            onCommerceRemove?.(threadId, commerceReferenceKey(ref)),
+                          )
+                            .role('button')
+                            .label(
+                              t('commerce.remove', { defaultValue: 'Remove commerce attachment' }),
+                            ),
                         ).alignSelf('start'),
                         commerceReferenceKey(ref),
                       ),
@@ -631,18 +554,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               />
                             </View>,
                           ),
-                          Embed(
-                            <TouchableOpacity
-                              onPress={handlePodcastRemove}
-                              style={[
-                                { backgroundColor: colorTokens.card },
-                                styles.pollAttachmentRemoveButton,
-                              ]}
-                              hitSlop={tokens.hitSlop.sm}
-                            >
-                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                            </TouchableOpacity>,
-                          ),
+                          cardRemoveControl(handlePodcastRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
                     {/* Thread item room preview */}
@@ -666,18 +578,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               />
                             </View>,
                           ),
-                          Embed(
-                            <TouchableOpacity
-                              onPress={handleRoomRemove}
-                              style={[
-                                { backgroundColor: colorTokens.card },
-                                styles.pollAttachmentRemoveButton,
-                              ]}
-                              hitSlop={tokens.hitSlop.sm}
-                            >
-                              {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                            </TouchableOpacity>,
-                          ),
+                          cardRemoveControl(handleRoomRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
                   </ScrollView>
@@ -739,6 +640,21 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
 
 // Stable style objects to avoid re-creating on each render
 const pointerEventsBoxNone = { pointerEvents: 'box-none' as const };
+
+/** Moves a media card one place along the row; dimmed and inert at its end. */
+const reorderStep = (glyph: typeof RiArrowLeftLine, atEnd: boolean, onPress: () => void) =>
+  VStack(
+    Icon(glyph)
+      .size('14')
+      .foreground(atEnd ? 'textTertiary' : 'muted'),
+  )
+    .padding('6')
+    .background('background')
+    .corner('full')
+    .when(atEnd, (v) => v.opacity('40'))
+    .onPress(onPress)
+    .disabled(atEnd)
+    .pressFade();
 
 ComposeThreadItem.displayName = 'ComposeThreadItem';
 
