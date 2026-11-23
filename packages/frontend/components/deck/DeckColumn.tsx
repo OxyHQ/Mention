@@ -4,7 +4,6 @@ import { FeedUpdatePolicyProvider } from '@/components/Feed/FeedUpdatePolicy';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Suspense, useState } from 'react';
 import { PanelRouterProvider, PanelRouteSlot } from '@oxy.so/bloom/panel-routing';
-import { Screen } from '@oxy.so/bloom/screen';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import NotFoundScreen from '@/components/NotFoundScreen';
 import { deckRoutes, retryFailedDeckRoutes } from './deckRoutes';
@@ -34,6 +33,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /** Column actions compose into the current screen header through Bloom. */
 export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
@@ -189,6 +189,13 @@ export function DeckColumn({ panelId }: { panelId: string }) {
   );
 }
 
+/** A column's route while its code loads: the feed's skeleton on a screen of no header. */
+const DeckColumnLoading = screen(function DeckColumnLoading() {
+  return Embed(<FeedSkeleton />)
+    .screenScroll('auto')
+    .header(false);
+});
+
 function DeckColumnContent() {
   const { t } = useTranslation();
   const navigation = usePanelNavigation();
@@ -200,13 +207,7 @@ function DeckColumnContent() {
           resetKey={navigation.entry.key}
           emptyState={{ action: { label: t('common.retry'), onPress: retryFailedDeckRoutes } }}
         >
-          <Suspense
-            fallback={
-              <Screen scroll="auto">
-                <FeedSkeleton />
-              </Screen>
-            }
-          >
+          <Suspense fallback={<DeckColumnLoading />}>
             <PanelRouteSlot />
           </Suspense>
         </PanelErrorBoundary>
