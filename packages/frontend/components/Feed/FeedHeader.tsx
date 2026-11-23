@@ -8,7 +8,15 @@ import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Button, Embed, HStack, Icon, Text as LText, toElement } from '@oxy.so/bloom-language';
+import {
+  Button,
+  Embed,
+  HStack,
+  Icon,
+  regular,
+  Text as LText,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface FeedHeaderProps {
   showComposeButton?: boolean;
@@ -74,7 +82,8 @@ export const FeedHeader = memo<FeedHeaderProps>(
         .padding('horizontal', 'md')
         .padding('vertical', 'md')
         .frame({ minHeight: '56' })
-        .background('surface')
+        // On the glass the bar and the header controls are on: the platform's glass, a capsule.
+        .glass(regular)
         .corner('infinite')
         .margin('all', 'md')
         .align('center')
