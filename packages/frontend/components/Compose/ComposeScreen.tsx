@@ -4453,38 +4453,44 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         {/* WHO can see it: everyone, or only the people it mentions.
                   A reply inside a private mention cannot choose — the server
                   keeps it inside the conversation — so it is told instead. */}
-                        {audienceEligible ? (
-                          <AudienceMenu audience={audience} onAudienceChange={changeAudience}>
-                            <Chip
-                              size="xl"
-                              variant="subtle"
-                              selected={isDirect}
-                              disabled={isPosting}
-                              leadingIcon={isDirect ? RiLockLine : RiEarthLine}
-                              trailingIcon={RiArrowDownSLine}
-                              testID="compose-audience"
-                            >
-                              {isDirect
-                                ? t('privateMentions.badge', { defaultValue: 'Private mention' })
-                                : t('compose.audience.public', { defaultValue: 'Everyone' })}
-                            </Chip>
-                          </AudienceMenu>
-                        ) : isPrivateMention(replyToPost) ? (
-                          LtoElement(
-                            LChip(
-                              LIcon(RiLockLine),
-                              Text(
-                                t('privateMentions.replyAudience', {
-                                  defaultValue: 'Only people in this conversation',
-                                }),
+                        {audienceEligible
+                          ? LtoElement(
+                              AudienceMenu(
+                                LChip(
+                                  LIcon(isDirect ? RiLockLine : RiEarthLine),
+                                  Text(
+                                    isDirect
+                                      ? t('privateMentions.badge', {
+                                          defaultValue: 'Private mention',
+                                        })
+                                      : t('compose.audience.public', { defaultValue: 'Everyone' }),
+                                  ),
+                                  LIcon(RiArrowDownSLine),
+                                )
+                                  .size('xl')
+                                  .style('subtle')
+                                  .selected(isDirect)
+                                  .disabled(isPosting)
+                                  .testID('compose-audience'),
+                                { audience, onAudienceChange: changeAudience, t },
                               ),
                             )
-                              .size('xl')
-                              .style('subtle')
-                              .selected()
-                              .testID('compose-private-reply'),
-                          )
-                        ) : null}
+                          : isPrivateMention(replyToPost)
+                            ? LtoElement(
+                                LChip(
+                                  LIcon(RiLockLine),
+                                  Text(
+                                    t('privateMentions.replyAudience', {
+                                      defaultValue: 'Only people in this conversation',
+                                    }),
+                                  ),
+                                )
+                                  .size('xl')
+                                  .style('subtle')
+                                  .selected()
+                                  .testID('compose-private-reply'),
+                              )
+                            : null}
                         {!(postingMode === 'beast' && threadItems.length > 0) && (
                           <>
                             {/* Who may reply means nothing inside a private mention:
