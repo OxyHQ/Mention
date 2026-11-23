@@ -14,7 +14,15 @@ import {
 } from './ProfilePageHeader';
 import { LAYOUT } from './types';
 
-import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  VStack,
+  toElement,
+  Embed as LEmbed,
+  HStack as LHStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Loading skeleton for the profile screen.
@@ -144,17 +152,30 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
                 .margin('bottom', 'md')
                 .spacing('sm'),
               Embed(
-                <View style={META_ROW}>
-                  <Skeleton.Box width={110} height={15} borderRadius={6} />
-                  <Skeleton.Box width={150} height={15} borderRadius={6} />
-                </View>,
+                LtoElement(
+                  LHStack(
+                    LEmbed(<Skeleton.Box width={110} height={15} borderRadius={6} />),
+                    LEmbed(<Skeleton.Box width={150} height={15} borderRadius={6} />),
+                  )
+                    .wrap()
+                    .margin('bottom', 'md')
+                    .horizontalSpacing('lg')
+                    .verticalSpacing('xs'),
+                ),
               ),
               Embed(
-                <View style={STATS_ROW}>
-                  {CHANNEL_STAT_CHIP_WIDTHS.map((width, index) => (
-                    <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
-                  ))}
-                </View>,
+                LtoElement(
+                  LHStack(
+                    LEmbed(
+                      CHANNEL_STAT_CHIP_WIDTHS.map((width, index) => (
+                        <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
+                      )),
+                    ),
+                  )
+                    .wrap()
+                    .horizontalSpacing('lg')
+                    .verticalSpacing('sm'),
+                ),
               ),
             )
               .padding('horizontal', 'lg')
@@ -253,17 +274,30 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
         )}
 
         {/* Meta row (location · joined). */}
-        <View style={META_ROW}>
-          <Skeleton.Box width={110} height={15} borderRadius={6} />
-          <Skeleton.Box width={150} height={15} borderRadius={6} />
-        </View>
+        {LtoElement(
+          LHStack(
+            LEmbed(<Skeleton.Box width={110} height={15} borderRadius={6} />),
+            LEmbed(<Skeleton.Box width={150} height={15} borderRadius={6} />),
+          )
+            .wrap()
+            .margin('bottom', 'md')
+            .horizontalSpacing('lg')
+            .verticalSpacing('xs'),
+        )}
 
         {/* Stats row (following / followers / posts / boosts / replies). */}
-        <View style={STATS_ROW}>
-          {STAT_CHIP_WIDTHS.map((width, index) => (
-            <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
-          ))}
-        </View>
+        {LtoElement(
+          LHStack(
+            LEmbed(
+              STAT_CHIP_WIDTHS.map((width, index) => (
+                <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
+              )),
+            ),
+          )
+            .wrap()
+            .horizontalSpacing('lg')
+            .verticalSpacing('sm'),
+        )}
       </CoverHeader>
       {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
           min-60 cells) with an active-indicator hint under the first tab. */}
