@@ -64,9 +64,7 @@ function postMenuRows(groups: PostMenuEntry[][], context: RowContext): PostMenuR
         if ('rows' in entry) {
           return Submenu(entry.label, ...submenuRows(entry.rows, context, item)).icon(entry.icon);
         }
-        const row = item(entry.label, `entry:${entry.label}`, entry.onPress)
-          .icon(entry.icon)
-          .iconForeground(entry.iconForeground);
+        const row = item(entry.label, `entry:${entry.label}`, entry.onPress).icon(entry.icon);
         return entry.destructive ? row.destructive() : row;
       }),
     ),
