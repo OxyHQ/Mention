@@ -1,10 +1,9 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { memo, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View, type ViewStyle } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -124,7 +123,6 @@ export const TrendItemRow = memo(function TrendItemRow({
   ordinal,
 }: TrendItemRowProps) {
   const theme = useTheme();
-  const colors = useColorTokens();
   const { t } = useTranslation();
   const isLarge = size === 'large';
   const series = trend.series && trend.series.length >= MIN_POLYLINE_POINTS ? trend.series : null;
@@ -148,137 +146,134 @@ export const TrendItemRow = memo(function TrendItemRow({
     [isLarge, trend.actors],
   );
 
-  return (
-    <TouchableOpacity
-      style={[
-        classStyles.row,
-        isLarge ? classStyles.rowLarge : classStyles.rowCompact,
-        showBorder && styles.itemBorder,
-        showBorder && { borderColor: colors.border },
-      ]}
-      onPress={() => onPress(trend)}
-      activeOpacity={0.7}
-    >
-      {/*
+  return toElement(
+    HStack(
+      /*
         Top-aligned, not centred: the title may now wrap to two lines, and a
         vertically centred ordinal would float against the middle of the text
         block instead of sitting beside the row it numbers.
-      */}
-      {toElement(
-        HStack(
-          ordinal !== undefined
-            ? RawText(ordinal)
-                .foreground('muted')
-                .margin('right', 'sm')
-                .weight('semibold')
-                .font(isLarge ? 'md' : 'sm')
-                // Tabular figures keep the numerals in a column: without them "10" is
-                // wider than "1" and every row below the tenth shifts sideways.
-                .monospacedDigit()
-            : null,
-          VStack(
-            HStack(
-              RawText(getTrendLabel(trend, t))
-                .foreground('muted')
-                .font(isLarge ? 'sm' : 'xs'),
-              badge
-                ? VStack(
-                    RawText(badge.text)
-                      .font('11')
-                      .weight('semibold')
-                      .foreground(
-                        badge.tone === 'hot'
-                          ? 'destructive'
-                          : badge.tone === 'new'
-                            ? 'primary'
-                            : 'muted',
-                      ),
-                  )
-                    .padding('horizontal', '6')
-                    .padding('vertical', '2xs')
-                    .background(
+      */
+      HStack(
+        ordinal !== undefined
+          ? RawText(ordinal)
+              .foreground('muted')
+              .margin('right', 'sm')
+              .weight('semibold')
+              .font(isLarge ? 'md' : 'sm')
+              // Tabular figures keep the numerals in a column: without them "10" is
+              // wider than "1" and every row below the tenth shifts sideways.
+              .monospacedDigit()
+          : null,
+        VStack(
+          HStack(
+            RawText(getTrendLabel(trend, t))
+              .foreground('muted')
+              .font(isLarge ? 'sm' : 'xs'),
+            badge
+              ? VStack(
+                  RawText(badge.text)
+                    .font('11')
+                    .weight('semibold')
+                    .foreground(
                       badge.tone === 'hot'
-                        ? 'destructive/10'
+                        ? 'destructive'
                         : badge.tone === 'new'
-                          ? 'primary/10'
-                          : 'mutedFill',
-                    )
-                    .corner('infinite')
-                    .margin('left', 'sm')
-                : null,
-            )
-              .align('center')
-              .margin('bottom', '2xs'),
-            /*
-                  Wraps to a second line rather than truncating at one: the leading
-                  ordinal takes horizontal space away from the title, and the widget
-                  column is the narrowest surface a trend is shown in, so a long
-                  multi-word name would otherwise be cut mid-word. Two lines is the
-                  cap — beyond that a runaway name would push the whole list down.
-                */ RawText(trend.displayName || trend.text)
-              .foreground('foreground')
-              .weight('bold')
-              .font(isLarge ? '16' : '14')
-              .lines(2),
-            trend.description
-              ? RawText(trend.description)
-                  .foreground('muted')
-                  .font(isLarge ? 'sm' : 'xs')
-                  .margin('top', isLarge ? 'xs' : '2xs')
-                  .lines(isLarge ? 2 : 1)
-              : null,
-            faces.length > 0
-              ? HStack(
-                  Embed(
-                    <AccountAvatarGroup
-                      items={faces}
-                      size={TREND_FACE_SIZE}
-                      max={faces.length}
-                      variant={MEDIA_VARIANT_AVATAR}
-                    />,
-                  ),
-                ).margin('top', '6')
+                          ? 'primary'
+                          : 'muted',
+                    ),
+                )
+                  .padding('horizontal', '6')
+                  .padding('vertical', '2xs')
+                  .background(
+                    badge.tone === 'hot'
+                      ? 'destructive/10'
+                      : badge.tone === 'new'
+                        ? 'primary/10'
+                        : 'mutedFill',
+                  )
+                  .corner('infinite')
+                  .margin('left', 'sm')
               : null,
           )
-            .flex('1')
-            .margin('right', 'md'),
-          Embed(
-            series
+            .align('center')
+            .margin('bottom', '2xs'),
+          /*
+                Wraps to a second line rather than truncating at one: the leading
+                ordinal takes horizontal space away from the title, and the widget
+                column is the narrowest surface a trend is shown in, so a long
+                multi-word name would otherwise be cut mid-word. Two lines is the
+                cap — beyond that a runaway name would push the whole list down.
+              */ RawText(trend.displayName || trend.text)
+            .foreground('foreground')
+            .weight('bold')
+            .font(isLarge ? '16' : '14')
+            .lines(2),
+          trend.description
+            ? RawText(trend.description)
+                .foreground('muted')
+                .font(isLarge ? 'sm' : 'xs')
+                .margin('top', isLarge ? 'xs' : '2xs')
+                .lines(isLarge ? 2 : 1)
+            : null,
+          faces.length > 0
+            ? HStack(
+                Embed(
+                  <AccountAvatarGroup
+                    items={faces}
+                    size={TREND_FACE_SIZE}
+                    max={faces.length}
+                    variant={MEDIA_VARIANT_AVATAR}
+                  />,
+                ),
+              ).margin('top', '6')
+            : null,
+        )
+          .flex('1')
+          .margin('right', 'md'),
+        Embed(
+          series
+            ? toElement(
+                VStack(
+                  Embed(
+                    <Sparkline
+                      data={series}
+                      width={50}
+                      height={24}
+                      shape="sharp"
+                      color={theme.colors.primary}
+                    />,
+                  ),
+                ).align('end'),
+              )
+            : DirectionIcon
               ? toElement(
                   VStack(
                     Embed(
-                      <Sparkline
-                        data={series}
-                        width={50}
-                        height={24}
-                        shape="sharp"
-                        color={theme.colors.primary}
+                      <DirectionIcon
+                        width={DIRECTION_ICON_SIZE}
+                        height={DIRECTION_ICON_SIZE}
+                        fill={theme.colors.textSecondary}
                       />,
                     ),
                   ).align('end'),
                 )
-              : DirectionIcon
-                ? toElement(
-                    VStack(
-                      Embed(
-                        <DirectionIcon
-                          width={DIRECTION_ICON_SIZE}
-                          height={DIRECTION_ICON_SIZE}
-                          fill={theme.colors.textSecondary}
-                        />,
-                      ),
-                    ).align('end'),
-                  )
-                : null,
-          ),
-        )
-          .flex('1')
-          .align('start')
-          .justify('between')
-          .margin('right', 'sm'),
-      )}
-      {getMenuActions ? <WidgetItemMenu label={trend.text} {...getMenuActions(trend)} /> : null}
-    </TouchableOpacity>
+              : null,
+        ),
+      )
+        .flex('1')
+        .align('start')
+        .justify('between')
+        .margin('right', 'sm'),
+      getMenuActions
+        ? Embed(<WidgetItemMenu label={trend.text} {...getMenuActions(trend)} />)
+        : null,
+    )
+      .align('center')
+      .justify('between')
+      .padding('vertical', isLarge ? 'md' : '6')
+      .when(showBorder, (v) => v.border('border', '0.5', 'bottom'))
+      .onPress(() => onPress(trend))
+      .pressFade('70'),
   );
 });
 
@@ -290,39 +285,21 @@ export const TrendItemRow = memo(function TrendItemRow({
  * below it moves when they arrive (#1216 measured 76px for five rows).
  */
 export function TrendItemRowSkeleton({ showBorder = false }: { showBorder?: boolean }) {
-  const colors = useColorTokens();
-  return (
-    <View
-      style={[
-        classStyles.row,
-        classStyles.rowCompact,
-        showBorder && styles.itemBorder,
-        showBorder && { borderColor: colors.border },
-      ]}
-    >
-      {toElement(
-        VStack(
-          /* The gap is the label row's own `mb-0.5`; Skeleton.Text reads only its width and line height. */ VStack(
-            Embed(<Skeleton.Text style={{ lineHeight: 16, width: 120 }} />),
-          ).margin('bottom', '2xs'),
-          Embed(<Skeleton.Text style={{ lineHeight: 16, width: 160 }} />),
-        )
-          .flex('1')
-          .margin('right', 'sm'),
-      )}
-      {toElement(VStack(Embed(<Skeleton.Circle size={16} />)).padding('all', 'xs'))}
-    </View>
+  return toElement(
+    HStack(
+      VStack(
+        /* The gap is the label row's own `mb-0.5`; Skeleton.Text reads only its width and line height. */ VStack(
+          Embed(<Skeleton.Text style={{ lineHeight: 16, width: 120 }} />),
+        ).margin('bottom', '2xs'),
+        Embed(<Skeleton.Text style={{ lineHeight: 16, width: 160 }} />),
+      )
+        .flex('1')
+        .margin('right', 'sm'),
+      VStack(Embed(<Skeleton.Circle size={16} />)).padding('all', 'xs'),
+    )
+      .align('center')
+      .justify('between')
+      .padding('vertical', '6')
+      .when(showBorder, (v) => v.border('border', '0.5', 'bottom')),
   );
 }
-
-const styles = StyleSheet.create({
-  itemBorder: { borderBottomWidth: 0.5 },
-});
-
-// The row stays React Native's TouchableOpacity (the language has no node for its
-// fading press; it is a pointer on the web already); this draws its classes.
-const classStyles = {
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  rowLarge: { paddingVertical: 12 },
-  rowCompact: { paddingVertical: 6 },
-} satisfies Record<string, ViewStyle>;
