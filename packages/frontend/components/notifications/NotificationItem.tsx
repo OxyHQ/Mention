@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
@@ -47,10 +46,12 @@ import { createLogger } from '@oxy.so/core/logger';
 import { useStorePost } from '@/hooks/useStorePost';
 
 import {
+  Button,
   Embed,
   HStack,
   Icon,
   RawText,
+  Text as LText,
   VStack,
   defineTokens,
   toElement,
@@ -950,31 +951,21 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             {isCollabInvite && collabInvitePending
               ? toElement(
                   HStack(
-                    Embed(
-                      <Button
-                        style={rowStyles.inviteButton}
-                        onPress={openAcceptSheet}
-                        disabled={actionLoading}
-                        stopPropagation
-                      >
-                        {t('collab.accept', { defaultValue: 'Accept' })}
-                      </Button>,
-                    ),
-                    Embed(
-                      <Button
-                        appearance="subtle"
-                        tone="neutral"
-                        style={rowStyles.inviteButton}
-                        stopPropagation
-                        onPress={() => {
-                          const intent = captureIntent();
-                          if (intent) void runDecline(intent);
-                        }}
-                        disabled={actionLoading}
-                      >
-                        {t('collab.decline', { defaultValue: 'Decline' })}
-                      </Button>,
-                    ),
+                    Button(LText(t('collab.accept', { defaultValue: 'Accept' })))
+                      .flex('1')
+                      .onPress(openAcceptSheet)
+                      .disabled(actionLoading)
+                      .stopPropagation(),
+                    Button(LText(t('collab.decline', { defaultValue: 'Decline' })))
+                      .style('subtle')
+                      .tint('neutral')
+                      .flex('1')
+                      .stopPropagation()
+                      .onPress(() => {
+                        const intent = captureIntent();
+                        if (intent) void runDecline(intent);
+                      })
+                      .disabled(actionLoading),
                   )
                     .spacing('sm')
                     .margin('top', 'sm'),
@@ -1096,8 +1087,6 @@ const rowStyles = StyleSheet.create({
   content: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', gap: 4 },
   mainContent: { gap: 4 },
   thumbnail: { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE },
-  // The invite's two buttons share the row equally.
-  inviteButton: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
 });
 
 // Memoized: a realtime patch to one notification (or a parent re-render) must not
