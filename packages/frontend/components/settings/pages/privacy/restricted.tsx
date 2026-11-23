@@ -7,7 +7,6 @@ import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiInformationFill } from '@oxy.so/bloom/icons/RiInformationFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import { Button } from '@oxy.so/bloom/button';
 import {
   confirm as confirmSettingsAction,
   alert as showSettingsAlert,
@@ -22,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Button as LButton,
   Embed,
+  Group,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
   HStack,
@@ -397,22 +397,17 @@ export default function RestrictedUsersScreen() {
                         .wrapControl()
                         .description(`@${handle}`)
                         .trailing(
-                          Embed(
-                            <Button
-                              size="sm"
-                              appearance="subtle"
-                              tone="neutral"
-                              onPress={() => !isRestricting && handleRestrict(user)}
-                              disabled={isRestricting}
-                              accessibilityLabel={user.name.displayName}
-                            >
-                              {toElement(
-                                isRestricting
-                                  ? Loading().style('inline').size('sm')
-                                  : Icon(RiAddCircleLine).size('22').foreground('primary'),
-                              )}
-                            </Button>,
-                          ),
+                          LButton(
+                            isRestricting
+                              ? Loading().style('inline').size('sm')
+                              : Group(Icon(RiAddCircleLine).size('22').foreground('primary')),
+                          )
+                            .size('sm')
+                            .style('subtle')
+                            .tint('neutral')
+                            .onPress(() => !isRestricting && handleRestrict(user))
+                            .disabled(isRestricting)
+                            .label(user.name.displayName),
                         ),
                       userId,
                     );

@@ -9,7 +9,7 @@ import {
 } from '@/services/muteWordsService';
 import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
 import { getErrorMessage } from '@/utils/apiError';
-import { Button } from '@oxy.so/bloom/button';
+
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { confirm as confirmSettingsAction } from '@oxy.so/bloom/surfaces';
@@ -24,6 +24,7 @@ import {
   Admonition as LAdmonition,
   Button as LButton,
   Embed,
+  Group,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
   HStack,
@@ -197,24 +198,23 @@ export default function HiddenWordsScreen() {
               ),
               addMutation.isPending
                 ? Loading().style('inline').size('sm')
-                : Embed(
-                    <Button
-                      size="sm"
-                      appearance="subtle"
-                      tone="neutral"
-                      onPress={handleAdd}
-                      disabled={input.trim().length === 0}
-                      accessibilityLabel={t('settings.privacy.addMutedWord', {
+                : LButton(
+                    Group(
+                      Icon(RiAddCircleLine)
+                        .size(appTokens.iconSize.add)
+                        .foreground(input.trim().length === 0 ? 'muted' : 'primary'),
+                    ),
+                  )
+                    .size('sm')
+                    .style('subtle')
+                    .tint('neutral')
+                    .onPress(handleAdd)
+                    .disabled(input.trim().length === 0)
+                    .label(
+                      t('settings.privacy.addMutedWord', {
                         defaultValue: 'Add a word or hashtag',
-                      })}
-                    >
-                      {toElement(
-                        Icon(RiAddCircleLine)
-                          .size(appTokens.iconSize.add)
-                          .foreground(input.trim().length === 0 ? 'muted' : 'primary'),
-                      )}
-                    </Button>,
-                  ),
+                      }),
+                    ),
             )
               .padding('horizontal', 'lg')
               .padding('vertical', 'md')
