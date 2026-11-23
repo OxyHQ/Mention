@@ -3,7 +3,6 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   StyleSheet,
-  View,
   type StyleProp,
   type ViewStyle,
   type ViewInstance,
@@ -15,6 +14,7 @@ import Animated, {
   Extrapolation,
   interpolate,
   useAnimatedStyle,
+  useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
 import { useImageResolver } from '@oxy.so/bloom/image-resolver';
@@ -83,8 +83,16 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   if (imageFailure.source !== source) setImageFailure({ source, failed: false });
   const errored = imageFailure.source === source && imageFailure.failed;
   const imageResolver = useImageResolver();
-  const wrapperRef = useRef<ViewInstance>(null);
+  // The PHOTO, inside the ring: what the viewer flies out of and lands back on.
+  // Measuring the ringed frame instead made the flight start and end a ring's
+  // width too big, so the photo jumped as it took off and as it landed.
+  const photoRef = useRef<ViewInstance>(null);
   const galleryRef = useRef<ZoomableMediaGalleryHandle>(null);
+  // Written by the viewer on the UI thread: 0 while the viewer's copy of the
+  // photo is on screen, -1 from the frame it lands. The photo stays mounted
+  // and decoded underneath, so it comes back on that same frame.
+  const hiddenThumb = useSharedValue(-1);
+  const photoStyle = useAnimatedStyle(() => ({ opacity: hiddenThumb.value === 0 ? 0 : 1 }));
 
   // An absolute http(s) `source` is a FINAL, server-resolved URL. A non-http
   // string is a raw Oxy file id (legacy profile-design data) resolved through
@@ -128,7 +136,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const measureThumb = useCallback(
     () =>
       new Promise<MeasuredRect | null>((resolve) => {
-        const node = wrapperRef.current;
+        const node = photoRef.current;
         if (!node) {
           resolve(null);
           return;
@@ -169,17 +177,21 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
       {toElement(
         VStack(
           Embed(
-            <View ref={wrapperRef} collapsable={false}>
+            <Animated.View
+              style={[
+                styles.avatar,
+                { width: size, height: size, borderRadius: size / 2 },
+                WEB_INTERACTION,
+                { backgroundColor: colorTokens.muted },
+                style,
+                collapseStyle,
+                hasCharacter && { overflow: 'visible' },
+              ]}
+            >
               <Animated.View
-                style={[
-                  styles.avatar,
-                  { width: size, height: size, borderRadius: size / 2 },
-                  WEB_INTERACTION,
-                  { backgroundColor: colorTokens.muted },
-                  style,
-                  collapseStyle,
-                  hasCharacter && { overflow: 'visible' },
-                ]}
+                ref={photoRef}
+                collapsable={false}
+                style={[StyleSheet.absoluteFill, photoStyle]}
               >
                 <AccountAvatar
                   account={account}
@@ -197,7 +209,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                   style={StyleSheet.absoluteFill}
                 />
               </Animated.View>
-            </View>,
+            </Animated.View>,
           ),
         )
           .onPress(handlePress)
@@ -205,7 +217,12 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           .label('Profile avatar')
           .role('image'),
       )}
-      <LazyZoomableGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius="circle" />
+      <LazyZoomableGallery
+        ref={galleryRef}
+        measureThumb={measureThumb}
+        cornerRadius="circle"
+        hiddenThumbIndex={hiddenThumb}
+      />
     </>
   );
 };

@@ -3,6 +3,7 @@ import { ZoomableAvatar } from '../ZoomableAvatar';
 
 const mockAvatar = jest.fn((_props: unknown) => null);
 const mockOpen = jest.fn();
+const mockGalleryProps = jest.fn((_props: unknown) => undefined);
 const mockFileDownload = jest.fn((_client: unknown, _id: string | undefined) => ({}));
 const mockImageResolver = jest.fn((id: string, variant: string) =>
   id ? `https://photo.test/${id}/${variant}` : undefined,
@@ -51,9 +52,11 @@ jest.mock('react-native-reanimated', () => ({
   __esModule: true,
   default: {
     ...jest.requireActual('react-native-reanimated').default,
-    View: jest.requireActual('react-native').View,
+    // The measured View: the photo the viewer flies from is an Animated.View.
+    View: require('react-native').View,
   },
   useAnimatedStyle: () => ({}),
+  useSharedValue: (value: unknown) => ({ value }),
   Extrapolation: { CLAMP: 'clamp' },
 }));
 jest.mock('@oxy.so/bloom/image-resolver', () => ({
@@ -68,9 +71,10 @@ jest.mock('@oxy.so/bloom/zoomable-media-gallery', () => {
   const React = jest.requireActual('react');
   return {
     ZoomableMediaGallery: React.forwardRef(function MockZoomableGallery(
-      _props: unknown,
+      props: unknown,
       ref: unknown,
     ) {
+      mockGalleryProps(props);
       React.useImperativeHandle(ref, () => ({ open: mockOpen }));
       return null;
     }),
@@ -102,6 +106,9 @@ it('keeps photo zoom and delegates the resting photo to Bloom', async () => {
     { x: 0, y: 0, width: 90, height: 90 },
   );
   expect(mockCapability).not.toHaveBeenCalled();
+  // The viewer is handed the value that hides the photo while its copy flies:
+  // at rest it hides nothing.
+  expect(mockGalleryProps.mock.lastCall?.[0]).toMatchObject({ hiddenThumbIndex: { value: -1 } });
   act(() => tree.unmount());
 });
 
