@@ -7,12 +7,11 @@ import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
 import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Embed, Group } from '@oxy.so/bloom-language';
+import { Embed, Group, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /**
@@ -168,34 +167,25 @@ const HomeScreen = screen(function HomeScreen() {
       />,
     ),
     Embed(
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        pressOpenTab="reselect"
-        variant="underline"
-        style={{ height: 38 }}
-      >
-        {homeTabs.map((tab) => (
-          <TabsTrigger
-            key={tab.key}
-            value={tab.key}
-            label={tab.label}
-            style={{
-              height: 38,
-              minWidth: 76,
-              paddingLeft: 12,
-              paddingRight: 12,
-              paddingTop: 0,
-              paddingBottom: 0,
-            }}
-            textStyle={{
-              fontSize: 15,
-              lineHeight: 18,
-              fontWeight: activeTab === tab.key ? '700' : '500',
-            }}
-          />
-        ))}
-      </Tabs>,
+      toElement(
+        LTabs(
+          [activeTab, setActiveTab],
+          homeTabs.map((tab) =>
+            TabItem(tab.key, tab.label)
+              .font('md')
+              .leading('18px')
+              .weight(activeTab === tab.key ? 'bold' : 'medium')
+              .padding('left', 'md')
+              .padding('right', 'md')
+              .padding('top', 'none')
+              .padding('bottom', 'none')
+              .frame({ height: '38', minWidth: '76' }),
+          ),
+        )
+          .pressOpenTab('reselect')
+          .style('underline')
+          .frame({ height: '38' }),
+      ),
     ),
     Embed(
       mountedTabs.map((tab) => (
