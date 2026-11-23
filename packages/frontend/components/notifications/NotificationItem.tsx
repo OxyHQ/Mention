@@ -9,7 +9,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
-import { useSurfaceFill, tokens } from '@oxy.so/bloom/styles';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { hoverGroupProps, SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { createTokenStyles, tokenAlpha, useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -921,28 +921,23 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                           ),
                         ).spacing('sm')
                       : null,
-                    Embed(
-                      <Pressable
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          toggleExpanded();
-                        }}
-                        hitSlop={tokens.hitSlop.md}
-                        accessibilityRole="button"
-                      >
-                        {toElement(
-                          RawText(
-                            expanded
-                              ? t('notification.group.showLess', { defaultValue: 'Show less' })
-                              : t('notification.group.showAll', { defaultValue: 'Show all' }),
-                          )
-                            .foreground('primary')
-                            .font('14')
-                            .leading('20px')
-                            .weight('semibold'),
-                        )}
-                      </Pressable>,
-                    ),
+                    VStack(
+                      RawText(
+                        expanded
+                          ? t('notification.group.showLess', { defaultValue: 'Show less' })
+                          : t('notification.group.showAll', { defaultValue: 'Show all' }),
+                      )
+                        .foreground('primary')
+                        .font('14')
+                        .leading('20px')
+                        .weight('semibold'),
+                    )
+                      .onPress((event) => {
+                        event.stopPropagation();
+                        toggleExpanded();
+                      })
+                      .hitSlop('md')
+                      .role('button'),
                   )
                     .margin('top', 'xs')
                     .spacing('sm'),
