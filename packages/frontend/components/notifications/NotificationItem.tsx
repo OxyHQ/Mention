@@ -906,12 +906,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                                         variant={MEDIA_VARIANT_AVATAR}
                                       />,
                                     ),
-                                    Embed(
-                                      <UserName
-                                        name={actorLabel(actor, someone)}
-                                        variant="small"
-                                      />,
-                                    ),
+                                    Embed(<UserName name={actorLabel(actor, someone)} size="sm" />),
                                   )
                                     .align('center')
                                     .spacing('sm')

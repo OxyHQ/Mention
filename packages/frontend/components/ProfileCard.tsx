@@ -222,6 +222,7 @@ export function ProfileCard({
                   kind={resolved.kind}
                   isAgent={resolved.isAgent}
                   isAutomated={resolved.isAutomated}
+                  size="lg"
                   style={IDENTITY_STYLE}
                 />,
               ),

@@ -222,7 +222,7 @@ const BoostScreen: React.FC = () => {
                       name={originalPost.user.name?.displayName}
                       handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
                       verified={originalPost.user.verified}
-                      variant="small"
+                      size="sm"
                       style={{ handle: { fontSize: 13 } }}
                     />,
                   ),
