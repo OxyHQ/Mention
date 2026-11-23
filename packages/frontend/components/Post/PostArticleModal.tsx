@@ -27,6 +27,8 @@ import { logger } from '@oxy.so/core/logger';
 
 import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
+import { VStack as LVStack, toElement as LtoElement } from '@oxy.so/bloom-language';
+
 /*
  * A full-screen reader, which Bloom's `Dialog` has no placement for (its
  * centered card caps at 90% height and its bottom sheet hugs its content), so
@@ -174,7 +176,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
                 <Text style={[ink.foreground, headerTitleStyle, { pointerEvents: 'none' }]}>
                   {titleText}
                 </Text>
-                <View style={styles.headerRight} />
+                {LtoElement(LVStack().frame({ width: '36', height: '36' }).margin('left', 'auto'))}
               </View>,
             ),
             Embed(

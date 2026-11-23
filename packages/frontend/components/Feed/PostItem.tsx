@@ -41,6 +41,11 @@ import {
   view,
   type Child,
   type IconComponent,
+  Embed as LEmbed,
+  HStack as LHStack,
+  RawText,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 import { tokens } from '@oxy.so/bloom/styles';
 import { toast } from '@oxy.so/bloom/toast';
@@ -121,14 +126,6 @@ import {
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { postItemPropsEqual, type PostItemProps } from './postItemProps';
-
-import {
-  Embed as LEmbed,
-  HStack as LHStack,
-  RawText,
-  VStack as LVStack,
-  toElement as LtoElement,
-} from '@oxy.so/bloom-language';
 
 /**
  * The post row, in the Bloom language: every row of the app (feed, detail,
@@ -1427,24 +1424,28 @@ function PostRow(props: PostItemProps): Child {
     collabAvatars.length > 1
       ? Embed(
           <ProfileHoverCard username={isCollabByline ? undefined : user.handle}>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={
-                isCollabByline
-                  ? t('collab.viewCollaborators', { defaultValue: 'View collaborators' })
-                  : displayNameOrHandle(user.displayName, user.handle ? `@${user.handle}` : '')
-              }
-              disabled={isCollabByline ? !onPressCollaborators : false}
-              onPress={isCollabByline ? onPressCollaborators : goToAuthorProfile}
-            >
-              <AccountAvatarGroup
-                layout="cluster"
-                items={collabAvatars}
-                size={avatarSize}
-                variant={avatarVariant}
-                max={20}
-              />
-            </TouchableOpacity>
+            {LtoElement(
+              LVStack(
+                LEmbed(
+                  <AccountAvatarGroup
+                    layout="cluster"
+                    items={collabAvatars}
+                    size={avatarSize}
+                    variant={avatarVariant}
+                    max={20}
+                  />,
+                ),
+              )
+                .role('button')
+                .label(
+                  isCollabByline
+                    ? t('collab.viewCollaborators', { defaultValue: 'View collaborators' })
+                    : displayNameOrHandle(user.displayName, user.handle ? `@${user.handle}` : ''),
+                )
+                .disabled(isCollabByline ? !onPressCollaborators : false)
+                .onPress(isCollabByline ? onPressCollaborators : goToAuthorProfile)
+                .pressFade(),
+            )}
           </ProfileHoverCard>,
         )
       : Embed(
