@@ -45,9 +45,6 @@ import {
   VStack,
   defineTokens,
   toElement,
-} from '@oxy.so/bloom-language';
-
-import {
   Embed as LEmbed,
   VStack as LVStack,
   toElement as LtoElement,
