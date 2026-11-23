@@ -1,14 +1,6 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useMemo, useState } from 'react';
-import {
-  FlatList,
-  Platform,
-  Pressable,
-  TextInput,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import { FlatList, Platform, TextInput, type TextStyle, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
@@ -444,18 +436,12 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             returnKeyType="search"
           />,
         ),
-        Embed(
-          query.length > 0 && (
-            <Pressable
-              onPress={() => setQuery('')}
-              accessibilityRole="button"
-              accessibilityLabel={t('profile.media.clearSearch')}
-              hitSlop={tokens.hitSlop.md}
-            >
-              {toElement(Icon(RiCloseCircleLine).size('sm').foreground('muted'))}
-            </Pressable>
-          ),
-        ),
+        query.length > 0 &&
+          VStack(Icon(RiCloseCircleLine).size('sm').foreground('muted'))
+            .onPress(() => setQuery(''))
+            .role('button')
+            .label(t('profile.media.clearSearch'))
+            .hitSlop('md'),
       )
         .padding('horizontal', 'md')
         .padding('vertical', '10')

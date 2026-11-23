@@ -17,7 +17,6 @@ import { usePathname } from '@/lib/navigation/router';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform } from 'react-native';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
@@ -35,7 +34,15 @@ import { shareLink } from '@/utils/shareLink';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
-import { HStack, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  Text as LText,
+  VStack,
+  VirtualList,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type TabType = ConnectionTab;
 
@@ -367,10 +374,9 @@ function ConnectionsContent({
     return <ProfileCard profile={profile} showFollowButton />;
   }, []);
 
-  const renderInviteBanner = useCallback(
-    () =>
-      toElement(
-        HStack(
+  const inviteBanner =
+    activeTab === 'who-may-know'
+      ? HStack(
           VStack(Icon(RiGroupFill).size('md').foreground('card'))
             .frame({ width: '4xl', height: '4xl' })
             .background('primary')
@@ -408,10 +414,8 @@ function ConnectionsContent({
           .margin('top', 'md')
           .margin('bottom', 'sm')
           .onPress(handleInviteFriends)
-          .pressFade('70'),
-      ),
-    [handleInviteFriends, t],
-  );
+          .pressFade('70')
+      : undefined;
 
   const currentData = useMemo(() => {
     switch (activeTab) {
@@ -548,27 +552,24 @@ function ConnectionsContent({
     );
   };
 
-  const list = (
-    <VirtualList
-      screen={{}}
-      data={currentData}
-      renderItem={renderUser}
-      keyExtractor={(item: ConnectionUser) =>
-        String(item.id || item._id || item.userID || item.username)
-      }
-      ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
-      ListEmptyComponent={renderEmpty()}
-      removeClippedSubviews={false}
-      maxToRenderPerBatch={10}
-      windowSize={10}
-      initialNumToRender={10}
-      recycleItems={true}
-      maintainVisibleContentPosition={true}
-      contentContainerStyle={{ paddingBottom: 20 }}
-      refreshing={activeRefreshing}
-      onRefresh={refreshCurrent}
-      onEndReached={listKind !== null ? loadMoreConnections : undefined}
-    />
+  const connections = VirtualList(currentData, renderUser)
+    .screen()
+    .itemKey((item: ConnectionUser) => String(item.id || item._id || item.userID || item.username))
+    .headerContent(inviteBanner)
+    .emptyState(Embed(renderEmpty()))
+    .tuning({
+      removeClippedSubviews: false,
+      maxToRenderPerBatch: 10,
+      windowSize: 10,
+      initialNumToRender: 10,
+      recycleItems: true,
+      maintainVisibleContentPosition: true,
+    })
+    .contentMargins('bottom', 'xl')
+    .refreshable({ refreshing: activeRefreshing, onRefresh: refreshCurrent });
+  // Only a paged tab asks for its next page.
+  const list = toElement(
+    listKind !== null ? connections.onEndReached(loadMoreConnections) : connections,
   );
   return Platform.OS === 'web' ? (
     list
