@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 import {
   Button as LButton,
+  Dialog as LDialog,
   Embed,
   HStack,
   Icon,
@@ -83,38 +83,33 @@ export function ChannelInfoDialogProvider() {
  * viewports, a centered card on desktop — stepping through the three cards.
  * Mounted ONLY once a request exists, so `useTranslation` here is always safe.
  *
- * It owns its own `control` and OPENS ITSELF on mount: the Dialog's imperative
- * handle binds `control` during the commit's layout phase, before this passive
- * mount effect runs, so `control.open()` always reaches a bound handle — no
- * `setTimeout` and no dependency on how the request was triggered.
+ * It is presented from its first render (its binding starts true), so it opens
+ * however the request was triggered; closing flips the binding, and once the
+ * dialog has finished leaving, `onDismissed` tells the host to unmount it.
  */
 function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const control = useDialogControl();
+  const [isPresented, setPresented] = useState(true);
   const [step, setStep] = useState<ExplainerStep>(0);
-
-  useEffect(() => {
-    control.open();
-  }, [control]);
 
   const isFirstStep = step === 0;
   const isLastStep = step === 2;
 
   const onPrimary = useCallback(() => {
     if (isLastStep) {
-      control.close();
+      setPresented(false);
       return;
     }
     setStep((current) => (current + 1) as ExplainerStep);
-  }, [control, isLastStep]);
+  }, [isLastStep]);
 
   const onSecondary = useCallback(() => {
     if (isFirstStep) {
-      control.close();
+      setPresented(false);
       return;
     }
     setStep((current) => (current - 1) as ExplainerStep);
-  }, [control, isFirstStep]);
+  }, [isFirstStep]);
 
   const dots = useMemo(
     () =>
@@ -131,45 +126,32 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
     [step],
   );
 
-  return (
-    <Dialog
-      control={control}
-      onClose={onClose}
-      placement={{ base: 'bottom', md: 'center' }}
-      label={t('channels.explainer.title')}
-    >
-      {toElement(
-        VStack(
-          VStack(Icon(RiMegaphoneLine).size('40').foreground('primary'))
-            .frame({ width: '80', height: '80' })
-            .background('primary/10')
-            .corner('infinite')
-            .align('center')
-            .justify('center'),
-          RawText(t(STEP_KEYS[step].title))
-            .foreground('foreground')
-            .font('xl')
-            .leading('28px')
-            .weight('bold')
-            .textAlign('center'),
-          RawText(t(STEP_KEYS[step].body))
-            .foreground('muted')
-            .font('16')
-            .leading('24px')
-            .textAlign('center'),
-        )
-          .padding('vertical', 'lg')
+  return toElement(
+    LDialog(
+      VStack(
+        VStack(Icon(RiMegaphoneLine).size('40').foreground('primary'))
+          .frame({ width: '80', height: '80' })
+          .background('primary/10')
+          .corner('infinite')
           .align('center')
-          .spacing('lg'),
-      )}
-      {toElement(
-        HStack(Embed(dots))
-          .padding('vertical', 'lg')
-          .align('center')
-          .justify('center')
-          .spacing('sm'),
-      )}
-      {/*
+          .justify('center'),
+        RawText(t(STEP_KEYS[step].title))
+          .foreground('foreground')
+          .font('xl')
+          .leading('28px')
+          .weight('bold')
+          .textAlign('center'),
+        RawText(t(STEP_KEYS[step].body))
+          .foreground('muted')
+          .font('16')
+          .leading('24px')
+          .textAlign('center'),
+      )
+        .padding('vertical', 'lg')
+        .align('center')
+        .spacing('lg'),
+      HStack(Embed(dots)).padding('vertical', 'lg').align('center').justify('center').spacing('sm'),
+      /*
        * ONE ROW, and each button takes an equal half of it.
        *
        * Reading order is what puts the secondary first: left to right the pair
@@ -181,27 +163,27 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
        * against a fixed box: the widest pairs are Spanish "Cancelar / Siguiente"
        * and Italian "Indietro / Ho capito", both well past any English one, so
        * English is the wrong string to eyeball this with.
-       */}
-      {toElement(
-        HStack(
-          LButton(
-            LText(isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')),
-          )
-            .style('plain')
-            .tint('neutral')
-            .size('lg')
-            .onPress(onSecondary)
-            .flex('1'),
-          LButton(LText(isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')))
-            .style('solid')
-            .tint('accent')
-            .size('lg')
-            .onPress(onPrimary)
-            .flex('1'),
-        )
-          .align('center')
-          .spacing('md'),
-      )}
-    </Dialog>
+       */
+      HStack(
+        LButton(LText(isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')))
+          .style('plain')
+          .tint('neutral')
+          .size('lg')
+          .onPress(onSecondary)
+          .flex('1'),
+        LButton(LText(isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')))
+          .style('solid')
+          .tint('accent')
+          .size('lg')
+          .onPress(onPrimary)
+          .flex('1'),
+      )
+        .align('center')
+        .spacing('md'),
+    )
+      .presentAt('bottom', { md: 'center' })
+      .label(t('channels.explainer.title'))
+      .onDismissed(onClose)
+      .presented([isPresented, setPresented]),
   );
 }
