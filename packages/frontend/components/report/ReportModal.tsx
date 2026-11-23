@@ -20,6 +20,8 @@ import {
   toElement,
 } from '@oxy.so/bloom-language';
 
+import { VStack as LVStack, toElement as LtoElement } from '@oxy.so/bloom-language';
+
 const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
 
 // What the sheet's classes drew, as plain objects (inline, as the classes were).
@@ -114,7 +116,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
               .position({ left: 'none', right: 'none' })
               .textAlign('center')
               .allowsHitTesting(false),
-            Embed(<View style={{ width: 36, marginLeft: 'auto' }} />),
+            Embed(LtoElement(LVStack().frame({ width: '36' }).margin('left', 'auto'))),
           )
             .padding('horizontal', 'lg')
             .padding('vertical', 'md')
