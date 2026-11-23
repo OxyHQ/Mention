@@ -36,52 +36,34 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => mockTranslate(key) }),
 }));
 
-/**
- * Both aliases carry a `Mock` prefix because a `jest.mock` factory may not
- * reference an out-of-scope name — and babel's hoist guard applies that to a
- * TYPE annotation too, so a plainly-named `Control` fails the suite at load with
- * "Invalid variable access", not at a line anyone would suspect. The prefix is
- * the documented escape hatch and is case-insensitive.
- */
-type MockDialogControl = { open: () => void; close: () => void };
 type MockNode = React.ReactNode;
 
 /**
- * Bloom's `Dialog` reduced to the contract this component actually uses: it
- * renders its children, and `control.close()` reaches the `onClose` the caller
- * passed. Registration happens in an effect, which is also what makes the
- * component's own "open on mount" assumption meaningful here.
+ * Bloom's `Dialog` reduced to the contract this component uses through the
+ * language's `.presented()`: it renders its children while `open`, a dismissal
+ * asks the host to close through `onClose`, and once `open` has turned false it
+ * reports `onDismissed` (the real one does after its exit animation).
  */
 jest.mock('@oxy.so/bloom/dialog', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
-  const closers = new Map<MockDialogControl, () => void>();
 
   return {
     __esModule: true,
-    useDialogControl: (): MockDialogControl =>
-      ReactActual.useMemo<MockDialogControl>(() => {
-        const control: MockDialogControl = {
-          open: () => {},
-          close: () => closers.get(control)?.(),
-        };
-        return control;
-      }, []),
     Dialog: ({
-      control,
-      onClose,
+      open,
+      onDismissed,
       children,
     }: {
-      control: MockDialogControl;
-      onClose: () => void;
+      open: boolean;
+      onDismissed?: () => void;
       children: MockNode;
     }) => {
+      const wasOpen = ReactActual.useRef(open);
       ReactActual.useEffect(() => {
-        closers.set(control, onClose);
-        return () => {
-          closers.delete(control);
-        };
-      }, [control, onClose]);
-      return children;
+        if (wasOpen.current && !open) onDismissed?.();
+        wasOpen.current = open;
+      }, [open, onDismissed]);
+      return open ? children : null;
     },
   };
 });
