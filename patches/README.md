@@ -214,6 +214,30 @@ the Pixel 8a: about 60 main-thread frames a second before, about 4 after
 (with the Worklets and Reanimated patches below). Remove these hunks when
 upstream schedules these frames on demand.
 
+Upstream draft (not filed), react/react-native, title "Android: ReactChoreographer
+callbacks re-post every vsync while the app is idle":
+
+> On Android (new architecture, 0.88.1) four callbacks re-post themselves on
+> every frame while the host is resumed: `FabricUIManager.DispatchUIFrameCallback`
+> (`schedule()` in its `finally`), `FabricEventDispatcher.ScheduleDispatchFrameCallback`
+> (`dispatchBatchedEvents()` from `doFrame`), `JavaTimerManager.TimerFrameCallback`
+> (unconditional re-post, even with no timer or with the next one minutes away)
+> and `NativeAnimatedModule.animatedFrameCallback` (re-posts without an active
+> animation). A still screen therefore runs a `Choreographer` frame on every vsync,
+> each requesting the next vsync over binder. On a Pixel 8a an idle screen spends
+> about 0.4 ms of main thread per frame on them (60 to 120 frames a second).
+> Proposed: ask for each frame only when there is work. Queued mount items, view
+> commands and pre mount items (`MountItemDispatcher.add*`), C++ animations and
+> other modules (a public `requestDispatchFrame`) request Fabric's frame, which
+> re-posts only while work remains; the event dispatcher posts one frame per
+> request (the C++ beat already calls `onRequestEventBeat`), as the removed
+> `useOptimizedEventBatchingOnAndroid` path did; timers post a wake for the earliest
+> due time; Animated re-posts only while `hasActiveAnimations()` and asks for a
+> dispatch frame for queued operations. Requests from other threads must reach
+> `ReactChoreographer` through the UI handler: a JS-thread `postFrameCallback`
+> while holding the timer lock deadlocks against a frame in progress that takes it.
+> Patch: this repository's `patches/react-native@0.88.1.patch`, the frame-loop hunks.
+
 # react-native-css 3.1.0-rc.0
 
 Backport of [nativewind/react-native-css#511](https://github.com/nativewind/react-native-css/pull/511).
@@ -288,6 +312,22 @@ as it finishes. Both the source (`src/`, which Metro resolves) and the compiled
 `lib/module` copy are patched. Remove it when upstream requests frames on
 demand.
 
+Upstream draft (not filed), software-mansion/react-native-reanimated (Worklets),
+title "UI runtime requestAnimationFrame polyfill requests a native frame every
+vsync forever":
+
+> `runLoop/uiRuntime/requestAnimationFrame.ts` starts its loop at setup and
+> `nativeFlushQueue` calls `__nativeRequestAnimationFrame(nativeFlushQueue)` after
+> every flush, with or without queued callbacks, so the UI runtime is entered on
+> every frame for the life of the app (about 0.2 ms of main thread per frame on a
+> Pixel 8a, plus the vsync request). Proposed: request the native frame from
+> `requestAnimationFrame` and `requestAnimationFrameFinalizer` when nothing is
+> requested yet, and clear the flag at the start of `nativeFlushQueue`. Scheduled
+> jobs already run a microtask checkpoint, so the empty frames' drain is not
+> needed for them; microtasks queued by a synchronous call that skips the
+> checkpoint wait for the next job or frame. Patch:
+> `patches/react-native-worklets@0.13.1.patch`.
+
 # react-native-reanimated 4.7.1
 
 The mapper registry (`mappers.native`) re-queued its run as a frame finalizer
@@ -299,3 +339,15 @@ prop flush) is requested outside a run; a mapper left dirty by a run, or a
 finalizer requested during one, schedules the next. Mappers still run in the
 same frame finalizer as before. Remove it when upstream schedules mapper runs on
 demand.
+
+Upstream draft (not filed), software-mansion/react-native-reanimated, title
+"Mapper registry re-queues itself as a frame finalizer every frame":
+
+> `mappers.native.ts` `scheduledMapperRun` re-queues itself on every run ("We
+> always run mappers on native"), so even with the Worklets loop fixed the UI
+> runtime asks for a frame every vsync. Proposed: schedule a run when a mapper is
+> started, stopped or marked dirty by a shared value listener, or when
+> `__requestMapperRunFinalizer` is called outside a run; after a run, schedule the
+> next only if a mapper is still dirty or a finalizer is waiting. Mappers still run
+> in the same frame finalizer, so prop updates land on the same frame. Patch:
+> `patches/react-native-reanimated@4.7.1.patch`.
