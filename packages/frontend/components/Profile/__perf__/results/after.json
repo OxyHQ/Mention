@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo (ios), React dev build",
+    "runs": 7,
+    "cells": 30,
+    "note": "per cell = (2N cells - N cells) / N; ms are relative Jest timings, not device frame times"
+  },
+  "kinds": {
+    "mediaImage": {
+      "components": 12,
+      "hostNodes": 3,
+      "hooks": 16,
+      "contexts": 5,
+      "addMsPerCell": 2.2
+    },
+    "mediaCarousel": {
+      "components": 16,
+      "hostNodes": 4,
+      "hooks": 16,
+      "contexts": 7,
+      "addMsPerCell": 3.533
+    },
+    "mediaVideo": {
+      "components": 28,
+      "hostNodes": 9,
+      "hooks": 21,
+      "contexts": 9,
+      "addMsPerCell": 3.733
+    },
+    "videosVideo": {
+      "components": 26,
+      "hostNodes": 8,
+      "hooks": 21,
+      "contexts": 9,
+      "addMsPerCell": 3.4
+    }
+  }
+}
