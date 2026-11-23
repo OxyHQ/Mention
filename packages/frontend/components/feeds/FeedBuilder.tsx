@@ -32,8 +32,6 @@ import type {
   ModuleParamProperty,
 } from '@mention/shared-types';
 
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { TagField, commitTag } from '@oxy.so/bloom/tag-field';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -63,6 +61,9 @@ import {
   Toggle,
   VStack,
   toElement,
+  TextEditor,
+  TextField,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
@@ -551,17 +552,21 @@ const SchemaParamField = ({
       LField(
         label,
         Embed(
-          <TextFieldInput
-            label={label}
-            placeholder={null}
-            keyboardType="numeric"
-            value={value == null ? '' : String(value)}
-            onValueChange={(txt) => {
-              if (txt.trim() === '') return onChange(undefined);
-              const n = Number(txt);
-              onChange(Number.isNaN(n) ? undefined : n);
-            }}
-          />,
+          LtoElement(
+            TextField(
+              [
+                value == null ? '' : String(value),
+                (txt) => {
+                  if (txt.trim() === '') return onChange(undefined);
+                  const n = Number(txt);
+                  onChange(Number.isNaN(n) ? undefined : n);
+                },
+              ],
+              label,
+            )
+              .placeholder(null)
+              .keyboard('numeric'),
+          ),
         ),
       ),
     );
@@ -571,12 +576,12 @@ const SchemaParamField = ({
     LField(
       label,
       Embed(
-        <TextFieldInput
-          label={label}
-          placeholder={null}
-          value={typeof value === 'string' ? value : ''}
-          onValueChange={(txt) => onChange(txt)}
-        />,
+        LtoElement(
+          TextField(
+            [typeof value === 'string' ? value : '', (txt) => onChange(txt)],
+            label,
+          ).placeholder(null),
+        ),
       ),
     ),
   );
@@ -1031,28 +1036,24 @@ export function FeedBuilder({
                   LField(
                     t('feeds.builder.titleLabel'),
                     Embed(
-                      <TextFieldInput
-                        label={t('feeds.builder.titleLabel')}
-                        value={title}
-                        onValueChange={setTitle}
-                        placeholder={t('feeds.builder.titlePlaceholder')}
-                        maxLength={100}
-                      />,
+                      LtoElement(
+                        TextField([title, setTitle], t('feeds.builder.titleLabel'))
+                          .placeholder(t('feeds.builder.titlePlaceholder'))
+                          .maxLength(100),
+                      ),
                     ),
                   ),
                   LDivider().spacing('md'),
                   LField(
                     t('feeds.builder.descriptionLabel'),
                     Embed(
-                      <Textarea
-                        value={description}
-                        onValueChange={setDescription}
-                        placeholder={t('feeds.builder.descriptionPlaceholder')}
-                        maxLength={500}
-                        autoResize
-                        rows={2}
-                        maxRows={6}
-                      />,
+                      LtoElement(
+                        TextEditor([description, setDescription])
+                          .placeholder(t('feeds.builder.descriptionPlaceholder'))
+                          .maxLength(500)
+                          .autoResize(6)
+                          .rows(2),
+                      ),
                     ),
                   ),
                 )

@@ -1,7 +1,7 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { useCallback, useMemo, type ReactNode } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
@@ -17,7 +17,16 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import type { StarterPackSummary } from '@/services/starterPacksService';
-import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Text as LText,
+  VStack,
+  toElement,
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 export interface StarterPackCardData {
   id: string;
@@ -164,27 +173,28 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
                     // No preview of yourself — the byline reads "by you" and is not
                     // even a link in that case.
                     <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
-                      <TouchableOpacity
-                        onPress={handleCreatorPress}
-                        disabled={isOwner}
-                        activeOpacity={0.6}
-                        // Vertical only on purpose: the card behind this byline is
-                        // itself pressable, so horizontal slop would take taps meant
-                        // for opening the pack.
-                        hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
-                      >
-                        {toElement(
-                          LText(
-                            isOwner
-                              ? 'Starter pack by you'
-                              : `Starter pack by @${pack.creator.username}`,
-                          )
-                            .font('body')
-                            .leading('18px')
-                            .foreground('muted')
-                            .lines(1),
-                        )}
-                      </TouchableOpacity>
+                      {LtoElement(
+                        LVStack(
+                          LEmbed(
+                            toElement(
+                              LText(
+                                isOwner
+                                  ? 'Starter pack by you'
+                                  : `Starter pack by @${pack.creator.username}`,
+                              )
+                                .font('body')
+                                .leading('18px')
+                                .foreground('muted')
+                                .lines(1),
+                            ),
+                          ),
+                        )
+                          .onPress(handleCreatorPress)
+                          .disabled(isOwner)
+                          .hitSlop('vertical', '4')
+                          .hitSlop('horizontal', 'none')
+                          .pressFade('60'),
+                      )}
                     </ProfileHoverCard>
                   ),
                 ),
