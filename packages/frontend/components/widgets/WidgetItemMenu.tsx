@@ -1,24 +1,9 @@
-import { tokens } from '@oxy.so/bloom/styles';
-import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@oxy.so/bloom/dropdown-menu';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
-import { Icon, toElement } from '@oxy.so/bloom-language';
-
-// The trigger stays React Native's TouchableOpacity, the DropdownMenu trigger's own
-// child (asChild); this draws its classes, `p-1` (it is a pointer on the web already).
-const triggerStyle: ViewStyle = { padding: 4 };
-
-const ICON_SIZE = 20;
+import { Icon, Item, Menu, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** What the ⋯ menu of a widget item does; the item owns both. */
 export interface WidgetItemMenuActions {
@@ -39,38 +24,21 @@ interface WidgetItemMenuProps extends WidgetItemMenuActions {
  */
 export function WidgetItemMenu({ label, onNotInterested, onShare }: WidgetItemMenuProps) {
   const { t } = useTranslation();
-  const theme = useTheme();
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild label={label}>
-        <TouchableOpacity
-          style={triggerStyle}
-          hitSlop={tokens.hitSlop.lg}
-          accessibilityLabel="More options"
-          accessibilityRole="button"
-        >
-          {toElement(Icon(RiMoreFill).size('sm').foreground('muted'))}
-        </TouchableOpacity>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent label={label}>
-        <DropdownMenuItem
-          leading={
-            <RiEyeOffLine width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
-          }
-          onPress={onNotInterested}
-        >
-          {t('widgetMenu.notInterested')}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          leading={
-            <RiUpload2Line width={ICON_SIZE} height={ICON_SIZE} fill={theme.colors.textSecondary} />
-          }
-          onPress={onShare}
-        >
-          {t('widgetMenu.share')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+  // Bloom's DropdownMenu on every platform, as the app drew it (not the platform's menu);
+  // its rows' glyphs are the menu's own 20pt quiet ink.
+  return toElement(
+    Menu(
+      VStack(Icon(RiMoreFill).size('sm').foreground('muted'))
+        .padding('all', 'xs')
+        .hitSlop('lg')
+        .label('More options')
+        .role('button')
+        .pressFade(),
+      Item(t('widgetMenu.notInterested')).icon(RiEyeOffLine).onPress(onNotInterested),
+      Item(t('widgetMenu.share')).icon(RiUpload2Line).onPress(onShare),
+    )
+      .menuStyle('dropdown')
+      .label(label),
   );
 }
