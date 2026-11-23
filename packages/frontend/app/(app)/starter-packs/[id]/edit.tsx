@@ -1,6 +1,5 @@
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -14,7 +13,6 @@ import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
@@ -30,46 +28,20 @@ import {
   Divider as LDivider,
   Embed,
   Field as LField,
-  HStack,
   Header,
+  HStack,
   Icon,
   RawText,
   Row,
   ScrollView,
   SpinnerIcon,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
-
-// Kept as React Native's TouchableOpacity (the language has no node for its fading
-// press); its style draws what its classes drew.
-const touchables = {
-  save: {
-    marginTop: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  delete: {
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-} satisfies Record<string, ViewStyle>;
-import { screen } from '@oxy.so/bloom-language/router';
-
-import {
-  Embed as LEmbed,
   TextEditor,
   TextField,
-  VStack as LVStack,
-  toElement as LtoElement,
+  toElement,
+  VStack,
 } from '@oxy.so/bloom-language';
+
+import { screen } from '@oxy.so/bloom-language/router';
 
 interface MemberProfile {
   id: string;
@@ -98,7 +70,6 @@ export default screen(function EditStarterPackScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const packId = String(id);
   const { user, oxyServices } = useAuth();
-  const colors = useColorTokens();
   const back = useScreenBack();
   const { t } = useTranslation();
 
@@ -306,9 +277,9 @@ export default screen(function EditStarterPackScreen() {
       Icon(RiCloseCircleLine).size('3xl').foreground('muted'),
       RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
       Embed(
-        LtoElement(
-          LVStack(
-            LEmbed(
+        toElement(
+          VStack(
+            Embed(
               toElement(
                 RawText('Try again')
                   .foreground('primary')
@@ -334,13 +305,13 @@ export default screen(function EditStarterPackScreen() {
       LField(
         'Name',
         Embed(
-          LtoElement(TextField([name, setName], 'Name').placeholder('e.g. Tech people to follow')),
+          toElement(TextField([name, setName], 'Name').placeholder('e.g. Tech people to follow')),
         ),
       ),
       LField(
         'Description',
         Embed(
-          LtoElement(
+          toElement(
             TextEditor([description, setDescription])
               .placeholder('What is this starter pack about?')
               .rows(3),
@@ -504,36 +475,35 @@ export default screen(function EditStarterPackScreen() {
           .outline('thin')
           .elevation('none')
           .radius('lg'),
-    Embed(
-      <TouchableOpacity
-        disabled={savingDetails || !name.trim()}
-        onPress={saveDetails}
-        style={[
-          touchables.save,
-          { backgroundColor: colors.primary },
-          (savingDetails || !name.trim()) && { opacity: 0.6 },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Save starter pack"
-      >
-        {savingDetails && toElement(SpinnerIcon().size('sm').tint('onPrimary'))}
-        {toElement(
-          RawText(savingDetails ? 'Saving...' : 'Save changes')
-            .foreground('onPrimary')
-            .weight('bold'),
-        )}
-      </TouchableOpacity>,
-    ),
-    Embed(
-      <TouchableOpacity
-        onPress={deletePack}
-        style={[touchables.delete, { borderColor: colors.border }]}
-        accessibilityRole="button"
-        accessibilityLabel="Delete starter pack"
-      >
-        {toElement(RawText('Delete starter pack').foreground('destructive').weight('semibold'))}
-      </TouchableOpacity>,
-    ),
+    HStack(
+      savingDetails ? SpinnerIcon().size('sm').tint('onPrimary') : null,
+      RawText(savingDetails ? 'Saving...' : 'Save changes')
+        .foreground('onPrimary')
+        .weight('bold'),
+    )
+      .margin('top', 'xl')
+      .padding('vertical', 'md')
+      .align('center')
+      .justify('center')
+      .spacing('sm')
+      .background('primary')
+      .corner('10')
+      .when(savingDetails || !name.trim(), (v) => v.opacity('60'))
+      .disabled(savingDetails || !name.trim())
+      .onPress(saveDetails)
+      .role('button')
+      .label('Save starter pack')
+      .pressFade(),
+    VStack(RawText('Delete starter pack').foreground('destructive').weight('semibold'))
+      .margin('top', 'md')
+      .padding('vertical', 'md')
+      .align('center')
+      .border('border', 'thin')
+      .corner('10')
+      .onPress(deletePack)
+      .role('button')
+      .label('Delete starter pack')
+      .pressFade(),
   )
     .contentMargins('lg')
     .keyboardTaps('handled')

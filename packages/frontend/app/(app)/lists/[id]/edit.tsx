@@ -1,8 +1,6 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { Screen } from '@oxy.so/bloom/screen';
 import { Card } from '@oxy.so/bloom/card';
@@ -29,33 +27,15 @@ import {
   Card as LCard,
   Divider as LDivider,
   Embed,
-  HStack,
   Header,
+  HStack,
   Icon,
   RawText,
   ScrollView,
   SpinnerIcon,
-  VStack,
   toElement,
+  VStack,
 } from '@oxy.so/bloom-language';
-
-import {
-  Embed as LEmbed,
-  VStack as LVStack,
-  toElement as LtoElement,
-} from '@oxy.so/bloom-language';
-
-// Kept as React Native's TouchableOpacity (the language has no node for its fading
-// press); its style draws what its classes drew.
-const touchables = {
-  resultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-} satisfies Record<string, ViewStyle>;
 
 interface MemberProfile {
   id: string;
@@ -259,9 +239,9 @@ function EditListMembersScreen() {
             Icon(RiAlertLine).size('3xl').foreground('muted'),
             RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
             Embed(
-              LtoElement(
-                LVStack(
-                  LEmbed(
+              toElement(
+                VStack(
+                  Embed(
                     toElement(
                       RawText(t('common.retry', { defaultValue: 'Try again' }))
                         .foreground('primary')
@@ -315,14 +295,9 @@ function EditListMembersScreen() {
                   return (
                     <React.Fragment key={u.id}>
                       {index > 0 && toElement(LDivider())}
-                      <TouchableOpacity
-                        style={touchables.resultRow}
-                        onPress={() => addMember(u)}
-                        disabled={already || busy}
-                        activeOpacity={0.7}
-                      >
-                        {toElement(LAvatar(u.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))}
-                        {toElement(
+                      {toElement(
+                        HStack(
+                          LAvatar(u.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'),
                           VStack(
                             RawText('@', u.username)
                               .foreground('foreground')
@@ -334,17 +309,22 @@ function EditListMembersScreen() {
                               .leading('16px')
                               .lines(1),
                           ).flex('1'),
-                        )}
-                        {busy
-                          ? toElement(SpinnerIcon().size('18').tint('primary'))
-                          : already
-                            ? toElement(Icon(RiCheckboxCircleFill).size('22').foreground('primary'))
-                            : toElement(
-                                RawText(t('lists.create.add', { defaultValue: 'Add' }))
+                          busy
+                            ? SpinnerIcon().size('18').tint('primary')
+                            : already
+                              ? Icon(RiCheckboxCircleFill).size('22').foreground('primary')
+                              : RawText(t('lists.create.add', { defaultValue: 'Add' }))
                                   .foreground('primary')
                                   .weight('semibold'),
-                              )}
-                      </TouchableOpacity>
+                        )
+                          .align('center')
+                          .spacing('md')
+                          .padding('horizontal', 'md')
+                          .padding('vertical', '10')
+                          .disabled(already || busy)
+                          .onPress(() => addMember(u))
+                          .pressFade('70'),
+                      )}
                     </React.Fragment>
                   );
                 })}
@@ -401,25 +381,17 @@ function EditListMembersScreen() {
                                 .leading('16px')
                                 .lines(1),
                             ).flex('1'),
-                            Embed(
-                              <TouchableOpacity
-                                onPress={() => removeMember(m)}
-                                disabled={busy}
-                                hitSlop={tokens.hitSlop.md}
-                                accessibilityRole="button"
-                                accessibilityLabel={t('lists.create.remove', {
-                                  defaultValue: 'Remove',
-                                })}
-                              >
-                                {busy
-                                  ? toElement(SpinnerIcon().size('18').tint('destructive'))
-                                  : toElement(
-                                      Icon(RiIndeterminateCircleFill)
-                                        .size('lg')
-                                        .foreground('error'),
-                                    )}
-                              </TouchableOpacity>,
-                            ),
+                            VStack(
+                              busy
+                                ? SpinnerIcon().size('18').tint('destructive')
+                                : Icon(RiIndeterminateCircleFill).size('lg').foreground('error'),
+                            )
+                              .disabled(busy)
+                              .onPress(() => removeMember(m))
+                              .hitSlop('md')
+                              .role('button')
+                              .label(t('lists.create.remove', { defaultValue: 'Remove' }))
+                              .pressFade(),
                           )
                             .padding('horizontal', 'md')
                             .padding('vertical', '10')

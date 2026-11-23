@@ -1,11 +1,9 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
 import { Screen } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { useRouter } from '@/lib/navigation/router';
@@ -19,40 +17,20 @@ import {
   Divider as LDivider,
   Embed,
   Field as LField,
-  HStack,
   Header,
+  HStack,
   RawText,
   ScrollView,
-  Toggle,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
-
-import {
-  Embed as LEmbed,
   TextEditor,
   TextField,
-  VStack as LVStack,
-  toElement as LtoElement,
+  toElement,
+  Toggle,
+  VStack,
 } from '@oxy.so/bloom-language';
-
-// Kept as React Native's TouchableOpacity (the language has no node for its fading
-// press); its style draws what its classes drew.
-const touchables = {
-  resultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  create: { marginTop: 20, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-} satisfies Record<string, ViewStyle>;
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 function CreateListScreen() {
-  const colors = useColorTokens();
   const router = useRouter();
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
@@ -138,7 +116,7 @@ function CreateListScreen() {
               LField(
                 t('lists.create.titleLabel'),
                 Embed(
-                  LtoElement(
+                  toElement(
                     TextField([title, setTitle], t('lists.create.titleLabel')).placeholder(
                       t('lists.create.titlePlaceholder'),
                     ),
@@ -148,7 +126,7 @@ function CreateListScreen() {
               LField(
                 t('lists.create.descriptionLabel'),
                 Embed(
-                  LtoElement(
+                  toElement(
                     TextEditor([description, setDescription])
                       .placeholder(t('lists.create.descriptionPlaceholder'))
                       .rows(3),
@@ -183,16 +161,20 @@ function CreateListScreen() {
                     results.map((u, index) => (
                       <React.Fragment key={u.id}>
                         {index > 0 && toElement(LDivider())}
-                        <TouchableOpacity style={touchables.resultRow} onPress={() => addMember(u)}>
-                          {toElement(
+                        {toElement(
+                          HStack(
                             RawText('@', u.username, ' • ', u.name.displayName).foreground(
                               'foreground',
                             ),
-                          )}
-                          {toElement(
                             RawText(t('lists.create.add')).foreground('primary').weight('semibold'),
-                          )}
-                        </TouchableOpacity>
+                          )
+                            .justify('between')
+                            .align('center')
+                            .padding('horizontal', 'md')
+                            .padding('vertical', '10')
+                            .onPress(() => addMember(u))
+                            .pressFade(),
+                        )}
                       </React.Fragment>
                     )),
                   ),
@@ -213,9 +195,9 @@ function CreateListScreen() {
                         HStack(
                           RawText('@', m.username).foreground('foreground'),
                           Embed(
-                            LtoElement(
-                              LVStack(
-                                LEmbed(
+                            toElement(
+                              VStack(
+                                Embed(
                                   toElement(
                                     RawText(t('lists.create.remove'))
                                       .foreground('destructive')
@@ -236,23 +218,20 @@ function CreateListScreen() {
                   ),
                 ).margin('top', '10')
               : null,
-            Embed(
-              <TouchableOpacity
-                disabled={saving || !title.trim()}
-                onPress={onCreate}
-                style={[
-                  touchables.create,
-                  { backgroundColor: colors.primary },
-                  !title.trim() && { opacity: 0.6 },
-                ]}
-              >
-                {toElement(
-                  RawText(saving ? t('lists.create.saving') : t('lists.create.createButton'))
-                    .foreground('onPrimary')
-                    .weight('bold'),
-                )}
-              </TouchableOpacity>,
-            ),
+            VStack(
+              RawText(saving ? t('lists.create.saving') : t('lists.create.createButton'))
+                .foreground('onPrimary')
+                .weight('bold'),
+            )
+              .margin('top', 'xl')
+              .padding('vertical', 'md')
+              .align('center')
+              .background('primary')
+              .corner('10')
+              .when(!title.trim(), (v) => v.opacity('60'))
+              .disabled(saving || !title.trim())
+              .onPress(onCreate)
+              .pressFade(),
           ).contentMargins('lg'),
         )}
       </SignInRequired>

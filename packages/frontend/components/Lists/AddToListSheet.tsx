@@ -1,40 +1,31 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
+import { TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { useRouter } from '@/lib/navigation/router';
 import { toast } from '@oxy.so/bloom/toast';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { listsService } from '@/services/listsService';
 import { createLogger } from '@oxy.so/core/logger';
 
 import {
   Checkbox as LCheckbox,
+  defineTokens,
   Embed,
   HStack,
   Icon,
   RawText,
   SpinnerIcon,
-  VStack,
-  defineTokens,
   toElement,
-} from '@oxy.so/bloom-language';
-import {
-  Embed as LEmbed,
-  VStack as LVStack,
-  toElement as LtoElement,
+  VStack,
 } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
-// Tailwind's `rounded-full` as NativeWind drew it on a TouchableOpacity, which the
-// language has no node for (its press fades the row's opacity).
-const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+// The label area of a row: it stays a TouchableOpacity because it is no accessibility
+// element of its own (`accessible={false}`), which the language does not write.
 const touchables = {
-  create: { borderRadius: PILL_RADIUS, paddingHorizontal: 20, paddingVertical: 10 },
   // Tailwind's `flex-1`: grow, shrink and a 0% basis.
   rowLabel: {
     flexDirection: 'row',
@@ -44,7 +35,6 @@ const touchables = {
     flexShrink: 1,
     flexBasis: '0%',
   },
-  newRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
 } satisfies Record<string, ViewStyle>;
 
 const logger = createLogger('AddToListSheet');
@@ -79,7 +69,6 @@ function extractMemberIds(list: unknown): string[] {
  */
 export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToListSheetProps) {
   const router = useRouter();
-  const colors = useColorTokens();
   const { t } = useTranslation();
   const [rows, setRows] = useState<ListRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,16 +164,12 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
           .font('18')
           .leading('28px')
           .weight('bold'),
-        Embed(
-          <TouchableOpacity
-            onPress={onClose}
-            hitSlop={tokens.hitSlop.md}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          >
-            {toElement(Icon(RiCloseLine).size('22').foreground('muted'))}
-          </TouchableOpacity>,
-        ),
+        VStack(Icon(RiCloseLine).size('22').foreground('muted'))
+          .onPress(onClose)
+          .hitSlop('md')
+          .role('button')
+          .label(t('common.close', { defaultValue: 'Close' }))
+          .pressFade(),
       )
         .align('center')
         .justify('between')
@@ -197,9 +182,9 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
             VStack(
               RawText(error).foreground('muted').font('14').leading('20px').textAlign('center'),
               Embed(
-                LtoElement(
-                  LVStack(
-                    LEmbed(
+                toElement(
+                  VStack(
+                    Embed(
                       toElement(
                         RawText(t('common.retry', { defaultValue: 'Try again' }))
                           .foreground('primary')
@@ -228,20 +213,19 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
                 .font('14')
                 .leading('20px')
                 .textAlign('center'),
-              Embed(
-                <TouchableOpacity
-                  onPress={goCreate}
-                  style={[touchables.create, { backgroundColor: colors.primary }]}
-                >
-                  {toElement(
-                    RawText(t('lists.createList', { defaultValue: 'Create list' }))
-                      .foreground('onPrimary')
-                      .font('14')
-                      .leading('20px')
-                      .weight('semibold'),
-                  )}
-                </TouchableOpacity>,
-              ),
+              VStack(
+                RawText(t('lists.createList', { defaultValue: 'Create list' }))
+                  .foreground('onPrimary')
+                  .font('14')
+                  .leading('20px')
+                  .weight('semibold'),
+              )
+                .padding('horizontal', 'xl')
+                .padding('vertical', '10')
+                .background('primary')
+                .corner('infinite')
+                .onPress(goCreate)
+                .pressFade(),
             )
               .padding('vertical', '3xl')
               .align('center')
@@ -297,27 +281,26 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
               ),
             )}
 
-            <TouchableOpacity
-              style={touchables.newRow}
-              onPress={goCreate}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-            >
-              {toElement(
+            {toElement(
+              HStack(
                 VStack(Icon(RiAddLine).size('md').foreground(appColors.color.hexfff))
                   .frame({ width: '36', height: '36' })
                   .background('primary')
                   .corner('lg')
                   .align('center')
                   .justify('center'),
-              )}
-              {toElement(
                 RawText(t('lists.addTo.newList', { defaultValue: 'New list' }))
                   .foreground('primary')
                   .font('md')
                   .weight('semibold'),
-              )}
-            </TouchableOpacity>
+              )
+                .padding('vertical', '14')
+                .align('center')
+                .spacing('md')
+                .onPress(goCreate)
+                .role('button')
+                .pressFade('70'),
+            )}
           </ScrollView>
         ),
       ),
