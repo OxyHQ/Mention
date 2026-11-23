@@ -1,9 +1,22 @@
 import { useState, useCallback, useMemo } from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
-import { Button, Embed, Icon, type IconComponent } from '@oxy.so/bloom-language';
+import {
+  Button,
+  Embed,
+  Icon,
+  type IconComponent,
+  Embed as LEmbed,
+  Icon as LIcon,
+  Text as LText,
+  VStack,
+  defineTokens,
+  toElement,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
@@ -56,14 +69,6 @@ import { prewarmUsersByIds } from '@/utils/userEnrichment';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import type { NotificationIntent } from '@/types/notificationIntent';
 
-import {
-  Embed as LEmbed,
-  Icon as LIcon,
-  Text as LText,
-  VStack,
-  defineTokens,
-  toElement,
-} from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 const notificationLogger = createLogger('Notifications');
@@ -785,18 +790,14 @@ const NotificationsScreen = screen(function NotificationsScreen() {
           onPress={() => router.push('/notifications/pokes')}
           activeOpacity={0.7}
         >
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: theme.colors.primary,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {toElement(LIcon(RiHand).size('18').foreground(appColors.color.hexfff))}
-          </View>
+          {LtoElement(
+            LVStack(LEmbed(toElement(LIcon(RiHand).size('18').foreground(appColors.color.hexfff))))
+              .frame({ width: '4xl', height: '4xl' })
+              .background('primary')
+              .corner('xl')
+              .align('center')
+              .justify('center'),
+          )}
           {toElement(
             VStack(
               LText(t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' }))
