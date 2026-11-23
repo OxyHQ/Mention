@@ -22,7 +22,12 @@ const mockAttendees = jest.fn(
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: mockUser }, signIn: jest.fn() }),
 }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: 'event-one' }) }));
+// The detail is a language screen(), whose navigator environment reads the router.
+const mockRouter = { push: jest.fn(), back: jest.fn() };
+jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({ id: 'event-one' }),
+  useRouter: () => mockRouter,
+}));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, options: { defaultValue: string }) => options.defaultValue,

@@ -85,6 +85,8 @@ jest.mock('@oxy.so/bloom/button', () => {
 jest.mock('@oxy.so/bloom/text-field', () => {
   const { TextInput } = jest.requireActual('react-native');
   return {
+    // The language TextField draws the input in Bloom's TextField shell.
+    ...jest.requireActual('@oxy.so/bloom/text-field'),
     TextFieldInput: ({ onValueChange, ...props }: { onValueChange: (value: string) => void }) => (
       <TextInput {...props} onChangeText={onValueChange} />
     ),
