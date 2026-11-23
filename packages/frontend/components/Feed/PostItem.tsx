@@ -2,13 +2,7 @@ import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react';
-import {
-  View,
-  Text as RNText,
-  TouchableOpacity,
-  type GestureResponderEvent,
-  type ViewProps,
-} from 'react-native';
+import { View, Text as RNText, type GestureResponderEvent, type ViewProps } from 'react-native';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type { TFunction } from 'i18next';
@@ -47,7 +41,6 @@ import {
   VStack as LVStack,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
-import { tokens } from '@oxy.so/bloom/styles';
 import { toast } from '@oxy.so/bloom/toast';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
@@ -204,7 +197,6 @@ function BylineText({ children }: { children: React.ReactNode }) {
     </RNText>
   );
 }
-const INDICATOR_STYLE = { flexShrink: 0, alignSelf: 'center' } as const;
 
 // The two vote arrows are adjacent halves of ONE pill, so neither hit region
 // may grow toward the other or it swallows the other's taps.
@@ -1557,19 +1549,15 @@ function PostRow(props: PostItemProps): Child {
         </ProfileHoverCard>
       ));
 
-  const indicator = (icon: IconComponent, label: string, message: string, testID?: string) =>
-    Embed((render) => (
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        hitSlop={tokens.hitSlop.md}
-        style={INDICATOR_STYLE}
-        onPress={() => toast(message)}
-        testID={testID}
-      >
-        {render(Icon(icon).size(row.iconSize.indicator).foreground('muted'))}
-      </TouchableOpacity>
-    ));
+  const indicator = (icon: IconComponent, label: string, message: string) =>
+    VStack(Icon(icon).size(row.iconSize.indicator).foreground('muted'))
+      .onPress(() => toast(message))
+      .pressFade()
+      .role('button')
+      .label(label)
+      .hitSlop('md')
+      .shrink('never')
+      .alignSelf('center');
 
   const identityLine = HStack(
     compact ? avatar : null,
@@ -1591,8 +1579,7 @@ function PostRow(props: PostItemProps): Child {
           t('privateMentions.onlyMentioned', {
             defaultValue: 'Only visible to the people mentioned',
           }),
-          'post-private-mention-badge',
-        )
+        ).testID('post-private-mention-badge')
       : null,
     // The lane chip, after the time; not on a boost or a collaborative byline.
     viewPost.lane && !viewPost.boost && !isCollab
