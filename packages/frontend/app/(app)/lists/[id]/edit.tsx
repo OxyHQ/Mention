@@ -2,7 +2,6 @@ import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import { Screen } from '@oxy.so/bloom/screen';
 import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -34,7 +33,10 @@ import {
   SpinnerIcon,
   toElement,
   VStack,
+  Embed as LEmbed,
 } from '@oxy.so/bloom-language';
+
+import { screen } from '@oxy.so/bloom-language/router';
 
 interface MemberProfile {
   id: string;
@@ -55,7 +57,7 @@ const SEARCH_DEBOUNCE_MS = 300;
  * via `listsService.addMembers`/`removeMembers`, which broadcasts the change so
  * the list-backed feed (and the list detail screen) refresh automatically.
  */
-function EditListMembersScreen() {
+const EditListMembersScreen = screen(function EditListMembersScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const listId = String(id);
   const { oxyServices } = useAuth();
@@ -227,102 +229,169 @@ function EditListMembersScreen() {
   );
 
   if (loading) {
-    return <Screen header={header}>{toElement(ScrollView(Embed(<FormSkeleton />)))}</Screen>;
+    return LEmbed(toElement(ScrollView(Embed(<FormSkeleton />)))).header(LEmbed(header));
   }
 
   if (error) {
-    return (
-      <Screen header={header}>
-        {toElement(
-          ScrollView(
-            Icon(RiAlertLine).size('3xl').foreground('muted'),
-            RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
-            Embed(
-              toElement(
-                VStack(
-                  Embed(
-                    toElement(
-                      RawText(t('common.retry', { defaultValue: 'Try again' }))
-                        .foreground('primary')
-                        .font('14')
-                        .leading('20px')
-                        .weight('semibold'),
-                    ),
+    return LEmbed(
+      toElement(
+        ScrollView(
+          Icon(RiAlertLine).size('3xl').foreground('muted'),
+          RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
+          Embed(
+            toElement(
+              VStack(
+                Embed(
+                  toElement(
+                    RawText(t('common.retry', { defaultValue: 'Try again' }))
+                      .foreground('primary')
+                      .font('14')
+                      .leading('20px')
+                      .weight('semibold'),
                   ),
-                )
-                  .onPress(load)
-                  .pressFade(),
-              ),
+                ),
+              )
+                .onPress(load)
+                .pressFade(),
             ),
-          ).contentView((v) =>
-            v
-              .padding('horizontal', '3xl')
-              .flex('1')
-              .align('center')
-              .justify('center')
-              .spacing('md'),
           ),
-        )}
-      </Screen>
-    );
+        ).contentView((v) =>
+          v.padding('horizontal', '3xl').flex('1').align('center').justify('center').spacing('md'),
+        ),
+      ),
+    ).header(LEmbed(header));
   }
 
-  return (
-    <Screen header={header}>
-      {toElement(
-        ScrollView(
-          Embed(
-            <Field
-              label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
-              style={{ marginBottom: 10 }}
-            >
-              <Search
-                label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
-                value={search}
-                onChangeText={runSearch}
-                onClearText={() => runSearch('')}
-              />
-            </Field>,
-          ),
-          Embed(searching && <ListSkeleton count={2} />),
-          results.length > 0 &&
-            LCard(
+  return LEmbed(
+    toElement(
+      ScrollView(
+        Embed(
+          <Field
+            label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
+            style={{ marginBottom: 10 }}
+          >
+            <Search
+              label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
+              value={search}
+              onChangeText={runSearch}
+              onClearText={() => runSearch('')}
+            />
+          </Field>,
+        ),
+        Embed(searching && <ListSkeleton count={2} />),
+        results.length > 0 &&
+          LCard(
+            Embed(
+              results.map((u, index) => {
+                const already = memberIdSet.has(u.id);
+                const busy = pendingIds.has(u.id);
+                return (
+                  <React.Fragment key={u.id}>
+                    {index > 0 && toElement(LDivider())}
+                    {toElement(
+                      HStack(
+                        LAvatar(u.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'),
+                        VStack(
+                          RawText('@', u.username)
+                            .foreground('foreground')
+                            .weight('medium')
+                            .lines(1),
+                          RawText(u.name.displayName)
+                            .foreground('muted')
+                            .font('xs')
+                            .leading('16px')
+                            .lines(1),
+                        ).flex('1'),
+                        busy
+                          ? SpinnerIcon().size('18').tint('primary')
+                          : already
+                            ? Icon(RiCheckboxCircleFill).size('22').foreground('primary')
+                            : RawText(t('lists.create.add', { defaultValue: 'Add' }))
+                                .foreground('primary')
+                                .weight('semibold'),
+                      )
+                        .align('center')
+                        .spacing('md')
+                        .padding('horizontal', 'md')
+                        .padding('vertical', '10')
+                        .disabled(already || busy)
+                        .onPress(() => addMember(u))
+                        .pressFade('70'),
+                    )}
+                  </React.Fragment>
+                );
+              }),
+            ),
+          )
+            .style('outline')
+            .radius('md')
+            .margin('bottom', 'md'),
+        RawText(
+          members.length,
+          ' ',
+          members.length === 1
+            ? t('lists.memberSingular', { defaultValue: 'member' })
+            : t('lists.memberPlural', { defaultValue: 'members' }),
+        )
+          .font('14')
+          .leading('20px')
+          .foreground('muted')
+          .margin('bottom', '6')
+          .margin('top', 'xs'),
+        members.length === 0
+          ? VStack(
+              Icon(RiGroupLine).size('44').foreground('muted'),
+              RawText(
+                t('lists.emptyMembersSubtext', {
+                  defaultValue: 'Add people to curate this list',
+                }),
+              )
+                .foreground('muted')
+                .font('14')
+                .leading('20px')
+                .textAlign('center'),
+            )
+              .padding('vertical', '4xl')
+              .align('center')
+              .justify('center')
+              .spacing('md')
+          : LCard(
               Embed(
-                results.map((u, index) => {
-                  const already = memberIdSet.has(u.id);
-                  const busy = pendingIds.has(u.id);
+                members.map((m, index) => {
+                  const busy = pendingIds.has(m.id);
                   return (
-                    <React.Fragment key={u.id}>
+                    <React.Fragment key={m.id}>
                       {index > 0 && toElement(LDivider())}
                       {toElement(
                         HStack(
-                          LAvatar(u.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'),
+                          LAvatar(m.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'),
                           VStack(
-                            RawText('@', u.username)
+                            RawText('@', m.username)
                               .foreground('foreground')
                               .weight('medium')
                               .lines(1),
-                            RawText(u.name.displayName)
+                            RawText(m.name.displayName)
                               .foreground('muted')
                               .font('xs')
                               .leading('16px')
                               .lines(1),
                           ).flex('1'),
-                          busy
-                            ? SpinnerIcon().size('18').tint('primary')
-                            : already
-                              ? Icon(RiCheckboxCircleFill).size('22').foreground('primary')
-                              : RawText(t('lists.create.add', { defaultValue: 'Add' }))
-                                  .foreground('primary')
-                                  .weight('semibold'),
+                          VStack(
+                            busy
+                              ? SpinnerIcon().size('18').tint('destructive')
+                              : Icon(RiIndeterminateCircleFill).size('lg').foreground('error'),
+                          )
+                            .disabled(busy)
+                            .onPress(() => removeMember(m))
+                            .hitSlop('md')
+                            .role('button')
+                            .label(t('lists.create.remove', { defaultValue: 'Remove' }))
+                            .pressFade(),
                         )
-                          .align('center')
-                          .spacing('md')
                           .padding('horizontal', 'md')
                           .padding('vertical', '10')
-                          .disabled(already || busy)
-                          .onPress(() => addMember(u))
-                          .pressFade('70'),
+                          .align('center')
+                          .spacing('md'),
                       )}
                     </React.Fragment>
                   );
@@ -330,89 +399,13 @@ function EditListMembersScreen() {
               ),
             )
               .style('outline')
-              .radius('md')
-              .margin('bottom', 'md'),
-          RawText(
-            members.length,
-            ' ',
-            members.length === 1
-              ? t('lists.memberSingular', { defaultValue: 'member' })
-              : t('lists.memberPlural', { defaultValue: 'members' }),
-          )
-            .font('14')
-            .leading('20px')
-            .foreground('muted')
-            .margin('bottom', '6')
-            .margin('top', 'xs'),
-          members.length === 0
-            ? VStack(
-                Icon(RiGroupLine).size('44').foreground('muted'),
-                RawText(
-                  t('lists.emptyMembersSubtext', {
-                    defaultValue: 'Add people to curate this list',
-                  }),
-                )
-                  .foreground('muted')
-                  .font('14')
-                  .leading('20px')
-                  .textAlign('center'),
-              )
-                .padding('vertical', '4xl')
-                .align('center')
-                .justify('center')
-                .spacing('md')
-            : LCard(
-                Embed(
-                  members.map((m, index) => {
-                    const busy = pendingIds.has(m.id);
-                    return (
-                      <React.Fragment key={m.id}>
-                        {index > 0 && toElement(LDivider())}
-                        {toElement(
-                          HStack(
-                            LAvatar(m.avatar, { variant: MEDIA_VARIANT_AVATAR }).size('lg'),
-                            VStack(
-                              RawText('@', m.username)
-                                .foreground('foreground')
-                                .weight('medium')
-                                .lines(1),
-                              RawText(m.name.displayName)
-                                .foreground('muted')
-                                .font('xs')
-                                .leading('16px')
-                                .lines(1),
-                            ).flex('1'),
-                            VStack(
-                              busy
-                                ? SpinnerIcon().size('18').tint('destructive')
-                                : Icon(RiIndeterminateCircleFill).size('lg').foreground('error'),
-                            )
-                              .disabled(busy)
-                              .onPress(() => removeMember(m))
-                              .hitSlop('md')
-                              .role('button')
-                              .label(t('lists.create.remove', { defaultValue: 'Remove' }))
-                              .pressFade(),
-                          )
-                            .padding('horizontal', 'md')
-                            .padding('vertical', '10')
-                            .align('center')
-                            .spacing('md'),
-                        )}
-                      </React.Fragment>
-                    );
-                  }),
-                ),
-              )
-                .style('outline')
-                .radius('md'),
-        )
-          .contentMargins('lg')
-          .keyboardTaps('handled'),
-      )}
-    </Screen>
-  );
-}
+              .radius('md'),
+      )
+        .contentMargins('lg')
+        .keyboardTaps('handled'),
+    ),
+  ).header(LEmbed(header));
+});
 
 export default function AvailableEditListMembersScreen() {
   return (

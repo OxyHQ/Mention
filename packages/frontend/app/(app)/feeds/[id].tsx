@@ -13,7 +13,6 @@ import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
@@ -21,8 +20,8 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { ProfileCard } from '@/components/ProfileCard';
 import Feed from '@/components/Feed/Feed';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-
 import { formatCompactNumber } from '@/utils/formatNumber';
+
 import { shareLink } from '@/utils/shareLink';
 import { Rating, RatingInput } from '@oxy.so/bloom/rating';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -50,6 +49,7 @@ import {
   Tabs as LTabs,
   VStack as LVStack,
   toElement as LtoElement,
+  Header as LHeader,
 } from '@oxy.so/bloom-language';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -112,11 +112,9 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   // display form.
   const ownerHandle = getNormalizedUserHandle(feed.owner) ?? undefined;
 
-  return (
-    <PageHeader
-      onBack={back}
-      backLabel={t('common.back', { defaultValue: 'Back' })}
-      title={
+  return LtoElement(
+    LHeader(
+      LEmbed(
         <Pressable
           style={headerTitleStyle}
           onPress={onOpenInfo}
@@ -174,33 +172,38 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
               {toElement(Icon(RiMoreFill).size('18').foreground('muted'))}
             </>
           )}
-        </Pressable>
-      }
-      actions={
-        <>
-          {/* Subscribing to a feed IS liking it: one `FeedLike` row, the same
-          subscription the marketplace and the saved-feeds list read. */}
-          <FeedSubscribeButton
-            isSubscribed={isSubscribed}
-            isSubscribing={isSubscribing}
-            onPress={onToggleSubscribe}
-          />
+        </Pressable>,
+      ),
+    )
+      .onBack(back)
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .toolbar(
+        LEmbed(
+          <>
+            {/* Subscribing to a feed IS liking it: one `FeedLike` row, the same
+    subscription the marketplace and the saved-feeds list read. */}
+            <FeedSubscribeButton
+              isSubscribed={isSubscribed}
+              isSubscribing={isSubscribing}
+              onPress={onToggleSubscribe}
+            />
 
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            iconOnly
-            icon={
-              isPinned
-                ? LtoElement(LIcon(RiPushpinFill).size('md').foreground('primary'))
-                : LtoElement(LIcon(RiPushpinLine).size('md').foreground('foreground'))
-            }
-            onPress={onTogglePin}
-            accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
-          />
-        </>
-      }
-    />
+            <Button
+              appearance="subtle"
+              tone="neutral"
+              iconOnly
+              icon={
+                isPinned
+                  ? LtoElement(LIcon(RiPushpinFill).size('md').foreground('primary'))
+                  : LtoElement(LIcon(RiPushpinLine).size('md').foreground('foreground'))
+              }
+              onPress={onTogglePin}
+              accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
+            />
+          </>,
+        ),
+      )
+      .inPage(),
   );
 });
 

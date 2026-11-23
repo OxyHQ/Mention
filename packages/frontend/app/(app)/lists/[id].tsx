@@ -2,7 +2,7 @@ import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, RefreshControl, Platform, type ViewStyle } from 'react-native';
+import { View, Platform, type ViewStyle } from 'react-native';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -15,7 +15,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@oxy.so/bloom/button';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Screen } from '@oxy.so/bloom/screen';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
@@ -47,12 +47,13 @@ import {
   VStack,
   defineTokens,
   toElement,
-} from '@oxy.so/bloom-language';
-import {
   Embed as LEmbed,
   VStack as LVStack,
   toElement as LtoElement,
+  Group,
+  ScrollView as LScrollView,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 interface ListOwner {
@@ -89,7 +90,7 @@ const TABS_CONFIG = [
   { id: 'members', labelKey: 'lists.tabs.members' },
 ];
 
-function ListDetailScreen() {
+const ListDetailScreen = screen(function ListDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -359,106 +360,94 @@ function ListDetailScreen() {
 
   // Loading state
   if (loading) {
-    return (
-      <Screen
-        header={toElement(
+    return LEmbed(toElement(ScrollView(Embed(<DetailSkeleton />)))).header(
+      LEmbed(
+        toElement(
           Header()
             .backLabel(t('common.back', { defaultValue: 'Back' }))
             .inPage(),
-        )}
-      >
-        {toElement(ScrollView(Embed(<DetailSkeleton />)))}
-      </Screen>
+        ),
+      ),
     );
   }
 
   // Error state
   if (error || !list) {
-    return (
-      <Screen
-        header={toElement(
+    return LEmbed(
+      toElement(
+        ScrollView(
+          Icon(RiAlertLine).size('3xl').foreground('muted'),
+          RawText(error || 'List not found')
+            .foreground('muted')
+            .font('16')
+            .leading('normal'),
+          Embed(
+            LtoElement(
+              LVStack(
+                LEmbed(
+                  toElement(
+                    RawText('Try again')
+                      .foreground('primary')
+                      .font('14')
+                      .leading('20px')
+                      .weight('medium'),
+                  ),
+                ),
+              )
+                .onPress(loadList)
+                .pressFade(),
+            ),
+          ),
+        ).contentView((v) => v.flex('1').align('center').justify('center').spacing('md')),
+      ),
+    ).header(
+      LEmbed(
+        toElement(
           Header(t('lists.detail.title'))
             .backLabel(t('common.back', { defaultValue: 'Back' }))
             .inPage(),
-        )}
-      >
-        {toElement(
-          ScrollView(
-            Icon(RiAlertLine).size('3xl').foreground('muted'),
-            RawText(error || 'List not found')
-              .foreground('muted')
-              .font('16')
-              .leading('normal'),
-            Embed(
-              LtoElement(
-                LVStack(
-                  LEmbed(
-                    toElement(
-                      RawText('Try again')
-                        .foreground('primary')
-                        .font('14')
-                        .leading('20px')
-                        .weight('medium'),
-                    ),
-                  ),
-                )
-                  .onPress(loadList)
-                  .pressFade(),
-              ),
-            ),
-          ).contentView((v) => v.flex('1').align('center').justify('center').spacing('md')),
-        )}
-      </Screen>
+        ),
+      ),
     );
   }
 
-  return (
-    <Screen
-      header={toElement(
-        Header(list.title || t('lists.detail.title'))
-          .backLabel(t('common.back', { defaultValue: 'Back' }))
-          .toolbar(Embed(headerActions))
-          .inPage(),
-      )}
-    >
-      {/* Tab content.
-          `posts` is the ONLY feed tab and it is the scroll-owning virtualized
-          <Feed> (no `scrollEnabled={false}`): on web it owns the document scroll
-          via the window virtualizer, with the subheader + tab bar handed to it as
-          its `listHeaderComponent` (so they scroll away with the content and the
-          shell mask/rails/insets still apply); on native the Feed owns its own
-          scroll + pull-to-refresh. The `members` tab renders NON-feed content
-          inside its own <ScreenScrollView>, so no feed is embedded in a nested scroller
-          anywhere here. Mirrors `feeds/[id].tsx`. */}
-      {activeTab === 'posts' ? (
+  return Group(
+    /* Tab content.
+            `posts` is the ONLY feed tab and it is the scroll-owning virtualized
+            <Feed> (no `scrollEnabled={false}`): on web it owns the document scroll
+            via the window virtualizer, with the subheader + tab bar handed to it as
+            its `listHeaderComponent` (so they scroll away with the content and the
+            shell mask/rails/insets still apply); on native the Feed owns its own
+            scroll + pull-to-refresh. The `members` tab renders NON-feed content
+            inside its own <ScreenScrollView>, so no feed is embedded in a nested scroller
+            anywhere here. Mirrors `feeds/[id].tsx`. */ LEmbed(
+      activeTab === 'posts' ? (
         memberCount === 0 ? (
-          <ScreenScrollView
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.colors.primary}
-              />
-            }
-          >
-            {renderSubheader()}
-            {toElement(
-              LTabs(
-                [activeTab, setActiveTab],
-                TABS.map((tab: { id: string; label: string; count?: number }) =>
-                  TabItem(tab.id, tab.label).count(tab.count),
+          LtoElement(
+            LScrollView(
+              LEmbed(renderSubheader()),
+              LEmbed(
+                toElement(
+                  LTabs(
+                    [activeTab, setActiveTab],
+                    TABS.map((tab: { id: string; label: string; count?: number }) =>
+                      TabItem(tab.id, tab.label).count(tab.count),
+                    ),
+                  ).style('underline'),
                 ),
-              ).style('underline'),
-            )}
-            <EmptyState
-              title={t('lists.emptyPosts', { defaultValue: 'No posts yet' })}
-              subtitle={t('lists.emptyPostsSubtext', {
-                defaultValue: 'Add people to this list to see their posts here',
-              })}
-              sticker="listPosts"
-              containerStyle={{ minHeight: 200 }}
-            />
-          </ScreenScrollView>
+              ),
+              LEmbed(
+                <EmptyState
+                  title={t('lists.emptyPosts', { defaultValue: 'No posts yet' })}
+                  subtitle={t('lists.emptyPostsSubtext', {
+                    defaultValue: 'Add people to this list to see their posts here',
+                  })}
+                  sticker="listPosts"
+                  containerStyle={{ minHeight: 200 }}
+                />,
+              ),
+            ).refreshable({ refreshing: refreshing, onRefresh: onRefresh }, { ios: 'primary' }),
+          )
         ) : (
           <Feed
             type="mixed"
@@ -486,10 +475,19 @@ function ListDetailScreen() {
             ),
           )}
         />
-      )}
-    </Screen>
+      ),
+    ),
+  ).header(
+    LEmbed(
+      toElement(
+        Header(list.title || t('lists.detail.title'))
+          .backLabel(t('common.back', { defaultValue: 'Back' }))
+          .toolbar(Embed(headerActions))
+          .inPage(),
+      ),
+    ),
   );
-}
+});
 
 /** Member profiles stay fresh for 5 minutes — membership changes invalidate the list itself. */
 const MEMBERS_STALE_TIME_MS = 5 * 60_000;
@@ -535,91 +533,87 @@ function ListMembers({
   const resolvingMembers = isPending && memberIds.length > 0;
   const skeletonRowCount = Math.min(memberIds.length, MAX_MEMBER_SKELETON_ROWS);
 
-  return (
-    <ScreenScrollView
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.colors.primary}
-        />
-      }
-    >
-      {header}
-      {isOwnList &&
-        toElement(
-          HStack(
-            VStack(Icon(RiUserAddFill).size('md').foreground(appColors.color.hexfff))
-              .frame({ width: '4xl', height: '4xl' })
-              .background('primary')
-              .corner('infinite')
+  return LtoElement(
+    LScrollView(
+      LEmbed(header),
+      LEmbed(
+        isOwnList &&
+          toElement(
+            HStack(
+              VStack(Icon(RiUserAddFill).size('md').foreground(appColors.color.hexfff))
+                .frame({ width: '4xl', height: '4xl' })
+                .background('primary')
+                .corner('infinite')
+                .align('center')
+                .justify('center'),
+              RawText(t('lists.addPeople', { defaultValue: 'Add people' }))
+                .foreground('primary')
+                .font('md')
+                .weight('semibold'),
+            )
               .align('center')
-              .justify('center'),
-            RawText(t('lists.addPeople', { defaultValue: 'Add people' }))
-              .foreground('primary')
-              .font('md')
-              .weight('semibold'),
-          )
-            .align('center')
-            .spacing('md')
-            .padding('horizontal', 'lg')
-            .padding('vertical', 'md')
-            .border('border', 'thin', 'bottom')
-            .onPress(() => router.push(`/lists/${listId}/edit`))
-            .pressFade('70'),
-        )}
-      {memberIds.length === 0 ? (
-        <EmptyState
-          title={t('lists.emptyMembers', { defaultValue: 'No members yet' })}
-          subtitle={
-            isOwnList
-              ? t('lists.emptyMembersSubtext', {
-                  defaultValue: 'Add people to curate this list',
-                })
-              : undefined
-          }
-          sticker="listMembers"
-          containerStyle={{ minHeight: 200 }}
-        />
-      ) : (
-        toElement(
-          VStack(
-            RawText(memberIds.length, ' ', memberIds.length === 1 ? 'member' : 'members')
+              .spacing('md')
               .padding('horizontal', 'lg')
-              .foreground('muted')
-              .font('14')
-              .leading('20px')
-              .margin('bottom', 'sm'),
-            Embed(
-              resolvingMembers && (
-                <ProfileCardSkeletonList count={skeletonRowCount} showFollowButton />
+              .padding('vertical', 'md')
+              .border('border', 'thin', 'bottom')
+              .onPress(() => router.push(`/lists/${listId}/edit`))
+              .pressFade('70'),
+          ),
+      ),
+      LEmbed(
+        memberIds.length === 0 ? (
+          <EmptyState
+            title={t('lists.emptyMembers', { defaultValue: 'No members yet' })}
+            subtitle={
+              isOwnList
+                ? t('lists.emptyMembersSubtext', {
+                    defaultValue: 'Add people to curate this list',
+                  })
+                : undefined
+            }
+            sticker="listMembers"
+            containerStyle={{ minHeight: 200 }}
+          />
+        ) : (
+          toElement(
+            VStack(
+              RawText(memberIds.length, ' ', memberIds.length === 1 ? 'member' : 'members')
+                .padding('horizontal', 'lg')
+                .foreground('muted')
+                .font('14')
+                .leading('20px')
+                .margin('bottom', 'sm'),
+              Embed(
+                resolvingMembers && (
+                  <ProfileCardSkeletonList count={skeletonRowCount} showFollowButton />
+                ),
               ),
-            ),
-            Embed(
-              members.map((member) => (
-                <ProfileCard
-                  key={member.id}
-                  profile={{
-                    id: member.id,
-                    username: member.username,
-                    name: member.name,
-                    avatar: member.avatar,
-                    color: member.color,
-                    // `verified` reaches the SDK `User` through its index signature
-                    // (typed `unknown`), so it is narrowed rather than cast.
-                    verified: typeof member.verified === 'boolean' ? member.verified : undefined,
-                    isFederated: member.isFederated,
-                    kind: member.kind,
-                    instance: member.instance,
-                  }}
-                  showFollowButton
-                />
-              )),
-            ),
-          ).padding('top', 'sm'),
-        )
-      )}
-    </ScreenScrollView>
+              Embed(
+                members.map((member) => (
+                  <ProfileCard
+                    key={member.id}
+                    profile={{
+                      id: member.id,
+                      username: member.username,
+                      name: member.name,
+                      avatar: member.avatar,
+                      color: member.color,
+                      // `verified` reaches the SDK `User` through its index signature
+                      // (typed `unknown`), so it is narrowed rather than cast.
+                      verified: typeof member.verified === 'boolean' ? member.verified : undefined,
+                      isFederated: member.isFederated,
+                      kind: member.kind,
+                      instance: member.instance,
+                    }}
+                    showFollowButton
+                  />
+                )),
+              ),
+            ).padding('top', 'sm'),
+          )
+        ),
+      ),
+    ).refreshable({ refreshing: refreshing, onRefresh: onRefresh }, { ios: 'primary' }),
   );
 }
 

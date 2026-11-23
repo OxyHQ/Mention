@@ -2,7 +2,6 @@ import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card } from '@oxy.so/bloom/card';
 import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -26,6 +25,7 @@ import {
   Embed as LEmbed,
   VStack as LVStack,
   toElement as LtoElement,
+  Card as LCard,
 } from '@oxy.so/bloom-language';
 
 export interface StarterPackCardData {
@@ -144,101 +144,109 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
   return toElement(
     VStack(
       /* The press owns the scale; Bloom's `Card` owns the surface. */ Embed(
-        <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
-          {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
-          {hasAvatars ? (
-            <AccountAvatarGroup
-              items={avatarItems}
-              size={32}
-              variant={MEDIA_VARIANT_AVATAR}
-              max={MAX_ROW_AVATARS}
-              total={pack.totalMembers ?? pack.memberCount}
-              ringColor={theme.colors.card}
-            />
-          ) : (
-            <IconCircle icon={RiRocket2Line} style={styles.iconBubble} />
-          )}
-
-          {/* Name and byline */}
-          {toElement(
-            HStack(
-              VStack(
-                Embed(
-                  <Text variant="headline-semibold" style={styles.title} numberOfLines={2}>
-                    {pack.name}
-                  </Text>,
+        LtoElement(
+          LCard(
+            /* Compact group-avatar cluster, or the pack mark when no avatars exist */ LEmbed(
+              hasAvatars ? (
+                <AccountAvatarGroup
+                  items={avatarItems}
+                  size={32}
+                  variant={MEDIA_VARIANT_AVATAR}
+                  max={MAX_ROW_AVATARS}
+                  total={pack.totalMembers ?? pack.memberCount}
+                  ringColor={theme.colors.card}
+                />
+              ) : (
+                <IconCircle icon={RiRocket2Line} style={styles.iconBubble} />
+              ),
+            ),
+            /* Name and byline */ LEmbed(
+              toElement(
+                HStack(
+                  VStack(
+                    Embed(
+                      <Text variant="headline-semibold" style={styles.title} numberOfLines={2}>
+                        {pack.name}
+                      </Text>,
+                    ),
+                    Embed(
+                      pack.creator && (
+                        // No preview of yourself — the byline reads "by you" and is not
+                        // even a link in that case.
+                        <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
+                          {LtoElement(
+                            LVStack(
+                              LEmbed(
+                                toElement(
+                                  LText(
+                                    isOwner
+                                      ? 'Starter pack by you'
+                                      : `Starter pack by @${pack.creator.username}`,
+                                  )
+                                    .font('body')
+                                    .leading('18px')
+                                    .foreground('muted')
+                                    .lines(1),
+                                ),
+                              ),
+                            )
+                              .onPress(handleCreatorPress)
+                              .disabled(isOwner)
+                              .hitSlop('vertical', '4')
+                              .hitSlop('horizontal', 'none')
+                              .pressFade('60'),
+                          )}
+                        </ProfileHoverCard>
+                      ),
+                    ),
+                  )
+                    .spacing('2xs')
+                    .grow(),
+                )
+                  .align('start')
+                  .spacing('md'),
+              ),
+            ),
+            /* Description */ LEmbed(
+              !noDescription && pack.description
+                ? toElement(LText(pack.description).font('body').lines(3))
+                : null,
+            ),
+            /* Stats */ LEmbed(
+              toElement(
+                LText(
+                  pack.memberCount,
+                  ' ',
+                  pack.memberCount === 1 ? 'account' : 'accounts',
+                  pack.useCount > 0
+                    ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
+                    : '',
+                )
+                  .font('body-2')
+                  .weight('medium')
+                  .leading('24px')
+                  .foreground('muted'),
+              ),
+            ),
+            /* Joined count — only shown when >= 50, matching Bluesky */ LEmbed(
+              pack.useCount >= 50 &&
+                toElement(
+                  LText(formatCompactNumber(pack.useCount), ' users have joined!')
+                    .font('body-2')
+                    .weight('semibold')
+                    .leading('24px')
+                    .foreground('muted'),
                 ),
-                Embed(
-                  pack.creator && (
-                    // No preview of yourself — the byline reads "by you" and is not
-                    // even a link in that case.
-                    <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
-                      {LtoElement(
-                        LVStack(
-                          LEmbed(
-                            toElement(
-                              LText(
-                                isOwner
-                                  ? 'Starter pack by you'
-                                  : `Starter pack by @${pack.creator.username}`,
-                              )
-                                .font('body')
-                                .leading('18px')
-                                .foreground('muted')
-                                .lines(1),
-                            ),
-                          ),
-                        )
-                          .onPress(handleCreatorPress)
-                          .disabled(isOwner)
-                          .hitSlop('vertical', '4')
-                          .hitSlop('horizontal', 'none')
-                          .pressFade('60'),
-                      )}
-                    </ProfileHoverCard>
-                  ),
-                ),
-              )
-                .spacing('2xs')
-                .grow(),
-            )
-              .align('start')
-              .spacing('md'),
-          )}
-
-          {/* Description */}
-          {!noDescription && pack.description
-            ? toElement(LText(pack.description).font('body').lines(3))
-            : null}
-
-          {/* Stats */}
-          {toElement(
-            LText(
-              pack.memberCount,
-              ' ',
-              pack.memberCount === 1 ? 'account' : 'accounts',
-              pack.useCount > 0
-                ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
-                : '',
-            )
-              .font('body-2')
-              .weight('medium')
-              .leading('24px')
-              .foreground('muted'),
-          )}
-
-          {/* Joined count — only shown when >= 50, matching Bluesky */}
-          {pack.useCount >= 50 &&
-            toElement(
-              LText(formatCompactNumber(pack.useCount), ' users have joined!')
-                .font('body-2')
-                .weight('semibold')
-                .leading('24px')
-                .foreground('muted'),
-            )}
-
-          {footer}
-        </Card>,
+            ),
+            LEmbed(footer),
+          )
+            .outline('hairline')
+            .radius('md')
+            .style('outline')
+            .padding('all', 'lg')
+            .frame({ width: 'full' })
+            .spacing('10'),
+        ),
       ),
     )
       .frame({ width: 'full' })
@@ -255,34 +263,43 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
  */
 export function StarterPackCardSkeleton() {
   const colors = useColorTokens();
-  return (
-    <Card border="hairline" radius="radius-12" style={styles.outer} appearance="outline">
-      {/* Skeleton avatar row */}
-      {toElement(
-        HStack(
-          Embed(
-            Array.from({ length: 6 }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.skeletonCircle,
-                  { backgroundColor: colors.input, marginLeft: i > 0 ? -8 : 0, zIndex: 6 - i },
-                ]}
-              />
-            )),
-          ),
-        )
-          .padding('vertical', 'xs')
-          .align('center'),
-      )}
-      <Skeleton.Row style={{ gap: 12 }}>
-        <Skeleton.Col style={{ gap: 6 }}>
-          <Skeleton.Text style={{ width: 160, fontSize: 16 }} />
-          <Skeleton.Text style={{ width: 120, fontSize: 14 }} />
-        </Skeleton.Col>
-      </Skeleton.Row>
-      <Skeleton.Text style={{ width: '70%' as unknown as number, fontSize: 14 }} />
-    </Card>
+  return LtoElement(
+    LCard(
+      /* Skeleton avatar row */ LEmbed(
+        toElement(
+          HStack(
+            Embed(
+              Array.from({ length: 6 }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.skeletonCircle,
+                    { backgroundColor: colors.input, marginLeft: i > 0 ? -8 : 0, zIndex: 6 - i },
+                  ]}
+                />
+              )),
+            ),
+          )
+            .padding('vertical', 'xs')
+            .align('center'),
+        ),
+      ),
+      LEmbed(
+        <Skeleton.Row style={{ gap: 12 }}>
+          <Skeleton.Col style={{ gap: 6 }}>
+            <Skeleton.Text style={{ width: 160, fontSize: 16 }} />
+            <Skeleton.Text style={{ width: 120, fontSize: 14 }} />
+          </Skeleton.Col>
+        </Skeleton.Row>,
+      ),
+      LEmbed(<Skeleton.Text style={{ width: '70%' as unknown as number, fontSize: 14 }} />),
+    )
+      .outline('hairline')
+      .radius('md')
+      .style('outline')
+      .padding('all', 'lg')
+      .frame({ width: 'full' })
+      .spacing('10'),
   );
 }
 

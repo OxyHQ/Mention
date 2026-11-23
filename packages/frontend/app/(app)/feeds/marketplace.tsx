@@ -18,7 +18,6 @@ import {
 } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
-import { Screen } from '@oxy.so/bloom/screen';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -45,7 +44,10 @@ import {
   VStack,
   VirtualList,
   toElement,
+  Embed as LEmbed,
 } from '@oxy.so/bloom-language';
+
+import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 
 const PAGE_LIMIT = 20;
 
@@ -158,7 +160,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
   );
 });
 
-function FeedMarketplaceScreen() {
+const FeedMarketplaceScreen = Lscreen(function FeedMarketplaceScreen() {
   const theme = useTheme();
   const colors = useColorTokens();
   const { t } = useTranslation();
@@ -455,9 +457,52 @@ function FeedMarketplaceScreen() {
     [loadingMore],
   );
 
-  return (
-    <Screen
-      header={toElement(
+  return LEmbed(
+    loading && feeds.length === 0
+      ? toElement(
+          LScrollView(
+            Embed(Array.from({ length: 4 }).map((_, i) => <FeedCardSkeleton key={i} />)),
+          ).contentView((v) => v.padding('horizontal', 'lg').padding('top', 'lg').spacing('md')),
+        )
+      : IS_WEB
+        ? toElement(
+            LScrollView(
+              Embed(ListHeader),
+              Embed(
+                feeds.length === 0
+                  ? ListEmpty
+                  : feeds.map((item) => (
+                      <MarketplaceFeedCard
+                        key={keyExtractor(item)}
+                        item={item}
+                        onSubscribeToggle={handleSubscribeToggle}
+                        subscribingId={subscribingId}
+                      />
+                    )),
+              ),
+              Embed(ListFooter),
+            )
+              .contentView((v) => v.padding('bottom', '3xl'))
+              .onEndReached(handleLoadMore)
+              .keyboardTaps('handled'),
+          )
+        : toElement(
+            VirtualList(feeds, renderItem)
+              .screen()
+              .itemKey(keyExtractor)
+              .headerContent(Embed(ListHeader))
+              .emptyState(Embed(ListEmpty))
+              .footerContent(Embed(ListFooter))
+              .contentMargins('bottom', '3xl')
+              .onEndReached(handleLoadMore, 0.4)
+              .refreshable({ refreshing, onRefresh: handleRefresh })
+              .scrollbar('never')
+              .keyboardTaps('handled')
+              .scrollDismissesKeyboard('immediately'),
+          ),
+  ).header(
+    LEmbed(
+      toElement(
         Header(t('marketplace.title', { defaultValue: 'Feed Marketplace' }))
           .backLabel(t('common.back', { defaultValue: 'Back' }))
           .toolbar(
@@ -480,53 +525,10 @@ function FeedMarketplaceScreen() {
             ),
           )
           .inPage(),
-      )}
-    >
-      {loading && feeds.length === 0
-        ? toElement(
-            LScrollView(
-              Embed(Array.from({ length: 4 }).map((_, i) => <FeedCardSkeleton key={i} />)),
-            ).contentView((v) => v.padding('horizontal', 'lg').padding('top', 'lg').spacing('md')),
-          )
-        : IS_WEB
-          ? toElement(
-              LScrollView(
-                Embed(ListHeader),
-                Embed(
-                  feeds.length === 0
-                    ? ListEmpty
-                    : feeds.map((item) => (
-                        <MarketplaceFeedCard
-                          key={keyExtractor(item)}
-                          item={item}
-                          onSubscribeToggle={handleSubscribeToggle}
-                          subscribingId={subscribingId}
-                        />
-                      )),
-                ),
-                Embed(ListFooter),
-              )
-                .contentView((v) => v.padding('bottom', '3xl'))
-                .onEndReached(handleLoadMore)
-                .keyboardTaps('handled'),
-            )
-          : toElement(
-              VirtualList(feeds, renderItem)
-                .screen()
-                .itemKey(keyExtractor)
-                .headerContent(Embed(ListHeader))
-                .emptyState(Embed(ListEmpty))
-                .footerContent(Embed(ListFooter))
-                .contentMargins('bottom', '3xl')
-                .onEndReached(handleLoadMore, 0.4)
-                .refreshable({ refreshing, onRefresh: handleRefresh })
-                .scrollbar('never')
-                .keyboardTaps('handled')
-                .scrollDismissesKeyboard('immediately'),
-            )}
-    </Screen>
+      ),
+    ),
   );
-}
+});
 
 // The category pills' scroller stays React Native (a horizontal ScrollView); this draws
 // what its class drew.

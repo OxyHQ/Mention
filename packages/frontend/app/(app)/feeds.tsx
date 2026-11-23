@@ -2,8 +2,8 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, RefreshControl } from 'react-native';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { StyleSheet } from 'react-native';
+import { Screen } from '@oxy.so/bloom/screen';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
@@ -49,6 +49,9 @@ import {
   defineTokens,
   toElement,
   type Child,
+  Embed as LEmbed,
+  ScrollView,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
@@ -594,18 +597,11 @@ const FeedsScreen: React.FC = () => {
           ) : undefined
         }
       >
-        <ScreenScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.colors.primary}
-            />
-          }
-          contentContainerStyle={styles.scrollContent}
-        >
-          {content}
-        </ScreenScrollView>
+        {LtoElement(
+          ScrollView(LEmbed(content))
+            .refreshable({ refreshing: refreshing, onRefresh: onRefresh }, { ios: 'primary' })
+            .contentMargins('horizontal', 'lg'),
+        )}
       </Screen>
     </>
   );

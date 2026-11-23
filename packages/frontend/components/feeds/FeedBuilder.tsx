@@ -10,7 +10,6 @@ import {
   useState,
 } from 'react';
 import { StyleSheet } from 'react-native';
-import { Screen } from '@oxy.so/bloom/screen';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
@@ -64,7 +63,10 @@ import {
   TextEditor,
   TextField,
   toElement as LtoElement,
+  Embed as LEmbed,
 } from '@oxy.so/bloom-language';
+
+import { screen } from '@oxy.so/bloom-language/router';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 type ModuleState = { enabled: boolean; params: Record<string, unknown> };
@@ -784,7 +786,7 @@ const CategorizedModules = ({
  * via POST/PUT /feeds; once saved, previews the result through the engine
  * timeline (`/feeds/:id/timeline`) in an embedded, non-scroll-owning feed.
  */
-export function FeedBuilder({
+export const FeedBuilder = screen(function FeedBuilder({
   feedId,
   initialFeed,
 }: {
@@ -995,9 +997,178 @@ export function FeedBuilder({
 
   const canSave = title.trim().length > 0 && Boolean(catalog);
 
-  return (
-    <Screen
-      header={toElement(
+  return LEmbed(
+    <SignInRequired
+      label={t('feeds.builder.signInRequired', { defaultValue: 'Sign in to build a feed' })}
+      description={t('feeds.builder.signInRequiredDesc', {
+        defaultValue: 'Custom feeds are saved to your account, so you can pin and share them.',
+      })}
+    >
+      {catalogLoading || !catalog ? (
+        <FormSkeleton />
+      ) : (
+        <ChipDraftContext.Provider value={chipDraftStore}>
+          {toElement(
+            ScrollView(
+              /* Details */ VStack(
+                LField(
+                  t('feeds.builder.titleLabel'),
+                  Embed(
+                    LtoElement(
+                      TextField([title, setTitle], t('feeds.builder.titleLabel'))
+                        .placeholder(t('feeds.builder.titlePlaceholder'))
+                        .maxLength(100),
+                    ),
+                  ),
+                ),
+                LDivider().spacing('md'),
+                LField(
+                  t('feeds.builder.descriptionLabel'),
+                  Embed(
+                    LtoElement(
+                      TextEditor([description, setDescription])
+                        .placeholder(t('feeds.builder.descriptionPlaceholder'))
+                        .maxLength(500)
+                        .autoResize(6)
+                        .rows(2),
+                    ),
+                  ),
+                ),
+              )
+                .padding('all', 'lg')
+                .background('mutedFill')
+                .corner('lg'),
+              /* Visibility */ LGroupedSection(
+                LGroupedSectionItem(t('feeds.builder.public'))
+                  .chevron(false)
+                  .trailing(
+                    Toggle([isPublic, handlePublicChange]).label(t('feeds.builder.public')),
+                  ),
+              )
+                .title(t('feeds.builder.visibility'))
+                .caption(t('feeds.builder.publicDescription')),
+              /* Mode */ LGroupedSection(
+                LGroupedSectionItem(t('feeds.builder.ranked'))
+                  .onPress(() => setMode('ranked'))
+                  .chevron(false)
+                  .trailing(Embed(<ModeCheck active={mode === 'ranked'} />)),
+                LGroupedSectionItem(t('feeds.builder.chronological'))
+                  .onPress(() => setMode('chronological'))
+                  .chevron(false)
+                  .trailing(Embed(<ModeCheck active={mode === 'chronological'} />)),
+              )
+                .title(t('feeds.builder.mode'))
+                .caption(t('feeds.builder.modeDescription')),
+              /* Sources */ RawText(t('feeds.builder.sources'))
+                .font('md')
+                .weight('bold')
+                .foreground('foreground')
+                .margin('top', 'lg')
+                .margin('bottom', 'xs'),
+              RawText(t('feeds.builder.sourcesDescription'))
+                .font('sm')
+                .foreground('muted')
+                .margin('bottom', 'sm'),
+              Embed(
+                <CategorizedModules
+                  kind="sources"
+                  entries={catalog.sources}
+                  states={sourceStates}
+                  onToggle={toggleSource}
+                  onParam={paramSource}
+                  renderAccountsSlot={(entry) =>
+                    entry.id === 'accounts' ? (
+                      <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
+                    ) : undefined
+                  }
+                />,
+              ),
+              /* Filters */ RawText(t('feeds.builder.filters'))
+                .font('md')
+                .weight('bold')
+                .foreground('foreground')
+                .margin('top', 'lg')
+                .margin('bottom', 'xs'),
+              RawText(t('feeds.builder.filtersDescription'))
+                .font('sm')
+                .foreground('muted')
+                .margin('bottom', 'sm'),
+              Embed(
+                <CategorizedModules
+                  kind="filters"
+                  entries={catalog.filters}
+                  states={filterStates}
+                  onToggle={toggleFilter}
+                  onParam={paramFilter}
+                />,
+              ),
+              /* Ranking signals (ranked mode only) */ Embed(
+                mode === 'ranked' && catalog.signals.length > 0 ? (
+                  <>
+                    {toElement(
+                      RawText(t('feeds.builder.signals'))
+                        .font('md')
+                        .weight('bold')
+                        .foreground('foreground')
+                        .margin('top', 'lg')
+                        .margin('bottom', 'xs'),
+                    )}
+                    {toElement(
+                      RawText(t('feeds.builder.signalsDescription'))
+                        .font('sm')
+                        .foreground('muted')
+                        .margin('bottom', 'sm'),
+                    )}
+                    <CategorizedModules
+                      kind="signals"
+                      entries={catalog.signals}
+                      states={signalStates}
+                      onToggle={toggleSignal}
+                      onParam={paramSignal}
+                    />
+                  </>
+                ) : null,
+              ),
+              /* Live preview (available once the feed is saved) */ RawText(
+                t('feeds.builder.preview'),
+              )
+                .font('md')
+                .weight('bold')
+                .foreground('foreground')
+                .margin('top', 'lg')
+                .margin('bottom', 'sm'),
+              savedFeedId
+                ? VStack(
+                    /* Non-scrolling inside the builder's scroller, so it is not
+                              virtualized: bounded to a preview's worth of rows and never
+                              pages (#1103). The full feed is one tap away once saved. */ Embed(
+                      <Feed
+                        type="custom"
+                        filters={{ customFeedId: savedFeedId }}
+                        scrollEnabled={false}
+                        previewLimit={FEED_PREVIEW_ROWS}
+                        reloadKey={previewKey}
+                        hideHeader
+                      />,
+                    ),
+                  )
+                    .border('border', 'thin')
+                    .corner('lg')
+                    .clipped()
+                : RawText(t('feeds.builder.saveToPreview')).font('sm').foreground('muted'),
+              VStack().frame({ height: '4xl' }),
+            )
+              .contentMargins('lg')
+              .spacing('sm')
+              .scrollIndicators('hidden', 'vertical')
+              .keyboardTaps('handled'),
+          )}
+        </ChipDraftContext.Provider>
+      )}
+    </SignInRequired>,
+  ).header(
+    LEmbed(
+      toElement(
         Header(feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle'))
           .backLabel(t('common.back', { defaultValue: 'Back' }))
           .toolbar(
@@ -1018,179 +1189,10 @@ export function FeedBuilder({
             ),
           )
           .inPage(),
-      )}
-    >
-      <SignInRequired
-        label={t('feeds.builder.signInRequired', { defaultValue: 'Sign in to build a feed' })}
-        description={t('feeds.builder.signInRequiredDesc', {
-          defaultValue: 'Custom feeds are saved to your account, so you can pin and share them.',
-        })}
-      >
-        {catalogLoading || !catalog ? (
-          <FormSkeleton />
-        ) : (
-          <ChipDraftContext.Provider value={chipDraftStore}>
-            {toElement(
-              ScrollView(
-                /* Details */ VStack(
-                  LField(
-                    t('feeds.builder.titleLabel'),
-                    Embed(
-                      LtoElement(
-                        TextField([title, setTitle], t('feeds.builder.titleLabel'))
-                          .placeholder(t('feeds.builder.titlePlaceholder'))
-                          .maxLength(100),
-                      ),
-                    ),
-                  ),
-                  LDivider().spacing('md'),
-                  LField(
-                    t('feeds.builder.descriptionLabel'),
-                    Embed(
-                      LtoElement(
-                        TextEditor([description, setDescription])
-                          .placeholder(t('feeds.builder.descriptionPlaceholder'))
-                          .maxLength(500)
-                          .autoResize(6)
-                          .rows(2),
-                      ),
-                    ),
-                  ),
-                )
-                  .padding('all', 'lg')
-                  .background('mutedFill')
-                  .corner('lg'),
-                /* Visibility */ LGroupedSection(
-                  LGroupedSectionItem(t('feeds.builder.public'))
-                    .chevron(false)
-                    .trailing(
-                      Toggle([isPublic, handlePublicChange]).label(t('feeds.builder.public')),
-                    ),
-                )
-                  .title(t('feeds.builder.visibility'))
-                  .caption(t('feeds.builder.publicDescription')),
-                /* Mode */ LGroupedSection(
-                  LGroupedSectionItem(t('feeds.builder.ranked'))
-                    .onPress(() => setMode('ranked'))
-                    .chevron(false)
-                    .trailing(Embed(<ModeCheck active={mode === 'ranked'} />)),
-                  LGroupedSectionItem(t('feeds.builder.chronological'))
-                    .onPress(() => setMode('chronological'))
-                    .chevron(false)
-                    .trailing(Embed(<ModeCheck active={mode === 'chronological'} />)),
-                )
-                  .title(t('feeds.builder.mode'))
-                  .caption(t('feeds.builder.modeDescription')),
-                /* Sources */ RawText(t('feeds.builder.sources'))
-                  .font('md')
-                  .weight('bold')
-                  .foreground('foreground')
-                  .margin('top', 'lg')
-                  .margin('bottom', 'xs'),
-                RawText(t('feeds.builder.sourcesDescription'))
-                  .font('sm')
-                  .foreground('muted')
-                  .margin('bottom', 'sm'),
-                Embed(
-                  <CategorizedModules
-                    kind="sources"
-                    entries={catalog.sources}
-                    states={sourceStates}
-                    onToggle={toggleSource}
-                    onParam={paramSource}
-                    renderAccountsSlot={(entry) =>
-                      entry.id === 'accounts' ? (
-                        <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
-                      ) : undefined
-                    }
-                  />,
-                ),
-                /* Filters */ RawText(t('feeds.builder.filters'))
-                  .font('md')
-                  .weight('bold')
-                  .foreground('foreground')
-                  .margin('top', 'lg')
-                  .margin('bottom', 'xs'),
-                RawText(t('feeds.builder.filtersDescription'))
-                  .font('sm')
-                  .foreground('muted')
-                  .margin('bottom', 'sm'),
-                Embed(
-                  <CategorizedModules
-                    kind="filters"
-                    entries={catalog.filters}
-                    states={filterStates}
-                    onToggle={toggleFilter}
-                    onParam={paramFilter}
-                  />,
-                ),
-                /* Ranking signals (ranked mode only) */ Embed(
-                  mode === 'ranked' && catalog.signals.length > 0 ? (
-                    <>
-                      {toElement(
-                        RawText(t('feeds.builder.signals'))
-                          .font('md')
-                          .weight('bold')
-                          .foreground('foreground')
-                          .margin('top', 'lg')
-                          .margin('bottom', 'xs'),
-                      )}
-                      {toElement(
-                        RawText(t('feeds.builder.signalsDescription'))
-                          .font('sm')
-                          .foreground('muted')
-                          .margin('bottom', 'sm'),
-                      )}
-                      <CategorizedModules
-                        kind="signals"
-                        entries={catalog.signals}
-                        states={signalStates}
-                        onToggle={toggleSignal}
-                        onParam={paramSignal}
-                      />
-                    </>
-                  ) : null,
-                ),
-                /* Live preview (available once the feed is saved) */ RawText(
-                  t('feeds.builder.preview'),
-                )
-                  .font('md')
-                  .weight('bold')
-                  .foreground('foreground')
-                  .margin('top', 'lg')
-                  .margin('bottom', 'sm'),
-                savedFeedId
-                  ? VStack(
-                      /* Non-scrolling inside the builder's scroller, so it is not
-                                  virtualized: bounded to a preview's worth of rows and never
-                                  pages (#1103). The full feed is one tap away once saved. */ Embed(
-                        <Feed
-                          type="custom"
-                          filters={{ customFeedId: savedFeedId }}
-                          scrollEnabled={false}
-                          previewLimit={FEED_PREVIEW_ROWS}
-                          reloadKey={previewKey}
-                          hideHeader
-                        />,
-                      ),
-                    )
-                      .border('border', 'thin')
-                      .corner('lg')
-                      .clipped()
-                  : RawText(t('feeds.builder.saveToPreview')).font('sm').foreground('muted'),
-                VStack().frame({ height: '4xl' }),
-              )
-                .contentMargins('lg')
-                .spacing('sm')
-                .scrollIndicators('hidden', 'vertical')
-                .keyboardTaps('handled'),
-            )}
-          </ChipDraftContext.Provider>
-        )}
-      </SignInRequired>
-    </Screen>
+      ),
+    ),
   );
-}
+});
 
 const ModeCheck = ({ active }: { active: boolean }) => {
   const theme = useTheme();
