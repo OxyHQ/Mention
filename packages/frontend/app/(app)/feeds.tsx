@@ -20,20 +20,18 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
 
-import { Fab } from '@oxy.so/bloom/fab';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-
 import { SEO } from '@/components/SEO';
+
 import { requestSettings } from '@/components/settings/settingsRoutes';
 import type { BloomIcon } from '@/components/settings/RowIcon';
-
 import { customFeedsService } from '@/services/customFeedsService';
+
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
-
 import {
   Avatar as LAvatar,
   Button as LButton,
@@ -50,7 +48,10 @@ import {
   Embed as LEmbed,
   ScrollView,
   Group,
+  FAB,
+  identity,
 } from '@oxy.so/bloom-language';
+
 import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
@@ -591,12 +592,13 @@ const FeedsScreen = screen(function FeedsScreen() {
   // The page's own action; the shell's compose FAB steps aside for it.
   return page.floatingAction(
     LEmbed(
-      <Fab
-        size="md"
-        onPress={() => router.push('/feeds/new')}
-        icon={RiAddLine}
-        accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
-      />,
+      toElement(
+        FAB(Icon(RiAddLine))
+          .size('md')
+          .onPress(() => router.push('/feeds/new'))
+          .label(t('feeds.create.title', { defaultValue: 'Create feed' }))
+          .glass(identity),
+      ),
     ),
   );
 });
