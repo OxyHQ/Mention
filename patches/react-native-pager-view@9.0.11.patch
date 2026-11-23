@@ -1,0 +1,33 @@
+diff --git a/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt b/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt
+index 583e9b8..1ea750e 100644
+--- a/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt
++++ b/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt
+@@ -631,7 +631,7 @@ class ComposePagerView(context: Context) : FrameLayout(context) {
+     AndroidView(
+       modifier = Modifier.fillMaxSize(),
+       factory = { context ->
+-        FrameLayout(context).apply {
++        PageContainer(context).apply {
+           layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+           isSaveEnabled = false
+           attachChild(this, child)
+@@ -647,6 +647,19 @@ class ComposePagerView(context: Context) : FrameLayout(context) {
+     )
+   }
+ 
++  // A page's host. A focus search from inside a page goes on from the pager, past the
++  // Compose view. Compose attaches a page's host while it measures and lays out, so a view
++  // that takes focus as it attaches (an autoFocus TextInput shows the keyboard, and the IME
++  // connection searches for a next editor) searches during that pass, and Compose 1.7's
++  // AndroidComposeView.focusSearch measures and lays out again: "performMeasureAndLayout
++  // called during measure layout". Compose 1.8 goes on past itself the same way while it
++  // measures. The pages are Android views and the pager has no focus targets of its own.
++  private inner class PageContainer(context: Context) : FrameLayout(context) {
++    override fun focusSearch(focused: View?, direction: Int): View? {
++      return this@ComposePagerView.focusSearch(focused, direction)
++    }
++  }
++
+   private fun attachChild(container: FrameLayout, child: View) {
+     if (child.parent !== container) {
+       (child.parent as? ViewGroup)?.removeView(child)

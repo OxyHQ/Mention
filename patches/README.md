@@ -237,3 +237,22 @@ animation's own frame rate (`docs/sticker.mdx`).
 Remove this patch once lottie-android notifies only when the rounded frame changes
 and lottie-react-native exposes the setting as a prop (then set it from Bloom's
 native Sticker player) or makes it the default.
+
+# react-native-pager-view 9.0.11
+
+Pressing the bottom bar's compose FAB crashed Mention on Android (Pixel 8a, release
+build): `IllegalArgumentException: performMeasureAndLayout called during measure
+layout`. The composer is the tab pager's last page, mounted when it is opened, and its
+text field has `autoFocus`. Version 9's pager is a Compose `HorizontalPager`, and
+Compose attaches a page's host while it measures and lays out. The field takes focus
+as it attaches and shows the keyboard; the keyboard's input connection runs a focus
+search for a next editor (`TextView.hasEditorInFocusSearchDirection`), which climbs to
+the pager's `AndroidComposeView`, and Compose 1.7.8's `focusSearch` measures and lays
+out again inside that pass. Compose 1.8 hands the search on to its parent while it
+measures.
+
+The patch hosts each page in a `PageContainer` whose `focusSearch` goes on from the
+pager itself, past the Compose view. The pages are Android views and the pager has no
+focus targets of its own, so the search reaches the same views. 10.0.3 (the latest)
+still builds on Compose 1.7.8 with plain `FrameLayout` page hosts. Remove the patch
+once the pager builds on Compose 1.8 or later, or hosts its pages this way upstream.
