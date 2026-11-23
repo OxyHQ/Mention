@@ -850,191 +850,209 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const rowContent = (
     <>
       <SubtleHover />
-      <View style={rowStyles.inset} pointerEvents={separateGestures ? 'box-none' : undefined}>
-        <View style={rowStyles.columns} pointerEvents={separateGestures ? 'box-none' : undefined}>
-          {/* Avatar column: avatar + themed action-badge overlay. */}
-          {separateGestures ? (
-            <Pressable
-              style={rowStyles.avatarColumn}
-              onPress={handlePress}
-              onLongPress={handleLongPress}
-              accessible={false}
-              tabIndex={-1}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            >
-              {avatarContent}
-            </Pressable>
-          ) : (
-            toElement(VStack(Embed(avatarContent)).margin('right', 'md'))
-          )}
-
-          {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
-              plus the muted action phrase and the text preview. */}
-          <View style={rowStyles.content} pointerEvents={separateGestures ? 'box-none' : undefined}>
-            {separateGestures ? (
-              <Pressable
-                style={rowStyles.mainContent}
-                onPress={handlePress}
-                onLongPress={handleLongPress}
-                accessible={false}
-                tabIndex={-1}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                {mainContent}
-              </Pressable>
-            ) : (
-              mainContent
-            )}
-
-            {isGroup && item.expandable
-              ? toElement(
-                  VStack(
-                    expanded
-                      ? VStack(
-                          Embed(
-                            resolvedActors.map((actor, index) => (
-                              <ProfileHoverCard
-                                key={actor.id ?? `slot-${index}`}
-                                username={actor.handle}
-                              >
-                                {toElement(
-                                  HStack(
-                                    Embed(
-                                      <AccountAvatar
-                                        account={actor}
-                                        source={actor.avatar}
-                                        size={STACK_AVATAR_SIZE}
-                                        variant={MEDIA_VARIANT_AVATAR}
-                                      />,
-                                    ),
-                                    Embed(<UserName name={actorLabel(actor, someone)} size="sm" />),
-                                  )
-                                    .align('center')
-                                    .spacing('sm')
-                                    .onPress((event) => {
-                                      event.stopPropagation();
-                                      openActorProfile(actor);
-                                    })
-                                    .role('button'),
-                                )}
-                              </ProfileHoverCard>
-                            )),
-                          ),
-                        ).spacing('sm')
-                      : null,
-                    VStack(
-                      RawText(
+      {LtoElement(
+        LVStack(
+          HStack(
+            /* Avatar column: avatar + themed action-badge overlay. */ Embed(
+              separateGestures ? (
+                <Pressable
+                  style={rowStyles.avatarColumn}
+                  onPress={handlePress}
+                  onLongPress={handleLongPress}
+                  accessible={false}
+                  tabIndex={-1}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  {avatarContent}
+                </Pressable>
+              ) : (
+                toElement(VStack(Embed(avatarContent)).margin('right', 'md'))
+              ),
+            ),
+            /* Content column — mirrors PostHeader's flex-1 name/handle/time byline
+                    plus the muted action phrase and the text preview. */ LVStack(
+              Embed(
+                separateGestures ? (
+                  <Pressable
+                    style={rowStyles.mainContent}
+                    onPress={handlePress}
+                    onLongPress={handleLongPress}
+                    accessible={false}
+                    tabIndex={-1}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                  >
+                    {mainContent}
+                  </Pressable>
+                ) : (
+                  mainContent
+                ),
+              ),
+              Embed(
+                isGroup && item.expandable
+                  ? toElement(
+                      VStack(
                         expanded
-                          ? t('notification.group.showLess', { defaultValue: 'Show less' })
-                          : t('notification.group.showAll', { defaultValue: 'Show all' }),
+                          ? VStack(
+                              Embed(
+                                resolvedActors.map((actor, index) => (
+                                  <ProfileHoverCard
+                                    key={actor.id ?? `slot-${index}`}
+                                    username={actor.handle}
+                                  >
+                                    {toElement(
+                                      HStack(
+                                        Embed(
+                                          <AccountAvatar
+                                            account={actor}
+                                            source={actor.avatar}
+                                            size={STACK_AVATAR_SIZE}
+                                            variant={MEDIA_VARIANT_AVATAR}
+                                          />,
+                                        ),
+                                        Embed(
+                                          <UserName name={actorLabel(actor, someone)} size="sm" />,
+                                        ),
+                                      )
+                                        .align('center')
+                                        .spacing('sm')
+                                        .onPress((event) => {
+                                          event.stopPropagation();
+                                          openActorProfile(actor);
+                                        })
+                                        .role('button'),
+                                    )}
+                                  </ProfileHoverCard>
+                                )),
+                              ),
+                            ).spacing('sm')
+                          : null,
+                        VStack(
+                          RawText(
+                            expanded
+                              ? t('notification.group.showLess', { defaultValue: 'Show less' })
+                              : t('notification.group.showAll', { defaultValue: 'Show all' }),
+                          )
+                            .foreground('primary')
+                            .font('14')
+                            .leading('20px')
+                            .weight('semibold'),
+                        )
+                          .onPress((event) => {
+                            event.stopPropagation();
+                            toggleExpanded();
+                          })
+                          .hitSlop('md')
+                          .role('button'),
                       )
-                        .foreground('primary')
-                        .font('14')
-                        .leading('20px')
-                        .weight('semibold'),
+                        .margin('top', 'xs')
+                        .spacing('sm'),
                     )
-                      .onPress((event) => {
-                        event.stopPropagation();
-                        toggleExpanded();
-                      })
-                      .hitSlop('md')
-                      .role('button'),
+                  : null,
+              ),
+              /* Accept/Decline are shown ONLY while the invite is genuinely pending.
+                      Once the viewer has responded, the row shows a resolved label
+                      instead — so a handled invite is never actionable again. */ Embed(
+                isCollabInvite && collabInvitePending
+                  ? toElement(
+                      HStack(
+                        Button(LText(t('collab.accept', { defaultValue: 'Accept' })))
+                          .flex('1')
+                          .onPress(openAcceptSheet)
+                          .disabled(actionLoading)
+                          .stopPropagation(),
+                        Button(LText(t('collab.decline', { defaultValue: 'Decline' })))
+                          .style('subtle')
+                          .tint('neutral')
+                          .flex('1')
+                          .stopPropagation()
+                          .onPress(() => {
+                            const intent = captureIntent();
+                            if (intent) void runDecline(intent);
+                          })
+                          .disabled(actionLoading),
+                      )
+                        .spacing('sm')
+                        .margin('top', 'sm'),
+                    )
+                  : null,
+              ),
+              Embed(
+                isCollabInvite && collabAccepted
+                  ? toElement(
+                      HStack(
+                        Icon(RiCheckboxCircleFill).size('sm').foreground('success'),
+                        RawText(t('collab.youAccepted', { defaultValue: 'You accepted' }))
+                          .foreground('muted')
+                          .font('md')
+                          .leading('20px'),
+                      )
+                        .align('center')
+                        .spacing('6')
+                        .margin('top', 'xs')
+                        .when(separateGestures, (v) => v.allowsHitTesting(false)),
+                    )
+                  : null,
+              ),
+              Embed(
+                isCollabInvite && collabDeclined
+                  ? toElement(
+                      HStack(
+                        Icon(RiCloseCircleLine).size('sm').foreground('muted'),
+                        RawText(t('collab.youDeclined', { defaultValue: 'You declined' }))
+                          .foreground('muted')
+                          .font('md')
+                          .leading('20px'),
+                      )
+                        .align('center')
+                        .spacing('6')
+                        .margin('top', 'xs')
+                        .when(separateGestures, (v) => v.allowsHitTesting(false)),
+                    )
+                  : null,
+              ),
+            )
+              .spacing('xs')
+              .flex('1')
+              .allowsHitTesting(separateGestures ? 'children' : undefined),
+            /* Trailing media chip — a compact square still of the post's first
+                    image, mirroring the feed's thumb variant. Decorative: the row's
+                    own accessibilityLabel already describes the notification. */ Embed(
+              thumbnailUrl ? (
+                <Image
+                  source={{ uri: thumbnailUrl }}
+                  style={[rowTokens.thumbnail, rowStyles.thumbnail]}
+                  contentFit="cover"
+                  transition={150}
+                  cachePolicy="memory-disk"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                  pointerEvents={separateGestures ? 'none' : undefined}
+                />
+              ) : null,
+            ),
+            Embed(
+              hasUnread
+                ? toElement(
+                    VStack()
+                      .frame({ width: 'sm', height: 'sm' })
+                      .background('primary')
+                      .corner('infinite')
+                      .alignSelf('center')
+                      .margin('left', 'sm')
+                      .when(separateGestures, (v) => v.allowsHitTesting(false)),
                   )
-                    .margin('top', 'xs')
-                    .spacing('sm'),
-                )
-              : null}
-
-            {/* Accept/Decline are shown ONLY while the invite is genuinely pending.
-                Once the viewer has responded, the row shows a resolved label
-                instead — so a handled invite is never actionable again. */}
-            {isCollabInvite && collabInvitePending
-              ? toElement(
-                  HStack(
-                    Button(LText(t('collab.accept', { defaultValue: 'Accept' })))
-                      .flex('1')
-                      .onPress(openAcceptSheet)
-                      .disabled(actionLoading)
-                      .stopPropagation(),
-                    Button(LText(t('collab.decline', { defaultValue: 'Decline' })))
-                      .style('subtle')
-                      .tint('neutral')
-                      .flex('1')
-                      .stopPropagation()
-                      .onPress(() => {
-                        const intent = captureIntent();
-                        if (intent) void runDecline(intent);
-                      })
-                      .disabled(actionLoading),
-                  )
-                    .spacing('sm')
-                    .margin('top', 'sm'),
-                )
-              : null}
-
-            {isCollabInvite && collabAccepted
-              ? toElement(
-                  HStack(
-                    Icon(RiCheckboxCircleFill).size('sm').foreground('success'),
-                    RawText(t('collab.youAccepted', { defaultValue: 'You accepted' }))
-                      .foreground('muted')
-                      .font('md')
-                      .leading('20px'),
-                  )
-                    .align('center')
-                    .spacing('6')
-                    .margin('top', 'xs')
-                    .when(separateGestures, (v) => v.allowsHitTesting(false)),
-                )
-              : null}
-
-            {isCollabInvite && collabDeclined
-              ? toElement(
-                  HStack(
-                    Icon(RiCloseCircleLine).size('sm').foreground('muted'),
-                    RawText(t('collab.youDeclined', { defaultValue: 'You declined' }))
-                      .foreground('muted')
-                      .font('md')
-                      .leading('20px'),
-                  )
-                    .align('center')
-                    .spacing('6')
-                    .margin('top', 'xs')
-                    .when(separateGestures, (v) => v.allowsHitTesting(false)),
-                )
-              : null}
-          </View>
-
-          {/* Trailing media chip — a compact square still of the post's first
-              image, mirroring the feed's thumb variant. Decorative: the row's
-              own accessibilityLabel already describes the notification. */}
-          {thumbnailUrl ? (
-            <Image
-              source={{ uri: thumbnailUrl }}
-              style={[rowTokens.thumbnail, rowStyles.thumbnail]}
-              contentFit="cover"
-              transition={150}
-              cachePolicy="memory-disk"
-              accessibilityElementsHidden
-              importantForAccessibility="no"
-              pointerEvents={separateGestures ? 'none' : undefined}
-            />
-          ) : null}
-          {hasUnread
-            ? toElement(
-                VStack()
-                  .frame({ width: 'sm', height: 'sm' })
-                  .background('primary')
-                  .corner('infinite')
-                  .alignSelf('center')
-                  .margin('left', 'sm')
-                  .when(separateGestures, (v) => v.allowsHitTesting(false)),
-              )
-            : null}
-        </View>
-      </View>
+                : null,
+            ),
+          )
+            .align('start')
+            .justify('between')
+            .allowsHitTesting(separateGestures ? 'children' : undefined),
+        )
+          .padding('horizontal', 'md')
+          .allowsHitTesting(separateGestures ? 'children' : undefined),
+      )}
     </>
   );
   // The row is the hover group its SubtleHover wash answers.
@@ -1084,10 +1102,7 @@ const useRowTokens = createTokenStyles((t) => ({
 // The row's inner layout, as React Native views: each passes touches through
 // to the row's own press layer when the row separates its gestures.
 const rowStyles = StyleSheet.create({
-  inset: { paddingHorizontal: 12 },
-  columns: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   avatarColumn: { position: 'relative', marginRight: 12 },
-  content: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', gap: 4 },
   mainContent: { gap: 4 },
   thumbnail: { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE },
 });
