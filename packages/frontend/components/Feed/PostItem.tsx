@@ -200,8 +200,6 @@ function BylineText({ children }: { children: React.ReactNode }) {
 
 // The two vote arrows are adjacent halves of ONE pill, so neither hit region
 // may grow toward the other or it swallows the other's taps.
-const UPVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 5, right: 0 };
-const DOWNVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 0, right: 5 };
 
 /** A link inside the row stops the click there, or the row would navigate too. */
 function stopAtLink(event: { stopPropagation(): void }): void {
@@ -324,14 +322,16 @@ const PostActions = view(function PostActions(props: PostActionsProps) {
   return ActionBar(
     voteStyle === 'pill'
       ? ActionGroup(
-          Action(RiArrowUpSLine, t('postActions.upvote'), {
-            rollCount: true,
-            hitSlop: UPVOTE_HIT_SLOP,
-          })
+          Action(RiArrowUpSLine, t('postActions.upvote'), { rollCount: true })
+            // The pill's two halves meet: each reaches 5pt out on every side but the inner one.
+            .hitSlop('5')
+            .hitSlop('right', 'none')
             .count(props.likes - props.downvotes)
             .active(props.isLiked)
             .onPress(props.onLike),
-          Action(RiArrowDownSLine, t('postActions.downvote'), { hitSlop: DOWNVOTE_HIT_SLOP })
+          Action(RiArrowDownSLine, t('postActions.downvote'))
+            .hitSlop('5')
+            .hitSlop('left', 'none')
             .active(props.isDownvoted)
             .tint('error')
             .onPress(onDownvote),
