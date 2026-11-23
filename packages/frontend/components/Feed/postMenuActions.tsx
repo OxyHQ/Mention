@@ -3,7 +3,7 @@ import type { useRouter } from '@/lib/navigation/router';
 import type { QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { createLogger } from '@oxy.so/core/logger';
-import type { IconComponent, InkToken } from '@oxy.so/bloom-language';
+import type { IconComponent } from '@oxy.so/bloom-language';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
@@ -115,18 +115,19 @@ export type PostMenuSubmenuRows =
   | { kind: 'sources'; sources: PostSourceLink[] };
 
 /**
- * A row that acts. Its glyph is a Bloom icon in a colour role, the menu row's
- * `.iconForeground()`; a destructive row's title takes the negative ink.
+ * A row that acts. Its glyph is a Bloom icon in the menu's own glyph ink, as
+ * each platform's menu draws it: the lens menu's foreground on Android, the
+ * quiet (muted) ink of Bloom's menu on the web, the system's on iOS. A
+ * destructive row's title and glyph take the negative ink.
  */
 export interface PostMenuAction {
   icon: IconComponent;
-  iconForeground: InkToken;
   label: string;
   onPress: () => void;
   destructive?: boolean;
 }
 
-/** A row that opens a submenu of its own rows instead of acting. Its glyph takes the menu's quiet ink. */
+/** A row that opens a submenu of its own rows instead of acting. Its glyph takes the menu's own ink, as an action's does. */
 interface PostMenuSubmenu {
   icon: IconComponent;
   label: string;
@@ -219,7 +220,6 @@ export function buildPostMenuActions(
       ? [
           {
             icon: RiBarChartBoxLine,
-            iconForeground: 'muted',
             label: t('postActions.insights'),
             onPress: onInsights,
           },
@@ -234,14 +234,12 @@ export function buildPostMenuActions(
     } else if (!isSaved) {
       saveActionGroup.push({
         icon: RiBookmarkLine,
-        iconForeground: 'muted',
         label: t('postActions.save'),
         onPress: onSave,
       });
     } else {
       saveActionGroup.push({
         icon: RiBookmarkFill,
-        iconForeground: 'muted',
         label: t('postActions.unsave'),
         onPress: onSave,
       });
@@ -265,7 +263,6 @@ export function buildPostMenuActions(
       if (isChannelPost || withinEditWindow) {
         saveActionGroup.push({
           icon: RiEditBoxLine,
-          iconForeground: 'muted',
           label: t('postActions.edit'),
           onPress: () => router.push(`/compose?editPostId=${postId}`),
         });
@@ -275,7 +272,6 @@ export function buildPostMenuActions(
     if (isOwner) {
       saveActionGroup.push({
         icon: isPinned ? RiUnpinLine : RiPushpinLine,
-        iconForeground: 'muted',
         label: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
         onPress: async () => {
           if (!(await savePostSettings(postId, { isPinned: !isPinned }))) {
@@ -317,7 +313,6 @@ export function buildPostMenuActions(
       const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
       saveActionGroup.push({
         icon: RiEyeOffLine,
-        iconForeground: 'muted',
         label: isHidden
           ? t('postActions.showEngagementCounts')
           : t('postActions.hideEngagementCounts'),
@@ -342,7 +337,6 @@ export function buildPostMenuActions(
       ? [
           {
             icon: RiCloseCircleLine,
-            iconForeground: 'error',
             label: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
             onPress: async () => {
               const confirmed = await confirmDialog({
@@ -383,7 +377,6 @@ export function buildPostMenuActions(
       ? [
           {
             icon: RiDeleteBinLine,
-            iconForeground: 'error',
             label: t('postActions.delete'),
             onPress: handleDelete,
             destructive: true,
@@ -395,7 +388,6 @@ export function buildPostMenuActions(
       ? [
           {
             icon: RiFileList2Line,
-            iconForeground: 'muted',
             label: t('post.viewArticle', { defaultValue: 'View article' }),
             onPress: () => {
               onOpenArticle();
@@ -525,7 +517,6 @@ export function buildPostMenuActions(
       if (postLane) {
         muteReportAction.push({
           icon: RiMicOffLine,
-          iconForeground: 'muted',
           label: t('lanes.postActions.muteLane', {
             lane: postLane.name,
             username,
@@ -536,14 +527,12 @@ export function buildPostMenuActions(
       }
       muteReportAction.push({
         icon: RiMicOffLine,
-        iconForeground: 'muted',
         label: t('postActions.muteUser', { username }),
         onPress: handleMuteUser,
       });
 
       muteReportAction.push({
         icon: RiSpamLine,
-        iconForeground: 'error',
         label: t('postActions.reportPost'),
         onPress: handleReportPost,
         destructive: true,
@@ -556,7 +545,6 @@ export function buildPostMenuActions(
       const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
       addToListAction.push({
         icon: RiListUnordered,
-        iconForeground: 'muted',
         label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
         onPress: () => {
           void presentSheet((surface) => (
@@ -583,7 +571,6 @@ export function buildPostMenuActions(
       const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
       communityModerationAction.push({
         icon: RiEyeOffLine,
-        iconForeground: 'muted',
         label: t('communities.postActions.remove', {
           community: communityHandle,
           defaultValue: 'Remove from !{{community}}',
@@ -626,7 +613,6 @@ export function buildPostMenuActions(
       if (authorId && authorId !== viewerId) {
         communityModerationAction.push({
           icon: RiSpamLine,
-          iconForeground: 'error',
           label: t('communities.postActions.ban', {
             username: authorHandle,
             community: communityHandle,
@@ -676,7 +662,6 @@ export function buildPostMenuActions(
     const copyLinkAction: PostMenuAction[] = [
       {
         icon: RiLinkM,
-        iconForeground: 'muted',
         label: t('postActions.copyLink'),
         onPress: async () => {
           try {

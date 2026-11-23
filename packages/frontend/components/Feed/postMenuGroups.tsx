@@ -62,7 +62,6 @@ export function postMenuGroups(
       ? [
           {
             icon: RiTeamLine,
-            iconForeground: 'muted',
             label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
             onPress: () => noteSheets.openWriteFlow(post),
           },
