@@ -19,6 +19,12 @@ function styleBody(name: string): string {
   return match[1];
 }
 
+/** The footer's language row, from its ChipRow to the end of the screen's stack. */
+function footerRow(): string {
+  const body = keyboardAvoidingBody();
+  return body.slice(body.lastIndexOf('HStack(', body.indexOf('<ChipRow')));
+}
+
 /** The JSX between the keyboard-avoiding view's open and close tags. */
 function keyboardAvoidingBody(): string {
   const open = screen.indexOf('<KeyboardAvoidingView');
@@ -56,10 +62,16 @@ describe('the composer footer', () => {
   });
 
   it('gives the pills the width the button leaves, and never overlaps them', () => {
-    expect(styleBody('bottomBar')).toMatch(/flexDirection: 'row'/);
-    expect(styleBody('bottomBar')).not.toMatch(/position: 'absolute'/);
+    // The footer is one row (`HStack`), never pinned over the pills; the submit
+    // slot, the stack holding the Post button, never shrinks.
+    const footer = footerRow();
+    expect(footer).toMatch(/^HStack\(/);
+    expect(footer).not.toContain('.position(');
     expect(styleBody('bottomBarChips')).toMatch(/flex: 1/);
-    expect(styleBody('bottomBarSubmit')).toMatch(/flexShrink: 0/);
+    const submitSlot = footer.slice(footer.indexOf(".testID('compose-submit')"));
+    expect(submitSlot).toMatch(
+      /^\.testID\('compose-submit'\),\s*\)\s*\.align\('center'\)\s*\.spacing\('sm'\)\s*\.shrink\('never'\)/,
+    );
   });
 
   it('clears the bottom safe area itself, since the shell bar is never drawn over it', () => {
@@ -76,12 +88,12 @@ describe('the composer header', () => {
     // The header is the first child of the screen's language stack (`/* Header */`).
     const header = screen.slice(
       screen.indexOf('/* Header */'),
-      screen.indexOf('styles.headerTitle'),
+      screen.indexOf('RawText(', screen.indexOf('/* Header */')),
     );
-    expect(header).toMatch(/presentation === 'tab' \?/);
-    expect(header).toContain('leadingIcon={RiCloseLine}');
-    expect(header).toContain('testID="compose-close"');
-    expect(header).toContain('leadingIcon={RiArrowLeftLine}');
-    expect(header).not.toMatch(/\) : null\}\s*$/);
+    expect(header).toMatch(/presentation === 'tab'\s*\?/);
+    expect(header).toContain('LButton(Icon(RiCloseLine))');
+    expect(header).toContain(".testID('compose-close')");
+    expect(header).toContain('LButton(Icon(RiArrowLeftLine))');
+    expect(header).not.toMatch(/:\s*null,\s*$/);
   });
 });

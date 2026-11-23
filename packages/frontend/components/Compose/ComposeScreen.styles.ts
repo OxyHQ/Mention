@@ -30,14 +30,6 @@ import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
 import { TIMELINE_LINE_OFFSET } from './composeLayout';
 
 export const composeStyles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-    // keep header clean (no divider)
-  },
   cancelButton: {
     padding: 8,
   },
@@ -101,17 +93,6 @@ export const composeStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   /* header and icon tweaks */
-  headerTitle: {
-    position: 'absolute',
-    // Centre against the header itself, never against whatever uneven number of
-    // actions happens to be visible on either side.
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none', // Don't block touches on buttons
-  },
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -121,30 +102,12 @@ export const composeStyles = StyleSheet.create({
   iconBtn: {
     marginLeft: 8,
   },
-  backBtn: {
-    marginRight: 6,
-    zIndex: 1,
-  },
 
   /* the footer: the batch's pills, then the submit slot */
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 8,
-    paddingRight: 16,
-    gap: 8,
-  },
   // Takes the width the button leaves and never more, so the pills scroll under
   // their own edge instead of running beneath the button.
   bottomBarChips: {
     flex: 1,
-  },
-  bottomBarSubmit: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,
   },
   /* compose toolbar */
   toolbarIcons: {
@@ -183,12 +146,6 @@ export const composeStyles = StyleSheet.create({
     minHeight: 40,
     textAlignVertical: 'top',
   },
-  toolbarWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
   addToThreadBtn: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -200,38 +157,12 @@ export const composeStyles = StyleSheet.create({
     flex: 1,
     paddingTop: 8,
   },
-  addToThreadText: {
-    fontSize: 16,
-  },
-  replyPreviewLoading: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   // Post component structure styles
   postContainer: {
     flexDirection: 'column',
     gap: 12,
     paddingVertical: 12,
   },
-  unfocusedItem: {
-    opacity: 0.4,
-  },
-  // Beast posts are independent, so they are divided the way the feed divides
-  // posts (PostItem's hairline) instead of being joined by a thread line.
-  beastSeparator: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  headerMeta: {
-    flex: 1,
-    paddingTop: 2,
-    gap: 8,
-  },
-  headerChildren: {},
   avatarContainer: {
     alignItems: 'center',
     marginRight: 12, // AVATAR_GAP
@@ -334,10 +265,6 @@ export const composeStyles = StyleSheet.create({
     borderRadius: 9999,
     zIndex: -1,
   },
-  composerWithTimeline: {
-    position: 'relative',
-    zIndex: 2, // Above the timeline line
-  },
   // Article attachment styles (still used in main compose)
   articleAttachmentWrapper: {
     position: 'relative',
@@ -365,7 +292,8 @@ export const composeStyles = StyleSheet.create({
     borderRadius: 999,
     padding: 6,
   },
-  // Media preview styles
+  // Media preview styles. `overflow: visible` has no language modifier, so the
+  // views that carry it stay views.
   mediaPreviewContainer: {
     marginTop: 12,
     width: '100%',
