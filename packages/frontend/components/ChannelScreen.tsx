@@ -489,24 +489,32 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
             }),
           ),
       )}
-      <ProfileMoreMenu
-        profileData={profileData}
-        viewerOperatesAccount={operatesThisChannel}
-        leadingItems={leadingItems}
-      >
-        {toElement(
-          LButton(Icon(RiMoreFill))
-            .shape('circle')
-            .style('subtle')
-            .tint('neutral')
-            .label(
-              t('profile.actions.more', {
-                handle,
-                defaultValue: 'More options for @{{handle}}',
-              }),
-            ),
-        )}
-      </ProfileMoreMenu>
+      {toElement(
+        // The trigger hands its press and name to its child (`asChild`): draw the button as
+        // its own host with `render`, not behind a toElement boundary.
+        Embed((render) => (
+          <ProfileMoreMenu
+            profileData={profileData}
+            viewerOperatesAccount={operatesThisChannel}
+            leadingItems={leadingItems}
+          >
+            {
+              render(
+                LButton(Icon(RiMoreFill))
+                  .shape('circle')
+                  .style('subtle')
+                  .tint('neutral')
+                  .label(
+                    t('profile.actions.more', {
+                      handle,
+                      defaultValue: 'More options for @{{handle}}',
+                    }),
+                  ),
+              ) as React.ReactElement
+            }
+          </ProfileMoreMenu>
+        )),
+      )}
     </>
   );
 

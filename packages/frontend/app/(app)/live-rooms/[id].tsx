@@ -319,50 +319,62 @@ const RoomDetailScreen = () => {
             .backLabel(t('common.back', { defaultValue: 'Back' }))
             .toolbar(
               Embed(
-                room ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      asChild
-                      label={t('common.options', { defaultValue: 'Options' })}
-                    >
-                      {toElement(
-                        LButton(Icon(RiMoreFill))
-                          .shape('circle')
-                          .style('subtle')
-                          .tint('neutral')
-                          .label(t('common.options', { defaultValue: 'Options' })),
-                      )}
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent label={t('common.options', { defaultValue: 'Options' })}>
-                      <DropdownMenuItem
-                        leading={toElement(
-                          Icon(RiShareForwardLine).size('22').foreground('foreground'),
-                        )}
-                        onPress={handleShareRoom}
-                      >
-                        {t('agora.shareRoom', { defaultValue: 'Share room' })}
-                      </DropdownMenuItem>
-                      {isJoined && !isHost ? (
-                        <DropdownMenuItem
-                          variant="destructive"
-                          leading={toElement(Icon(RiLogoutBoxRLine).size('22').foreground('error'))}
-                          onPress={handleLeave}
-                        >
-                          {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
-                        </DropdownMenuItem>
-                      ) : null}
-                      {isHost ? null : (
-                        <DropdownMenuItem
-                          variant="destructive"
-                          leading={toElement(Icon(RiFlagLine).size('22').foreground('error'))}
-                          onPress={handleReport}
-                        >
-                          {t('agora.reportRoom', { defaultValue: 'Report room' })}
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : undefined,
+                room
+                  ? toElement(
+                      // The trigger hands its press and name to its child (`asChild`): draw the
+                      // button as its own host with `render`, not behind a toElement boundary.
+                      Embed((render) => (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            asChild
+                            label={t('common.options', { defaultValue: 'Options' })}
+                          >
+                            {
+                              render(
+                                LButton(Icon(RiMoreFill))
+                                  .shape('circle')
+                                  .style('subtle')
+                                  .tint('neutral')
+                                  .label(t('common.options', { defaultValue: 'Options' })),
+                              ) as React.ReactElement
+                            }
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            label={t('common.options', { defaultValue: 'Options' })}
+                          >
+                            <DropdownMenuItem
+                              leading={toElement(
+                                Icon(RiShareForwardLine).size('22').foreground('foreground'),
+                              )}
+                              onPress={handleShareRoom}
+                            >
+                              {t('agora.shareRoom', { defaultValue: 'Share room' })}
+                            </DropdownMenuItem>
+                            {isJoined && !isHost ? (
+                              <DropdownMenuItem
+                                variant="destructive"
+                                leading={toElement(
+                                  Icon(RiLogoutBoxRLine).size('22').foreground('error'),
+                                )}
+                                onPress={handleLeave}
+                              >
+                                {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
+                              </DropdownMenuItem>
+                            ) : null}
+                            {isHost ? null : (
+                              <DropdownMenuItem
+                                variant="destructive"
+                                leading={toElement(Icon(RiFlagLine).size('22').foreground('error'))}
+                                onPress={handleReport}
+                              >
+                                {t('agora.reportRoom', { defaultValue: 'Report room' })}
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )),
+                    )
+                  : undefined,
               ),
             )
             .inPage(),
