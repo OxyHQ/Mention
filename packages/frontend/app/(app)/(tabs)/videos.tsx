@@ -8,7 +8,6 @@ import {
   StyleSheet,
   View,
   Text,
-  Pressable,
   FlatList,
   Platform,
   type ViewStyle,
@@ -616,32 +615,48 @@ const ReelSurface: React.FC<
                 or like (double tap). It sits ABOVE the video/poster but BELOW the
                 mute button (z 10), scrubber, and the bottom overlay actions, so
                 those keep their own taps. */}
-      <Pressable
-        style={styles.tapLayer}
-        onPress={handleSurfacePress}
-        accessibilityRole="button"
-        accessibilityLabel={t(
-          muted ? 'lanes.muted.unmute' : userPaused ? 'videos.play' : 'videos.pause',
-        )}
-      />
+      {LtoElement(
+        LVStack()
+          .zIndex('2')
+          .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+          .onPress(handleSurfacePress)
+          .role('button')
+          .label(t(muted ? 'lanes.muted.unmute' : userPaused ? 'videos.play' : 'videos.pause')),
+      )}
       {/* Double-tap heart pop — large, centered, non-interactive. */}
       <Animated.View style={[styles.heartPop, heartStyle]} pointerEvents="none">
         {toElement(Icon(RiHeartFill).size('96').foreground(appColors.color.LIKE_ACTIVE_COLOR))}
       </Animated.View>
-      {showPauseAffordance && (
-        <View style={styles.pauseAffordance} pointerEvents="none">
-          <View style={styles.pauseAffordanceInner}>
-            {toElement(Icon(RiPlayFill).size('44').foreground(appColors.color.white))}
-          </View>
-        </View>
-      )}
-      {showBufferSpinner && (
-        <View style={styles.bufferSpinner} pointerEvents="none">
-          <View style={styles.bufferSpinnerInner}>
-            <SpinnerIcon size={32} color={ON_VIDEO_COLOR} />
-          </View>
-        </View>
-      )}
+      {showPauseAffordance &&
+        LtoElement(
+          LVStack(
+            LEmbed(
+              <View style={styles.pauseAffordanceInner}>
+                {toElement(Icon(RiPlayFill).size('44').foreground(appColors.color.white))}
+              </View>,
+            ),
+          )
+            .justify('center')
+            .align('center')
+            .zIndex('3')
+            .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+            .allowsHitTesting(false),
+        )}
+      {showBufferSpinner &&
+        LtoElement(
+          LVStack(
+            LEmbed(
+              <View style={styles.bufferSpinnerInner}>
+                <SpinnerIcon size={32} color={ON_VIDEO_COLOR} />
+              </View>,
+            ),
+          )
+            .justify('center')
+            .align('center')
+            .zIndex('4')
+            .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+            .allowsHitTesting(false),
+        )}
       {showScrubber && (
         <View
           // Lifted clear of the floating BottomBar: pinned to the
@@ -884,17 +899,25 @@ const VideoItem = memo<VideoItemProps>(
               posterFailed={posterFailed}
               onPosterError={handlePosterError}
             />
-            {videoError && (
-              <View style={styles.posterLayer} pointerEvents="none">
-                {toElement(
-                  RawText(t('videos.unavailable'))
-                    .margin('top', 'sm')
-                    .font('xs')
-                    .leading('16px')
-                    .foreground('muted'),
-                )}
-              </View>
-            )}
+            {videoError &&
+              LtoElement(
+                LVStack(
+                  LEmbed(
+                    toElement(
+                      RawText(t('videos.unavailable'))
+                        .margin('top', 'sm')
+                        .font('xs')
+                        .leading('16px')
+                        .foreground('muted'),
+                    ),
+                  ),
+                )
+                  .justify('center')
+                  .align('center')
+                  .zIndex('raised')
+                  .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+                  .allowsHitTesting(false),
+              )}
           </>
         )}
         {/* `box-none`: the overlay container spans the bottom half of the
