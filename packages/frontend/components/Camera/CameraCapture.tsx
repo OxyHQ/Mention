@@ -452,25 +452,28 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
     VStack(
       Embed(
         <GestureDetector gesture={pinch}>
-          <View style={StyleSheet.absoluteFill}>
-            {/* Preserve the native owner across mode changes: Expo CameraX disposal
-                unbinds the process-wide provider and can tear down a replacement
-                camera that React mounted before the old view's cleanup. */}
-            <CameraView
-              onCameraReady={() => cameraReady(mode, generation)}
-              onMountError={(event) => cameraError(event, generation)}
-              onRecordingProgress={(event) => recordingProgress(event, generation)}
-              ref={cameraRef}
-              style={StyleSheet.absoluteFill}
-              facing={facing}
-              mode={mode}
-              flash={flash}
-              // The torch is the flash's meaning DURING a recording: a still's
-              // flash fires once and would light nothing for a video.
-              enableTorch={recording && flash === 'on'}
-              zoom={zoom}
-            />
-          </View>
+          {LtoElement(
+            LVStack(
+              /* Preserve the native owner across mode changes: Expo CameraX disposal
+                          unbinds the process-wide provider and can tear down a replacement
+                          camera that React mounted before the old view's cleanup. */ LEmbed(
+                <CameraView
+                  onCameraReady={() => cameraReady(mode, generation)}
+                  onMountError={(event) => cameraError(event, generation)}
+                  onRecordingProgress={(event) => recordingProgress(event, generation)}
+                  ref={cameraRef}
+                  style={StyleSheet.absoluteFill}
+                  facing={facing}
+                  mode={mode}
+                  flash={flash}
+                  // The torch is the flash's meaning DURING a recording: a still's
+                  // flash fires once and would light nothing for a video.
+                  enableTorch={recording && flash === 'on'}
+                  zoom={zoom}
+                />,
+              ),
+            ).position({ top: 'none', right: 'none', bottom: 'none', left: 'none' }),
+          )}
         </GestureDetector>,
       ),
       /* Every control sits on its own translucent disc rather than bare on the
