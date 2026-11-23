@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Image, type ImageStyle, TouchableOpacity, type ViewStyle } from 'react-native';
+import { Image, type ImageStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCommunitiesProps, Community } from './types';
@@ -14,13 +14,6 @@ const ICON_IMAGE_STYLE: ImageStyle = {
   flexShrink: 1,
   flexBasis: '0%',
   overflow: 'hidden',
-};
-const VIEW_BUTTON_STYLE: ViewStyle = {
-  alignSelf: 'center',
-  width: '100%',
-  marginTop: 10,
-  paddingHorizontal: 16,
-  paddingVertical: 6,
 };
 
 /**
@@ -112,17 +105,20 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
       )
         .margin('bottom', 'md')
         .spacing('md'),
-      Embed((render) => (
-        <TouchableOpacity style={VIEW_BUTTON_STYLE} onPress={handleViewPress}>
-          {render(
-            RawText(t('profile.view'))
-              .foreground('primary')
-              .font('md')
-              .weight('semibold')
-              .textAlign('center'),
-          )}
-        </TouchableOpacity>
-      )),
+      VStack(
+        RawText(t('profile.view'))
+          .foreground('primary')
+          .font('md')
+          .weight('semibold')
+          .textAlign('center'),
+      )
+        .padding('horizontal', 'lg')
+        .padding('vertical', '6')
+        .frame({ width: 'full' })
+        .alignSelf('center')
+        .margin('top', '10')
+        .onPress(handleViewPress)
+        .pressFade(),
     )
       .padding('all', 'md')
       .background('mutedFill')

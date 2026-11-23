@@ -59,6 +59,26 @@ function artworkPlaceholder(icon: IconComponent, fill: 'mutedFill' | 'background
     .justify('center');
 }
 
+/** A SONG / PODCAST tab: the selected one sits on the sheet's background. */
+function mediaTab(label: string, selected: boolean, onPress: () => void) {
+  return VStack(
+    RawText(label)
+      .font('14')
+      .weight('semibold')
+      .foreground(selected ? 'foreground' : 'muted'),
+  )
+    .flex('1')
+    .padding('vertical', 'sm')
+    .align('center')
+    .justify('center')
+    .background(selected ? 'background' : 'transparent')
+    .corner('infinite')
+    .onPress(onPress)
+    .role('button')
+    .accessibilityState({ selected })
+    .label(label);
+}
+
 /**
  * The start offset, 15pt semibold. Its digits are of one width on the web only: NativeWind wrote
  * `tabular-nums` as a web style, and a variant cannot change the digits, so the platform picks.
@@ -399,38 +419,8 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
         .weight('bold')
         .margin('bottom', 'md'),
       /* SONG / PODCAST toggle */ HStack(
-        Embed((render) => (
-          <Pressable
-            onPress={() => switchTab('song')}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isSongTab }}
-            accessibilityLabel={t('profile.media.tabSong')}
-            style={[TAB_STYLE, { backgroundColor: isSongTab ? colors.background : 'transparent' }]}
-          >
-            {render(
-              RawText(t('profile.media.tabSong'))
-                .font('14')
-                .weight('semibold')
-                .foreground(isSongTab ? 'foreground' : 'muted'),
-            )}
-          </Pressable>
-        )),
-        Embed((render) => (
-          <Pressable
-            onPress={() => switchTab('podcast')}
-            accessibilityRole="button"
-            accessibilityState={{ selected: !isSongTab }}
-            accessibilityLabel={t('profile.media.tabPodcast')}
-            style={[TAB_STYLE, { backgroundColor: !isSongTab ? colors.background : 'transparent' }]}
-          >
-            {render(
-              RawText(t('profile.media.tabPodcast'))
-                .font('14')
-                .weight('semibold')
-                .foreground(!isSongTab ? 'foreground' : 'muted'),
-            )}
-          </Pressable>
-        )),
+        mediaTab(t('profile.media.tabSong'), isSongTab, () => switchTab('song')),
+        mediaTab(t('profile.media.tabPodcast'), !isSongTab, () => switchTab('podcast')),
       )
         .padding('all', 'xs')
         .background('mutedFill')
@@ -725,18 +715,6 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
   );
 });
 
-/** Tailwind's `rounded-full` as NativeWind drew it: an infinite radius on the web, its largest number on native. */
-const ROUNDED_FULL = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
-
 /** Plain objects, not a StyleSheet: what NativeWind's classes drew, inline as they were. */
-const TAB_STYLE: ViewStyle = {
-  flexGrow: 1,
-  flexShrink: 1,
-  flexBasis: '0%',
-  paddingVertical: 8,
-  borderRadius: ROUNDED_FULL,
-  alignItems: 'center',
-  justifyContent: 'center',
-};
 const SEARCH_INPUT_STYLE: TextStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%', fontSize: 15 };
 const RESULTS_STYLE: ViewStyle = { maxHeight: 300 };
