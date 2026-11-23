@@ -26,6 +26,7 @@ import type { ProfileData } from '@/lib/recommendations';
 import {
   Embed,
   HStack,
+  Icon,
   Text as LText,
   VStack,
   VirtualList,
@@ -180,7 +181,7 @@ function ProfileDiscoveryList({
                     .leading('24px')
                     .foreground('muted'),
                 ).grow(),
-                Embed(<RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />),
+                Icon(RiArrowRightSLine).size('18').foreground('muted'),
               )
                 .align('center')
                 .padding('all', '10')
@@ -203,7 +204,6 @@ function ProfileDiscoveryList({
       handleInviteFriends,
       theme.colors.card,
       theme.colors.primary,
-      theme.colors.textSecondary,
       t,
     ],
   );
