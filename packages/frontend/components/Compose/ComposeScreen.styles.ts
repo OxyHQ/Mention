@@ -220,17 +220,6 @@ export const composeStyles = StyleSheet.create({
     backgroundColor: 'transparent',
     justifyContent: 'space-between',
   },
-  // Media preview styles. `overflow: visible` has no language modifier, so the
-  // views that carry it stay views.
-  mediaPreviewContainer: {
-    marginTop: 12,
-    width: '100%',
-    overflow: 'visible',
-  },
-  timelineForeground: {
-    position: 'relative',
-    zIndex: 2,
-  },
   mediaPreviewScroll: {
     paddingRight: 12,
     gap: 12,
