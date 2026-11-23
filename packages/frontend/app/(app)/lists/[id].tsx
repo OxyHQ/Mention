@@ -15,7 +15,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@oxy.so/bloom/button';
-import { Screen } from '@oxy.so/bloom/screen';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
@@ -629,29 +628,26 @@ export default function AvailableListDetailScreen() {
   );
 }
 
+/** The list's page to a reader who is not signed in: its header over the sign-in prompt. */
+const ListSignInScreen = screen(function ListSignInScreen() {
+  const { t } = useTranslation();
+  return Embed(
+    <SignInRequired
+      label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
+      description={t('lists.signInRequiredDesc', {
+        defaultValue: 'Sign in to view and manage lists.',
+      })}
+    />,
+  )
+    .screenScroll('auto')
+    .header(
+      Header(t('lists.detail.title'))
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .inPage(),
+    );
+});
+
 function ListDetailAccess() {
   const { canUsePrivateApi } = useAuth();
-  const { t } = useTranslation();
-
-  if (!canUsePrivateApi) {
-    return (
-      <Screen
-        scroll="auto"
-        header={toElement(
-          Header(t('lists.detail.title'))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .inPage(),
-        )}
-      >
-        <SignInRequired
-          label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
-          description={t('lists.signInRequiredDesc', {
-            defaultValue: 'Sign in to view and manage lists.',
-          })}
-        />
-      </Screen>
-    );
-  }
-
-  return <ListDetailScreen />;
+  return canUsePrivateApi ? <ListDetailScreen /> : <ListSignInScreen />;
 }
