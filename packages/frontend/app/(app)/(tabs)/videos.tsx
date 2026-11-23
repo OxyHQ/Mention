@@ -237,7 +237,13 @@ const LIKE_ACTIVE_COLOR = '#FF3040';
 const ON_VIDEO_COLOR = '#FFFFFF';
 
 const appColors = defineTokens({
-  color: { LIKE_ACTIVE_COLOR, white: 'white', hexFFFFFF: '#FFFFFF' },
+  color: {
+    LIKE_ACTIVE_COLOR,
+    white: 'white',
+    hexFFFFFF: '#FFFFFF',
+    /** The dark disc behind the buffering spinner. */
+    scrim: 'rgba(0, 0, 0, 0.45)',
+  },
 });
 
 // Caption is collapsed to one line until this length, where a "more" toggle is
@@ -645,11 +651,12 @@ const ReelSurface: React.FC<
       {showBufferSpinner &&
         LtoElement(
           LVStack(
-            LEmbed(
-              <View style={styles.bufferSpinnerInner}>
-                <SpinnerIcon size={32} color={ON_VIDEO_COLOR} />
-              </View>,
-            ),
+            LVStack(LEmbed(<SpinnerIcon size={32} color={ON_VIDEO_COLOR} />))
+              .frame({ width: '56', height: '56' })
+              .background(appColors.color.scrim)
+              .corner('3xl')
+              .justify('center')
+              .align('center'),
           )
             .justify('center')
             .align('center')
@@ -2121,14 +2128,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 4,
-  },
-  bufferSpinnerInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   scrubberHitArea: {
     position: 'absolute',
