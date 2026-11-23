@@ -57,7 +57,6 @@ export interface ComposeThreadItemStyles {
   itemConnectorLine: ViewStyle;
   timelineForeground: ViewStyle;
   threadTextInput: TextStyle;
-  removeThreadBtn: ViewStyle;
   mediaPreviewContainer: ViewStyle;
   mediaPreviewScroll: ViewStyle;
   mediaPreviewItem: ViewStyle;
@@ -413,9 +412,13 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
               {/* A sibling of the header rather than a child of it: the button is
             absolutely positioned against this row's own box, and rendering it
             after the header is what puts it above the content it overlaps. */}
-              <TouchableOpacity style={styles.removeThreadBtn} onPress={handleRemove}>
-                {toElement(Icon(RiCloseLine).size('18').foreground(appColors.color.hex5e5e5e))}
-              </TouchableOpacity>
+              {toElement(
+                VStack(Icon(RiCloseLine).size('18').foreground(appColors.color.hex5e5e5e))
+                  .padding('6')
+                  .position({ top: 'none', right: 'none' })
+                  .onPress(handleRemove)
+                  .pressFade(),
+              )}
 
               {/* Thread item attachments row */}
               {itemHasAttachments && (

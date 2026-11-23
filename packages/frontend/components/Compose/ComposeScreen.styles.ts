@@ -208,12 +208,6 @@ export const composeStyles = StyleSheet.create({
     minHeight: 32,
     textAlignVertical: 'top',
   },
-  removeThreadBtn: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    padding: 6,
-  },
   // Timeline connector styles
   threadScrollView: {
     flex: 1,
