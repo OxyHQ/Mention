@@ -23,7 +23,6 @@ import { StyleSheet } from 'react-native';
 // They already live in `utils/composeUtils`, shared with the component and with
 // the carousel — so this import is the same one `ComposeScreen.tsx` makes, not a
 // constant duplicated to make the move work.
-import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
 
 export const composeStyles = StyleSheet.create({
   cancelButton: {
@@ -211,16 +210,6 @@ export const composeStyles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 80,
   },
-  // Article attachment styles (still used in main compose)
-  articleAttachmentWrapper: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-    width: MEDIA_CARD_WIDTH,
-    height: MEDIA_CARD_HEIGHT,
-    borderRadius: 15,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
   articleAttachmentPreview: {
     flex: 1,
     width: '100%',
@@ -246,14 +235,6 @@ export const composeStyles = StyleSheet.create({
     paddingRight: 12,
     gap: 12,
   },
-  mediaPreviewItem: {
-    width: MEDIA_CARD_WIDTH,
-    height: MEDIA_CARD_HEIGHT,
-    borderRadius: 15,
-    borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
-  },
   mediaPreviewImage: {
     width: '100%',
     height: '100%',
@@ -267,13 +248,5 @@ export const composeStyles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 2,
-  },
-  // Link attachment styles — the Bloom LinkPreviewCard owns its own border,
-  // radius and surface, so the carousel wrapper only positions the card and its
-  // move/remove controls.
-  linkAttachmentWrapper: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-    width: MEDIA_CARD_WIDTH,
   },
 });

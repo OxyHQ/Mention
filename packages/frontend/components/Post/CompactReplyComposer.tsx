@@ -35,8 +35,14 @@ import { usePostsStore } from '@/stores/postsStore';
 import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
 import { useStore } from 'zustand';
 import { createReplyDraft, type ReplyDraft } from '@/components/Post/replyDraft';
+import { defineModifier } from '@oxy.so/bloom-language';
 
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
+
+/** An attached media thumbnail: 64 square, its 8 corner clipping it. */
+const thumbnail = defineModifier((v) =>
+  v.frame({ width: '64', height: '64' }).corner('sm').clipped(),
+);
 
 interface CompactReplyComposerProps {
   postId: string;
@@ -236,7 +242,7 @@ export function CompactReplyComposer({
                 total={mediaIds.length}
                 onMove={(id, direction) => replyDraft.store.getState().moveMedia(id, direction)}
                 onRemove={() => replyDraft.store.getState().removeMedia(item.id)}
-                wrapperStyle={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden' }}
+                look={thumbnail}
               >
                 {mediaUrl(item.id) ? (
                   <ComposeMediaPreview
