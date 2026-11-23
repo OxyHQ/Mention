@@ -4,13 +4,11 @@ import { View, StyleSheet, ScrollView, type ViewStyle } from 'react-native';
 import { tokens } from '@oxy.so/bloom/styles';
 
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
-import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { formatTimeInput } from '@/utils/dateUtils';
-
 import {
   Button as LButton,
   Embed,
@@ -19,6 +17,8 @@ import {
   Text as LText,
   VStack,
   toElement,
+  Text,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 export type ScheduleOption = {
@@ -246,27 +246,25 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
       {toElement(
         HStack(
           Embed(
-            <Button
-              appearance="outline"
-              tone="neutral"
-              size="lg"
-              style={styles.footerButton}
-              onPress={handleClose}
-              testID="scheduleSheetClose"
-            >
-              {t('compose.schedule.cancel', { defaultValue: 'Close' })}
-            </Button>,
+            LtoElement(
+              LButton(Text(t('compose.schedule.cancel', { defaultValue: 'Close' })))
+                .style('outline')
+                .tint('neutral')
+                .size('lg')
+                .onPress(handleClose)
+                .testID('scheduleSheetClose')
+                .grow(),
+            ),
           ),
           Embed(
-            <Button
-              tone="action"
-              size="lg"
-              style={styles.footerButton}
-              onPress={handleCustomApply}
-              testID="scheduleSheetApply"
-            >
-              {t('compose.schedule.apply', { defaultValue: 'Schedule' })}
-            </Button>,
+            LtoElement(
+              LButton(Text(t('compose.schedule.apply', { defaultValue: 'Schedule' })))
+                .tint('action')
+                .size('lg')
+                .onPress(handleCustomApply)
+                .testID('scheduleSheetApply')
+                .grow(),
+            ),
           ),
         )
           .padding('vertical', 'md')
