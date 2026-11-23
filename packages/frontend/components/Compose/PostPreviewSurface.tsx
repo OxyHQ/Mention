@@ -1,10 +1,9 @@
 import type React from 'react';
 import { ScrollView, type ViewStyle } from 'react-native';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
 import PostItem from '@/components/Feed/PostItem';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Header, VStack, toElement, type ViewNode } from '@oxy.so/bloom-language';
 
 /** Tailwind's `flex-1`: the scroll takes the room the header and actions leave. */
 const FILL = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' } satisfies ViewStyle;
@@ -13,7 +12,7 @@ interface PostPreviewSurfaceProps {
   post: HydratedPost;
   title: string;
   /** One line under the title — the publish time, a thread count, a warning. */
-  subtitle?: React.ReactNode;
+  subtitle?: ViewNode;
   /** Full-width strip between the title and the post (e.g. a past-due notice). */
   notice?: React.ReactNode;
   onBack: () => void;
@@ -52,17 +51,12 @@ const PostPreviewSurface: React.FC<PostPreviewSurfaceProps> = ({
 
   return toElement(
     VStack(
-      // Bloom's PageHeader: its subtitle is a view here (a glyph and a line), and the
-      // language's Header takes a string.
-      Embed(
-        <PageHeader
-          title={title}
-          subtitle={subtitle}
-          onBack={onBack}
-          backLabel={t('common.back', { defaultValue: 'Back' })}
-          safeArea={false}
-        />,
-      ),
+      Header(title)
+        .subtitle(subtitle)
+        .onBack(onBack)
+        .backLabel(t('common.back', { defaultValue: 'Back' }))
+        .safeArea(false)
+        .inPage(),
       Embed(notice),
       Embed(
         <ScrollView style={FILL} showsVerticalScrollIndicator={false}>

@@ -1,14 +1,7 @@
 import { chunk } from '@oxy.so/utils/text';
 import type React from 'react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import {
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  type ScrollViewInstance,
-  type ViewStyle,
-} from 'react-native';
+import { ScrollView, Platform, type ScrollViewInstance, type ViewStyle } from 'react-native';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -130,18 +123,17 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
           contentContainerStyle={{ paddingHorizontal: 8, gap: 4 }}
           style={[TABS, { borderColor: colorTokens.border }]}
         >
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat.id}
-              style={[
-                TAB,
-                { borderColor: activeCategory === cat.id ? colorTokens.primary : TRANSPARENT },
-              ]}
-              onPress={() => handleCategoryPress(cat.id)}
-            >
-              {toElement(RawText(cat.icon).font('xl').leading('28px'))}
-            </TouchableOpacity>
-          ))}
+          {categories.map((cat) =>
+            toElement(
+              VStack(RawText(cat.icon).font('xl').leading('28px'))
+                .padding('horizontal', '10')
+                .padding('vertical', '10')
+                .border(activeCategory === cat.id ? 'primary' : 'transparent', 'thick', 'bottom')
+                .onPress(() => handleCategoryPress(cat.id))
+                .pressFade(),
+              cat.id,
+            ),
+          )}
         </ScrollView>,
       ),
       // Emoji grid
@@ -217,29 +209,9 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
 
 /** The sheet's floor (`min-h-[350px]`): the grid has room before the emoji load. */
 const sheetTokens = defineTokens({ space: { minHeight: 350 } });
-/** Tailwind's 2.5 step, off Bloom's space scale. */
-const SPACE_10 = 10;
-/** Tailwind's `border-transparent`. */
-const TRANSPARENT = '#0000';
 /** The category strip (`border-b max-h-[48px]`), one line of glyphs. */
 const TABS = { borderBottomWidth: 1, maxHeight: 48 } satisfies ViewStyle;
-/** A category: its glyph over an underline (`px-2.5 py-2.5 border-b-2`). */
-const TAB = {
-  paddingHorizontal: SPACE_10,
-  paddingVertical: SPACE_10,
-  borderBottomWidth: 2,
-} satisfies ViewStyle;
-
 /** A glyph's size: 28pt on the web, 26pt on a device. */
 const EMOJI_FONT = Platform.OS === 'web' ? '28' : '3xl';
-
-const styles = StyleSheet.create({
-  emojiCell: {
-    flex: 1,
-    aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
 
 export default EmojiPickerSheet;
