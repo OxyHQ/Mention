@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { AccountSettings, type AccountSettingsProps } from '@oxy.so/services/screens';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
@@ -15,7 +15,8 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { ChannelBylineSettings } from './ChannelBylineSettings';
 import { CommunityModerationSettings } from './CommunityModerationSettings';
 import { useOperatedAccountArchive } from './useOperatedAccountArchive';
-import { Embed, Header, ScrollView, toElement } from '@oxy.so/bloom-language';
+import { Embed, Header, ScrollView, type ScrollViewNode, toElement } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /** The member-operated account kinds (`isMemberOperatedKind`) Mention manages. */
 export type OperatedAccountKind = 'channel' | 'community';
@@ -48,7 +49,6 @@ export function OperatedAccountSettingsScreen({
   handle,
 }: OperatedAccountSettingsScreenProps) {
   const { t } = useTranslation();
-  const back = useScreenBack();
   const {
     user,
     oxyServices,
@@ -107,24 +107,29 @@ export function OperatedAccountSettingsScreen({
     body = <OperatedAccountSettings accountId={node.accountId} kind={kind} />;
   }
 
-  if (Platform.OS === 'web' && kind === 'community') {
-    return toElement(ScrollView(Embed(body)).scrollIndicators('hidden', 'vertical'));
-  }
-
-  return (
-    <Screen
-      scroll={Platform.OS === 'web' ? 'auto' : 'content'}
-      header={toElement(
-        Header(copy.title)
-          .onBack(() => back?.())
-          .backLabel(t('common.back'))
-          .inPage(),
-      )}
-    >
-      {toElement(ScrollView(Embed(body)).scrollIndicators('hidden', 'vertical'))}
-    </Screen>
-  );
+  const content = ScrollView(Embed(body)).scrollIndicators('hidden', 'vertical');
+  // On the web a community's settings are drawn inside the community shell's Screen.
+  if (Platform.OS === 'web' && kind === 'community') return toElement(content);
+  return <OperatedAccountSettingsPage title={copy.title} content={content} />;
 }
+
+/** The settings as a screen of their own, under a back-nav header named for the account's kind. */
+const OperatedAccountSettingsPage = screen(function OperatedAccountSettingsPage({
+  title,
+  content,
+}: {
+  title: string;
+  content: ScrollViewNode;
+}) {
+  const { t } = useTranslation();
+  const back = useScreenBack();
+  return content.screenScroll(Platform.OS === 'web' ? 'auto' : 'content').header(
+    Header(title)
+      .onBack(() => back?.())
+      .backLabel(t('common.back'))
+      .inPage(),
+  );
+});
 
 function OperatedAccountSettings({
   accountId,

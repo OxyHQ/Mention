@@ -45,7 +45,8 @@ jest.mock('@oxy.so/bloom/loading', () => ({
   ...jest.requireActual('@oxy.so/bloom/loading'),
   Loading: 'Loading',
 }));
-jest.mock('expo-router', () => ({ Redirect: 'Redirect' }));
+// The About page is a screen() on native, whose navigator reads the router.
+jest.mock('expo-router', () => ({ Redirect: 'Redirect', useRouter: () => ({}) }));
 jest.mock('@/hooks/useAccountCategoryLabel', () => ({
   useAccountCategoryLabel: () => (id: string) => id,
 }));
