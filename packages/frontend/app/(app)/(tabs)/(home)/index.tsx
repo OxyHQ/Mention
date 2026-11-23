@@ -139,6 +139,40 @@ const HomeScreen: React.FC = () => {
     ? { showComposeButton: true, onComposePress: () => router.push('/compose') }
     : {};
 
+  // The feed tabs are the first row of each tab's feed, so they scroll up and
+  // away with it rather than staying pinned under the header, and each tab
+  // keeps its own scroll position with its own copy of the bar at the top.
+  const tabBar = (
+    <Tabs
+      value={activeTab}
+      onValueChange={setActiveTab}
+      pressOpenTab="reselect"
+      variant="underline"
+      style={{ height: 38 }}
+    >
+      {homeTabs.map((tab) => (
+        <TabsTrigger
+          key={tab.key}
+          value={tab.key}
+          label={tab.label}
+          style={{
+            height: 38,
+            minWidth: 76,
+            paddingLeft: 12,
+            paddingRight: 12,
+            paddingTop: 0,
+            paddingBottom: 0,
+          }}
+          textStyle={{
+            fontSize: 15,
+            lineHeight: 18,
+            fontWeight: activeTab === tab.key ? '700' : '500',
+          }}
+        />
+      ))}
+    </Tabs>
+  );
+
   const renderTabFeed = (tab: HomeTabModel) =>
     tab.kind === 'custom' ? (
       <Feed
@@ -146,6 +180,7 @@ const HomeScreen: React.FC = () => {
         type="custom"
         filters={{ customFeedId: tab.feedId }}
         reloadKey={reloadKeyFor(tab.key)}
+        listTopComponent={tabBar}
         {...composeProps}
       />
     ) : (
@@ -153,6 +188,7 @@ const HomeScreen: React.FC = () => {
         key={`${tab.type}-${feedIdentity}`}
         type={tab.type}
         reloadKey={reloadKeyFor(tab.key)}
+        listTopComponent={tabBar}
         {...composeProps}
       />
     );
@@ -166,34 +202,6 @@ const HomeScreen: React.FC = () => {
         jsonLd={SITE_STRUCTURED_DATA}
       />
       <Screen reselect={{ refresh: reloadCurrentTab }} scroll="auto" header={<MentionHomeHeader />}>
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          pressOpenTab="reselect"
-          variant="underline"
-          style={{ height: 38 }}
-        >
-          {homeTabs.map((tab) => (
-            <TabsTrigger
-              key={tab.key}
-              value={tab.key}
-              label={tab.label}
-              style={{
-                height: 38,
-                minWidth: 76,
-                paddingLeft: 12,
-                paddingRight: 12,
-                paddingTop: 0,
-                paddingBottom: 0,
-              }}
-              textStyle={{
-                fontSize: 15,
-                lineHeight: 18,
-                fontWeight: activeTab === tab.key ? '700' : '500',
-              }}
-            />
-          ))}
-        </Tabs>
         {mountedTabs.map((tab) => (
           <Activity key={tab.key} mode={tab.key === currentTab.key ? 'visible' : 'hidden'}>
             {renderTabFeed(tab)}
