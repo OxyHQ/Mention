@@ -25,6 +25,13 @@ const config = createOxyMetroConfig(__dirname, {
   // shared `@oxy.so/core/logger`) resolves to level `silent` outside
   // development anyway, and the minifier never runs on a development build.
   dropConsole: true,
+  // A React Native `Text` or `TextInput` that names no family keeps React
+  // Native's own face (Roboto on Android, San Francisco on iOS, react-native-web's
+  // system stack on the web), as Mention has always drawn it. The preset's
+  // default since 6.8.0 puts Bloom's base face, Inter, first on every such text
+  // (`metro/base-font`), which draws them ~8% wider. Bloom's own texts name their
+  // family either way. Takes effect from the app-preset release with `baseFont`.
+  baseFont: false,
 });
 
 // Web assets are UTF-8: preserve locale text instead of expanding every
