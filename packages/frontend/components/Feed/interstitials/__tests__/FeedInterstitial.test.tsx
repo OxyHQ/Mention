@@ -367,7 +367,12 @@ jest.mock('@oxy.so/bloom/icon-circle', () => ({ IconCircle: () => null }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
   ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: { primary: '#0000ff' } }),
+  // The real theme (the suite renders under BloomThemeProvider) with a recognisable primary; the language's
+  // paint reads other roles from it too.
+  useTheme: () => {
+    const theme = jest.requireActual('@oxy.so/bloom/theme').useTheme();
+    return { ...theme, colors: { ...theme.colors, primary: '#0000ff' } };
+  },
 }));
 
 jest.mock('@oxy.so/bloom/loading', () => {
