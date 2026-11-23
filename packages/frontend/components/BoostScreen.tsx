@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   type TextInputInstance,
@@ -51,13 +50,6 @@ const HEADER_ROW_STYLE: ViewStyle = {
   alignItems: 'center',
   paddingHorizontal: 16,
   paddingBottom: 12,
-};
-const CANCEL_STYLE: ViewStyle = { paddingVertical: 8, paddingHorizontal: 12 };
-/** The Boost pill: 20pt by 8pt inside a full radius. */
-const BOOST_BUTTON_STYLE: ViewStyle = {
-  borderRadius: Number.MAX_SAFE_INTEGER,
-  paddingHorizontal: 20,
-  paddingVertical: 8,
 };
 
 const MAX_CHARACTERS = 280;
@@ -167,27 +159,30 @@ const BoostScreen: React.FC = () => {
             // A View: its top pad is the safe area's, a number known only as it renders.
             Embed((render) => (
               <View style={[HEADER_ROW_STYLE, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={handleCancel} style={CANCEL_STYLE}>
-                  {render(
+                {render(
+                  VStack(
                     RawText('Cancel')
                       .foreground('primary')
                       .font('16')
                       .leading('normal')
                       .weight('semibold'),
-                  )}
-                </TouchableOpacity>
+                  )
+                    .padding('vertical', 'sm')
+                    .padding('horizontal', 'md')
+                    .onPress(handleCancel)
+                    .pressFade(),
+                )}
 
                 {render(
                   HStack(
-                    Embed(
-                      <TouchableOpacity
-                        style={[BOOST_BUTTON_STYLE, !canBoost && { opacity: 0.5 }]}
-                        onPress={handleBoost}
-                        disabled={!canBoost}
-                      >
-                        {render(canBoost ? boostLabel : boostLabel.opacity('70'))}
-                      </TouchableOpacity>,
-                    ),
+                    VStack(canBoost ? boostLabel : boostLabel.opacity('70'))
+                      .padding('horizontal', 'xl')
+                      .padding('vertical', 'sm')
+                      .corner('infinite')
+                      .when(!canBoost, (v) => v.opacity('half'))
+                      .onPress(handleBoost)
+                      .disabled(!canBoost)
+                      .pressFade(),
                   ).align('center'),
                 )}
               </View>

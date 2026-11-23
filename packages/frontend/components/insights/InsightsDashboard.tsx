@@ -1,6 +1,5 @@
 import type React from 'react';
 import { Fragment, useMemo, useState } from 'react';
-import { StyleSheet, type TextStyle, View } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,8 +16,6 @@ import {
   RadarChartCard,
   ContributionsCard,
 } from '@oxy.so/bloom/chart-cards';
-import { Text } from '@oxy.so/bloom/typography';
-import { Button } from '@oxy.so/bloom/button';
 import {
   Accordion,
   AccordionItem,
@@ -29,7 +26,6 @@ import PostItem from '@/components/Feed/PostItem';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import type { AccountInsights, EngagementRatios } from '@/services/insightsService';
 import type { HydratedPost } from '@mention/shared-types';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiCalendarEventLine } from '@oxy.so/bloom/icons/RiCalendarEventLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
@@ -43,6 +39,7 @@ import {
 } from './insightsSeries';
 
 import {
+  Button as LButton,
   Divider as LDivider,
   Embed,
   Grid,
@@ -54,9 +51,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** The refresh line, 12/16 as `text-xs` drew it; its ink is the muted colour. */
-const UPDATED_STYLE: TextStyle = { fontSize: 12, lineHeight: 16 };
 
 const PERIOD_OPTIONS = [
   { labelKey: 'insights.period.7days', value: 7 },
@@ -103,7 +97,6 @@ export function InsightsDashboard({
   activeTab,
   isFetching,
 }: InsightsDashboardProps) {
-  const { colors } = useTheme();
   const router = useRouter();
   const openPostEngagement = useOpenPostEngagement();
   const { t, i18n } = useTranslation();
@@ -278,33 +271,27 @@ export function InsightsDashboard({
         VStack(
           HStack(
             Embed(<PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} t={t} />),
-            Embed(
-              !accountId && (
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  size="sm"
-                  leading={toElement(Icon(RiCalendarEventLine).size('sm').foreground('foreground'))}
-                  onPress={() => router.push('/insights/weekly_recap')}
-                >
-                  {t('insights.weeklyRecap.title')}
-                </Button>
-              ),
-            ),
+            !accountId
+              ? LButton(
+                  Icon(RiCalendarEventLine).size('sm').foreground('foreground'),
+                  LText(t('insights.weeklyRecap.title')),
+                )
+                  .style('subtle')
+                  .tint('neutral')
+                  .size('sm')
+                  .onPress(() => router.push('/insights/weekly_recap'))
+              : null,
           )
             .wrap()
             .align('center')
             .justify('between')
             .spacing('sm'),
-          Embed(
-            // Bloom's Text: its live region (it announces the refresh) has no modifier.
-            <Text
-              style={[UPDATED_STYLE, { color: colors.textSecondary }]}
-              accessibilityLiveRegion="polite"
-            >
-              {isFetching ? t('insights.updating') : `${range} · UTC`}
-            </Text>,
-          ),
+          // A live region: it announces the refresh.
+          LText(isFetching ? t('insights.updating') : `${range} · UTC`)
+            .font('xs')
+            .leading('16px')
+            .foreground('muted')
+            .liveRegion('polite'),
         ).spacing('sm'),
       )}
       {toElement(LText(t('insights.periodScope')).font('14').leading('20px').foreground('muted'))}
@@ -673,20 +660,11 @@ export function InsightsDashboard({
       )}
     </>
   );
-  return <View style={styles.scrollContent}>{body}</View>;
+  return toElement(
+    VStack(Embed(body))
+      .padding('horizontal', 'lg')
+      .padding('top', 'lg')
+      .padding('bottom', '4xl')
+      .spacing('lg'),
+  );
 }
-
-const styles = StyleSheet.create({
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 16,
-  },
-  periodRow: {
-    marginBottom: 4,
-  },
-  periodControl: {
-    alignItems: 'flex-start',
-  },
-  filters: { gap: 8 },
-});
