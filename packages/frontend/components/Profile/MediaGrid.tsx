@@ -1,7 +1,7 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { TouchableOpacity, View, type ViewStyle } from 'react-native';
+import type { View } from 'react-native';
 import { Image, type ImageStyle } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,8 @@ import LiveVideoPosterCell from './LiveVideoPosterCell';
 import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface MediaGridProps {
   userId?: string;
@@ -51,18 +53,8 @@ interface MediaGridEntry extends ProfileGridEntry {
 }
 
 const CAROUSEL_ICON_SIZE = 12;
-// What the cells' classes drew, as plain objects (a grid cell adds no view or hook for them).
-// expo-image takes one style object, not a list.
+// What the image's classes drew, as a plain object: expo-image takes one style object, not a list.
 const FILL: ImageStyle = { width: '100%', height: '100%' };
-/** The carousel mark: 4pt in from the top right corner, on black at 50%. */
-const CAROUSEL_BADGE: ViewStyle = {
-  position: 'absolute',
-  top: 4,
-  right: 4,
-  borderRadius: 4,
-  padding: 2,
-  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-};
 const INITIAL_RENDER_COUNT = 18;
 const WINDOW_SIZE = 7;
 
@@ -187,37 +179,49 @@ const MediaGrid: React.FC<MediaGridProps> = ({
         }
       };
 
-      return (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={{ width: itemSize, height: itemSize }}
-          onPress={handlePress}
-        >
-          {item.isVideo ? (
-            <LiveVideoPosterCell
-              posterUri={item.uri || undefined}
-              size={itemSize}
-              placeholderColor={theme.colors.textSecondary}
-              viewsPostId={item.viewsPostId}
-              fallbackViews={item.views}
-              durationSec={item.durationSec}
-              scrim
-            />
-          ) : (
-            <Image
-              source={{ uri: item.uri }}
-              style={{ backgroundColor: theme.colors.contrast50, ...FILL }}
-              contentFit="cover"
-              transition={150}
-              cachePolicy="memory-disk"
-            />
-          )}
-          {item.isCarousel && (
-            <View style={CAROUSEL_BADGE}>
-              <RiStackLine width={CAROUSEL_ICON_SIZE} height={CAROUSEL_ICON_SIZE} fill="white" />
-            </View>
-          )}
-        </TouchableOpacity>
+      return toElement(
+        VStack(
+          Embed(
+            item.isVideo ? (
+              <LiveVideoPosterCell
+                posterUri={item.uri || undefined}
+                size={itemSize}
+                placeholderColor={theme.colors.textSecondary}
+                viewsPostId={item.viewsPostId}
+                fallbackViews={item.views}
+                durationSec={item.durationSec}
+                scrim
+              />
+            ) : (
+              <Image
+                source={{ uri: item.uri }}
+                style={{ backgroundColor: theme.colors.contrast50, ...FILL }}
+                contentFit="cover"
+                transition={150}
+                cachePolicy="memory-disk"
+              />
+            ),
+          ),
+          // The carousel mark: 4pt in from the top right corner, on black at 50%.
+          item.isCarousel
+            ? VStack(
+                Embed(
+                  <RiStackLine
+                    width={CAROUSEL_ICON_SIZE}
+                    height={CAROUSEL_ICON_SIZE}
+                    fill="white"
+                  />,
+                ),
+              )
+                .padding('2xs')
+                .background('black/half')
+                .corner('xs')
+                .position({ top: 'xs', right: 'xs' })
+            : null,
+        )
+          .frame({ width: itemSize, height: itemSize })
+          .onPress(handlePress)
+          .pressFade('80'),
       );
     },
     [router, theme.colors.textSecondary, theme.colors.contrast50],

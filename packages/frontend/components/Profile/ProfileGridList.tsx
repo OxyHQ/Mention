@@ -121,16 +121,11 @@ export function ProfileGridList<T extends ProfileGridEntry>({
       if (item.kind === 'auxiliary') {
         return toElement(VStack(Embed(item.element)).frame({ width: 'full' }));
       }
-      return (
-        <View
-          style={{
-            width: itemSize,
-            marginRight: item.columnIndex < NUM_COLUMNS - 1 ? GAP : 0,
-            marginBottom: GAP,
-          }}
-        >
-          {renderCell(item.value, itemSize)}
-        </View>
+      return toElement(
+        VStack(Embed(renderCell(item.value, itemSize)))
+          .frame({ width: itemSize })
+          .margin('right', item.columnIndex < NUM_COLUMNS - 1 ? '1' : 'none')
+          .margin('bottom', '1'), // GAP, the space token '1'
       );
     },
     [itemSize, renderCell],
