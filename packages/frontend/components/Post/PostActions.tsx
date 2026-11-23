@@ -1,11 +1,4 @@
 import React from 'react';
-import { Button } from '@oxy.so/bloom/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@oxy.so/bloom/dropdown-menu';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import type { TFunction } from 'i18next';
 import type { AccessibilityActionEvent } from 'react-native';
@@ -26,7 +19,7 @@ import { ShareIcon } from '@oxy.so/bloom/icons/ShareIcon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
 
-import { Action, Icon, toElement } from '@oxy.so/bloom-language';
+import { Action, Button, Icon, Item, Menu, toElement } from '@oxy.so/bloom-language';
 
 // The two vote arrows are adjacent halves of ONE pill, so neither hit region
 // may grow toward the other or it swallows the other's taps.
@@ -128,27 +121,25 @@ const PostActions: React.FC<Props> = ({
       showZeroCounts={video}
       trailing={
         video ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild label={t('videos.more')}>
-              <Button
-                iconOnly
-                appearance="plain"
-                tone="neutral"
-                size="lg"
-                iconSize={28}
-                leadingIcon={RiMoreFill}
-                accessibilityLabel={t('videos.more')}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent label={t('videos.more')}>
-              <DropdownMenuItem
-                leading={toElement(Icon(ShareIcon).size('sm').foreground('primary'))}
-                onPress={onShare}
-              >
-                {t('videos.share')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          toElement(
+            // Bloom's DropdownMenu on every platform, as the row drew it (not the platform's menu).
+            Menu(
+              Button(Icon(RiMoreFill))
+                .shape('circle')
+                .style('plain')
+                .tint('neutral')
+                .size('lg')
+                .iconSize('xl')
+                .label(t('videos.more')),
+              Item(t('videos.share'))
+                .icon(ShareIcon)
+                .iconSize('sm')
+                .iconForeground('primary')
+                .onPress(onShare),
+            )
+              .menuStyle('dropdown')
+              .label(t('videos.more')),
+          )
         ) : (
           <>
             {toElement(
