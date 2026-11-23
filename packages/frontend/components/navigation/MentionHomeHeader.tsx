@@ -15,11 +15,11 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
 import {
   Button as LButton,
-  Icon,
-  toElement,
   Embed,
+  Icon,
+  Text as LText,
   VStack,
-  toElement as LtoElement,
+  toElement,
 } from '@oxy.so/bloom-language';
 
 export function MentionHomeHeader() {
@@ -33,7 +33,7 @@ export function MentionHomeHeader() {
   const { ask } = useAskGemie();
   return (
     <PageHeader
-      title={LtoElement(
+      title={toElement(
         VStack(Embed(<LogoIcon size={28} color={colors.text} />))
           .onPress(() => selectDestination('(home)'))
           .role('button')
@@ -44,19 +44,18 @@ export function MentionHomeHeader() {
       presentation="floating"
       leading={
         <>
-          {shell.drawerAvailable && (
-            <Button
-              appearance="outline"
-              tone="neutral"
-              iconOnly
-              size="md"
-              leadingIcon={shell.drawerOpen ? RiCloseLine : MenuIcon}
-              accessibilityLabel={t('navigation.menu')}
-              aria-expanded={shell.drawerOpen}
-              onPress={shell.toggleDrawer}
-              testID="sidebar-menu-button"
-            />
-          )}
+          {shell.drawerAvailable &&
+            toElement(
+              LButton(Icon(shell.drawerOpen ? RiCloseLine : MenuIcon))
+                .style('outline')
+                .tint('neutral')
+                .shape('circle')
+                .size('md')
+                .label(t('navigation.menu'))
+                .accessibilityState({ expanded: shell.drawerOpen })
+                .onPress(shell.toggleDrawer)
+                .testID('sidebar-menu-button'),
+            )}
           <Button.Group accessibilityLabel={t('common.search')}>
             {toElement(
               LButton(Icon(RiSearchLine))
@@ -69,9 +68,9 @@ export function MentionHomeHeader() {
       }
       actions={
         <Button.Group accessibilityLabel={t('common.actions', { defaultValue: 'Page actions' })}>
-          <Button leadingIcon={GemieAvatarIcon} onPress={() => ask()}>
-            {t('header.askAlia')}
-          </Button>
+          {toElement(
+            LButton(Icon(GemieAvatarIcon), LText(t('header.askAlia'))).onPress(() => ask()),
+          )}
           {toElement(
             LButton(Icon(RiNotification3Line))
               .shape('circle')
