@@ -1,19 +1,16 @@
 import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import { RefreshControl } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { RoomsListSkeleton } from '@/components/rooms/RoomsListSkeleton';
 import RoomCard from '@/components/RoomCard';
 import { SEO } from '@/components/SEO';
 
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
@@ -35,7 +32,10 @@ import {
   VStack,
   defineTokens,
   toElement,
+  Group,
+  ScrollView,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const liveColors = defineTokens({
   color: { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR },
@@ -62,10 +62,9 @@ const SectionHeader = ({
       .margin('bottom', 'md'),
   );
 
-const LiveRoomsScreen = () => {
+const LiveRoomsScreen = screen(function LiveRoomsScreen() {
   const router = useRouter();
   const { canUsePrivateApi } = useAuth();
-  const theme = useTheme();
   const { t } = useTranslation();
   const { joinLiveRoom } = useLiveRoom();
   const [liveRooms, setLiveRooms] = useState<Room[]>([]);
@@ -215,57 +214,46 @@ const LiveRoomsScreen = () => {
     </>
   );
 
-  return (
-    <>
-      <SEO title="Live Rooms" description="Join live audio conversations" />
-      <Screen
-        reselect={{ refresh: onRefresh }}
-        header={toElement(
-          Header(t('agora.title'))
-            .toolbar(
-              Embed(
-                // Signed out, Syra refuses the create with a 401, and the sheet
-                // gave no sign of it. The button is only offered to a reader who
-                // can create; everyone else gets the sign-in prompt below.
-                canUsePrivateApi
-                  ? toElement(
-                      LButton(Icon(RiAddLine), LText('Create'))
-                        .style('solid')
-                        .tint('accent')
-                        .size('sm')
-                        .onPress(openCreateSheet),
-                    )
-                  : undefined,
-              ),
-            )
-            .inPage(),
-        )}
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(<SEO title="Live Rooms" description="Join live audio conversations" />),
+    Embed(
+      <SignInRequired
+        label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}
+        description={t('agora.signInRequiredDesc', {
+          defaultValue:
+            'Live audio conversations, and the rooms you host, appear here once you sign in.',
+        })}
       >
-        <SignInRequired
-          label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}
-          description={t('agora.signInRequiredDesc', {
-            defaultValue:
-              'Live audio conversations, and the rooms you host, appear here once you sign in.',
-          })}
-        >
-          <ScreenScrollView
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.colors.primary}
-              />
-            }
-            // Its old `pb-6` class: Bloom lays it out in a content view of its own.
-            contentView
-            contentContainerStyle={{ paddingBottom: 24 }}
-          >
-            {body}
-          </ScreenScrollView>
-        </SignInRequired>
-      </Screen>
-    </>
-  );
-};
+        {toElement(
+          ScrollView(Embed(body))
+            .refreshable({ refreshing, onRefresh }, { ios: 'primary' })
+            .contentView((v) => v.padding('bottom', '2xl')),
+        )}
+      </SignInRequired>,
+    ),
+  )
+    .onReselect(onRefresh)
+    .header(
+      Header(t('agora.title'))
+        .toolbar(
+          Embed(
+            // Signed out, Syra refuses the create with a 401, and the sheet
+            // gave no sign of it. The button is only offered to a reader who
+            // can create; everyone else gets the sign-in prompt below.
+            canUsePrivateApi
+              ? toElement(
+                  LButton(Icon(RiAddLine), LText('Create'))
+                    .style('solid')
+                    .tint('accent')
+                    .size('sm')
+                    .onPress(openCreateSheet),
+                )
+              : undefined,
+          ),
+        )
+        .inPage(),
+    );
+});
 
 export default LiveRoomsScreen;
