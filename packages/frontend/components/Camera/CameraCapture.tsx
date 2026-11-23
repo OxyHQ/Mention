@@ -47,6 +47,12 @@ import {
   toElement,
 } from '@oxy.so/bloom-language';
 
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
+
 /**
  * The camera's own colours: the selected zoom stop (`text-yellow-400`, as NativeWind
  * drew it), the selected stop's darker disc and the recording red.
@@ -660,32 +666,36 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
         ? null
         : HStack(
             Embed(
-              CAPTURE_MODES.map((option) => (
-                <Pressable
-                  key={option}
-                  onPress={() => setCaptureMode(option)}
-                  style={styles.modeItem}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: option === captureMode }}
-                  accessibilityLabel={
-                    option === 'video'
-                      ? t('camera.modeVideo', { defaultValue: 'Video' })
-                      : t('camera.modePhoto', { defaultValue: 'Photo' })
-                  }
-                >
-                  {toElement(
-                    LText(
+              CAPTURE_MODES.map((option) =>
+                LtoElement(
+                  LVStack(
+                    LEmbed(
+                      toElement(
+                        LText(
+                          option === 'video'
+                            ? t('camera.modeVideo', { defaultValue: 'Video' })
+                            : t('camera.modePhoto', { defaultValue: 'Photo' }),
+                        )
+                          .font('xs')
+                          .leading('16px')
+                          .when(option === captureMode, (v) => v.foreground('white').weight('bold'))
+                          .when(!(option === captureMode), (v) => v.foreground('white/half')),
+                      ),
+                    ),
+                  )
+                    .padding('horizontal', '14')
+                    .padding('vertical', '6')
+                    .onPress(() => setCaptureMode(option))
+                    .role('button')
+                    .accessibilityState({ selected: option === captureMode })
+                    .label(
                       option === 'video'
                         ? t('camera.modeVideo', { defaultValue: 'Video' })
                         : t('camera.modePhoto', { defaultValue: 'Photo' }),
-                    )
-                      .font('xs')
-                      .leading('16px')
-                      .when(option === captureMode, (v) => v.foreground('white').weight('bold'))
-                      .when(!(option === captureMode), (v) => v.foreground('white/half')),
-                  )}
-                </Pressable>
-              )),
+                    ),
+                  option,
+                ),
+              ),
             ),
           )
             .align('center')

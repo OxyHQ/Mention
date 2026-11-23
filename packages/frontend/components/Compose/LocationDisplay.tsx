@@ -1,11 +1,13 @@
 import type React from 'react';
-import { TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 
 import { Embed, HStack, Icon, Loading, RawText, toElement } from '@oxy.so/bloom-language';
+
+import { Embed as LEmbed, VStack, toElement as LtoElement } from '@oxy.so/bloom-language';
 
 interface LocationDisplayProps {
   location: {
@@ -49,9 +51,11 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
                   .weight('medium')
                   .foreground('foreground'),
                 Embed(
-                  <TouchableOpacity onPress={onRemove}>
-                    {toElement(Icon(RiCloseLine).size('sm').foreground('muted'))}
-                  </TouchableOpacity>,
+                  LtoElement(
+                    VStack(LEmbed(toElement(Icon(RiCloseLine).size('sm').foreground('muted'))))
+                      .onPress(onRemove)
+                      .pressFade(),
+                  ),
                 ),
               ]),
         )

@@ -23,6 +23,12 @@ import { displayNameOrHandle } from '@/utils/displayName';
 
 import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
+
 export interface CollaboratorUser {
   id: string;
   username: string;
@@ -205,15 +211,17 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                   />,
                 ),
                 Embed(
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel={t('collab.closeSearch', {
-                      defaultValue: 'Close collaborator search',
-                    })}
-                    onPress={closeSearch}
-                  >
-                    {toElement(Icon(RiCloseLine).size('md').foreground('muted'))}
-                  </TouchableOpacity>,
+                  LtoElement(
+                    LVStack(LEmbed(toElement(Icon(RiCloseLine).size('md').foreground('muted'))))
+                      .role('button')
+                      .label(
+                        t('collab.closeSearch', {
+                          defaultValue: 'Close collaborator search',
+                        }),
+                      )
+                      .onPress(closeSearch)
+                      .pressFade(),
+                  ),
                 ),
               )
                 .padding('horizontal', 'md')

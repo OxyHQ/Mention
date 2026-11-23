@@ -4,14 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
-import { Dialog } from '@oxy.so/bloom/dialog';
-import { Item } from '@oxy.so/bloom/item';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { HStack, RawText, Toggle, VStack, toElement } from '@oxy.so/bloom-language';
+
+import { Dialog as LDialog, Embed, Row, toElement as LtoElement } from '@oxy.so/bloom-language';
 
 /** The row the post goes out as says so. */
 const currentMark = (text: string) =>
@@ -116,131 +116,132 @@ const PublishAsDialog = memo(function PublishAsDialog({
     router.push('/channels');
   }, [onClose, router]);
 
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={t('compose.publishAs.title', { defaultValue: 'Post as' })}
-      label={t('compose.publishAs.title', { defaultValue: 'Post as' })}
-    >
-      <Item
-        onPress={() => handleSelect(null)}
-        leading={
-          <AccountAvatar
-            account={user ?? undefined}
-            source={user?.avatar}
-            size={PICKER_AVATAR_SIZE}
-            variant={MEDIA_VARIANT_AVATAR}
-            verified={Boolean(user?.verified)}
-          />
-        }
-        title={t('compose.publishAs.none', { defaultValue: 'Myself' })}
-        subtitle={t('compose.publishAs.noneSubtitle', {
-          defaultValue: 'The post goes out under your own name, as always',
-        })}
-        selected={selectedOxyUserId === null}
-        trailing={
-          selectedOxyUserId === null
-            ? toElement(currentMark(t('compose.publishAs.current', { defaultValue: 'Current' })))
-            : undefined
-        }
-      />
-
-      {isLoading ? (
-        <ListSkeleton />
-      ) : otherAccounts.length === 0 ? (
-        toElement(
-          RawText(
-            t('compose.publishAs.empty', {
-              defaultValue:
-                'You do not operate any other account yet. A channel is one people follow without following the people who write for it.',
-            }),
-          )
-            .textAlign('center')
-            .font('14')
-            .leading('20px')
-            .foreground('muted')
-            .padding('vertical', '2xl')
-            .padding('horizontal', '2xl'),
+  return LtoElement(
+    LDialog(
+      Row(t('compose.publishAs.none', { defaultValue: 'Myself' }))
+        .onPress(() => handleSelect(null))
+        .leadingView(
+          Embed(
+            <AccountAvatar
+              account={user ?? undefined}
+              source={user?.avatar}
+              size={PICKER_AVATAR_SIZE}
+              variant={MEDIA_VARIANT_AVATAR}
+              verified={Boolean(user?.verified)}
+            />,
+          ),
         )
-      ) : (
-        otherAccounts.map((account) => {
-          const handle = getNormalizedUserHandle(account.account) ?? '';
-          return (
-            <Item
-              key={account.accountId}
-              onPress={() => handleSelect(account)}
-              leading={
-                <AccountAvatar
-                  account={account.account}
-                  source={account.account.avatar}
-                  size={PICKER_AVATAR_SIZE}
-                  variant={MEDIA_VARIANT_AVATAR}
-                  verified={Boolean(account.account.verified)}
-                />
-              }
-              title={displayNameOrHandle(
-                account.account.name?.displayName,
-                handle ? `@${handle}` : '',
-              )}
-              subtitle={handle ? `@${handle}` : undefined}
-              selected={account.accountId === selectedOxyUserId}
-              trailing={
-                account.accountId === selectedOxyUserId
-                  ? toElement(
-                      currentMark(t('compose.publishAs.current', { defaultValue: 'Current' })),
-                    )
-                  : undefined
-              }
-            />
-          );
-        })
-      )}
-
-      {/* The way OUT of an empty list. Without it the dialog explains what a
-          channel is and offers no way to have one — which is exactly how the
-          feature shipped when the old channels screen was deleted along with the
-          model it read. */}
-      <Item
-        onPress={handleManage}
-        title={t('compose.publishAs.manage', { defaultValue: 'Create or manage channels' })}
-      />
-
-      {/* Only a post published as somebody else can also be somewhere else — an
-          ordinary post is already on the author's profile, so the question has no
-          meaning there. */}
-      {selectedOxyUserId && alsoPostToProfile !== undefined && onAlsoPostToProfileChange
-        ? toElement(
-            HStack(
-              VStack(
-                RawText(
-                  t('compose.publishAs.alsoPostToProfile', {
-                    defaultValue: 'Also post to my profile',
-                  }),
-                )
-                  .foreground('foreground')
-                  .font('md')
-                  .weight('semibold'),
-                RawText(
-                  t('compose.publishAs.alsoPostToProfileHint', {
-                    defaultValue: 'Reposts the post onto your own profile once it is published.',
-                  }),
-                )
-                  .foreground('muted')
-                  .font('sm'),
-              ).flex('1'),
-              Toggle([alsoPostToProfile, onAlsoPostToProfileChange]),
+        .subtitle(
+          t('compose.publishAs.noneSubtitle', {
+            defaultValue: 'The post goes out under your own name, as always',
+          }),
+        )
+        .selected(selectedOxyUserId === null)
+        .trailing(
+          Embed(
+            selectedOxyUserId === null
+              ? toElement(currentMark(t('compose.publishAs.current', { defaultValue: 'Current' })))
+              : undefined,
+          ),
+        ),
+      Embed(
+        isLoading ? (
+          <ListSkeleton />
+        ) : otherAccounts.length === 0 ? (
+          toElement(
+            RawText(
+              t('compose.publishAs.empty', {
+                defaultValue:
+                  'You do not operate any other account yet. A channel is one people follow without following the people who write for it.',
+              }),
             )
-              .margin('top', 'sm')
-              .align('center')
-              .spacing('md')
-              .padding('horizontal', 'md')
-              .padding('vertical', 'md')
-              .border('border', 'thin')
-              .corner('lg'),
+              .textAlign('center')
+              .font('14')
+              .leading('20px')
+              .foreground('muted')
+              .padding('vertical', '2xl')
+              .padding('horizontal', '2xl'),
           )
-        : null}
-    </Dialog>
+        ) : (
+          otherAccounts.map((account) => {
+            const handle = getNormalizedUserHandle(account.account) ?? '';
+            return LtoElement(
+              Row(
+                displayNameOrHandle(account.account.name?.displayName, handle ? `@${handle}` : ''),
+              )
+                .onPress(() => handleSelect(account))
+                .leadingView(
+                  Embed(
+                    <AccountAvatar
+                      account={account.account}
+                      source={account.account.avatar}
+                      size={PICKER_AVATAR_SIZE}
+                      variant={MEDIA_VARIANT_AVATAR}
+                      verified={Boolean(account.account.verified)}
+                    />,
+                  ),
+                )
+                .subtitle(handle ? `@${handle}` : undefined)
+                .selected(account.accountId === selectedOxyUserId)
+                .trailing(
+                  Embed(
+                    account.accountId === selectedOxyUserId
+                      ? toElement(
+                          currentMark(t('compose.publishAs.current', { defaultValue: 'Current' })),
+                        )
+                      : undefined,
+                  ),
+                ),
+              account.accountId,
+            );
+          })
+        ),
+      ),
+      /* The way OUT of an empty list. Without it the dialog explains what a
+            channel is and offers no way to have one — which is exactly how the
+            feature shipped when the old channels screen was deleted along with the
+            model it read. */ Row(
+        t('compose.publishAs.manage', { defaultValue: 'Create or manage channels' }),
+      ).onPress(handleManage),
+      /* Only a post published as somebody else can also be somewhere else — an
+            ordinary post is already on the author's profile, so the question has no
+            meaning there. */ Embed(
+        selectedOxyUserId && alsoPostToProfile !== undefined && onAlsoPostToProfileChange
+          ? toElement(
+              HStack(
+                VStack(
+                  RawText(
+                    t('compose.publishAs.alsoPostToProfile', {
+                      defaultValue: 'Also post to my profile',
+                    }),
+                  )
+                    .foreground('foreground')
+                    .font('md')
+                    .weight('semibold'),
+                  RawText(
+                    t('compose.publishAs.alsoPostToProfileHint', {
+                      defaultValue: 'Reposts the post onto your own profile once it is published.',
+                    }),
+                  )
+                    .foreground('muted')
+                    .font('sm'),
+                ).flex('1'),
+                Toggle([alsoPostToProfile, onAlsoPostToProfileChange]),
+              )
+                .margin('top', 'sm')
+                .align('center')
+                .spacing('md')
+                .padding('horizontal', 'md')
+                .padding('vertical', 'md')
+                .border('border', 'thin')
+                .corner('lg'),
+            )
+          : null,
+      ),
+    )
+      .title(t('compose.publishAs.title', { defaultValue: 'Post as' }))
+      .label(t('compose.publishAs.title', { defaultValue: 'Post as' }))
+      .presented([open, () => onClose()]),
   );
 });
 
