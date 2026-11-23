@@ -135,7 +135,7 @@ function pickLane(post: HydratedPost, failure: string) {
   ));
 }
 
-/** "Reply options", as `ReplySettingsMenuItems` draws them: who can reply, then quotes. */
+/** "Reply options", as the composer's `ReplySettingsMenu` draws them: who can reply, then quotes. */
 function replySettingsRows(post: HydratedPost, t: TFunction, item: TaggedItem): MenuChild[] {
   const permission = post.metadata?.replyPermission ?? ['anyone'];
   const quotesDisabled = post.metadata?.quotesDisabled ?? false;

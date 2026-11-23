@@ -4495,23 +4495,26 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           <>
                             {/* Who may reply means nothing inside a private mention:
                       only its participants can. */}
-                            {!isDirect && !isPrivateMention(replyToPost) ? (
-                              <ReplySettingsMenu
-                                replyPermission={replyPermission}
-                                onReplyPermissionChange={setReplyPermission}
-                                quotesDisabled={quotesDisabled}
-                                onQuotesDisabledChange={setQuotesDisabled}
-                              >
-                                <Chip
-                                  size="xl"
-                                  variant="subtle"
-                                  leadingIcon={InteractionIcon}
-                                  trailingIcon={RiArrowDownSLine}
-                                >
-                                  {interactionLabel}
-                                </Chip>
-                              </ReplySettingsMenu>
-                            ) : null}
+                            {!isDirect && !isPrivateMention(replyToPost)
+                              ? LtoElement(
+                                  ReplySettingsMenu(
+                                    LChip(
+                                      LIcon(InteractionIcon),
+                                      Text(interactionLabel),
+                                      LIcon(RiArrowDownSLine),
+                                    )
+                                      .size('xl')
+                                      .style('subtle'),
+                                    {
+                                      replyPermission,
+                                      onReplyPermissionChange: setReplyPermission,
+                                      quotesDisabled,
+                                      onQuotesDisabledChange: setQuotesDisabled,
+                                      t,
+                                    },
+                                  ),
+                                )
+                              : null}
                             {LtoElement(
                               LChip(
                                 LIcon(SensitiveIcon),
