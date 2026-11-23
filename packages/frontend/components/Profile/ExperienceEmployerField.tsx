@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@oxy.so/bloom/select';
-import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
+import { TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
 
@@ -36,6 +36,8 @@ import {
   TextField as LTextField,
   VStack,
   toElement,
+  TextField,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 /**
@@ -303,24 +305,20 @@ export function ExperienceEmployerField({
                       </Select>,
                     ),
                     Embed(
-                      <TextFieldInput
-                        label={t('profile.experience.website')}
-                        value={website}
-                        onChangeText={setWebsite}
-                        autoCapitalize="none"
-                        keyboardType="url"
-                        editable={!create.isPending}
-                      />,
+                      LtoElement(
+                        TextField([website, setWebsite], t('profile.experience.website'))
+                          .autocapitalize('none')
+                          .keyboard('url')
+                          .editable(!create.isPending),
+                      ),
                     ),
                     Embed(
-                      <TextFieldInput
-                        label={t('profile.experience.country')}
-                        value={country}
-                        onChangeText={setCountry}
-                        maxLength={2}
-                        autoCapitalize="characters"
-                        editable={!create.isPending}
-                      />,
+                      LtoElement(
+                        TextField([country, setCountry], t('profile.experience.country'))
+                          .maxLength(2)
+                          .autocapitalize('characters')
+                          .editable(!create.isPending),
+                      ),
                     ),
                     createInvalid ? alertText(t('profile.experience.organizationInvalid')) : null,
                     create.isError

@@ -34,13 +34,19 @@ import type { ProfileTabsProps } from './types';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/hooks/useReselectReloadKey';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import { pinnedPostQueryOptions } from './pinnedPostQuery';
 import { LazyProfileShop } from '@/components/sharedRouteScreens';
-
-import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  RawText,
+  VStack,
+  toElement,
+  Button as LButton,
+  Text,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 const ProfileExperience = lazy(() =>
   import('./ProfileExperience').then((module) => ({ default: module.ProfileExperience })),
@@ -502,17 +508,15 @@ const ProfileJobs = memo(function ProfileJobs({
   return toElement(
     VStack(
       Embed(
-        (isOwnProfile || viewerOperatesAccount) && (
-          <Button
-            appearance="subtle"
-            tone="neutral"
-            size="sm"
-            style={{ alignSelf: 'flex-start' }}
-            onPress={() => router.push('/jobs/mine')}
-          >
-            {t('profile.jobs.manage', { defaultValue: 'Manage jobs' })}
-          </Button>
-        ),
+        (isOwnProfile || viewerOperatesAccount) &&
+          LtoElement(
+            LButton(Text(t('profile.jobs.manage', { defaultValue: 'Manage jobs' })))
+              .style('subtle')
+              .tint('neutral')
+              .size('sm')
+              .onPress(() => router.push('/jobs/mine'))
+              .alignSelf('start'),
+          ),
       ),
       Embed(
         jobs.length === 0 ? (
