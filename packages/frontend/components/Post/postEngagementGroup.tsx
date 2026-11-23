@@ -1,14 +1,22 @@
 import { lazy, Suspense, type ErrorInfo } from 'react';
-import { Screen } from '@oxy.so/bloom/screen';
 import type { AppShellPanelDefinition } from '@oxy.so/bloom/app-shell';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { PostEngagementProvider } from './PostEngagementProvider';
 import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
 import type { PostEngagementPanel } from './postEngagementPanels';
-import { Header, toElement } from '@oxy.so/bloom-language';
+import { Group, Header } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const EngagementList = lazy(() => import('./EngagementList'));
 const PostInsightsSheet = lazy(() => import('./PostInsightsSheet'));
+
+/** The video route's engagement panel before a post is chosen: its header over an empty, still screen. */
+const VideoRepliesPending = screen(function VideoRepliesPending({ label }: { label: string }) {
+  return Group()
+    .screenScroll('none')
+    .testID('video-replies-pending')
+    .header(Header(label).onBack(null).safeArea(false).inPage());
+});
 
 /** The outer descriptor keeps the workspace's sizing/order; its children own their screens. */
 export function postEngagementGroup(
@@ -112,11 +120,7 @@ export function postEngagementGroup(
               )}
             </Suspense>
           ) : videoRoute ? (
-            <Screen
-              scroll="none"
-              testID="video-replies-pending"
-              header={toElement(Header(label).onBack(null).safeArea(false).inPage())}
-            />
+            <VideoRepliesPending label={label} />
           ) : null,
         },
       ],
