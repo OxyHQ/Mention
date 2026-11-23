@@ -12,7 +12,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Fab } from '@oxy.so/bloom/fab';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { feedService, type SavedPostsPage } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -33,6 +32,9 @@ import {
   TabItem,
   Tabs as LTabs,
   toElement as LtoElement,
+  FAB,
+  Icon,
+  identity,
 } from '@oxy.so/bloom-language';
 
 const PAGE_SIZE = 30;
@@ -328,14 +330,15 @@ const SavedPostsScreen: React.FC = () => {
           header={toElement(Header(t('screens.saved.title')).presentation('floating').inPage())}
           // The page's own action; the shell's compose FAB steps aside for it.
           primaryAction={
-            canUsePrivateApi ? (
-              <Fab
-                size="md"
-                onPress={newFolderControl.open}
-                icon={RiAddLine}
-                accessibilityLabel={t('saved.newFolder', 'New folder')}
-              />
-            ) : undefined
+            canUsePrivateApi
+              ? LtoElement(
+                  FAB(Icon(RiAddLine))
+                    .size('md')
+                    .onPress(newFolderControl.open)
+                    .label(t('saved.newFolder', 'New folder'))
+                    .glass(identity),
+                )
+              : undefined
           }
         >
           {/* Search and folder tabs dock under the header. Creating a folder
