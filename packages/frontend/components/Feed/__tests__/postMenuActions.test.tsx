@@ -66,12 +66,6 @@ jest.mock('@/services/communityService', () => ({
   },
 }));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
-// The submenus' rows have their own suite; here only which entries are submenus.
-jest.mock('../PostMenuSubmenus', () => ({
-  PostLaneSubmenu: 'PostLaneSubmenu',
-  PostReplySettingsSubmenu: 'PostReplySettingsSubmenu',
-  PostSourcesSubmenu: 'PostSourcesSubmenu',
-}));
 const mockInvalidateCounts = jest.fn();
 jest.mock('@/stores/profileCountsInvalidation', () => ({
   invalidateProfileCounts: (...args: unknown[]) => mockInvalidateCounts(...args),
@@ -301,7 +295,7 @@ describe('what the actions do', () => {
   };
   const find = (actions: ReturnType<typeof build>, label: string) => {
     const found = entry(actions, label);
-    if ('submenu' in found) throw new Error(`${label} is a submenu`);
+    if ('rows' in found) throw new Error(`${label} is a submenu`);
     return found;
   };
 
@@ -446,7 +440,7 @@ describe('what the actions do', () => {
       'postActions.replyOptions',
       'lanes.postActions.moveToLane',
     ]) {
-      expect('submenu' in entry(actions, label)).toBe(true);
+      expect('rows' in entry(actions, label)).toBe(true);
     }
   });
 
