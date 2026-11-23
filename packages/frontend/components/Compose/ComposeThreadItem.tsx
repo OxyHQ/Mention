@@ -33,6 +33,7 @@ import {
   BOTTOM_LEFT_PAD,
   attachmentCard,
   attachmentCardOnSurface,
+  attachmentsRow,
   cardRemoveControl,
   composeSpace,
   timelineLineAbove,
@@ -52,8 +53,6 @@ const appColors = defineTokens({ color: { hex5e5e5e: '#5e5e5e' } });
  * unstyled row.
  */
 export interface ComposeThreadItemStyles {
-  timelineForeground: ViewStyle;
-  mediaPreviewContainer: ViewStyle;
   threadTextInput: TextStyle;
   mediaPreviewScroll: ViewStyle;
   mediaPreviewImage: ImageStyle;
@@ -392,177 +391,184 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
               )}
 
               {/* Thread item attachments row */}
-              {itemHasAttachments && (
-                <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={scrollPaddingStyle}
-                  >
-                    {item.mediaIds.map((mediaItem, mediaIndex) => {
-                      const mediaUrl = getFileDownloadUrl(mediaItem.id);
-                      const mediaCount = item.mediaIds.length;
-                      return toElement(
-                        VStack(
-                          Embed(
-                            <ComposeMediaPreview
-                              type={mediaItem.type}
-                              uri={mediaUrl}
-                              imageStyle={styles.mediaPreviewImage}
-                            />,
-                          ),
-                          mediaItem.type === 'image'
-                            ? Embed(
-                                <ComposeAltButton
-                                  hasAlt={Boolean(mediaItem.alt?.trim())}
-                                  raised={mediaCount > 1}
-                                  onPress={() => onMediaAltPress(threadId, mediaItem)}
+              {itemHasAttachments &&
+                toElement(
+                  VStack(
+                    Embed(
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={scrollPaddingStyle}
+                      >
+                        {item.mediaIds.map((mediaItem, mediaIndex) => {
+                          const mediaUrl = getFileDownloadUrl(mediaItem.id);
+                          const mediaCount = item.mediaIds.length;
+                          return toElement(
+                            VStack(
+                              Embed(
+                                <ComposeMediaPreview
+                                  type={mediaItem.type}
+                                  uri={mediaUrl}
+                                  imageStyle={styles.mediaPreviewImage}
                                 />,
+                              ),
+                              mediaItem.type === 'image'
+                                ? Embed(
+                                    <ComposeAltButton
+                                      hasAlt={Boolean(mediaItem.alt?.trim())}
+                                      raised={mediaCount > 1}
+                                      onPress={() => onMediaAltPress(threadId, mediaItem)}
+                                    />,
+                                  )
+                                : null,
+                              // The row stays a view: its style's `pointerEvents: 'box-none'`
+                              // is what the web draws (the language's is the web's own).
+                              mediaCount > 1
+                                ? Embed(
+                                    <View
+                                      style={[styles.mediaReorderControls, pointerEventsBoxNone]}
+                                    >
+                                      {toElement(
+                                        reorderStep(RiArrowLeftLine, mediaIndex === 0, () =>
+                                          onMediaMove(threadId, mediaItem.id, 'left'),
+                                        ),
+                                      )}
+                                      {toElement(
+                                        reorderStep(
+                                          RiArrowRightSLine,
+                                          mediaIndex === mediaCount - 1,
+                                          () => onMediaMove(threadId, mediaItem.id, 'right'),
+                                        ),
+                                      )}
+                                    </View>,
+                                  )
+                                : null,
+                              cardRemoveControl(() =>
+                                onMediaRemove(threadId, mediaItem.id),
+                              ).hitSlop('sm'),
+                            )
+                              .frame({ width: '280', height: composeSpace.space.cardHeight })
+                              .background('mutedFill')
+                              .border('border', 'thin')
+                              .corner('15')
+                              .clipped(),
+                            mediaItem.id,
+                          );
+                        })}
+                        {/* Thread item article preview */}
+                        {itemHasArticle &&
+                          item.article &&
+                          toElement(
+                            VStack(
+                              VStack(
+                                Embed(
+                                  <PostArticlePreview
+                                    title={item.article.title}
+                                    body={item.article.body}
+                                    onPress={handleArticlePress}
+                                    style={styles.articleAttachmentPreview}
+                                  />,
+                                ),
                               )
-                            : null,
-                          // The row stays a view: its style's `pointerEvents: 'box-none'`
-                          // is what the web draws (the language's is the web's own).
-                          mediaCount > 1
-                            ? Embed(
-                                <View style={[styles.mediaReorderControls, pointerEventsBoxNone]}>
-                                  {toElement(
-                                    reorderStep(RiArrowLeftLine, mediaIndex === 0, () =>
-                                      onMediaMove(threadId, mediaItem.id, 'left'),
-                                    ),
-                                  )}
-                                  {toElement(
-                                    reorderStep(
-                                      RiArrowRightSLine,
-                                      mediaIndex === mediaCount - 1,
-                                      () => onMediaMove(threadId, mediaItem.id, 'right'),
-                                    ),
-                                  )}
-                                </View>,
+                                .modifier(attachmentCardOnSurface)
+                                .onPress(handleArticlePress)
+                                .pressFade('85'),
+                              cardRemoveControl(handleArticleRemove).hitSlop('sm'),
+                            ).alignSelf('start'),
+                          )}
+                        {/* Thread item event preview */}
+                        {itemHasEvent &&
+                          item.event &&
+                          toElement(
+                            VStack(
+                              VStack(
+                                Embed(
+                                  <PostAttachmentEvent
+                                    name={item.event.name}
+                                    date={item.event.date}
+                                    location={item.event.location}
+                                    onPress={handleEventPress}
+                                    style={styles.articleAttachmentPreview}
+                                  />,
+                                ),
                               )
-                            : null,
-                          cardRemoveControl(() => onMediaRemove(threadId, mediaItem.id)).hitSlop(
-                            'sm',
+                                .modifier(attachmentCardOnSurface)
+                                .onPress(handleEventPress)
+                                .pressFade('85'),
+                              cardRemoveControl(handleEventRemove).hitSlop('sm'),
+                            ).alignSelf('start'),
+                          )}
+                        {(item.commerce ?? []).map((ref) =>
+                          toElement(
+                            VStack(
+                              Embed(
+                                <CommerceCard
+                                  referenceId={commerceReferenceKey(ref)}
+                                  style={COMMERCE_CARD}
+                                />,
+                              ),
+                              cardRemoveControl(() =>
+                                onCommerceRemove?.(threadId, commerceReferenceKey(ref)),
+                              )
+                                .role('button')
+                                .label(
+                                  t('commerce.remove', {
+                                    defaultValue: 'Remove commerce attachment',
+                                  }),
+                                ),
+                            ).alignSelf('start'),
+                            commerceReferenceKey(ref),
                           ),
-                        )
-                          .frame({ width: '280', height: composeSpace.space.cardHeight })
-                          .background('mutedFill')
-                          .border('border', 'thin')
-                          .corner('15')
-                          .clipped(),
-                        mediaItem.id,
-                      );
-                    })}
-                    {/* Thread item article preview */}
-                    {itemHasArticle &&
-                      item.article &&
-                      toElement(
-                        VStack(
-                          VStack(
-                            Embed(
-                              <PostArticlePreview
-                                title={item.article.title}
-                                body={item.article.body}
-                                onPress={handleArticlePress}
-                                style={styles.articleAttachmentPreview}
-                              />,
-                            ),
-                          )
-                            .modifier(attachmentCardOnSurface)
-                            .onPress(handleArticlePress)
-                            .pressFade('85'),
-                          cardRemoveControl(handleArticleRemove).hitSlop('sm'),
-                        ).alignSelf('start'),
-                      )}
-                    {/* Thread item event preview */}
-                    {itemHasEvent &&
-                      item.event &&
-                      toElement(
-                        VStack(
-                          VStack(
-                            Embed(
-                              <PostAttachmentEvent
-                                name={item.event.name}
-                                date={item.event.date}
-                                location={item.event.location}
-                                onPress={handleEventPress}
-                                style={styles.articleAttachmentPreview}
-                              />,
-                            ),
-                          )
-                            .modifier(attachmentCardOnSurface)
-                            .onPress(handleEventPress)
-                            .pressFade('85'),
-                          cardRemoveControl(handleEventRemove).hitSlop('sm'),
-                        ).alignSelf('start'),
-                      )}
-                    {(item.commerce ?? []).map((ref) =>
-                      toElement(
-                        VStack(
-                          Embed(
-                            <CommerceCard
-                              referenceId={commerceReferenceKey(ref)}
-                              style={COMMERCE_CARD}
-                            />,
-                          ),
-                          cardRemoveControl(() =>
-                            onCommerceRemove?.(threadId, commerceReferenceKey(ref)),
-                          )
-                            .role('button')
-                            .label(
-                              t('commerce.remove', {
-                                defaultValue: 'Remove commerce attachment',
-                              }),
-                            ),
-                        ).alignSelf('start'),
-                        commerceReferenceKey(ref),
-                      ),
-                    )}
-                    {/* Thread item podcast preview */}
-                    {itemHasPodcast &&
-                      item.podcast &&
-                      toElement(
-                        VStack(
-                          VStack(
-                            Embed(
-                              <PostPodcastAttachment
-                                podcast={item.podcast}
-                                width={320}
-                                height={120}
-                                showSaveButton={false}
-                                onPress={handlePodcastPress}
-                              />,
-                            ),
-                          ).modifier(attachmentCard),
-                          cardRemoveControl(handlePodcastRemove).hitSlop('sm'),
-                        ).alignSelf('start'),
-                      )}
-                    {/* Thread item room preview */}
-                    {itemHasRoom &&
-                      item.room &&
-                      toElement(
-                        VStack(
-                          VStack(
-                            Embed(
-                              <RoomCard
-                                room={{
-                                  _id: item.room.roomId,
-                                  title: item.room.title,
-                                  status: item.room.status || 'scheduled',
-                                  topic: item.room.topic,
-                                  participants: [],
-                                  host: item.room.host || '',
-                                }}
-                                variant="compact"
-                                style={styles.articleAttachmentPreview}
-                              />,
-                            ),
-                          ).modifier(attachmentCardOnSurface),
-                          cardRemoveControl(handleRoomRemove).hitSlop('sm'),
-                        ).alignSelf('start'),
-                      )}
-                  </ScrollView>
-                </View>
-              )}
+                        )}
+                        {/* Thread item podcast preview */}
+                        {itemHasPodcast &&
+                          item.podcast &&
+                          toElement(
+                            VStack(
+                              VStack(
+                                Embed(
+                                  <PostPodcastAttachment
+                                    podcast={item.podcast}
+                                    width={320}
+                                    height={120}
+                                    showSaveButton={false}
+                                    onPress={handlePodcastPress}
+                                  />,
+                                ),
+                              ).modifier(attachmentCard),
+                              cardRemoveControl(handlePodcastRemove).hitSlop('sm'),
+                            ).alignSelf('start'),
+                          )}
+                        {/* Thread item room preview */}
+                        {itemHasRoom &&
+                          item.room &&
+                          toElement(
+                            VStack(
+                              VStack(
+                                Embed(
+                                  <RoomCard
+                                    room={{
+                                      _id: item.room.roomId,
+                                      title: item.room.title,
+                                      status: item.room.status || 'scheduled',
+                                      topic: item.room.topic,
+                                      participants: [],
+                                      host: item.room.host || '',
+                                    }}
+                                    variant="compact"
+                                    style={styles.articleAttachmentPreview}
+                                  />,
+                                ),
+                              ).modifier(attachmentCardOnSurface),
+                              cardRemoveControl(handleRoomRemove).hitSlop('sm'),
+                            ).alignSelf('start'),
+                          )}
+                      </ScrollView>,
+                    ),
+                  )
+                    .modifier(attachmentsRow)
+                    .zIndex('2'),
+                )}
 
               {/* Thread item poll creator */}
               {item.showPollCreator && (

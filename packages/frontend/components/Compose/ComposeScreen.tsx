@@ -215,6 +215,7 @@ import { MentionSearchContext, useCreateMentionSearchCache } from '@/context/Men
 import {
   BOTTOM_LEFT_PAD,
   attachmentCard,
+  attachmentsRow,
   composeSpace,
   linkCard,
   mediaCard,
@@ -3581,292 +3582,316 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                             />
                                           </ComposeIdentityHeader>
 
-                                          {/* `overflow: visible` has no modifier: these stay views. */}
-                                          {homiioCase ? (
-                                            <View style={styles.mediaPreviewContainer}>
-                                              <HomiioCaseCard caseId={homiioCase.caseId} />
-                                            </View>
-                                          ) : null}
-                                          {vibbrEvent ? (
-                                            <View style={styles.mediaPreviewContainer}>
-                                              <VibbrEventCard eventId={vibbrEvent.eventId} />
-                                            </View>
-                                          ) : null}
+                                          {homiioCase
+                                            ? toElement(
+                                                VStack(
+                                                  Embed(
+                                                    <HomiioCaseCard caseId={homiioCase.caseId} />,
+                                                  ),
+                                                ).modifier(attachmentsRow),
+                                              )
+                                            : null}
+                                          {vibbrEvent
+                                            ? toElement(
+                                                VStack(
+                                                  Embed(
+                                                    <VibbrEventCard eventId={vibbrEvent.eventId} />,
+                                                  ),
+                                                ).modifier(attachmentsRow),
+                                              )
+                                            : null}
                                           {/* Attachments row (poll + article + media + link) */}
-                                          {attachmentOrder.length > 0 ? (
-                                            <View
-                                              style={[
-                                                styles.timelineForeground,
-                                                styles.mediaPreviewContainer,
-                                              ]}
-                                            >
-                                              <ScrollView
-                                                horizontal
-                                                showsHorizontalScrollIndicator={false}
-                                                contentContainerStyle={[
-                                                  styles.mediaPreviewScroll,
-                                                  { paddingLeft: BOTTOM_LEFT_PAD },
-                                                ]}
-                                              >
-                                                {attachmentOrder.map((key, index) => {
-                                                  const total = attachmentOrder.length;
+                                          {attachmentOrder.length > 0
+                                            ? toElement(
+                                                VStack(
+                                                  Embed(
+                                                    <ScrollView
+                                                      horizontal
+                                                      showsHorizontalScrollIndicator={false}
+                                                      contentContainerStyle={[
+                                                        styles.mediaPreviewScroll,
+                                                        { paddingLeft: BOTTOM_LEFT_PAD },
+                                                      ]}
+                                                    >
+                                                      {attachmentOrder.map((key, index) => {
+                                                        const total = attachmentOrder.length;
 
-                                                  if (key === ARTICLE_ATTACHMENT_KEY) {
-                                                    if (!(hasArticleContent && article))
-                                                      return null;
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        onRemove={removeArticle}
-                                                        look={attachmentCard}
-                                                      >
-                                                        <PostArticlePreview
-                                                          title={article.title}
-                                                          body={article.body}
-                                                          onPress={openArticleEditor}
-                                                          style={styles.articleAttachmentPreview}
-                                                        />
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  }
-
-                                                  if (key === EVENT_ATTACHMENT_KEY) {
-                                                    if (!(hasEventContent && event)) return null;
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        onRemove={removeEvent}
-                                                        look={attachmentCard}
-                                                      >
-                                                        <PostAttachmentEvent
-                                                          name={event.name}
-                                                          date={event.date}
-                                                          location={event.location}
-                                                          onPress={openEventEditor}
-                                                          style={styles.articleAttachmentPreview}
-                                                        />
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  }
-
-                                                  if (key === ROOM_ATTACHMENT_KEY) {
-                                                    if (!(hasRoomContent && attachedRoom))
-                                                      return null;
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        onRemove={removeRoom}
-                                                        look={attachmentCard}
-                                                      >
-                                                        <RoomCard
-                                                          room={{
-                                                            _id: attachedRoom.roomId,
-                                                            title: attachedRoom.title,
-                                                            status:
-                                                              attachedRoom.status || 'scheduled',
-                                                            topic: attachedRoom.topic,
-                                                            participants: [],
-                                                            host: attachedRoom.host || '',
-                                                          }}
-                                                          variant="compact"
-                                                          style={styles.articleAttachmentPreview}
-                                                        />
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  }
-
-                                                  if (key === PODCAST_ATTACHMENT_KEY) {
-                                                    if (!(hasPodcastContent && podcast))
-                                                      return null;
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        onRemove={removePodcast}
-                                                        look={attachmentCard}
-                                                      >
-                                                        <PostPodcastAttachment
-                                                          podcast={podcast}
-                                                          width={320}
-                                                          height={120}
-                                                          showSaveButton={false}
-                                                          onPress={openPodcastPicker}
-                                                        />
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  }
-
-                                                  const commerceRef = commerce.find(
-                                                    (ref) => commerceReferenceKey(ref) === key,
-                                                  );
-                                                  if (commerceRef)
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        onRemove={() =>
-                                                          setCommerce((previous) =>
-                                                            previous.filter(
-                                                              (ref) =>
-                                                                commerceReferenceKey(ref) !== key,
-                                                            ),
-                                                          )
+                                                        if (key === ARTICLE_ATTACHMENT_KEY) {
+                                                          if (!(hasArticleContent && article))
+                                                            return null;
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              onRemove={removeArticle}
+                                                              look={attachmentCard}
+                                                            >
+                                                              <PostArticlePreview
+                                                                title={article.title}
+                                                                body={article.body}
+                                                                onPress={openArticleEditor}
+                                                                style={
+                                                                  styles.articleAttachmentPreview
+                                                                }
+                                                              />
+                                                            </AttachmentCarouselItem>
+                                                          );
                                                         }
-                                                      >
-                                                        <CommerceCard
-                                                          referenceId={key}
-                                                          style={COMMERCE_CARD}
-                                                        />
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  if (key === JOB_ATTACHMENT_KEY) {
-                                                    if (!(hasJobContent && job)) return null;
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        onRemove={removeJob}
-                                                        look={attachmentCard}
-                                                      >
-                                                        {/* Not `JobCard` (which navigates to the job page on
+
+                                                        if (key === EVENT_ATTACHMENT_KEY) {
+                                                          if (!(hasEventContent && event))
+                                                            return null;
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              onRemove={removeEvent}
+                                                              look={attachmentCard}
+                                                            >
+                                                              <PostAttachmentEvent
+                                                                name={event.name}
+                                                                date={event.date}
+                                                                location={event.location}
+                                                                onPress={openEventEditor}
+                                                                style={
+                                                                  styles.articleAttachmentPreview
+                                                                }
+                                                              />
+                                                            </AttachmentCarouselItem>
+                                                          );
+                                                        }
+
+                                                        if (key === ROOM_ATTACHMENT_KEY) {
+                                                          if (!(hasRoomContent && attachedRoom))
+                                                            return null;
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              onRemove={removeRoom}
+                                                              look={attachmentCard}
+                                                            >
+                                                              <RoomCard
+                                                                room={{
+                                                                  _id: attachedRoom.roomId,
+                                                                  title: attachedRoom.title,
+                                                                  status:
+                                                                    attachedRoom.status ||
+                                                                    'scheduled',
+                                                                  topic: attachedRoom.topic,
+                                                                  participants: [],
+                                                                  host: attachedRoom.host || '',
+                                                                }}
+                                                                variant="compact"
+                                                                style={
+                                                                  styles.articleAttachmentPreview
+                                                                }
+                                                              />
+                                                            </AttachmentCarouselItem>
+                                                          );
+                                                        }
+
+                                                        if (key === PODCAST_ATTACHMENT_KEY) {
+                                                          if (!(hasPodcastContent && podcast))
+                                                            return null;
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              onRemove={removePodcast}
+                                                              look={attachmentCard}
+                                                            >
+                                                              <PostPodcastAttachment
+                                                                podcast={podcast}
+                                                                width={320}
+                                                                height={120}
+                                                                showSaveButton={false}
+                                                                onPress={openPodcastPicker}
+                                                              />
+                                                            </AttachmentCarouselItem>
+                                                          );
+                                                        }
+
+                                                        const commerceRef = commerce.find(
+                                                          (ref) =>
+                                                            commerceReferenceKey(ref) === key,
+                                                        );
+                                                        if (commerceRef)
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              onRemove={() =>
+                                                                setCommerce((previous) =>
+                                                                  previous.filter(
+                                                                    (ref) =>
+                                                                      commerceReferenceKey(ref) !==
+                                                                      key,
+                                                                  ),
+                                                                )
+                                                              }
+                                                            >
+                                                              <CommerceCard
+                                                                referenceId={key}
+                                                                style={COMMERCE_CARD}
+                                                              />
+                                                            </AttachmentCarouselItem>
+                                                          );
+                                                        if (key === JOB_ATTACHMENT_KEY) {
+                                                          if (!(hasJobContent && job)) return null;
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              onRemove={removeJob}
+                                                              look={attachmentCard}
+                                                            >
+                                                              {/* Not `JobCard` (which navigates to the job page on
                                   press): tapping this preview mid-compose must not
                                   push the author away from an unsaved draft, so it
                                   reopens the picker to change the selection instead. */}
-                                                        {toElement(
-                                                          VStack(
-                                                            Icon(RiBriefcase4Line)
-                                                              .size('md')
-                                                              .foreground('primary'),
-                                                            RawText(job.title)
-                                                              .lines(2)
-                                                              .foreground('foreground')
-                                                              .font('md')
-                                                              .weight('bold')
-                                                              .margin('top', 'sm'),
-                                                            RawText(job.employerName)
-                                                              .lines(1)
-                                                              .foreground('muted')
-                                                              .font('sm')
-                                                              .margin('top', '2xs'),
-                                                          )
-                                                            .justify('center')
-                                                            .padding('lg')
-                                                            .frame({
-                                                              width: 'full',
-                                                              height: 'full',
-                                                            })
-                                                            .background('transparent')
-                                                            .corner('none')
-                                                            .grow()
-                                                            .onPress(openJobPicker),
-                                                        )}
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  }
-
-                                                  if (isLinkAttachmentKey(key)) {
-                                                    const linkUrl =
-                                                      getUrlFromLinkAttachmentKey(key);
-                                                    const link = detectedLinks.find(
-                                                      (detected) => detected.url === linkUrl,
-                                                    );
-                                                    if (!link) return null;
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        // Removing a link card deletes only THAT link from the
-                                                        // text — the other links (and their cards) stay.
-                                                        onRemove={() =>
-                                                          setPostContent(
-                                                            removeUrlFromText(
-                                                              postContent,
-                                                              link.url,
-                                                            ),
-                                                          )
+                                                              {toElement(
+                                                                VStack(
+                                                                  Icon(RiBriefcase4Line)
+                                                                    .size('md')
+                                                                    .foreground('primary'),
+                                                                  RawText(job.title)
+                                                                    .lines(2)
+                                                                    .foreground('foreground')
+                                                                    .font('md')
+                                                                    .weight('bold')
+                                                                    .margin('top', 'sm'),
+                                                                  RawText(job.employerName)
+                                                                    .lines(1)
+                                                                    .foreground('muted')
+                                                                    .font('sm')
+                                                                    .margin('top', '2xs'),
+                                                                )
+                                                                  .justify('center')
+                                                                  .padding('lg')
+                                                                  .frame({
+                                                                    width: 'full',
+                                                                    height: 'full',
+                                                                  })
+                                                                  .background('transparent')
+                                                                  .corner('none')
+                                                                  .grow()
+                                                                  .onPress(openJobPicker),
+                                                              )}
+                                                            </AttachmentCarouselItem>
+                                                          );
                                                         }
-                                                        look={linkCard}
-                                                      >
-                                                        <LinkPreviewCard
-                                                          url={link.url}
-                                                          title={link.title}
-                                                          description={link.description}
-                                                          image={linkPreviewImageSources(
-                                                            link.image,
-                                                          )}
-                                                          siteName={link.siteName}
-                                                        />
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  }
 
-                                                  if (isMediaAttachmentKey(key)) {
-                                                    const mediaId =
-                                                      getMediaIdFromAttachmentKey(key);
-                                                    const mediaItem = mediaIds.find(
-                                                      (m) => m.id === mediaId,
-                                                    );
-                                                    if (!mediaItem) return null;
-                                                    const mediaUrl = getFileDownloadUrl(
-                                                      mediaItem.id,
-                                                    );
-                                                    return (
-                                                      <AttachmentCarouselItem
-                                                        key={key}
-                                                        attachmentKey={key}
-                                                        index={index}
-                                                        total={total}
-                                                        onMove={moveAttachment}
-                                                        onRemove={() => removeMedia(mediaItem.id)}
-                                                        look={mediaCard}
-                                                      >
-                                                        <ComposeMediaPreview
-                                                          type={mediaItem.type}
-                                                          uri={mediaUrl}
-                                                          imageStyle={styles.mediaPreviewImage}
-                                                        />
-                                                        {mediaItem.type === 'image' ? (
-                                                          <ComposeAltButton
-                                                            hasAlt={Boolean(mediaItem.alt?.trim())}
-                                                            raised={total > 1}
-                                                            onPress={() =>
-                                                              openAltTextSheet(mediaItem)
-                                                            }
-                                                          />
-                                                        ) : null}
-                                                      </AttachmentCarouselItem>
-                                                    );
-                                                  }
+                                                        if (isLinkAttachmentKey(key)) {
+                                                          const linkUrl =
+                                                            getUrlFromLinkAttachmentKey(key);
+                                                          const link = detectedLinks.find(
+                                                            (detected) => detected.url === linkUrl,
+                                                          );
+                                                          if (!link) return null;
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              // Removing a link card deletes only THAT link from the
+                                                              // text — the other links (and their cards) stay.
+                                                              onRemove={() =>
+                                                                setPostContent(
+                                                                  removeUrlFromText(
+                                                                    postContent,
+                                                                    link.url,
+                                                                  ),
+                                                                )
+                                                              }
+                                                              look={linkCard}
+                                                            >
+                                                              <LinkPreviewCard
+                                                                url={link.url}
+                                                                title={link.title}
+                                                                description={link.description}
+                                                                image={linkPreviewImageSources(
+                                                                  link.image,
+                                                                )}
+                                                                siteName={link.siteName}
+                                                              />
+                                                            </AttachmentCarouselItem>
+                                                          );
+                                                        }
 
-                                                  return null;
-                                                })}
-                                              </ScrollView>
-                                            </View>
-                                          ) : null}
+                                                        if (isMediaAttachmentKey(key)) {
+                                                          const mediaId =
+                                                            getMediaIdFromAttachmentKey(key);
+                                                          const mediaItem = mediaIds.find(
+                                                            (m) => m.id === mediaId,
+                                                          );
+                                                          if (!mediaItem) return null;
+                                                          const mediaUrl = getFileDownloadUrl(
+                                                            mediaItem.id,
+                                                          );
+                                                          return (
+                                                            <AttachmentCarouselItem
+                                                              key={key}
+                                                              attachmentKey={key}
+                                                              index={index}
+                                                              total={total}
+                                                              onMove={moveAttachment}
+                                                              onRemove={() =>
+                                                                removeMedia(mediaItem.id)
+                                                              }
+                                                              look={mediaCard}
+                                                            >
+                                                              <ComposeMediaPreview
+                                                                type={mediaItem.type}
+                                                                uri={mediaUrl}
+                                                                imageStyle={
+                                                                  styles.mediaPreviewImage
+                                                                }
+                                                              />
+                                                              {mediaItem.type === 'image' ? (
+                                                                <ComposeAltButton
+                                                                  hasAlt={Boolean(
+                                                                    mediaItem.alt?.trim(),
+                                                                  )}
+                                                                  raised={total > 1}
+                                                                  onPress={() =>
+                                                                    openAltTextSheet(mediaItem)
+                                                                  }
+                                                                />
+                                                              ) : null}
+                                                            </AttachmentCarouselItem>
+                                                          );
+                                                        }
+
+                                                        return null;
+                                                      })}
+                                                    </ScrollView>,
+                                                  ),
+                                                )
+                                                  .modifier(attachmentsRow)
+                                                  .zIndex('2'),
+                                              )
+                                            : null}
 
                                           {/* Poll Creator */}
                                           {showPollCreator && (

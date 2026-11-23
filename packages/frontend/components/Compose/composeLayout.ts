@@ -62,6 +62,8 @@ export const mediaCard = defineModifier((v) =>
 );
 /** A link card's place: Bloom's LinkPreviewCard draws its own border, corner and surface. */
 export const linkCard = defineModifier((v) => v.alignSelf('start').frame({ width: '280' }));
+/** The attachments row under a post's text, raised over the timeline (`mt-3 w-full z-[2]`). */
+export const attachmentsRow = defineModifier((v) => v.margin('top', 'md').frame({ width: 'full' }));
 export const THREAD_LINE_WIDTH = 2;
 export const THREAD_LINE_BORDER_RADIUS = 9999;
 export const THREAD_LINE_Z_INDEX = -1;
