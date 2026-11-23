@@ -1,7 +1,8 @@
 /**
  * Trend DETECTION — the aggregation that measures every candidate term over the
- * trailing window, and the co-occurrence pass that merges the ones telling one
- * story.
+ * trailing window, and the two passes that merge the ones telling one story:
+ * co-occurrence (names written in the same posts) and synchrony (names that rise
+ * together without being).
  *
  * Everything here answers a single question: what is the network saying, and
  * how widely. Ranking, labelling, persistence and presentation all read the
@@ -21,6 +22,7 @@ import { isTopicSlug } from '../contentClassification/taxonomy';
 import { isTrendStopWord } from './termExtraction';
 import { trendCandidateUnionSql } from './termSpace';
 import { buildClusterMap, clusterTrendTerms, type TrendTermPair } from './trendClustering';
+import { mergeSynchronizedTerms } from './trendSynchrony';
 import { buildTrendGraph, type TrendGraphNodeInput, type TrendGraphSnapshot } from './trendGraph';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
@@ -290,7 +292,12 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
       pairs: refusedForCoherence.slice(0, 10),
     });
   }
-  if (clusters.length === 0) {
+  const aliases = buildClusterMap(clusters);
+  // Second pass: names of one story that are not written in the same posts.
+  const synchrony = await mergeSynchronizedStories(windowMatch, windowStart, solo, aliases);
+  const allLinkedPairs = [...linkedPairs, ...synchrony.linkedPairs];
+
+  if (aliases.size === 0) {
     // Edges but no stories is a real and informative state — it says the
     // network is talking about several separate things — so the graph is
     // still worth keeping.
@@ -301,11 +308,30 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     };
   }
 
-  const aliases = buildClusterMap(clusters);
-  const membersOf = new Map(clusters.map((cluster) => [cluster.representative, cluster.members]));
+  // A row's members, busiest first so the representative leads. Rebuilt from
+  // the final aliases rather than from the clusters, because the second pass
+  // can have folded one row into another.
+  const soloVolume = new Map(solo.map((c) => [c.measurement.term, c.measurement.volume]));
+  const membersOf = new Map<string, string[]>();
+  for (const [member, representative] of aliases) {
+    const list = membersOf.get(representative);
+    if (list) list.push(member);
+    else membersOf.set(representative, [member]);
+  }
+  for (const [representative, members] of membersOf) {
+    members.sort(
+      (left, right) =>
+        (soloVolume.get(right) ?? 0) - (soloVolume.get(left) ?? 0) || left.localeCompare(right),
+    );
+    // The representative is the busiest member of the story as a whole.
+    const lead = members.indexOf(representative);
+    if (lead > 0) members.unshift(...members.splice(lead, 1));
+  }
   logger.info('[Trending] Merged co-occurring terms into stories', {
-    clusters: clusters.length,
+    clusters: membersOf.size,
     merged: aliases.size,
+    synchronized: synchrony.merged,
+    synchronyMs: synchrony.elapsedMs,
   });
 
   const merged = await aggregateTermRows(
@@ -334,7 +360,7 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
       now,
       graphNodes(solo),
       [...pairs, ...conceptPairs],
-      linkedPairs,
+      allLinkedPairs,
       aliases,
     ),
     window,
@@ -654,7 +680,12 @@ function clusteredTermsSql(aliases: ReadonlyMap<string, string>): SQL {
  * Fail-soft: without pairs nothing merges and every term reports alone, which
  * is exactly the behaviour before clustering existed.
  */
-async function loadTermPairs(windowMatch: SQL, terms: readonly string[]): Promise<TrendTermPair[]> {
+async function loadTermPairs(
+  windowMatch: SQL,
+  terms: readonly string[],
+  termsSql: SQL = trendCandidateUnionSql(),
+  minPairPosts: number = MtnConfig.trending.clustering.minPairPosts,
+): Promise<TrendTermPair[]> {
   if (terms.length < 2) return [];
 
   try {
@@ -673,7 +704,7 @@ async function loadTermPairs(windowMatch: SQL, terms: readonly string[]): Promis
     );
     const postTerms = (alias: string): SQL => sql`lateral (
       select distinct t.term
-      from unnest(${trendCandidateUnionSql()}) as t(term)
+      from unnest(${termsSql}) as t(term)
       where t.term in (${floorTerms})
     ) as ${sql.raw(alias)}`;
 
@@ -694,13 +725,194 @@ async function loadTermPairs(windowMatch: SQL, terms: readonly string[]): Promis
       .groupBy(sql`pair_a.term, pair_b.term`)
       // Applied here rather than in memory so the long tail of pairs that met
       // once never leaves the database.
-      .having(sql`count(*) >= ${MtnConfig.trending.clustering.minPairPosts}`);
+      .having(sql`count(*) >= ${minPairPosts}`);
 
     return rows.map((row) => ({ a: row.a, b: row.b, posts: row.posts }));
   } catch (error) {
     logger.warn('[Trending] Co-occurrence lookup failed; terms report individually', { error });
     return [];
   }
+}
+
+/** Which bin of the window a post falls in, as SQL; the last bin absorbs the edge. */
+function binSql(windowStart: Date, binMs: number, bins: number): SQL<number> {
+  return sql<number>`least(
+    floor(
+      extract(epoch from (${posts.createdAt} - ${windowStart.toISOString()}::timestamptz)) * 1000
+      / ${binMs}::double precision
+    )::int,
+    ${bins - 1}::int
+  )`;
+}
+
+/**
+ * Every post of the window per bin: the denominator of a term's SHARE of an
+ * hour. It does not depend on the term expression, so it is counted once per
+ * batch rather than once per clustering round.
+ */
+async function loadBinTotals(windowMatch: SQL, bin: SQL<number>, bins: number): Promise<number[]> {
+  const totals = new Array<number>(bins).fill(0);
+  const rows = await getDb()
+    .select({ bin, posts: sql`count(*)`.mapWith(Number) })
+    .from(posts)
+    .where(windowMatch)
+    // By position: the bin expression carries bound parameters, and postgres
+    // does not match a repeated parameterised expression to the select list.
+    .groupBy(sql`1`);
+  for (const row of rows) totals[Number(row.bin)] += row.posts;
+  return totals;
+}
+
+/**
+ * Hourly post counts per term, oldest bin first.
+ *
+ * Counted per POST (a post carrying a term twice counts once), over the same
+ * `windowMatch` every other count uses, and over the same term expression the
+ * caller is clustering with — so a merged row's series is the story's series,
+ * not a sum of its members' (which would count a post saying both names twice).
+ */
+async function loadTermSeries(
+  windowMatch: SQL,
+  bin: SQL<number>,
+  bins: number,
+  terms: readonly string[],
+  termsSql: SQL,
+): Promise<Map<string, number[]>> {
+  const floorTerms = sql.join(
+    terms.map((term) => sql`${term}`),
+    sql`, `,
+  );
+  const rows = await getDb()
+    .select({
+      term: sql<string>`post_term.term`,
+      bin,
+      posts: sql`count(*)`.mapWith(Number),
+    })
+    .from(posts)
+    .innerJoin(
+      sql`lateral (
+        select distinct t.term
+        from unnest(${termsSql}) as t(term)
+        where t.term in (${floorTerms})
+      ) as post_term`,
+      sql`true`,
+    )
+    .where(windowMatch)
+    .groupBy(sql`1`, sql`2`);
+
+  const series = new Map<string, number[]>();
+  for (const row of rows) {
+    let values = series.get(row.term);
+    if (!values) {
+      values = new Array<number>(bins).fill(0);
+      series.set(row.term, values);
+    }
+    values[Number(row.bin)] += row.posts;
+  }
+  return series;
+}
+
+/**
+ * Join terms of one story that are not written in the same posts, by the shape
+ * of their day (see {@link mergeSynchronizedTerms}).
+ *
+ * Only terms that are already bursting are looked at, so the two queries run
+ * over a few hundred terms rather than the vocabulary. Each round re-measures
+ * the GROUPS the last round made: `Chinese` sits beside no single name of the
+ * story but well inside the whole of it, and only the merged row shows that.
+ *
+ * `aliases` is updated in place and holds every term of a merged row, the
+ * representative mapping to itself — the shape `buildClusterMap` produces.
+ */
+async function mergeSynchronizedStories(
+  windowMatch: SQL,
+  windowStart: Date,
+  solo: readonly TermCandidate[],
+  aliases: Map<string, string>,
+): Promise<{ linkedPairs: { a: string; b: string }[]; merged: number; elapsedMs: number }> {
+  const startedAt = Date.now();
+  const synchrony = MtnConfig.trending.synchrony;
+  const linkedPairs: { a: string; b: string }[] = [];
+  let merged = 0;
+  if (!synchrony.enabled) return { linkedPairs, merged, elapsedMs: 0 };
+
+  const { windowMs, recentWindowMs } = MtnConfig.trending.detection;
+  const bins = Math.max(2, Math.ceil(windowMs / synchrony.binMs));
+  const recentBins = Math.max(1, Math.round(recentWindowMs / synchrony.binMs));
+  const rootOf = (term: string): string => aliases.get(term) ?? term;
+
+  // Bursting at the single-term level is the cheap gate for who is queried.
+  // A group is only bursting if some member is, so nothing is lost by it.
+  const bursting = solo.filter(
+    ({ measurement }) =>
+      measurement.volume >= synchrony.minSharedPosts &&
+      measurement.recentVolume / measurement.volume >= synchrony.minRecentShare,
+  );
+
+  try {
+    const bin = binSql(windowStart, synchrony.binMs, bins);
+    let corpus: number[] | null = null;
+
+    for (let round = 0; round < synchrony.maxRounds; round += 1) {
+      const reps = [...new Set(bursting.map(({ measurement }) => rootOf(measurement.term)))];
+      if (reps.length < 2) break;
+
+      const termsSql = clusteredTermsSql(aliases);
+      corpus ??= await loadBinTotals(windowMatch, bin, bins);
+      const [pairs, series] = await Promise.all([
+        loadTermPairs(windowMatch, reps, termsSql, synchrony.minSharedPosts),
+        loadTermSeries(windowMatch, bin, bins, reps, termsSql),
+      ]);
+      if (pairs.length === 0) break;
+
+      const membersByRoot = new Map<string, string[]>();
+      for (const { measurement } of solo) {
+        const root = rootOf(measurement.term);
+        const members = membersByRoot.get(root);
+        if (members) members.push(measurement.term);
+        else membersByRoot.set(root, [measurement.term]);
+      }
+
+      const result = mergeSynchronizedTerms(
+        reps.flatMap((term) => {
+          const counts = series.get(term);
+          return counts
+            ? [{ term, members: membersByRoot.get(term) ?? [term], series: counts }]
+            : [];
+        }),
+        pairs,
+        recentBins,
+        corpus,
+        synchrony,
+      );
+      if (result.refusedForSize.length > 0) {
+        logger.info('[Trending] Synchrony merges declined for size', {
+          count: result.refusedForSize.length,
+          pairs: result.refusedForSize.slice(0, 10),
+        });
+      }
+      if (result.merges.length === 0) break;
+
+      // Every original term of an absorbed row follows it to the new row.
+      const absorbedInto = new Map<string, string>();
+      for (const merge of result.merges) {
+        for (const absorbed of merge.absorbed) absorbedInto.set(absorbed, merge.representative);
+        aliases.set(merge.representative, merge.representative);
+      }
+      for (const { measurement } of solo) {
+        const next = absorbedInto.get(rootOf(measurement.term));
+        if (next) aliases.set(measurement.term, next);
+      }
+      linkedPairs.push(...result.linkedPairs);
+      merged += absorbedInto.size;
+    }
+  } catch (error) {
+    // Fail-soft: what rounds already merged stands, and the rest of the batch
+    // is exactly what co-occurrence alone produced.
+    logger.warn('[Trending] Synchrony pass failed; keeping what was merged', { error });
+  }
+
+  return { linkedPairs, merged, elapsedMs: Date.now() - startedAt };
 }
 
 /**

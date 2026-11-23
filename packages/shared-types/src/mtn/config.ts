@@ -1145,6 +1145,59 @@ export const MtnConfig = {
     },
 
     /**
+     * SYNCHRONY — joining the names of one story that are NOT written in the
+     * same posts.
+     *
+     * Co-occurrence cannot see most of a big story. `Huang`, `Jensen`,
+     * `Nvidia board` and `Chinese` are what the network writes about one event
+     * while barely ever writing `Jensen Huang` next to them ("Jensen's red
+     * bra", "57% chance Jensen testifies"), so their pairwise ratios stay far
+     * below the clustering bar and the event holds five rows.
+     *
+     * What those terms DO share is the shape of their day: they start at the
+     * same hour and rise together, while an unrelated namesake (`Alice Huang`)
+     * does not. Two terms are joined when their hourly series move together AND
+     * a real share of the smaller one's posts sit inside the other. Neither
+     * test is enough alone — correlation by itself joins any two things that
+     * peak at lunchtime, and overlap by itself joins every niche word to
+     * whatever broad word it rides — which is why the bar is both, at once.
+     *
+     * Applied only after co-occurrence clustering and only to terms that are
+     * bursting, so it is a cheap second pass over a few hundred terms rather
+     * than a second pass over the vocabulary.
+     */
+    synchrony: {
+      /** Off switch. Off, trending groups by co-occurrence alone. */
+      enabled: true,
+      /**
+       * Pearson correlation of the two hourly series over the detection
+       * window. Measured on real data: the same-story terms sat at 0.88–0.95;
+       * 0.82 started pulling in `china` and `putin` beside unrelated stories,
+       * 0.75 produced umbrella rows (`trump` + half of Congress).
+       */
+      minSeriesCorrelation: 0.85,
+      /** Posts two terms must share. Floors the noise a correlation can have. */
+      minSharedPosts: 6,
+      /**
+       * Share of the SMALLER term's posts that carry the other: the larger of
+       * the two directional ratios must reach it.
+       */
+      minCoverage: 0.2,
+      /**
+       * A term must have at least this share of its window volume in the
+       * recent window to take part. Two flat all-day terms correlate through
+       * the daily cycle alone; a burst is what makes a correlation evidence.
+       */
+      minRecentShare: 0.2,
+      /** Rounds of re-measuring merged groups (a group can pull in more). */
+      maxRounds: 3,
+      /** Ceiling on the terms one row may hold after this pass. */
+      maxStoryTerms: 12,
+      /** Width of one bin of the series. */
+      binMs: 60 * 60 * 1000,
+    },
+
+    /**
      * LABELLING — turning a detected term into something a human recognises.
      *
      * A term is a retrieval key (`orioles`); a label is what the story is
@@ -1323,6 +1376,17 @@ export type MtnConfigType = typeof MtnConfig;
  * `enabled` to the literal `true`, and a test that cannot express the disabled
  * case cannot check the off switch works.
  */
+export interface MtnTrendSynchronyConfig {
+  enabled: boolean;
+  minSeriesCorrelation: number;
+  minSharedPosts: number;
+  minCoverage: number;
+  minRecentShare: number;
+  maxRounds: number;
+  maxStoryTerms: number;
+  binMs: number;
+}
+
 export interface MtnTrendClusteringConfig {
   enabled: boolean;
   minPairPosts: number;

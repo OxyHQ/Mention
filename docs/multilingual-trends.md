@@ -9,7 +9,8 @@ everyone.
 Mention detects stories without generative AI, embeddings, translation calls or
 provider inference. Author-written terms and hashtags propose a trend; corpus
 statistics decide whether it is unusual; a reviewed alias registry joins known
-spellings across languages; and co-occurrence joins event-specific terms.
+spellings across languages; co-occurrence joins event-specific terms; and
+synchrony joins the names of one story that are not written in the same posts.
 
 ## Identities
 
@@ -33,6 +34,26 @@ member. This prevents `A ↔ B ↔ C` from merging when A and C share no evidenc
 Reviewed aliases of one concept may link across languages without literal
 co-occurrence, but both spellings must independently clear the normal volume and
 author floors in the same window.
+
+## Synchrony
+
+Co-occurrence cannot see most of a big story: people write `Huang`, `Jensen` or
+`Chinese` about one event without writing `Jensen Huang` beside them. After
+co-occurrence, bursting terms (and the groups it formed) are joined when all of
+these hold, measured over the same 48-hour window:
+
+- their hourly **share of all posts** is strongly correlated (≥ 0.85). Shares,
+  not counts: every term follows the network's daily rhythm, so counts alone
+  correlate unrelated terms at 0.9+. Hours with too few posts are ignored;
+- they share at least 6 posts, and that is at least 20% of the smaller term's;
+- both have at least 20% of their window volume in the recent window;
+- the row stays under 12 original terms.
+
+It repeats up to three rounds, re-measuring the merged groups, because a
+generic word (`Chinese`) sits beside no single name of the story but well
+inside the whole of it. A namesake with a different shape (`Alice Huang`) stays
+a separate row. `MtnConfig.trending.synchrony.enabled` switches it off; the next
+batch recomputes every row from the posts, so no backfill is needed.
 
 The graph exposes each edge's normalized strength and reason (`cooccurrence` or
 `canonical-alias`) so every merge is auditable.
