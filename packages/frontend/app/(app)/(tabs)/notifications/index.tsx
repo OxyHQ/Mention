@@ -16,6 +16,8 @@ import {
   toElement,
   VStack as LVStack,
   toElement as LtoElement,
+  TabItem,
+  Tabs as LTabs,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
@@ -54,7 +56,6 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { getNextNotificationPage } from '@/lib/notificationPagination';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { SEO } from '@/components/SEO';
@@ -840,45 +841,44 @@ const NotificationsScreen = screen(function NotificationsScreen() {
   return Embed(
     <>
       <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
-      {canUsePrivateApi && (
-        <Tabs
-          value={activeTab}
-          onValueChange={handleTabPress}
-          pressOpenTab="reselect"
-          variant="underline"
-        >
-          {[
-            { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
-            {
-              id: 'mentions',
-              label: t('notifications.tabs.mentions'),
-              count: tabUnreadCounts.mentions,
-            },
-            {
-              id: 'follows',
-              label: t('notifications.tabs.follows'),
-              count: tabUnreadCounts.follows,
-            },
-            {
-              id: 'likes',
-              label: t('notifications.tabs.likes'),
-              count: tabUnreadCounts.likes,
-            },
-            {
-              id: 'posts',
-              label: t('notifications.tabs.posts'),
-              count: tabUnreadCounts.posts,
-            },
-            {
-              id: 'pokes',
-              label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
-              count: tabUnreadCounts.pokes,
-            },
-          ].map((tab: { id: string; label: string; count?: number }) => (
-            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-          ))}
-        </Tabs>
-      )}
+      {canUsePrivateApi &&
+        LtoElement(
+          LTabs(
+            [activeTab, handleTabPress],
+            [
+              { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+              {
+                id: 'mentions',
+                label: t('notifications.tabs.mentions'),
+                count: tabUnreadCounts.mentions,
+              },
+              {
+                id: 'follows',
+                label: t('notifications.tabs.follows'),
+                count: tabUnreadCounts.follows,
+              },
+              {
+                id: 'likes',
+                label: t('notifications.tabs.likes'),
+                count: tabUnreadCounts.likes,
+              },
+              {
+                id: 'posts',
+                label: t('notifications.tabs.posts'),
+                count: tabUnreadCounts.posts,
+              },
+              {
+                id: 'pokes',
+                label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
+                count: tabUnreadCounts.pokes,
+              },
+            ].map((tab: { id: string; label: string; count?: number }) =>
+              TabItem(tab.id, tab.label).count(tab.count),
+            ),
+          )
+            .pressOpenTab('reselect')
+            .style('underline'),
+        )}
       {renderContent()}
     </>,
   )
