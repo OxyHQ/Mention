@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -131,16 +130,17 @@ export default screen(function CreateStarterPackScreen() {
                 ),
               ),
             ),
-            Embed(
-              <Field label={`Add accounts (${members.length}/150)`} style={{ marginTop: 12 }}>
+            LField(
+              `Add accounts (${members.length}/150)`,
+              Embed(
                 <Search
                   label={t('starterPacks.searchUsersPlaceholder')}
                   value={search}
                   onChangeText={doSearch}
                   onClearText={() => doSearch('')}
-                />
-              </Field>,
-            ),
+                />,
+              ),
+            ).margin('top', 'md'),
           )
             .spacing('md')
             .margin('bottom', '10'),

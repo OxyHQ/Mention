@@ -1,6 +1,5 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -134,16 +133,17 @@ const CreateListScreen = screen(function CreateListScreen() {
             )
               .align('center')
               .justify('between'),
-            Embed(
-              <Field label={t('lists.create.addMembers')} style={{ marginTop: 12 }}>
+            LField(
+              t('lists.create.addMembers'),
+              Embed(
                 <Search
                   label={t('lists.create.searchUsersPlaceholder')}
                   value={search}
                   onChangeText={doSearch}
                   onClearText={() => doSearch('')}
-                />
-              </Field>,
-            ),
+                />,
+              ),
+            ).margin('top', 'md'),
           )
             .spacing('md')
             .margin('bottom', '10'),

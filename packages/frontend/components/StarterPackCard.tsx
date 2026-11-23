@@ -2,7 +2,6 @@ import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -19,6 +18,7 @@ import type { StarterPackSummary } from '@/services/starterPacksService';
 import {
   Embed,
   HStack,
+  IconCircle,
   Text as LText,
   VStack,
   toElement,
@@ -146,20 +146,19 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
       /* The press owns the scale; Bloom's `Card` owns the surface. */ Embed(
         LtoElement(
           LCard(
-            /* Compact group-avatar cluster, or the pack mark when no avatars exist */ LEmbed(
-              hasAvatars ? (
-                <AccountAvatarGroup
-                  items={avatarItems}
-                  size={32}
-                  variant={MEDIA_VARIANT_AVATAR}
-                  max={MAX_ROW_AVATARS}
-                  total={pack.totalMembers ?? pack.memberCount}
-                  ringColor={theme.colors.card}
-                />
-              ) : (
-                <IconCircle icon={RiRocket2Line} style={styles.iconBubble} />
-              ),
-            ),
+            /* Compact group-avatar cluster, or the pack mark (its rounded-square tile;
+            IconCircle supplies the primary tint pair) when no avatars exist */ hasAvatars
+              ? LEmbed(
+                  <AccountAvatarGroup
+                    items={avatarItems}
+                    size={32}
+                    variant={MEDIA_VARIANT_AVATAR}
+                    max={MAX_ROW_AVATARS}
+                    total={pack.totalMembers ?? pack.memberCount}
+                    ringColor={theme.colors.card}
+                  />,
+                )
+              : IconCircle(RiRocket2Line).frame({ width: '4xl', height: '4xl' }).corner('10'),
             /* Name and byline */ LEmbed(
               toElement(
                 HStack(
@@ -315,13 +314,6 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: 16,
     gap: 10,
-  },
-  // The pack mark keeps its rounded-square tile; `IconCircle` supplies the
-  // primary tint pair, this only its geometry.
-  iconBubble: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
   },
   titleRow: {
     flexDirection: 'row',

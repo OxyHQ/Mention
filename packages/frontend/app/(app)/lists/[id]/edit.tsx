@@ -2,7 +2,6 @@ import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { toast } from '@oxy.so/bloom/toast';
@@ -25,6 +24,7 @@ import {
   Card as LCard,
   Divider as LDivider,
   Embed,
+  Field as LField,
   Header,
   HStack,
   Icon,
@@ -265,19 +265,17 @@ const EditListMembersScreen = screen(function EditListMembersScreen() {
   return LEmbed(
     toElement(
       ScrollView(
-        Embed(
-          <Field
-            label={t('lists.edit.addMembers', { defaultValue: 'Add members' })}
-            style={{ marginBottom: 10 }}
-          >
+        LField(
+          t('lists.edit.addMembers', { defaultValue: 'Add members' }),
+          Embed(
             <Search
               label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
               value={search}
               onChangeText={runSearch}
               onClearText={() => runSearch('')}
-            />
-          </Field>,
-        ),
+            />,
+          ),
+        ).margin('bottom', '10'),
         Embed(searching && <ListSkeleton count={2} />),
         results.length > 0 &&
           LCard(
