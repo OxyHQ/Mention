@@ -7,7 +7,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import {
@@ -24,7 +23,14 @@ import {
 } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
-import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Text as LText,
+  VStack,
+  VirtualList,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const APP_URL = 'https://mention.earth';
 
@@ -109,17 +115,6 @@ function ProfileDiscoveryList({
       fetchNextPage();
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  // The next page's skeleton; the list itself asks for that page (`onEndReached`).
-  const renderFooter = useCallback(
-    () =>
-      toElement(
-        VStack(Embed(isFetchingNextPage ? <ListSkeleton count={2} /> : null))
-          .padding('vertical', 'lg')
-          .align('center'),
-      ),
-    [isFetchingNextPage],
-  );
 
   const getInviteMessage = useCallback(() => {
     const userHandle = user?.username || '';
@@ -238,31 +233,30 @@ function ProfileDiscoveryList({
 
   return toElement(
     VStack(
-      Embed(
-        <VirtualList
-          screen={{}}
-          data={recommendations}
-          renderItem={renderUser}
-          keyExtractor={(item: ProfileData) => item.id || item.username || ''}
-          ListHeaderComponent={listHeader}
-          ListFooterComponent={renderFooter}
-          ListEmptyComponent={
-            <EmptyState title={emptyTitle} sticker="connectionsRecommendations" />
-          }
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          removeClippedSubviews={false}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-          initialNumToRender={10}
-          recycleItems={true}
-          maintainVisibleContentPosition={true}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          refreshing={isRefetching}
-          onRefresh={refetch}
-        />,
-      ),
+      VirtualList(recommendations, renderUser)
+        .screen()
+        .itemKey((item: ProfileData) => item.id || item.username || '')
+        .headerContent(Embed(listHeader))
+        .footerContent(
+          // The next page's skeleton; the list itself asks for that page (`onEndReached`).
+          VStack(Embed(isFetchingNextPage ? <ListSkeleton count={2} /> : null))
+            .padding('vertical', 'lg')
+            .align('center'),
+        )
+        .emptyState(Embed(<EmptyState title={emptyTitle} sticker="connectionsRecommendations" />))
+        .onEndReached(handleLoadMore, 0.5)
+        .tuning({
+          removeClippedSubviews: false,
+          maxToRenderPerBatch: 10,
+          windowSize: 10,
+          initialNumToRender: 10,
+          recycleItems: true,
+          maintainVisibleContentPosition: true,
+        })
+        .flex('1')
+        .frame({ minHeight: 'none' })
+        .contentMargins('bottom', 'xl')
+        .refreshable({ refreshing: isRefetching, onRefresh: refetch }),
     )
       .frame({ minHeight: 'none' })
       .flex('1')
@@ -315,16 +309,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  list: {
-    flex: 1,
-    minHeight: 0,
-  },
   errorContainer: {
     flex: 1,
     paddingVertical: 40,
-  },
-  listContent: {
-    paddingBottom: 20,
   },
   footer: {
     paddingVertical: 16,
