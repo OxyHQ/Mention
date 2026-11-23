@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { ScrollView, type ViewStyle } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Screen } from '@oxy.so/bloom/screen';
 
 import { SEO } from '@/components/SEO';
 import { trendingService } from '@/services/trendingService';
@@ -15,6 +14,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 import {
   Embed,
+  Group,
   HStack,
   Header,
   ScrollView as LScrollView,
@@ -22,6 +22,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * Trend relations (route `/trend-graph`).
@@ -48,7 +49,7 @@ import {
 /** The graph is a slow-moving artefact — the batch behind it runs every 30 minutes. */
 const GRAPH_STALE_TIME_MS = 5 * 60_000;
 
-export default function TrendGraphScreen() {
+export default screen(function TrendGraphScreen() {
   const { t } = useTranslation();
 
   const [language, setLanguage] = useState<string | null>(null);
@@ -67,118 +68,113 @@ export default function TrendGraphScreen() {
   const tree = useMemo(() => buildTrendTree(data?.nodes ?? [], data?.edges ?? []), [data]);
   const isEmpty = tree.stories.length === 0 && tree.ungrouped.length === 0;
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(
       <SEO
         title={t('seo.trendGraph.title')}
         description={t('seo.trendGraph.description')}
         robots="index,follow"
-      />
-      <Screen
-        header={toElement(
-          Header(t('trendGraph.title'))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .inPage(),
-        )}
-      >
-        {toElement(
-          LScrollView(
-            /*
-                  No title block here. The header above already names the screen, and
-                  repeating it in 28px — under an uppercase eyebrow — spent the first
-                  fifth of the viewport saying the same thing three times.
-                */ LText(t('trendGraph.subtitle'))
+      />,
+    ),
+    LScrollView(
+      /*
+                No title block here. The header above already names the screen, and
+                repeating it in 28px — under an uppercase eyebrow — spent the first
+                fifth of the viewport saying the same thing three times.
+              */ LText(t('trendGraph.subtitle'))
+        .padding('horizontal', 'lg')
+        .padding('bottom', 'md')
+        .padding('top', 'xs')
+        .font('sm')
+        .foreground('muted')
+        .leading('24px'),
+      Embed(
+        <FilterRow
+          values={data?.availableLanguages ?? []}
+          selected={language}
+          onSelect={setLanguage}
+          allLabel={t('trendGraph.filters.all')}
+        />,
+      ),
+      /*
+                Region renders only when the data has any. `postClassification.region`
+                is sparse, and an always-present filter with nothing in it reads as a
+                broken control rather than as an absent signal.
+              */ Embed(
+        (data?.availableRegions.length ?? 0) > 0 && (
+          <FilterRow
+            values={data?.availableRegions ?? []}
+            selected={region}
+            onSelect={setRegion}
+            allLabel={t('trendGraph.filters.all')}
+          />
+        ),
+      ),
+      Embed(
+        isLoading ? (
+          <InsightsSkeleton />
+        ) : isError ? (
+          toElement(
+            VStack(
+              LText(t('trendGraph.error'))
+                .textAlign('center')
+                .font('14')
+                .foreground('muted')
+                .leading('24px'),
+              VStack(
+                LText(t('trendGraph.retry'))
+                  .font('14')
+                  .weight('semibold')
+                  .foreground('onPrimary')
+                  .leading('24px'),
+              )
+                .padding('horizontal', 'lg')
+                .padding('vertical', 'sm')
+                .background('primary')
+                .corner('infinite')
+                .onPress(() => void refetch())
+                .role('button')
+                .pressFade(),
+            )
               .padding('horizontal', 'lg')
-              .padding('bottom', 'md')
-              .padding('top', 'xs')
-              .font('sm')
-              .foreground('muted')
-              .leading('24px'),
-            Embed(
-              <FilterRow
-                values={data?.availableLanguages ?? []}
-                selected={language}
-                onSelect={setLanguage}
-                allLabel={t('trendGraph.filters.all')}
-              />,
-            ),
-            /*
-                  Region renders only when the data has any. `postClassification.region`
-                  is sparse, and an always-present filter with nothing in it reads as a
-                  broken control rather than as an absent signal.
-                */ Embed(
-              (data?.availableRegions.length ?? 0) > 0 && (
-                <FilterRow
-                  values={data?.availableRegions ?? []}
-                  selected={region}
-                  onSelect={setRegion}
-                  allLabel={t('trendGraph.filters.all')}
-                />
-              ),
-            ),
-            Embed(
-              isLoading ? (
-                <InsightsSkeleton />
-              ) : isError ? (
-                toElement(
-                  VStack(
-                    LText(t('trendGraph.error'))
-                      .textAlign('center')
-                      .font('14')
-                      .foreground('muted')
-                      .leading('24px'),
-                    VStack(
-                      LText(t('trendGraph.retry'))
-                        .font('14')
-                        .weight('semibold')
-                        .foreground('onPrimary')
-                        .leading('24px'),
-                    )
-                      .padding('horizontal', 'lg')
-                      .padding('vertical', 'sm')
-                      .background('primary')
-                      .corner('infinite')
-                      .onPress(() => void refetch())
-                      .role('button')
-                      .pressFade(),
-                  )
-                    .padding('horizontal', 'lg')
-                    .padding('vertical', '4xl')
-                    .align('center')
-                    .spacing('md'),
-                )
-              ) : isEmpty ? (
-                <EmptyState
-                  title={t('trendGraph.empty')}
-                  sticker="trendGraph"
-                  containerStyle={{ paddingTop: 40 }}
-                />
-              ) : (
-                <>
-                  {tree.stories.length > 0 ? (
-                    <Section title={t('trendGraph.sections.stories')}>
-                      {tree.stories.map((story) => (
-                        <Branch key={story.node.term} entry={story} />
-                      ))}
-                    </Section>
-                  ) : null}
+              .padding('vertical', '4xl')
+              .align('center')
+              .spacing('md'),
+          )
+        ) : isEmpty ? (
+          <EmptyState
+            title={t('trendGraph.empty')}
+            sticker="trendGraph"
+            containerStyle={{ paddingTop: 40 }}
+          />
+        ) : (
+          <>
+            {tree.stories.length > 0 ? (
+              <Section title={t('trendGraph.sections.stories')}>
+                {tree.stories.map((story) => (
+                  <Branch key={story.node.term} entry={story} />
+                ))}
+              </Section>
+            ) : null}
 
-                  {tree.ungrouped.length > 0 ? (
-                    <Section title={t('trendGraph.sections.ungrouped')}>
-                      {tree.ungrouped.map((entry) => (
-                        <Branch key={entry.node.term} entry={entry} />
-                      ))}
-                    </Section>
-                  ) : null}
-                </>
-              ),
-            ),
-          ).contentView((v) => v.padding('bottom', '64')),
-        )}
-      </Screen>
-    </>
+            {tree.ungrouped.length > 0 ? (
+              <Section title={t('trendGraph.sections.ungrouped')}>
+                {tree.ungrouped.map((entry) => (
+                  <Branch key={entry.node.term} entry={entry} />
+                ))}
+              </Section>
+            ) : null}
+          </>
+        ),
+      ),
+    ).contentView((v) => v.padding('bottom', '64')),
+  ).header(
+    Header(t('trendGraph.title'))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-}
+});
 
 /** A titled block of rows, matching the section headers used across the app. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
