@@ -1,15 +1,15 @@
 import { memo, useMemo } from 'react';
-import { Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { TouchableOpacity, StyleSheet } from 'react-native';
 import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ReplySettingsMenu } from './ReplySettingsMenu';
 import type { ReplyPermission } from './replyPermission';
 
-import { Embed, HStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, Icon, RawText, toElement } from '@oxy.so/bloom-language';
 
 interface InteractionSettingsPillsProps {
   replyPermission: ReplyPermission[];
@@ -29,7 +29,7 @@ const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
     onQuotesDisabledChange,
     onSensitiveToggle,
   }) => {
-    const theme = useTheme();
+    const colorTokens = useColorTokens();
     const { t } = useTranslation();
 
     const anyoneCanInteract = replyPermission.includes('anyone') && !quotesDisabled;
@@ -37,22 +37,10 @@ const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
     const SensitiveIcon = isSensitive ? RiAlertFill : RiAlertLine;
 
     const replyPillStyle = useMemo(
-      () => [styles.pill, { backgroundColor: theme.colors.backgroundSecondary }],
-      [theme.colors.backgroundSecondary],
+      () => [styles.pill, { backgroundColor: colorTokens.surface }],
+      [colorTokens.surface],
     );
-
-    const replyTextStyle = useMemo(
-      () => [styles.pillText, { color: theme.colors.textSecondary }],
-      [theme.colors.textSecondary],
-    );
-
-    const sensitiveTextStyle = useMemo(
-      () => [
-        styles.pillText,
-        { color: isSensitive ? theme.colors.error : theme.colors.textSecondary },
-      ],
-      [isSensitive, theme.colors.error, theme.colors.textSecondary],
-    );
+    const sensitiveTone = isSensitive ? 'error' : 'muted';
 
     return toElement(
       HStack(
@@ -64,25 +52,34 @@ const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
             onQuotesDisabledChange={onQuotesDisabledChange}
           >
             <TouchableOpacity activeOpacity={0.7} style={replyPillStyle}>
-              <AudienceIcon width={14} height={14} fill={theme.colors.textSecondary} />
-              <Text numberOfLines={1} style={replyTextStyle}>
-                {anyoneCanInteract
-                  ? t('compose.replySettings.anyoneCanInteract')
-                  : t('compose.replySettings.limited')}
-              </Text>
+              {toElement(Icon(AudienceIcon).size('14').foreground('muted'))}
+              {toElement(
+                RawText(
+                  anyoneCanInteract
+                    ? t('compose.replySettings.anyoneCanInteract')
+                    : t('compose.replySettings.limited'),
+                )
+                  .lines(1)
+                  .font('xs')
+                  .weight('medium')
+                  .foreground('muted'),
+              )}
             </TouchableOpacity>
           </ReplySettingsMenu>,
         ),
         Embed(
           <TouchableOpacity onPress={onSensitiveToggle} activeOpacity={0.7} style={styles.pill}>
-            <SensitiveIcon
-              width={14}
-              height={14}
-              fill={isSensitive ? theme.colors.error : theme.colors.textSecondary}
-            />
-            <Text style={sensitiveTextStyle}>
-              {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
-            </Text>
+            {toElement(Icon(SensitiveIcon).size('14').foreground(sensitiveTone))}
+            {toElement(
+              RawText(
+                isSensitive
+                  ? t('compose.sensitive.on', 'CW: On')
+                  : t('compose.sensitive.off', 'CW'),
+              )
+                .font('xs')
+                .weight('medium')
+                .foreground(sensitiveTone),
+            )}
           </TouchableOpacity>,
         ),
       )
@@ -109,10 +106,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-  },
-  pillText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
 });
 
