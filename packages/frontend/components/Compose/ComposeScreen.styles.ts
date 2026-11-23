@@ -92,17 +92,6 @@ export const composeStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* header and icon tweaks */
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-    zIndex: 1,
-  },
-  iconBtn: {
-    marginLeft: 8,
-  },
-
   /* the footer: the batch's pills, then the submit slot */
   // Takes the width the button leaves and never more, so the pills scroll under
   // their own edge instead of running beneath the button.
@@ -156,12 +145,6 @@ export const composeStyles = StyleSheet.create({
   addToThreadContent: {
     flex: 1,
     paddingTop: 8,
-  },
-  // Post component structure styles
-  postContainer: {
-    flexDirection: 'column',
-    gap: 12,
-    paddingVertical: 12,
   },
   avatarContainer: {
     alignItems: 'center',
@@ -350,32 +333,5 @@ export const composeStyles = StyleSheet.create({
     position: 'relative',
     alignSelf: 'flex-start',
     width: MEDIA_CARD_WIDTH,
-  },
-  // Mode toggle styles
-  modeToggleContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  modeToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  modeOption: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  modeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  modeDescription: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  modeToggle: {
-    marginHorizontal: 20,
   },
 });
