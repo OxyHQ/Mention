@@ -2,7 +2,7 @@ import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react';
-import { View, Text as RNText, type GestureResponderEvent, type ViewProps } from 'react-native';
+import { View, Text as RNText, type GestureResponderEvent, type ViewStyle } from 'react-native';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type { TFunction } from 'i18next';
@@ -96,11 +96,7 @@ import { useVoteStyle } from '@/hooks/useVoteStyle';
 import { presentSheet } from '@/utils/sheet';
 import { openPostInsights } from '@/components/Post/postEngagementContext';
 import { postLinkCards } from '@/utils/postLinkCards';
-import {
-  THREAD_LINE_WIDTH,
-  THREAD_LINE_BORDER_RADIUS,
-  THREAD_LINE_Z_INDEX,
-} from '@/components/Compose/composeLayout';
+import { THREAD_LINE_WIDTH } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
 import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
@@ -177,15 +173,17 @@ const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
 
 /** The row's inks that are not language chains, as Bloom paints its own: once per palette. */
 const useRowInk = createTokenStyles((t) => ({
-  rule: { backgroundColor: t.border },
   edge: { borderColor: t.border },
   byline: { color: t.foreground, fontSize: 15, fontWeight: '600', lineHeight: 18.75 },
 }));
 
-/** A thread line (a fill) or the reply branch's elbow (its edges), in the border ink. */
-function ThreadRule({ edge, style, ...props }: ViewProps & { edge?: boolean }) {
+/**
+ * The reply branch's elbow: its left and bottom edges in the border ink, rounded where they
+ * meet. A view: the language draws two edges' borders as two views, so the corner would not join.
+ */
+function BranchElbow({ style }: { style: ViewStyle }) {
   const ink = useRowInk();
-  return <View {...props} style={[style, edge ? ink.edge : ink.rule]} />;
+  return <View pointerEvents="none" style={[style, ink.edge]} />;
 }
 
 /** The collaborators' byline: React Native text, so its names can be links. */
@@ -1815,44 +1813,32 @@ function PostRow(props: PostItemProps): Child {
   const THREAD_LINE_LEFT = HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2;
   const threadChildLine =
     isThreadChild && !isNested
-      ? Embed(
-          // Above the avatar, from the previous post's bottom to just above the offset avatar.
-          <ThreadRule
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: THREAD_LINE_LEFT,
-              width: THREAD_LINE_WIDTH,
-              height: headerTopOffset + 4,
-              borderRadius: THREAD_LINE_BORDER_RADIUS,
-              zIndex: THREAD_LINE_Z_INDEX,
-            }}
-          />,
-        )
+      ? // Above the avatar, from the previous post's bottom to just above the offset avatar.
+        VStack()
+          .frame({ width: '2xs', height: headerTopOffset + 4 })
+          .background('border')
+          .corner('full')
+          .position({ top: 'none', left: THREAD_LINE_LEFT })
+          .zIndex('-1')
       : null;
   const threadParentLine =
     isThreadParent && !isNested && !isDetailMain
-      ? Embed(
-          // Below the avatar, to the next post's top.
-          <ThreadRule
-            style={{
-              position: 'absolute',
-              top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
-              left: THREAD_LINE_LEFT,
-              width: THREAD_LINE_WIDTH,
-              bottom: 0,
-              borderRadius: THREAD_LINE_BORDER_RADIUS,
-              zIndex: THREAD_LINE_Z_INDEX,
-            }}
-          />,
-        )
+      ? // Below the avatar, to the next post's top.
+        VStack()
+          .frame({ width: '2xs' })
+          .background('border')
+          .corner('full')
+          .position({
+            top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
+            left: THREAD_LINE_LEFT,
+            bottom: 'none',
+          })
+          .zIndex('-1')
       : null;
   const replyBranchElbow =
     replyBranch && !isNested
       ? Embed(
-          <ThreadRule
-            edge
-            pointerEvents="none"
+          <BranchElbow
             style={{
               position: 'absolute',
               left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
