@@ -19,7 +19,7 @@ import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
-import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 
@@ -58,7 +58,9 @@ import {
   VStack,
   defineTokens,
   toElement,
+  Group,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const liveColors = defineTokens({ color: { LIVE_INDICATOR_COLOR } });
 
@@ -151,7 +153,7 @@ const sectionHeading = (...runs: TextRun[]) =>
     .weight('semibold')
     .margin('bottom', 'md');
 
-const RoomDetailScreen = () => {
+const RoomDetailScreen = screen(function RoomDetailScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -292,325 +294,304 @@ const RoomDetailScreen = () => {
   );
   const speakerItems = useRoomAvatarItems(speakers.slice(0, MAX_PARTICIPANT_AVATARS), oxyServices);
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  const page = Group(
+    Embed(
       <SEO
         title={room?.title ?? t('agora.room')}
         description={room?.description || 'Join this room'}
-      />
-      <Screen
-        header={toElement(
-          Header(room ? undefined : t('agora.room'))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .toolbar(
-              room
-                ? Menu(
-                    LButton(Icon(RiMoreFill))
-                      .shape('circle')
-                      .style('subtle')
-                      .tint('neutral')
-                      .label(t('common.options', { defaultValue: 'Options' })),
-                    Item(t('agora.shareRoom', { defaultValue: 'Share room' }))
-                      .icon(RiShareForwardLine)
-                      .iconSize('22')
-                      .iconForeground('foreground')
-                      .onPress(handleShareRoom),
-                    isJoined && !isHost
-                      ? Item(t('agora.leaveRoom', { defaultValue: 'Leave room' }))
-                          .icon(RiLogoutBoxRLine)
-                          .iconSize('22')
-                          .iconForeground('error')
-                          .destructive()
-                          .onPress(handleLeave)
-                      : null,
-                    isHost
-                      ? null
-                      : Item(t('agora.reportRoom', { defaultValue: 'Report room' }))
-                          .icon(RiFlagLine)
-                          .iconSize('22')
-                          .iconForeground('error')
-                          .destructive()
-                          .onPress(handleReport),
-                  ).label(t('common.options', { defaultValue: 'Options' }))
-                : null,
-            )
-            .inPage(),
-        )}
-        bottomBar={
-          // Actions — a live host gets Join + End side by side, hence the row.
-          !loading && room ? (
-            <PageFooter>
-              {toElement(
-                HStack(
-                  isLive
-                    ? LButton(Icon(RiBroadcastLine), LText('Join Live'))
-                        .flex('1')
-                        .onPress(() => joinLiveRoom(id))
-                        .disabled(actionLoading)
-                    : null,
-                  isHost && isScheduled
-                    ? LButton(Icon(RiPlayFill), LText('Start Room'))
-                        .flex('1')
-                        .onPress(handleStartRoom)
-                        .loading(actionLoading)
-                    : null,
-                  !isHost && isScheduled
-                    ? LButton(Icon(RiTimeLine), LText('Room not started yet'))
-                        .style('subtle')
-                        .tint('neutral')
-                        .flex('1')
-                        .disabled()
-                    : null,
-                  isHost && isLive
-                    ? LButton(Icon(RiStopFill), LText('End Room'))
-                        .tint('danger')
-                        .flex('1')
-                        .onPress(handleEndRoom)
-                        .loading(actionLoading)
-                    : null,
-                  isEnded
-                    ? LButton(Icon(RiCheckboxCircleLine), LText('This room has ended'))
-                        .style('subtle')
-                        .tint('neutral')
-                        .flex('1')
-                        .disabled()
-                    : null,
-                ).spacing('sm'),
-              )}
-            </PageFooter>
-          ) : undefined
-        }
-      >
-        {toElement(
-          ScrollView(
-            Embed(
-              loading ? (
-                <DetailSkeleton />
-              ) : !room ? (
-                <EmptyState
-                  error={{
-                    title: t('agora.roomUnavailableTitle', {
-                      defaultValue: "Couldn't load this room",
-                    }),
-                    message: t('agora.roomUnavailableMessage', {
-                      defaultValue: 'The room may have ended, or your connection dropped.',
-                    }),
-                    onRetry: loadRoom,
-                  }}
-                />
-              ) : (
-                <>
-                  {/* Status */}
-                  {toElement(
-                    VStack(
-                      isLive
-                        ? HStack(
-                            VStack()
-                              .frame({ width: 'sm', height: 'sm' })
-                              .background('white')
-                              .corner('infinite'),
-                            RawText('LIVE')
-                              .font('xs')
-                              .leading('16px')
-                              .weight('bold')
-                              .foreground('white'),
-                          )
-                            .padding('horizontal', 'md')
-                            .padding('vertical', '6')
-                            .background(liveColors.color.LIVE_INDICATOR_COLOR)
-                            .corner('infinite')
-                            .align('center')
-                            .spacing('6')
-                        : null,
-                      Embed(
-                        isScheduled &&
-                          toElement(
-                            HStack(
-                              Icon(RiCalendarLine).size('14').foreground('foreground'),
-                              RawText('SCHEDULED')
-                                .font('xs')
-                                .leading('16px')
-                                .weight('bold')
-                                .foreground('foreground'),
-                            )
-                              .padding('horizontal', 'md')
-                              .padding('vertical', '6')
-                              .background('mutedFill')
-                              .corner('infinite')
-                              .align('center')
-                              .spacing('6'),
-                          ),
-                      ),
-                      Embed(
-                        isEnded &&
-                          toElement(
-                            HStack(
-                              RawText('ENDED')
-                                .font('xs')
-                                .leading('16px')
-                                .weight('bold')
-                                .foreground('muted'),
-                            )
-                              .padding('horizontal', 'md')
-                              .padding('vertical', '6')
-                              .background('mutedFill')
-                              .corner('infinite')
-                              .align('center')
-                              .spacing('6'),
-                          ),
-                      ),
+      />,
+    ),
+    ScrollView(
+      Embed(
+        loading ? (
+          <DetailSkeleton />
+        ) : !room ? (
+          <EmptyState
+            error={{
+              title: t('agora.roomUnavailableTitle', {
+                defaultValue: "Couldn't load this room",
+              }),
+              message: t('agora.roomUnavailableMessage', {
+                defaultValue: 'The room may have ended, or your connection dropped.',
+              }),
+              onRetry: loadRoom,
+            }}
+          />
+        ) : (
+          <>
+            {/* Status */}
+            {toElement(
+              VStack(
+                isLive
+                  ? HStack(
+                      VStack()
+                        .frame({ width: 'sm', height: 'sm' })
+                        .background('white')
+                        .corner('infinite'),
+                      RawText('LIVE').font('xs').leading('16px').weight('bold').foreground('white'),
                     )
-                      .padding('horizontal', 'lg')
-                      .padding('top', 'sm')
-                      .align('start'),
-                  )}
-
-                  {/* Title and description */}
-                  {toElement(
-                    VStack(
-                      LText(room.title)
-                        .foreground('foreground')
-                        .font('xl')
-                        .leading('28px')
-                        .weight('bold')
-                        .margin('bottom', 'sm'),
-                      Embed(
-                        room.topic &&
-                          toElement(
-                            RawText(room.topic)
-                              .font('16')
-                              .leading('normal')
-                              .margin('bottom', 'sm')
-                              .foreground('muted'),
-                          ),
-                      ),
-                      Embed(
-                        room.description &&
-                          toElement(
-                            RawText(room.description)
-                              .font('md')
-                              .leading('22px')
-                              .margin('top', 'sm')
-                              .foreground('foreground'),
-                          ),
-                      ),
-                    )
-                      .padding('horizontal', 'lg')
-                      .padding('top', 'lg'),
-                  )}
-
-                  {/* Host */}
-                  {toElement(
-                    VStack(
-                      sectionHeading('Host'),
-                      Embed(<HostInfo hostId={room.host} oxyServices={oxyServices} />),
-                    )
-                      .padding('horizontal', 'lg')
-                      .margin('top', '2xl'),
-                  )}
-
-                  {/* Participants */}
-                  {toElement(
-                    VStack(
-                      sectionHeading('Participants (', participants.length, ')'),
-                      Embed(
-                        participantItems.length > 0 ? (
-                          <AvatarGroup
-                            items={participantItems}
-                            size={32}
-                            max={MAX_PARTICIPANT_AVATARS}
-                            total={participants.length}
-                            ringColor={theme.colors.background}
-                            hoverCard
-                            renderItemAction={renderFollowAction}
-                            onPressItem={(item) => openRoomMember(router, item)}
-                          />
-                        ) : (
-                          toElement(
-                            RawText('No participants yet')
-                              .font('14')
-                              .leading('20px')
-                              .foreground('muted'),
-                          )
-                        ),
-                      ),
-                    )
-                      .padding('horizontal', 'lg')
-                      .margin('top', '2xl'),
-                  )}
-
-                  {/* Speakers */}
-                  {speakerItems.length > 0 &&
+                      .padding('horizontal', 'md')
+                      .padding('vertical', '6')
+                      .background(liveColors.color.LIVE_INDICATOR_COLOR)
+                      .corner('infinite')
+                      .align('center')
+                      .spacing('6')
+                  : null,
+                Embed(
+                  isScheduled &&
                     toElement(
-                      VStack(
-                        sectionHeading('Speakers'),
-                        Embed(
-                          <AvatarGroup
-                            items={speakerItems}
-                            size={32}
-                            max={MAX_PARTICIPANT_AVATARS}
-                            total={speakers.length}
-                            ringColor={theme.colors.background}
-                            hoverCard
-                            renderItemAction={renderFollowAction}
-                            onPressItem={(item) => openRoomMember(router, item)}
-                          />,
-                        ),
+                      HStack(
+                        Icon(RiCalendarLine).size('14').foreground('foreground'),
+                        RawText('SCHEDULED')
+                          .font('xs')
+                          .leading('16px')
+                          .weight('bold')
+                          .foreground('foreground'),
                       )
-                        .padding('horizontal', 'lg')
-                        .margin('top', '2xl'),
-                    )}
-
-                  {/* Stats */}
-                  {room.stats &&
-                    toElement(
-                      Card(
-                        VStack(
-                          LText(room.stats.peakListeners || 0)
-                            .font('title-1')
-                            .weight('semibold'),
-                          LText('Peak listeners')
-                            .margin('top', 'xs')
-                            .foreground('muted')
-                            .font('body-2'),
-                        )
-                          .flex('1')
-                          .align('center'),
-                        Embed(
-                          <Divider
-                            vertical
-                            spacing={16}
-                            style={{ height: 40, alignSelf: 'center' }}
-                          />,
-                        ),
-                        VStack(
-                          LText(room.stats.totalJoined || 0)
-                            .font('title-1')
-                            .weight('semibold'),
-                          LText('Total joined')
-                            .margin('top', 'xs')
-                            .foreground('muted')
-                            .font('body-2'),
-                        )
-                          .flex('1')
-                          .align('center'),
-                      )
-                        .radius('md')
-                        .style('outline')
-                        .margin('horizontal', 'lg')
-                        .margin('top', '2xl')
-                        .axis('horizontal')
+                        .padding('horizontal', 'md')
+                        .padding('vertical', '6')
+                        .background('mutedFill')
+                        .corner('infinite')
                         .align('center')
-                        .padding('all', 'lg'),
-                    )}
-                </>
-              ),
-            ),
-          ),
-        )}
-      </Screen>
-    </>
+                        .spacing('6'),
+                    ),
+                ),
+                Embed(
+                  isEnded &&
+                    toElement(
+                      HStack(
+                        RawText('ENDED')
+                          .font('xs')
+                          .leading('16px')
+                          .weight('bold')
+                          .foreground('muted'),
+                      )
+                        .padding('horizontal', 'md')
+                        .padding('vertical', '6')
+                        .background('mutedFill')
+                        .corner('infinite')
+                        .align('center')
+                        .spacing('6'),
+                    ),
+                ),
+              )
+                .padding('horizontal', 'lg')
+                .padding('top', 'sm')
+                .align('start'),
+            )}
+
+            {/* Title and description */}
+            {toElement(
+              VStack(
+                LText(room.title)
+                  .foreground('foreground')
+                  .font('xl')
+                  .leading('28px')
+                  .weight('bold')
+                  .margin('bottom', 'sm'),
+                Embed(
+                  room.topic &&
+                    toElement(
+                      RawText(room.topic)
+                        .font('16')
+                        .leading('normal')
+                        .margin('bottom', 'sm')
+                        .foreground('muted'),
+                    ),
+                ),
+                Embed(
+                  room.description &&
+                    toElement(
+                      RawText(room.description)
+                        .font('md')
+                        .leading('22px')
+                        .margin('top', 'sm')
+                        .foreground('foreground'),
+                    ),
+                ),
+              )
+                .padding('horizontal', 'lg')
+                .padding('top', 'lg'),
+            )}
+
+            {/* Host */}
+            {toElement(
+              VStack(
+                sectionHeading('Host'),
+                Embed(<HostInfo hostId={room.host} oxyServices={oxyServices} />),
+              )
+                .padding('horizontal', 'lg')
+                .margin('top', '2xl'),
+            )}
+
+            {/* Participants */}
+            {toElement(
+              VStack(
+                sectionHeading('Participants (', participants.length, ')'),
+                Embed(
+                  participantItems.length > 0 ? (
+                    <AvatarGroup
+                      items={participantItems}
+                      size={32}
+                      max={MAX_PARTICIPANT_AVATARS}
+                      total={participants.length}
+                      ringColor={theme.colors.background}
+                      hoverCard
+                      renderItemAction={renderFollowAction}
+                      onPressItem={(item) => openRoomMember(router, item)}
+                    />
+                  ) : (
+                    toElement(
+                      RawText('No participants yet').font('14').leading('20px').foreground('muted'),
+                    )
+                  ),
+                ),
+              )
+                .padding('horizontal', 'lg')
+                .margin('top', '2xl'),
+            )}
+
+            {/* Speakers */}
+            {speakerItems.length > 0 &&
+              toElement(
+                VStack(
+                  sectionHeading('Speakers'),
+                  Embed(
+                    <AvatarGroup
+                      items={speakerItems}
+                      size={32}
+                      max={MAX_PARTICIPANT_AVATARS}
+                      total={speakers.length}
+                      ringColor={theme.colors.background}
+                      hoverCard
+                      renderItemAction={renderFollowAction}
+                      onPressItem={(item) => openRoomMember(router, item)}
+                    />,
+                  ),
+                )
+                  .padding('horizontal', 'lg')
+                  .margin('top', '2xl'),
+              )}
+
+            {/* Stats */}
+            {room.stats &&
+              toElement(
+                Card(
+                  VStack(
+                    LText(room.stats.peakListeners || 0)
+                      .font('title-1')
+                      .weight('semibold'),
+                    LText('Peak listeners').margin('top', 'xs').foreground('muted').font('body-2'),
+                  )
+                    .flex('1')
+                    .align('center'),
+                  Embed(
+                    <Divider vertical spacing={16} style={{ height: 40, alignSelf: 'center' }} />,
+                  ),
+                  VStack(
+                    LText(room.stats.totalJoined || 0)
+                      .font('title-1')
+                      .weight('semibold'),
+                    LText('Total joined').margin('top', 'xs').foreground('muted').font('body-2'),
+                  )
+                    .flex('1')
+                    .align('center'),
+                )
+                  .radius('md')
+                  .style('outline')
+                  .margin('horizontal', 'lg')
+                  .margin('top', '2xl')
+                  .axis('horizontal')
+                  .align('center')
+                  .padding('all', 'lg'),
+              )}
+          </>
+        ),
+      ),
+    ),
+  ).header(
+    Header(room ? undefined : t('agora.room'))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .toolbar(
+        room
+          ? Menu(
+              LButton(Icon(RiMoreFill))
+                .shape('circle')
+                .style('subtle')
+                .tint('neutral')
+                .label(t('common.options', { defaultValue: 'Options' })),
+              Item(t('agora.shareRoom', { defaultValue: 'Share room' }))
+                .icon(RiShareForwardLine)
+                .iconSize('22')
+                .iconForeground('foreground')
+                .onPress(handleShareRoom),
+              isJoined && !isHost
+                ? Item(t('agora.leaveRoom', { defaultValue: 'Leave room' }))
+                    .icon(RiLogoutBoxRLine)
+                    .iconSize('22')
+                    .iconForeground('error')
+                    .destructive()
+                    .onPress(handleLeave)
+                : null,
+              isHost
+                ? null
+                : Item(t('agora.reportRoom', { defaultValue: 'Report room' }))
+                    .icon(RiFlagLine)
+                    .iconSize('22')
+                    .iconForeground('error')
+                    .destructive()
+                    .onPress(handleReport),
+            ).label(t('common.options', { defaultValue: 'Options' }))
+          : null,
+      )
+      .inPage(),
   );
-};
+  if (loading || !room) return page;
+  // Actions — a live host gets Join + End side by side, hence the row.
+  return page.footer(
+    Embed(
+      <PageFooter>
+        {toElement(
+          HStack(
+            isLive
+              ? LButton(Icon(RiBroadcastLine), LText('Join Live'))
+                  .flex('1')
+                  .onPress(() => joinLiveRoom(id))
+                  .disabled(actionLoading)
+              : null,
+            isHost && isScheduled
+              ? LButton(Icon(RiPlayFill), LText('Start Room'))
+                  .flex('1')
+                  .onPress(handleStartRoom)
+                  .loading(actionLoading)
+              : null,
+            !isHost && isScheduled
+              ? LButton(Icon(RiTimeLine), LText('Room not started yet'))
+                  .style('subtle')
+                  .tint('neutral')
+                  .flex('1')
+                  .disabled()
+              : null,
+            isHost && isLive
+              ? LButton(Icon(RiStopFill), LText('End Room'))
+                  .tint('danger')
+                  .flex('1')
+                  .onPress(handleEndRoom)
+                  .loading(actionLoading)
+              : null,
+            isEnded
+              ? LButton(Icon(RiCheckboxCircleLine), LText('This room has ended'))
+                  .style('subtle')
+                  .tint('neutral')
+                  .flex('1')
+                  .disabled()
+              : null,
+          ).spacing('sm'),
+        )}
+      </PageFooter>,
+    ),
+  );
+});
 
 export default RoomDetailScreen;
