@@ -1,4 +1,3 @@
-import { Pressable } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useAskGemie } from '@gemies/sdk/ask';
@@ -8,14 +7,20 @@ import { useAppShell } from '@oxy.so/bloom/app-shell/hooks';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { MenuIcon } from '@oxy.so/bloom/icons/MenuIcon';
-
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { LogoIcon } from '@/assets/logo';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
-
-import { Button as LButton, Icon, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Icon,
+  toElement,
+  Embed,
+  VStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 export function MentionHomeHeader() {
   const router = useRouter();
@@ -28,16 +33,13 @@ export function MentionHomeHeader() {
   const { ask } = useAskGemie();
   return (
     <PageHeader
-      title={
-        <Pressable
-          onPress={() => selectDestination('(home)')}
-          accessibilityRole="button"
-          accessibilityLabel="Mention"
-          hitSlop={8}
-        >
-          <LogoIcon size={28} color={colors.text} />
-        </Pressable>
-      }
+      title={LtoElement(
+        VStack(Embed(<LogoIcon size={28} color={colors.text} />))
+          .onPress(() => selectDestination('(home)'))
+          .role('button')
+          .label('Mention')
+          .hitSlop('md'),
+      )}
       titleAlign="center"
       presentation="floating"
       leading={
