@@ -4506,18 +4506,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                 </Chip>
                               </ReplySettingsMenu>
                             ) : null}
-                            <Chip
-                              size="xl"
-                              variant="subtle"
-                              color={isSensitive ? 'error' : undefined}
-                              selected={isSensitive}
-                              onPress={handleSensitiveToggle}
-                              leadingIcon={SensitiveIcon}
-                            >
-                              {isSensitive
-                                ? t('compose.sensitive.on', 'CW: On')
-                                : t('compose.sensitive.off', 'CW')}
-                            </Chip>
+                            {LtoElement(
+                              LChip(
+                                LIcon(SensitiveIcon),
+                                Text(
+                                  isSensitive
+                                    ? t('compose.sensitive.on', 'CW: On')
+                                    : t('compose.sensitive.off', 'CW'),
+                                ),
+                              )
+                                .size('xl')
+                                .style('subtle')
+                                .tint(isSensitive ? 'danger' : undefined)
+                                .selected(isSensitive)
+                                .onPress(handleSensitiveToggle),
+                            )}
                           </>
                         )}
                       </ChipRow>,
