@@ -38,10 +38,7 @@ import {
   Toggle,
   VStack,
   toElement,
-  Embed as LEmbed,
   Search as LSearch,
-  VStack as LVStack,
-  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 type ShopRow =
@@ -197,17 +194,12 @@ export function ProfileShop({
       'product-controls',
       toElement(
         VStack(
-          // Bloom's Search as JSX: the language's Search has no `.maxLength()`.
-          Embed(
-            LtoElement(
-              LSearch([searchText, setSearchText])
-                .label(t('commerce.searchProducts'))
-                .onClearText(() => setSearchText(''))
-                .autocapitalize('none')
-                .autocorrect(false)
-                .maxLength(200),
-            ),
-          ),
+          LSearch([searchText, setSearchText])
+            .label(t('commerce.searchProducts'))
+            .onClearText(() => setSearchText(''))
+            .autocapitalize('none')
+            .autocorrect(false)
+            .maxLength(200),
           Embed(
             <Select
               value={effectiveSort}
@@ -385,9 +377,9 @@ export function ProfileShop({
     },
     [columns],
   );
-  return LtoElement(
-    LVStack(
-      LEmbed(
+  return toElement(
+    VStack(
+      Embed(
         storeId
           ? selectedCollections.map((collection) => (
               <FeaturedCollectionObserver
@@ -408,7 +400,7 @@ export function ProfileShop({
             ))
           : null,
       ),
-      LEmbed(
+      Embed(
         <VirtualList
           key="catalog-grid"
           screen={{}}
