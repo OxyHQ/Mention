@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { StyleSheet, type TextStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@/components/FollowButton';
@@ -8,8 +8,6 @@ import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { useColorTokens } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
 import { getNormalizedUserHandle, type AccountKind } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import UserName from './UserName';
@@ -30,9 +28,6 @@ const IDENTITY_TEXT_STYLES = StyleSheet.create({
   handle: { fontSize: 14, lineHeight: 18 },
   column: { gap: 2 },
 });
-
-/** The meta line, 14/18 as its classes drew it; its ink is the muted token. */
-const META_STYLE: TextStyle = { fontSize: 14, lineHeight: 18 };
 
 const IDENTITY_STYLE = {
   name: IDENTITY_TEXT_STYLES.name,
@@ -187,7 +182,6 @@ export function ProfileCard({
   size = 'md',
 }: ProfileCardProps) {
   const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
-  const colorTokens = useColorTokens();
 
   return toElement(
     VStack(
@@ -226,16 +220,9 @@ export function ProfileCard({
                   style={IDENTITY_STYLE}
                 />,
               ),
-              // Bloom's Text as JSX: a meta line may be an element (a poke's time and count), which no text run holds.
+              // A meta line may be an element (a poke's time and count): a run as it is.
               meta
-                ? Embed(
-                    <Text
-                      style={[META_STYLE, { color: colorTokens.mutedForeground }]}
-                      numberOfLines={1}
-                    >
-                      {meta}
-                    </Text>,
-                  )
+                ? LText(Embed(meta)).font('14').leading('18px').foreground('muted').lines(1)
                 : null,
               resolved.description
                 ? LText(resolved.description)
