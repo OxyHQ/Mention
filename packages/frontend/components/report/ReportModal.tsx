@@ -1,7 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
 import { ScrollView, TouchableOpacity, View, type ViewStyle } from 'react-native';
-import { Field } from '@oxy.so/bloom/field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +11,7 @@ import {
   Checkbox as LCheckbox,
   Divider as LDivider,
   Embed,
+  Field as LField,
   HStack,
   Icon,
   RawText,
@@ -168,18 +168,23 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
           )}
 
           {/* Details Input */}
-          <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
-            <Textarea
-              placeholder={t('report.contextPlaceholder')}
-              value={details}
-              onChangeText={setDetails}
-              rows={5}
-              autoResize
-              maxRows={7}
-              maxLength={500}
-              showCount
-            />
-          </Field>
+          {toElement(
+            LField(
+              'Additional details (optional)',
+              Embed(
+                <Textarea
+                  placeholder={t('report.contextPlaceholder')}
+                  value={details}
+                  onChangeText={setDetails}
+                  rows={5}
+                  autoResize
+                  maxRows={7}
+                  maxLength={500}
+                  showCount
+                />,
+              ),
+            ).margin('bottom', 'lg'),
+          )}
         </ScrollView>
         {/* Action Buttons */}
         {render(LDivider())}
