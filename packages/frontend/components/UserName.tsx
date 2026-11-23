@@ -19,9 +19,6 @@ import {
   VStack,
   type IconSizeToken,
   type PaddingToken,
-  Embed as LEmbed,
-  HStack,
-  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 /** The verified badge's blue, an app colour: the same in both schemes and under every preset. */
@@ -202,66 +199,55 @@ const UserName: React.FC<UserNameProps> = ({
 
   const inner = (
     <>
-      {LtoElement(
-        HStack(
-          LEmbed(primaryText != null && nameText),
-          /* The badge is always VERIFIED_BADGE_COLOR, never a theme role. It used to take
-                          `text-primary`, which a profile scopes to the PROFILE OWNER's
-                          colour preset — so the same seal was a different colour on
-                          every profile, and the compact scroll header opted out into
-                          `text-foreground` on top of that, drawing it black/white a
-                          few pixels above the very same badge in the identity line. */ LEmbed(
-            verified &&
-              toElement(
-                Icon(RiVerifiedBadgeFill)
-                  .size(badge.size)
-                  .foreground(BADGE.color.verified)
-                  // Natively only: the badge's nudge was its icon's own style, which a
-                  // Bloom icon on the web drops (react-native-svg's web svg), so the web
-                  // badge has always sat on the row's centre.
-                  .when('native', (v) => v.offset({ y: badge.nudge })),
-              ),
-          ),
-          /* One marker for the account's whole identity state — remote or
-                          channel, never both, and nothing at all for an ordinary local
-                          account. Inert unless the caller passed the handler for the
-                          marker it draws; forwarded, never chosen between here. */ LEmbed(
-            <AccountBadge
-              isFederated={isFederated}
-              kind={kind}
-              onExplainNetwork={onExplainNetwork}
-              onExplainChannel={onExplainChannel}
-              size={font}
-              color={theme.colors.text}
-              style={glyphNudge}
-            />,
-          ),
-          LEmbed(
-            isAgent && (
-              <RiSparklingLine
-                width={font}
-                height={font}
-                fill={theme.colors.textSecondary}
-                style={glyphNudge}
-              />
-            ),
-          ),
-          LEmbed(
-            isAutomated && (
-              <RiRobot2Line
-                width={font}
-                height={font}
-                fill={theme.colors.textSecondary}
-                style={glyphNudge}
-              />
-            ),
-          ),
-        )
-          .frame({ maxWidth: 'full', minWidth: 'none' })
-          .spacing('xs')
-          .align('center')
-          .when(Boolean(isCentered), (v) => v.justify('center')),
-      )}
+      <View style={[isCentered ? styles.nameGapCentered : styles.nameGap, styles.nameRow]}>
+        {primaryText != null && nameText}
+        {/* The badge is always VERIFIED_BADGE_COLOR, never a theme role. It used to take
+                    `text-primary`, which a profile scopes to the PROFILE OWNER's
+                    colour preset — so the same seal was a different colour on
+                    every profile, and the compact scroll header opted out into
+                    `text-foreground` on top of that, drawing it black/white a
+                    few pixels above the very same badge in the identity line. */}
+        {verified &&
+          toElement(
+            Icon(RiVerifiedBadgeFill)
+              .size(badge.size)
+              .foreground(BADGE.color.verified)
+              // Natively only: the badge's nudge was its icon's own style, which a
+              // Bloom icon on the web drops (react-native-svg's web svg), so the web
+              // badge has always sat on the row's centre.
+              .when('native', (v) => v.offset({ y: badge.nudge })),
+          )}
+        {/* One marker for the account's whole identity state — remote or
+                    channel, never both, and nothing at all for an ordinary local
+                    account. Inert unless the caller passed the handler for the
+                    marker it draws; forwarded, never chosen between here. */}
+        <AccountBadge
+          isFederated={isFederated}
+          kind={kind}
+          onExplainNetwork={onExplainNetwork}
+          onExplainChannel={onExplainChannel}
+          size={font}
+          color={theme.colors.text}
+          style={glyphNudge}
+        />
+
+        {isAgent && (
+          <RiSparklingLine
+            width={font}
+            height={font}
+            fill={theme.colors.textSecondary}
+            style={glyphNudge}
+          />
+        )}
+        {isAutomated && (
+          <RiRobot2Line
+            width={font}
+            height={font}
+            fill={theme.colors.textSecondary}
+            style={glyphNudge}
+          />
+        )}
+      </View>
       {handleLineNode}
     </>
   );
