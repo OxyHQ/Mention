@@ -1,6 +1,5 @@
-import TestRenderer, { act } from 'react-test-renderer';
 import type { HydratedPost } from '@mention/shared-types';
-import { PostLaneSubmenu, PostReplySettingsSubmenu } from '../PostMenuSubmenus';
+import { changePostSetting, movePostToLane, NO_LANE } from '../PostMenuSubmenus';
 
 const mockUpdate = jest.fn();
 jest.mock('@/stores/postsStore', () => ({
@@ -15,46 +14,24 @@ jest.mock('@/services/lanesService', () => ({
   lanesService: { setPostLane: (id: string, lane: string | null) => mockSetLane(id, lane) },
 }));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
-jest.mock('@/hooks/usePublisherLanes', () => ({
-  usePublisherLanes: () => ({ lanes: [{ id: 'l2', name: 'Dev notes' }], isLoading: false }),
-}));
-jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 const mockToast = jest.fn();
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
-jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-jest.mock('@oxy.so/bloom/dropdown-menu', () => ({
-  DropdownMenuItem: 'DropdownMenuItem',
-  DropdownMenuRadioGroup: 'DropdownMenuRadioGroup',
-  DropdownMenuRadioItem: 'DropdownMenuRadioItem',
-  DropdownMenuSeparator: 'DropdownMenuSeparator',
-}));
-jest.mock('@/components/Compose/ReplySettingsMenuItems', () => ({
-  ReplySettingsMenuItems: 'ReplySettingsMenuItems',
-}));
 
 const post = { id: 'p1', metadata: { replyPermission: ['anyone'] } } as unknown as HydratedPost;
 
-function render(element: React.ReactElement) {
-  let tree!: TestRenderer.ReactTestRenderer;
-  act(() => {
-    tree = TestRenderer.create(element);
-  });
-  return tree;
-}
-
 beforeEach(() => jest.clearAllMocks());
 
-it('saves reply settings as they change, and says when one is refused', async () => {
-  const tree = render(<PostReplySettingsSubmenu post={post} />);
-  const items = () => tree.root.findByType('ReplySettingsMenuItems' as never).props;
-  expect(items().replyPermission).toEqual(['anyone']);
-
-  await act(() => items().onReplyPermissionChange(['followers']));
+it('saves a post setting, and says when it is refused', async () => {
+  await changePostSetting('p1', { replyPermission: ['followers'] }, 'failed');
   expect(mockSave).toHaveBeenCalledWith('p1', { replyPermission: ['followers'] });
   expect(mockToast).not.toHaveBeenCalled();
 
   mockSave.mockResolvedValueOnce(false);
-  await act(() => items().onQuotesDisabledChange(true));
+  await changePostSetting(
+    'p1',
+    { quotesDisabled: true },
+    'postActions.failedToUpdateQuoteSettings',
+  );
   expect(mockSave).toHaveBeenLastCalledWith('p1', { quotesDisabled: true });
   expect(mockToast).toHaveBeenCalledWith('postActions.failedToUpdateQuoteSettings', {
     type: 'error',
@@ -62,15 +39,12 @@ it('saves reply settings as they change, and says when one is refused', async ()
 });
 
 it('moves the post to the chosen lane, or off every lane, and says when it fails', async () => {
-  const tree = render(<PostLaneSubmenu post={post} />);
-  const group = () => tree.root.findByType('DropdownMenuRadioGroup' as never).props;
-
-  await act(() => group().onValueChange('l2'));
+  await movePostToLane(post, 'l2', 'failed');
   expect(mockSetLane).toHaveBeenCalledWith('p1', 'l2');
   expect(mockUpdate).toHaveBeenCalled();
 
   mockSetLane.mockRejectedValueOnce(new Error('no'));
-  await act(() => group().onValueChange(''));
+  await movePostToLane(post, NO_LANE, 'lanes.postActions.moveFailed');
   expect(mockSetLane).toHaveBeenLastCalledWith('p1', null);
   expect(mockToast).toHaveBeenCalledWith('lanes.postActions.moveFailed', { type: 'error' });
 });

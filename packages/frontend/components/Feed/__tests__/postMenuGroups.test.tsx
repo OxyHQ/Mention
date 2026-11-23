@@ -103,9 +103,7 @@ function rows(viewPost: HydratedPost) {
   });
   return groups
     .flat()
-    .flatMap((entry) =>
-      'submenu' in entry ? [] : [{ label: entry.label, onPress: entry.onPress }],
-    );
+    .flatMap((entry) => ('rows' in entry ? [] : [{ label: entry.label, onPress: entry.onPress }]));
 }
 
 const labels = (viewPost: HydratedPost) => rows(viewPost).map((row) => row.label);

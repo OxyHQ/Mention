@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense } from 'react';
 import type { useRouter } from '@/lib/navigation/router';
 import type { QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
@@ -39,7 +39,6 @@ import { communityService } from '@/services/communityService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { postPermalink } from '@/utils/postPermalink';
-import { PostLaneSubmenu, PostReplySettingsSubmenu, PostSourcesSubmenu } from './PostMenuSubmenus';
 import { savePostSettings } from './postSettings';
 
 /**
@@ -131,9 +130,7 @@ export interface PostMenuAction {
 interface PostMenuSubmenu {
   icon: IconComponent;
   label: string;
-  /** Bloom menu rows: a flyout on web, an inline disclosure on native. */
-  submenu: ReactNode;
-  /** The same rows, as data. */
+  /** Its rows, as data: `PostMenu` draws them. */
   rows: PostMenuSubmenuRows;
 }
 
@@ -304,7 +301,6 @@ export function buildPostMenuActions(
       saveActionGroup.push({
         icon: RiNodeTree,
         label: t('lanes.postActions.moveToLane'),
-        submenu: <PostLaneSubmenu post={viewPost} />,
         rows: { kind: 'lane', post: viewPost },
       });
     }
@@ -328,7 +324,6 @@ export function buildPostMenuActions(
       saveActionGroup.push({
         icon: RiChat3Line,
         label: t('postActions.replyOptions'),
-        submenu: <PostReplySettingsSubmenu post={viewPost} />,
         rows: { kind: 'replySettings', post: viewPost },
       });
     }
@@ -403,7 +398,6 @@ export function buildPostMenuActions(
             {
               icon: RiLinksLine,
               label: t('post.sources'),
-              submenu: <PostSourcesSubmenu sources={sources} />,
               rows: { kind: 'sources', sources },
             },
           ]
