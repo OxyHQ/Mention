@@ -18,12 +18,11 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
-import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
-
 import { useTheme } from '@oxy.so/bloom/theme';
+
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
@@ -41,7 +40,6 @@ import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
-
 import {
   Button as LButton,
   Card,
@@ -59,7 +57,9 @@ import {
   defineTokens,
   toElement,
   Group,
+  PageFooter as LPageFooter,
 } from '@oxy.so/bloom-language';
+
 import { screen } from '@oxy.so/bloom-language/router';
 
 const liveColors = defineTokens({ color: { LIVE_INDICATOR_COLOR } });
@@ -551,8 +551,8 @@ const RoomDetailScreen = screen(function RoomDetailScreen() {
   // Actions — a live host gets Join + End side by side, hence the row.
   return page.footer(
     Embed(
-      <PageFooter>
-        {toElement(
+      toElement(
+        LPageFooter(
           HStack(
             isLive
               ? LButton(Icon(RiBroadcastLine), LText('Join Live'))
@@ -588,8 +588,8 @@ const RoomDetailScreen = screen(function RoomDetailScreen() {
                   .disabled()
               : null,
           ).spacing('sm'),
-        )}
-      </PageFooter>,
+        ),
+      ),
     ),
   );
 });
