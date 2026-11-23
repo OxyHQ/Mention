@@ -1,7 +1,7 @@
 import { shareLink } from '@/utils/shareLink';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
@@ -30,10 +30,14 @@ import {
   Text as LText,
   VStack,
   VirtualList,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 
 const APP_URL = 'https://mention.earth';
+
+/** The invite banner's icon disc is a 34pt square. */
+const invite = defineTokens({ space: { icon: 34 } });
 
 /** Placeholder rows painted while the first page of recommendations loads. */
 const SKELETON_ROW_COUNT = 8;
@@ -161,13 +165,12 @@ function ProfileDiscoveryList({
         {showInviteBanner
           ? toElement(
               HStack(
-                Embed(
-                  <View
-                    style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}
-                  >
-                    <RiGroupFill width={18} fill={theme.colors.card} />
-                  </View>,
-                ),
+                VStack(Embed(<RiGroupFill width={18} fill={theme.colors.card} />))
+                  .frame({ width: invite.space.icon, height: invite.space.icon })
+                  .background('primary')
+                  .corner('full')
+                  .align('center')
+                  .justify('center'),
                 VStack(
                   LText(t('settings.inviteContacts.inviteBannerTitle'))
                     .font('14')
@@ -198,14 +201,7 @@ function ProfileDiscoveryList({
           : null}
       </>
     ),
-    [
-      listHeaderComponent,
-      showInviteBanner,
-      handleInviteFriends,
-      theme.colors.card,
-      theme.colors.primary,
-      t,
-    ],
+    [listHeaderComponent, showInviteBanner, handleInviteFriends, theme.colors.card, t],
   );
 
   // The first load paints the row skeletons (the list header stays put), so the
@@ -316,13 +312,6 @@ const styles = StyleSheet.create({
   footer: {
     paddingVertical: 16,
     alignItems: 'center',
-  },
-  inviteIconContainer: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   inviteContent: {
     flex: 1,
