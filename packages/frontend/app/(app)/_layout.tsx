@@ -5,7 +5,7 @@ import { DeckAddPanel } from '@/components/deck/DeckAddPanel';
 import { useDeckSettings, deckRouteForSource } from '@/components/deck/deckSettings';
 import { isDefaultLeadingDeckPanel } from '@/components/deck/deckEntry';
 import { useLayoutEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AppLayout, layout, Sheet, Stack } from '@oxy.so/bloom-language/router';
 
@@ -35,6 +35,8 @@ import { usePostEngagementPanels } from '@/components/Post/postEngagementPanels'
 import { postEngagementGroup } from '@/components/Post/postEngagementGroup';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+
+import { VStack, toElement } from '@oxy.so/bloom-language';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -219,11 +221,12 @@ const MentionShell = layout(function MentionShell() {
                 // A screen that throws fails inside its panel, never the whole
                 // app; navigating to another route recovers it.
                 <RouteErrorBoundary onError={reportBoundaryError}>
-                  <View
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="box-none"
-                    ref={registerPanelSurface}
-                  />
+                  {toElement(
+                    VStack()
+                      .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+                      .allowsHitTesting('children')
+                      .ref(registerPanelSurface),
+                  )}
                   <PostReplyNavigationContext.Provider value={ownsMainReplyNavigation}>
                     <DeckHomeEntry>{navigator}</DeckHomeEntry>
                   </PostReplyNavigationContext.Provider>
