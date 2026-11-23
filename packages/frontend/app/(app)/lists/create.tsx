@@ -1,6 +1,5 @@
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
@@ -9,7 +8,6 @@ import { logger } from '@oxy.so/core/logger';
 import { useTranslation } from 'react-i18next';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import type { User } from '@oxy.so/core';
-
 import {
   Card as LCard,
   Divider as LDivider,
@@ -25,6 +23,8 @@ import {
   Toggle,
   VStack,
   Embed as LEmbed,
+  Search as LSearch,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -136,12 +136,11 @@ const CreateListScreen = screen(function CreateListScreen() {
             LField(
               t('lists.create.addMembers'),
               Embed(
-                <Search
-                  label={t('lists.create.searchUsersPlaceholder')}
-                  value={search}
-                  onChangeText={doSearch}
-                  onClearText={() => doSearch('')}
-                />,
+                LtoElement(
+                  LSearch([search, doSearch])
+                    .label(t('lists.create.searchUsersPlaceholder'))
+                    .onClearText(() => doSearch('')),
+                ),
               ),
             ).margin('top', 'md'),
           )

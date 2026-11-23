@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +9,6 @@ import { logger } from '@oxy.so/core/logger';
 import type { User } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
-
 import {
   Card as LCard,
   Divider as LDivider,
@@ -24,6 +22,8 @@ import {
   TextField,
   toElement,
   VStack,
+  Search as LSearch,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -133,12 +133,11 @@ export default screen(function CreateStarterPackScreen() {
             LField(
               `Add accounts (${members.length}/150)`,
               Embed(
-                <Search
-                  label={t('starterPacks.searchUsersPlaceholder')}
-                  value={search}
-                  onChangeText={doSearch}
-                  onClearText={() => doSearch('')}
-                />,
+                LtoElement(
+                  LSearch([search, doSearch])
+                    .label(t('starterPacks.searchUsersPlaceholder'))
+                    .onClearText(() => doSearch('')),
+                ),
               ),
             ).margin('top', 'md'),
           )

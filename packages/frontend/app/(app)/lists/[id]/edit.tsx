@@ -2,7 +2,6 @@ import { FormSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import { Search } from '@oxy.so/bloom/search';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { toast } from '@oxy.so/bloom/toast';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
@@ -12,13 +11,12 @@ import { RiIndeterminateCircleFill } from '@oxy.so/bloom/icons/RiIndeterminateCi
 import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-
 import { listsService } from '@/services/listsService';
+
 import { logger } from '@oxy.so/core/logger';
 import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
-
 import {
   Avatar as LAvatar,
   Card as LCard,
@@ -34,6 +32,8 @@ import {
   toElement,
   VStack,
   Embed as LEmbed,
+  Search as LSearch,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -268,12 +268,11 @@ const EditListMembersScreen = screen(function EditListMembersScreen() {
         LField(
           t('lists.edit.addMembers', { defaultValue: 'Add members' }),
           Embed(
-            <Search
-              label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
-              value={search}
-              onChangeText={runSearch}
-              onClearText={() => runSearch('')}
-            />,
+            LtoElement(
+              LSearch([search, runSearch])
+                .label(t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' }))
+                .onClearText(() => runSearch('')),
+            ),
           ),
         ).margin('bottom', '10'),
         Embed(searching && <ListSkeleton count={2} />),
