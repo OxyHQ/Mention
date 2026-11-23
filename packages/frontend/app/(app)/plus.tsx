@@ -10,7 +10,6 @@ import { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 import { SubscriptionPrice, type SubscriptionPlan } from '@oxy.so/bloom/subscription-plans';
 import { plusPriceMajorUnits, type PlusCadence } from '@/lib/payments/plusCheckout';
-import { Title, Subtitle } from '@oxy.so/bloom/typography';
 import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
@@ -163,12 +162,12 @@ export default screen(function PlusScreen() {
   return Group(
     ScrollView(
       VStack(
-        Embed(
-          <Title variant="display-4-semibold" style={{ textAlign: 'center' }}>
-            Mention {selectedPlan?.label}
-          </Title>,
-        ),
-        Embed(<Subtitle style={{ textAlign: 'center' }}>{selectedPlan?.subtitle}</Subtitle>),
+        LText('Mention ', selectedPlan?.label)
+          .textStyle('title')
+          .font('display-4')
+          .weight('semibold')
+          .textAlign('center'),
+        LText(selectedPlan?.subtitle).textStyle('subtitle').textAlign('center'),
         // A plan's price is the offer (an amount) or this screen's own words for it.
         selectedPlan?.price &&
           typeof selectedPlan.price === 'object' &&
