@@ -1,14 +1,13 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 
@@ -22,6 +21,7 @@ import {
   Embed,
   HStack,
   Header,
+  ScrollView,
   Text as LText,
   VStack,
   toElement,
@@ -353,6 +353,9 @@ export default screen(function PokesScreen() {
     );
   };
 
+  // Only a signed-in reader pulls to refresh.
+  const scroll = ScrollView(Embed(renderContent())).contentGrows().contentMargins('bottom', '4xl');
+
   // The SEO tags draw nothing in place (the document's head on the web).
   return Group(
     Embed(
@@ -363,23 +366,9 @@ export default screen(function PokesScreen() {
         })}
       />,
     ),
-    Embed(
-      <ScreenScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
-        refreshControl={
-          isAuthenticated ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[theme.colors.primary]}
-              tintColor={theme.colors.primary}
-            />
-          ) : undefined
-        }
-      >
-        {renderContent()}
-      </ScreenScrollView>,
-    ),
+    isAuthenticated
+      ? scroll.refreshable({ refreshing, onRefresh: handleRefresh }, 'primary')
+      : scroll,
   ).header(
     Header(t('pokes.title', { defaultValue: 'Pokes' }))
       .backLabel(t('common.back', { defaultValue: 'Back' }))
