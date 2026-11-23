@@ -4,8 +4,6 @@ import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
 import { Screen } from '@oxy.so/bloom/screen';
 import { Search } from '@oxy.so/bloom/search';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -28,6 +26,14 @@ import {
   Toggle,
   VStack,
   toElement,
+} from '@oxy.so/bloom-language';
+
+import {
+  Embed as LEmbed,
+  TextEditor,
+  TextField,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 // Kept as React Native's TouchableOpacity (the language has no node for its fading
@@ -132,23 +138,21 @@ function CreateListScreen() {
               LField(
                 t('lists.create.titleLabel'),
                 Embed(
-                  <TextFieldInput
-                    label={t('lists.create.titleLabel')}
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder={t('lists.create.titlePlaceholder')}
-                  />,
+                  LtoElement(
+                    TextField([title, setTitle], t('lists.create.titleLabel')).placeholder(
+                      t('lists.create.titlePlaceholder'),
+                    ),
+                  ),
                 ),
               ),
               LField(
                 t('lists.create.descriptionLabel'),
                 Embed(
-                  <Textarea
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder={t('lists.create.descriptionPlaceholder')}
-                    rows={3}
-                  />,
+                  LtoElement(
+                    TextEditor([description, setDescription])
+                      .placeholder(t('lists.create.descriptionPlaceholder'))
+                      .rows(3),
+                  ),
                 ),
               ),
               HStack(
@@ -209,13 +213,19 @@ function CreateListScreen() {
                         HStack(
                           RawText('@', m.username).foreground('foreground'),
                           Embed(
-                            <TouchableOpacity onPress={() => removeMember(m.id)}>
-                              {toElement(
-                                RawText(t('lists.create.remove'))
-                                  .foreground('destructive')
-                                  .margin('left', '10'),
-                              )}
-                            </TouchableOpacity>,
+                            LtoElement(
+                              LVStack(
+                                LEmbed(
+                                  toElement(
+                                    RawText(t('lists.create.remove'))
+                                      .foreground('destructive')
+                                      .margin('left', '10'),
+                                  ),
+                                ),
+                              )
+                                .onPress(() => removeMember(m.id))
+                                .pressFade(),
+                            ),
                           ),
                         )
                           .padding('vertical', '6')

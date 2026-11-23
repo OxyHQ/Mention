@@ -10,11 +10,15 @@ import {
 } from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
-
 import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+
+import {
+  Embed as LEmbed,
+  VirtualList as LVirtualList,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 export function StarterPacksTab() {
   const router = useRouter();
@@ -101,24 +105,26 @@ export function StarterPacksTab() {
     );
   };
 
-  return (
-    <VirtualList
-      screen={{}}
-      data={packs}
-      renderItem={renderItem}
-      keyExtractor={(item: StarterPackSummary) => String(item._id || item.id)}
-      contentContainerStyle={styles.list}
-      ListHeaderComponent={
-        <TouchableOpacity
-          style={[styles.createButton, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/starter-packs/create')}
-        >
-          {toElement(
-            RawText(t('starterPacks.create')).foreground('onPrimary').weight('bold').font('md'),
-          )}
-        </TouchableOpacity>
-      }
-    />
+  return LtoElement(
+    LVirtualList(packs, renderItem)
+      .screen()
+      .itemKey((item: StarterPackSummary) => String(item._id || item.id))
+      .contentMargins('left', 'lg')
+      .contentMargins('right', 'lg')
+      .contentMargins('top', 'sm')
+      .contentMargins('bottom', '3xl')
+      .headerContent(
+        LEmbed(
+          <TouchableOpacity
+            style={[styles.createButton, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/starter-packs/create')}
+          >
+            {toElement(
+              RawText(t('starterPacks.create')).foreground('onPrimary').weight('bold').font('md'),
+            )}
+          </TouchableOpacity>,
+        ),
+      ),
   );
 }
 

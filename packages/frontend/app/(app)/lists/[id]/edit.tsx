@@ -39,6 +39,12 @@ import {
   toElement,
 } from '@oxy.so/bloom-language';
 
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
+
 // Kept as React Native's TouchableOpacity (the language has no node for its fading
 // press); its style draws what its classes drew.
 const touchables = {
@@ -253,15 +259,21 @@ function EditListMembersScreen() {
             Icon(RiAlertLine).size('3xl').foreground('muted'),
             RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
             Embed(
-              <TouchableOpacity onPress={load}>
-                {toElement(
-                  RawText(t('common.retry', { defaultValue: 'Try again' }))
-                    .foreground('primary')
-                    .font('14')
-                    .leading('20px')
-                    .weight('semibold'),
-                )}
-              </TouchableOpacity>,
+              LtoElement(
+                LVStack(
+                  LEmbed(
+                    toElement(
+                      RawText(t('common.retry', { defaultValue: 'Try again' }))
+                        .foreground('primary')
+                        .font('14')
+                        .leading('20px')
+                        .weight('semibold'),
+                    ),
+                  ),
+                )
+                  .onPress(load)
+                  .pressFade(),
+              ),
             ),
           ).contentView((v) =>
             v

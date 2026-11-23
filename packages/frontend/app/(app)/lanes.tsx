@@ -1,6 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useState } from 'react';
-import { TextInput, TouchableOpacity, type TextStyle } from 'react-native';
+import { TextInput, type TextStyle } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
@@ -45,6 +45,12 @@ import {
   ScrollView,
   VStack,
   toElement,
+} from '@oxy.so/bloom-language';
+
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 const lanesLogger = createLogger('Lanes');
@@ -342,25 +348,28 @@ export default function LanesScreen() {
                   />,
                 ),
                 Embed(
-                  createMutation.isPending ? (
-                    toElement(LLoading().style('inline').size('sm'))
-                  ) : (
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel={t('lanes.addLane', { defaultValue: 'New lane' })}
-                      disabled={input.trim().length === 0 || atCap}
-                      onPress={handleAdd}
-                      activeOpacity={0.7}
-                    >
-                      <RiAddCircleLine
-                        width={26}
-                        height={26}
-                        fill={
-                          input.trim().length === 0 || atCap ? colors.textSecondary : colors.primary
-                        }
-                      />
-                    </TouchableOpacity>
-                  ),
+                  createMutation.isPending
+                    ? toElement(LLoading().style('inline').size('sm'))
+                    : LtoElement(
+                        LVStack(
+                          LEmbed(
+                            <RiAddCircleLine
+                              width={26}
+                              height={26}
+                              fill={
+                                input.trim().length === 0 || atCap
+                                  ? colors.textSecondary
+                                  : colors.primary
+                              }
+                            />,
+                          ),
+                        )
+                          .role('button')
+                          .label(t('lanes.addLane', { defaultValue: 'New lane' }))
+                          .disabled(input.trim().length === 0 || atCap)
+                          .onPress(handleAdd)
+                          .pressFade('70'),
+                      ),
                 ),
               )
                 .padding('horizontal', 'lg')
@@ -438,19 +447,22 @@ export default function LanesScreen() {
                               />,
                             ),
                             Embed(
-                              <TouchableOpacity
-                                accessibilityRole="button"
-                                accessibilityLabel={t('common.save', { defaultValue: 'Save' })}
-                                onPress={() => handleSaveRename(lane)}
-                                activeOpacity={0.7}
-                              >
-                                {toElement(
-                                  RawText(t('common.save', { defaultValue: 'Save' }))
-                                    .font('sm')
-                                    .weight('semibold')
-                                    .foreground('primary'),
-                                )}
-                              </TouchableOpacity>,
+                              LtoElement(
+                                LVStack(
+                                  LEmbed(
+                                    toElement(
+                                      RawText(t('common.save', { defaultValue: 'Save' }))
+                                        .font('sm')
+                                        .weight('semibold')
+                                        .foreground('primary'),
+                                    ),
+                                  ),
+                                )
+                                  .role('button')
+                                  .label(t('common.save', { defaultValue: 'Save' }))
+                                  .onPress(() => handleSaveRename(lane))
+                                  .pressFade('70'),
+                              ),
                             ),
                           )
                             .padding('horizontal', 'lg')

@@ -48,6 +48,11 @@ import {
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 interface ListOwner {
@@ -396,15 +401,21 @@ function ListDetailScreen() {
               .font('16')
               .leading('normal'),
             Embed(
-              <TouchableOpacity onPress={loadList}>
-                {toElement(
-                  RawText('Try again')
-                    .foreground('primary')
-                    .font('14')
-                    .leading('20px')
-                    .weight('medium'),
-                )}
-              </TouchableOpacity>,
+              LtoElement(
+                LVStack(
+                  LEmbed(
+                    toElement(
+                      RawText('Try again')
+                        .foreground('primary')
+                        .font('14')
+                        .leading('20px')
+                        .weight('medium'),
+                    ),
+                  ),
+                )
+                  .onPress(loadList)
+                  .pressFade(),
+              ),
             ),
           ).contentView((v) => v.flex('1').align('center').justify('center').spacing('md')),
         )}

@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -42,6 +40,14 @@ const touchables = {
   create: { marginTop: 20, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
 } satisfies Record<string, ViewStyle>;
 import { screen } from '@oxy.so/bloom-language/router';
+
+import {
+  Embed as LEmbed,
+  TextEditor,
+  TextField,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
@@ -131,23 +137,19 @@ export default screen(function CreateStarterPackScreen() {
             LField(
               'Name',
               Embed(
-                <TextFieldInput
-                  label="Name"
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="e.g. Tech people to follow"
-                />,
+                LtoElement(
+                  TextField([name, setName], 'Name').placeholder('e.g. Tech people to follow'),
+                ),
               ),
             ),
             LField(
               'Description',
               Embed(
-                <Textarea
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder={t('starterPacks.descriptionPlaceholder')}
-                  rows={3}
-                />,
+                LtoElement(
+                  TextEditor([description, setDescription])
+                    .placeholder(t('starterPacks.descriptionPlaceholder'))
+                    .rows(3),
+                ),
               ),
             ),
             Embed(
@@ -197,11 +199,17 @@ export default screen(function CreateStarterPackScreen() {
                       HStack(
                         RawText('@', m.username).foreground('foreground'),
                         Embed(
-                          <TouchableOpacity onPress={() => removeMember(m.id)}>
-                            {toElement(
-                              RawText('Remove').foreground('destructive').margin('left', '10'),
-                            )}
-                          </TouchableOpacity>,
+                          LtoElement(
+                            LVStack(
+                              LEmbed(
+                                toElement(
+                                  RawText('Remove').foreground('destructive').margin('left', '10'),
+                                ),
+                              ),
+                            )
+                              .onPress(() => removeMember(m.id))
+                              .pressFade(),
+                          ),
                         ),
                       )
                         .padding('vertical', '6')

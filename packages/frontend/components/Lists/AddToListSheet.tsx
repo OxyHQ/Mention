@@ -23,6 +23,11 @@ import {
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 // Tailwind's `rounded-full` as NativeWind drew it on a TouchableOpacity, which the
@@ -192,15 +197,21 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
             VStack(
               RawText(error).foreground('muted').font('14').leading('20px').textAlign('center'),
               Embed(
-                <TouchableOpacity onPress={load}>
-                  {toElement(
-                    RawText(t('common.retry', { defaultValue: 'Try again' }))
-                      .foreground('primary')
-                      .font('14')
-                      .leading('20px')
-                      .weight('semibold'),
-                  )}
-                </TouchableOpacity>,
+                LtoElement(
+                  LVStack(
+                    LEmbed(
+                      toElement(
+                        RawText(t('common.retry', { defaultValue: 'Try again' }))
+                          .foreground('primary')
+                          .font('14')
+                          .leading('20px')
+                          .weight('semibold'),
+                      ),
+                    ),
+                  )
+                    .onPress(load)
+                    .pressFade(),
+                ),
               ),
             )
               .padding('vertical', '3xl')

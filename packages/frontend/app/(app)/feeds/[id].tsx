@@ -1,7 +1,7 @@
 import { DetailSkeleton, ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Pressable, type ViewStyle } from 'react-native';
+import { StyleSheet, Pressable, type ViewStyle } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
@@ -20,7 +20,6 @@ import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ProfileCard } from '@/components/ProfileCard';
 import Feed from '@/components/Feed/Feed';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -28,7 +27,6 @@ import { shareLink } from '@/utils/shareLink';
 import { Rating, RatingInput } from '@oxy.so/bloom/rating';
 import { EmptyState } from '@/components/common/EmptyState';
 import { toast } from '@oxy.so/bloom/toast';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import type { DialogAction } from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
 import {
@@ -45,6 +43,13 @@ import {
   defineTokens,
   toElement,
   view,
+  Embed as LEmbed,
+  Header,
+  Icon as LIcon,
+  TabItem,
+  Tabs as LTabs,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -127,7 +132,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
                   .corner('sm')
                   .opacity(pressed ? 'opaque' : 'transparent'),
               )}
-              <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
+              {LtoElement(LAvatar(feed.coverImage, { variant: MEDIA_VARIANT_AVATAR }).size('lg'))}
               {toElement(
                 VStack(
                   RawText(feed.title)
@@ -186,11 +191,9 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
             tone="neutral"
             iconOnly
             icon={
-              isPinned ? (
-                <RiPushpinFill size="md" fill={theme.colors.primary} />
-              ) : (
-                <RiPushpinLine size="md" fill={theme.colors.text} />
-              )
+              isPinned
+                ? LtoElement(LIcon(RiPushpinFill).size('md').foreground('primary'))
+                : LtoElement(LIcon(RiPushpinLine).size('md').foreground('foreground'))
             }
             onPress={onTogglePin}
             accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
@@ -339,12 +342,14 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Feed
     return <EmptyState title="No profiles yet" sticker="feedPageEmpty" />;
   }
 
-  return (
-    <View style={styles.profilesList}>
-      {members.map((member) => (
-        <ProfileCard key={member.id} profile={member} showFollowButton />
-      ))}
-    </View>
+  return LtoElement(
+    LVStack(
+      LEmbed(
+        members.map((member) => <ProfileCard key={member.id} profile={member} showFollowButton />),
+      ),
+    )
+      .padding('all', 'lg')
+      .spacing('xs'),
   );
 });
 
@@ -717,19 +722,21 @@ function CustomFeedTimelineScreen() {
   const keywords: string[] = feed?.keywords ?? [];
 
   const tabBar = useMemo(
-    () => (
-      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">
-        {TABS.map((tab: { id: string; label: string; count?: number }) => (
-          <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-        ))}
-      </Tabs>
-    ),
+    () =>
+      LtoElement(
+        LTabs(
+          [activeTab, handleTabPress],
+          TABS.map((tab: { id: string; label: string; count?: number }) =>
+            TabItem(tab.id, tab.label).count(tab.count),
+          ),
+        ).style('underline'),
+      ),
     [TABS, activeTab, handleTabPress, feedId],
   );
 
   const listHeader = useMemo(() => {
     if (!feed) return null;
-    return <View>{tabBar}</View>;
+    return LtoElement(LVStack(LEmbed(tabBar)));
   }, [feed, tabBar]);
 
   // A missing route param can never resolve to a feed — surface it as the same
@@ -754,11 +761,12 @@ function CustomFeedTimelineScreen() {
             onOpenInfo={openInfoSheet}
           />
         ) : (
-          <PageHeader
-            title="Feed"
-            onBack={back}
-            backLabel={t('common.back', { defaultValue: 'Back' })}
-          />
+          LtoElement(
+            Header('Feed')
+              .onBack(back)
+              .backLabel(t('common.back', { defaultValue: 'Back' }))
+              .inPage(),
+          )
         )
       }
     >
@@ -788,7 +796,6 @@ function CustomFeedTimelineScreen() {
           {activeTab === 'reviews' && <ReviewsTab feedId={feedId} />}
         </ScreenScrollView>
       )}
-
       {/* Feed info */}
       {feed
         ? toElement(

@@ -13,8 +13,6 @@ import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { Search } from '@oxy.so/bloom/search';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -64,6 +62,14 @@ const touchables = {
   },
 } satisfies Record<string, ViewStyle>;
 import { screen } from '@oxy.so/bloom-language/router';
+
+import {
+  Embed as LEmbed,
+  TextEditor,
+  TextField,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 interface MemberProfile {
   id: string;
@@ -300,15 +306,21 @@ export default screen(function EditStarterPackScreen() {
       Icon(RiCloseCircleLine).size('3xl').foreground('muted'),
       RawText(error).foreground('muted').font('16').leading('normal').textAlign('center'),
       Embed(
-        <TouchableOpacity onPress={load}>
-          {toElement(
-            RawText('Try again')
-              .foreground('primary')
-              .font('14')
-              .leading('20px')
-              .weight('semibold'),
-          )}
-        </TouchableOpacity>,
+        LtoElement(
+          LVStack(
+            LEmbed(
+              toElement(
+                RawText('Try again')
+                  .foreground('primary')
+                  .font('14')
+                  .leading('20px')
+                  .weight('semibold'),
+              ),
+            ),
+          )
+            .onPress(load)
+            .pressFade(),
+        ),
       ),
     )
       .contentView((v) =>
@@ -322,23 +334,17 @@ export default screen(function EditStarterPackScreen() {
       LField(
         'Name',
         Embed(
-          <TextFieldInput
-            label="Name"
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g. Tech people to follow"
-          />,
+          LtoElement(TextField([name, setName], 'Name').placeholder('e.g. Tech people to follow')),
         ),
       ),
       LField(
         'Description',
         Embed(
-          <Textarea
-            value={description}
-            onChangeText={setDescription}
-            placeholder="What is this starter pack about?"
-            rows={3}
-          />,
+          LtoElement(
+            TextEditor([description, setDescription])
+              .placeholder('What is this starter pack about?')
+              .rows(3),
+          ),
         ),
       ),
       /* Add accounts: themed Bloom search field + result rows. The
