@@ -241,10 +241,12 @@ const appColors = defineTokens({
     LIKE_ACTIVE_COLOR,
     white: 'white',
     hexFFFFFF: '#FFFFFF',
-    /** The dark disc behind the buffering spinner. */
+    /** The dark disc behind the buffering spinner and the pause affordance's play glyph. */
     scrim: 'rgba(0, 0, 0, 0.45)',
   },
 });
+/** The pause affordance's disc is an 88pt square. */
+const reel = defineTokens({ space: { pauseDisc: 88 } });
 
 // Caption is collapsed to one line until this length, where a "more" toggle is
 // offered (TikTok-style expandable caption).
@@ -636,11 +638,12 @@ const ReelSurface: React.FC<
       {showPauseAffordance &&
         LtoElement(
           LVStack(
-            LEmbed(
-              <View style={styles.pauseAffordanceInner}>
-                {toElement(Icon(RiPlayFill).size('44').foreground(appColors.color.white))}
-              </View>,
-            ),
+            LVStack(Icon(RiPlayFill).size('44').foreground(appColors.color.white))
+              .frame({ width: reel.space.pauseDisc, height: reel.space.pauseDisc })
+              .background(appColors.color.scrim)
+              .corner('full')
+              .justify('center')
+              .align('center'),
           )
             .justify('center')
             .align('center')
@@ -2114,14 +2117,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 3,
-  },
-  pauseAffordanceInner: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   bufferSpinner: {
     ...StyleSheet.absoluteFill,
