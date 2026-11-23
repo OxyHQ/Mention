@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react';
 import { ScrollView, type ViewStyle } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Badge } from '@oxy.so/bloom/badge';
 import { useColorTokens } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -15,6 +14,7 @@ import { formatTimeAgo } from '@/utils/dateUtils';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
 import {
+  Badge as LBadge,
   Button as LButton,
   Chip as LChip,
   Embed,
@@ -149,14 +149,10 @@ const JobApplicationDetailSheet = ({
             .font('18')
             .leading('28px')
             .weight('bold'),
-          Embed(
-            <Badge
-              content={application.status}
-              color={STATUS_TONE[application.status]}
-              variant="subtle"
-              size="sm"
-            />,
-          ),
+          LBadge(application.status)
+            .style('subtle')
+            .color(STATUS_TONE[application.status])
+            .size('sm'),
         )
           .align('start')
           .justify('between')

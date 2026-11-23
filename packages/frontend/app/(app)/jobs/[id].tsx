@@ -4,7 +4,6 @@ import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Badge } from '@oxy.so/bloom/badge';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
@@ -212,16 +211,9 @@ export default screen(function JobDetailScreen() {
 
   return ScrollView(
     !isPublished
-      ? HStack(
-          Embed(
-            <Badge
-              content={job.status}
-              color={STATUS_TONE[job.status]}
-              variant="subtle"
-              size="sm"
-            />,
-          ),
-        ).align('center')
+      ? HStack(LBadge(job.status).style('subtle').color(STATUS_TONE[job.status]).size('sm')).align(
+          'center',
+        )
       : null,
     RawText(job.title)
       .foreground('foreground')

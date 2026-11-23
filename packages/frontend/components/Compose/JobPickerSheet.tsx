@@ -3,7 +3,6 @@ import { memo, useCallback } from 'react';
 import { FlatList, type ViewStyle } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Badge } from '@oxy.so/bloom/badge';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
@@ -11,7 +10,7 @@ import { jobsService } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { JobAttachmentData } from '@/hooks/useJobAttachmentManager';
-import { Embed, RawText, Row, VStack, toElement } from '@oxy.so/bloom-language';
+import { Badge as LBadge, Embed, RawText, Row, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** The sheet's list stops growing at 340pt (`max-h-[340px]`): the jobs scroll inside it. */
 const LIST_STYLE = { maxHeight: 340 } satisfies ViewStyle;
@@ -129,14 +128,10 @@ const JobPickerSheet = memo(function JobPickerSheet({
                   Row(item.title)
                     .onPress(() => handleSelect(item))
                     .trailing(
-                      Embed(
-                        <Badge
-                          content={item.status}
-                          color={STATUS_TONE[item.status]}
-                          variant="subtle"
-                          size="sm"
-                        />,
-                      ),
+                      LBadge(item.status)
+                        .style('subtle')
+                        .color(STATUS_TONE[item.status])
+                        .size('sm'),
                     ),
                 )
               }
