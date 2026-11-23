@@ -1,6 +1,5 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { memo, useCallback, type ReactNode, type Ref } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -11,11 +10,16 @@ import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
-import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD, composeSpace } from './composeLayout';
+import {
+  AVATAR_SIZE,
+  BOTTOM_LEFT_PAD,
+  HPAD,
+  cardRemoveControl,
+  composeSpace,
+} from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
 import { Embed, HStack, Icon, Loading, RawText, VStack, toElement } from '@oxy.so/bloom-language';
@@ -189,60 +193,67 @@ const VariantEditor = memo(function VariantEditor({
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.mediaScroll}
                 >
-                  {(ownMedia ?? sharedMedia).map((media) => (
-                    <View
-                      key={media.id}
-                      style={[
-                        { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
-                        styles.mediaCard,
-                      ]}
-                    >
-                      <ComposeMediaPreview
-                        type={media.type}
-                        uri={getFileDownloadUrl(media.id)}
-                        imageStyle={styles.mediaImage}
-                      />
-                      {media.type === 'image' ? (
-                        <ComposeAltButton
-                          hasAlt={
-                            ownMedia
-                              ? Boolean(media.alt?.trim())
-                              : item.media.mode === 'inherit' &&
-                                Boolean(item.media.alt[media.id]?.trim())
-                          }
-                          onPress={() =>
-                            ownMedia
-                              ? onOwnAltPress(itemId, media)
-                              : onSharedAltPress(itemId, media)
-                          }
-                        />
-                      ) : null}
-                      {ownMedia ? (
-                        <TouchableOpacity
-                          onPress={() => onRemoveOwnMedia(itemId, media.id)}
-                          style={[{ backgroundColor: colorTokens.card }, styles.mediaRemove]}
-                          hitSlop={tokens.hitSlop.sm}
-                        >
-                          {toElement(Icon(RiCloseLine).size('sm').foreground('foreground'))}
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  ))}
-                  {ownMedia ? (
-                    <TouchableOpacity
-                      onPress={handlePickOwnMedia}
-                      activeOpacity={0.75}
-                      style={[MEDIA_ADD, { borderColor: colorTokens.border }, styles.mediaAddCard]}
-                    >
-                      {toElement(Icon(RiAddLine).size('md').foreground('muted'))}
-                      {toElement(
-                        RawText(t('compose.languages.addImage', { defaultValue: 'Add image' }))
-                          .font('sm')
-                          .margin('top', 'xs')
-                          .foreground('muted'),
-                      )}
-                    </TouchableOpacity>
-                  ) : null}
+                  {(ownMedia ?? sharedMedia).map((media) =>
+                    toElement(
+                      VStack(
+                        Embed(
+                          <ComposeMediaPreview
+                            type={media.type}
+                            uri={getFileDownloadUrl(media.id)}
+                            imageStyle={styles.mediaImage}
+                          />,
+                        ),
+                        media.type === 'image'
+                          ? Embed(
+                              <ComposeAltButton
+                                hasAlt={
+                                  ownMedia
+                                    ? Boolean(media.alt?.trim())
+                                    : item.media.mode === 'inherit' &&
+                                      Boolean(item.media.alt[media.id]?.trim())
+                                }
+                                onPress={() =>
+                                  ownMedia
+                                    ? onOwnAltPress(itemId, media)
+                                    : onSharedAltPress(itemId, media)
+                                }
+                              />,
+                            )
+                          : null,
+                        ownMedia
+                          ? cardRemoveControl(() => onRemoveOwnMedia(itemId, media.id)).hitSlop(
+                              'sm',
+                            )
+                          : null,
+                      )
+                        .frame({ width: '280', height: composeSpace.space.cardHeight })
+                        .background('mutedFill')
+                        .border('border', 'thin')
+                        .corner('15')
+                        .clipped(),
+                      media.id,
+                    ),
+                  )}
+                  {ownMedia
+                    ? toElement(
+                        /* Add an image: a dashed slot beside the images, half a card wide. */
+                        VStack(
+                          Icon(RiAddLine).size('md').foreground('muted'),
+                          RawText(t('compose.languages.addImage', { defaultValue: 'Add image' }))
+                            .font('sm')
+                            .margin('top', 'xs')
+                            .foreground('muted'),
+                        )
+                          .align('center')
+                          .justify('center')
+                          .frame({ width: '140', height: composeSpace.space.cardHeight })
+                          .border('border', 'thin')
+                          .borderStyle('dashed')
+                          .corner('15')
+                          .onPress(handlePickOwnMedia)
+                          .pressFade('75'),
+                      )
+                    : null}
                 </ScrollView>,
               ),
               mediaModeButton(
@@ -317,14 +328,6 @@ const mediaModeButton = (label: string, onPress: () => void) =>
     .alignSelf('start')
     .onPress(onPress)
     .pressFade('75');
-/** Add an image: a dashed slot beside the images (`items-center justify-center border border-dashed rounded-[15px]`). */
-const MEDIA_ADD = {
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderWidth: 1,
-  borderStyle: 'dashed',
-  borderRadius: 15,
-} satisfies ViewStyle;
 
 const styles = StyleSheet.create({
   container: {
@@ -365,28 +368,9 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     gap: 12,
   },
-  mediaCard: {
-    width: MEDIA_CARD_WIDTH,
-    height: MEDIA_CARD_HEIGHT,
-    borderRadius: 15,
-    borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  mediaAddCard: {
-    width: MEDIA_CARD_WIDTH / 2,
-    height: MEDIA_CARD_HEIGHT,
-  },
   mediaImage: {
     width: '100%',
     height: '100%',
-  },
-  mediaRemove: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
   },
   articleSection: {
     marginTop: 4,
