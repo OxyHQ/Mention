@@ -1,13 +1,5 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import React, { useRef } from 'react';
-import {
-  TouchableOpacity,
-  StyleSheet,
-  type StyleProp,
-  type ViewStyle,
-  type TextInputInstance,
-} from 'react-native';
-import { useColorTokens } from '@oxy.so/bloom/theme';
+import { StyleSheet, type StyleProp, type ViewStyle, type TextInputInstance } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -40,7 +32,6 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
   style,
   autoFocus = false,
 }) => {
-  const colorTokens = useColorTokens();
   const { t } = useTranslation();
   const pollTitleInputRef = useRef<TextInputInstance | null>(null);
 
@@ -62,11 +53,11 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
           )
             .align('center')
             .spacing('6'),
-          Embed(
-            <TouchableOpacity onPress={onRemove} style={REMOVE} hitSlop={tokens.hitSlop.md}>
-              {toElement(Icon(RiCloseLine).size('18').foreground('muted'))}
-            </TouchableOpacity>,
-          ),
+          VStack(Icon(RiCloseLine).size('18').foreground('muted'))
+            .padding('xs')
+            .onPress(onRemove)
+            .hitSlop('md')
+            .pressFade(),
         )
           .justify('between')
           .align('center')
@@ -114,15 +105,15 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                 )}
                 {pollOptions.length > 2 && (
                   <InputGroupAddon>
-                    <TouchableOpacity
-                      onPress={() => onRemoveOption(index)}
-                      style={REMOVE}
-                      hitSlop={tokens.hitSlop.md}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
-                    >
-                      {toElement(Icon(RiCloseLine).size('sm').foreground('muted'))}
-                    </TouchableOpacity>
+                    {toElement(
+                      VStack(Icon(RiCloseLine).size('sm').foreground('muted'))
+                        .padding('xs')
+                        .onPress(() => onRemoveOption(index))
+                        .hitSlop('md')
+                        .role('button')
+                        .label(t('common.remove', { defaultValue: 'Remove' }))
+                        .pressFade(),
+                    )}
                   </InputGroupAddon>
                 )}
               </InputGroup>
@@ -132,29 +123,32 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
           .margin('bottom', 'sm')
           .spacing('sm'),
       )}
-      {pollOptions.length < 4 && (
-        <TouchableOpacity
-          style={[ADD_OPTION, { borderColor: colorTokens.border }]}
-          onPress={onAddOption}
-          activeOpacity={0.7}
-        >
-          {toElement(
+      {pollOptions.length < 4 &&
+        toElement(
+          HStack(
             VStack(Icon(RiAddLine).size('sm').foreground('primary'))
               .frame({ width: '2xl', height: '2xl' })
               .background('mutedFill')
               .corner('infinite')
               .align('center')
               .justify('center'),
-          )}
-          {toElement(
             RawText(t('compose.poll.addOption'))
               .font('14')
               .leading('20px')
               .weight('semibold')
               .foreground('primary'),
-          )}
-        </TouchableOpacity>
-      )}
+          )
+            .align('center')
+            .spacing('sm')
+            .padding('vertical', '10')
+            .padding('horizontal', 'md')
+            .border('border', '1.5')
+            .borderStyle('dashed')
+            .corner('10')
+            .margin('bottom', '6')
+            .onPress(onAddOption)
+            .pressFade('70'),
+        )}
       {toElement(
         RawText(
           pollOptions.length === 2
@@ -169,24 +163,6 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
     </Card>
   );
 };
-
-/** A remove control's room around its glyph (`p-1`). */
-const REMOVE = { padding: tokens.space.xs } satisfies ViewStyle;
-/** Tailwind's 2.5 and 1.5 steps, off Bloom's space scale. */
-const SPACE_10 = 10;
-const SPACE_6 = 6;
-/** Add an option: a dashed outline of the row it adds (`flex-row items-center gap-2 py-2.5 px-3 rounded-[10px] border-[1.5px] border-dashed mb-1.5`). */
-const ADD_OPTION = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: tokens.space.sm,
-  paddingVertical: SPACE_10,
-  paddingHorizontal: tokens.space.md,
-  borderRadius: SPACE_10,
-  borderWidth: 1.5,
-  borderStyle: 'dashed',
-  marginBottom: SPACE_6,
-} satisfies ViewStyle;
 
 const styles = StyleSheet.create({
   pollCreator: {

@@ -1,14 +1,7 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import {
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import { FlatList, TextInput, type TextStyle } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { AccountKind, AvatarCharacter } from '@oxy.so/contracts';
@@ -22,13 +15,6 @@ import { logger } from '@oxy.so/core/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 
 import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
-
-import {
-  Embed as LEmbed,
-  VStack as LVStack,
-  toElement as LtoElement,
-} from '@oxy.so/bloom-language';
-
 export interface CollaboratorUser {
   id: string;
   username: string;
@@ -165,14 +151,10 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                       .font('14')
                       .leading('20px')
                       .lines(1),
-                    Embed(
-                      <TouchableOpacity
-                        onPress={() => removeUser(collab.id)}
-                        hitSlop={tokens.hitSlop.md}
-                      >
-                        {toElement(Icon(RiCloseCircleLine).size('18').foreground('muted'))}
-                      </TouchableOpacity>,
-                    ),
+                    VStack(Icon(RiCloseCircleLine).size('18').foreground('muted'))
+                      .onPress(() => removeUser(collab.id))
+                      .hitSlop('md')
+                      .pressFade(),
                   )
                     .padding('left', 'xs')
                     .padding('right', 'sm')
@@ -210,19 +192,15 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                     autoFocus
                   />,
                 ),
-                Embed(
-                  LtoElement(
-                    LVStack(LEmbed(toElement(Icon(RiCloseLine).size('md').foreground('muted'))))
-                      .role('button')
-                      .label(
-                        t('collab.closeSearch', {
-                          defaultValue: 'Close collaborator search',
-                        }),
-                      )
-                      .onPress(closeSearch)
-                      .pressFade(),
-                  ),
-                ),
+                VStack(Icon(RiCloseLine).size('md').foreground('muted'))
+                  .role('button')
+                  .label(
+                    t('collab.closeSearch', {
+                      defaultValue: 'Close collaborator search',
+                    }),
+                  )
+                  .onPress(closeSearch)
+                  .pressFade(),
               )
                 .padding('horizontal', 'md')
                 .padding('vertical', 'sm')
@@ -253,15 +231,17 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                           )
                         : undefined
                     }
-                    renderItem={({ item }) => (
-                      <TouchableOpacity style={RESULT_ROW} onPress={() => addUser(item)}>
-                        <AccountAvatar
-                          account={item}
-                          source={item.avatar}
-                          size={32}
-                          variant={MEDIA_VARIANT_AVATAR}
-                        />
-                        {toElement(
+                    renderItem={({ item }) =>
+                      toElement(
+                        HStack(
+                          Embed(
+                            <AccountAvatar
+                              account={item}
+                              source={item.avatar}
+                              size={32}
+                              variant={MEDIA_VARIANT_AVATAR}
+                            />,
+                          ),
                           VStack(
                             RawText(displayNameOrHandle(item.displayName, item.username))
                               .foreground('foreground')
@@ -272,9 +252,15 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                               .font('14')
                               .leading('20px'),
                           ).flex('1'),
-                        )}
-                      </TouchableOpacity>
-                    )}
+                        )
+                          .padding('horizontal', 'md')
+                          .padding('vertical', 'sm')
+                          .align('center')
+                          .spacing('md')
+                          .onPress(() => addUser(item))
+                          .pressFade(),
+                      )
+                    }
                   />
                 ),
               ),
@@ -298,13 +284,5 @@ const SEARCH_INPUT = {
   flexBasis: '0%',
   fontSize: 15,
 } satisfies TextStyle;
-/** A result: avatar and names in a row (`flex-row items-center px-3 py-2 gap-3`). */
-const RESULT_ROW = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingHorizontal: tokens.space.md,
-  paddingVertical: tokens.space.sm,
-  gap: tokens.space.md,
-} satisfies ViewStyle;
 
 export default CollaboratorPicker;

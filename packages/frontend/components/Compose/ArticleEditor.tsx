@@ -1,7 +1,4 @@
 import type React from 'react';
-import { TouchableOpacity, type ViewStyle } from 'react-native';
-import { tokens } from '@oxy.so/bloom/styles';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -12,13 +9,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** The header's Save: a primary pill (`px-4 py-2 rounded-full`). */
-const saveStyle = {
-  paddingHorizontal: tokens.space.lg,
-  paddingVertical: tokens.space.sm,
-  borderRadius: Number.MAX_SAFE_INTEGER, // Tailwind's `rounded-full` as it drew
-} satisfies ViewStyle;
 
 interface ArticleEditorProps {
   visible: boolean;
@@ -60,20 +50,19 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
   onSave,
   onClose,
 }) => {
-  const colorTokens = useColorTokens();
   const { t } = useTranslation();
 
-  const saveAction = (
-    <TouchableOpacity
-      onPress={onSave}
-      style={[saveStyle, { backgroundColor: colorTokens.primary }]}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-    >
-      {toElement(
-        RawText(t('common.save')).font('14').leading('20px').weight('semibold').foreground('card'),
-      )}
-    </TouchableOpacity>
+  const saveAction = toElement(
+    VStack(
+      RawText(t('common.save')).font('14').leading('20px').weight('semibold').foreground('card'),
+    )
+      .padding('horizontal', 'lg')
+      .padding('vertical', 'sm')
+      .background('primary')
+      .corner('infinite')
+      .onPress(onSave)
+      .role('button')
+      .pressFade('85'),
   );
 
   return toElement(

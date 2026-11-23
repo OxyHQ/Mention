@@ -1,7 +1,7 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import { useMemo, useEffect } from 'react';
-import { TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
+import { ScrollView, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
@@ -27,8 +27,6 @@ import {
 
 /** A source: its fields stacked in the card (`p-3 gap-2.5`). */
 const SOURCE_CARD = { padding: tokens.space.md, gap: 10 } satisfies ViewStyle;
-/** A remove control's room around its glyph (`p-1`). */
-const REMOVE = { padding: tokens.space.xs } satisfies ViewStyle;
 
 type SourceField = 'title' | 'url';
 
@@ -160,17 +158,13 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                               .tracking('wide')
                               .textCase('uppercase')
                               .foreground('muted'),
-                            Embed(
-                              <TouchableOpacity
-                                onPress={() => onRemove(source.id)}
-                                style={REMOVE}
-                                hitSlop={tokens.hitSlop.md}
-                                accessibilityRole="button"
-                                accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
-                              >
-                                {toElement(Icon(RiCloseLine).size('sm').foreground('muted'))}
-                              </TouchableOpacity>,
-                            ),
+                            VStack(Icon(RiCloseLine).size('sm').foreground('muted'))
+                              .padding('xs')
+                              .onPress(() => onRemove(source.id))
+                              .hitSlop('md')
+                              .role('button')
+                              .label(t('common.remove', { defaultValue: 'Remove' }))
+                              .pressFade(),
                           )
                             .align('center')
                             .justify('between'),

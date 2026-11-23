@@ -745,7 +745,7 @@ function RoundButton({
       <Icon width={20} height={20} fill={active ? '#facc15' : '#fff'} />
       {badge ? (
         <View style={styles.roundBadge}>
-          <Text style={styles.badgeText}>{badge}</Text>
+          {toElement(LText(badge).font('9').weight('bold').foreground('black'))}
         </View>
       ) : null}
     </Pressable>
@@ -759,7 +759,8 @@ function formatRemaining(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
-  // Sizes off Bloom's type scale and the language's (`text-8xl font-bold`, `text-[9px]`).
+  // Off Bloom's type scale (`text-8xl font-bold`) in the display face: the language's
+  // Text draws neither that face at a numeric size nor a 96pt line.
   // The display face, as Bloom's Text drew it from a size of `text-3xl` up.
   countdownText: {
     ...fontFamilyStyle('display'),
@@ -768,7 +769,6 @@ const styles = StyleSheet.create({
     lineHeight: 96,
     fontWeight: '700',
   },
-  badgeText: { color: '#000', fontSize: 9, fontWeight: '700' },
   close: { position: 'absolute', top: 56, left: 20 },
   roundButton: {
     width: 40,

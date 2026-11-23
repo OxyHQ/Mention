@@ -1,6 +1,5 @@
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { RawText, toElement } from '@oxy.so/bloom-language';
+import { HStack, RawText, toElement } from '@oxy.so/bloom-language';
 import { useTranslation } from 'react-i18next';
 import { useProfileLinkMentions } from '@/hooks/useProfileLinkMentions';
 import { reconcileMentionData, type MentionData } from '@/utils/mentions';
@@ -81,63 +80,46 @@ const ComposeMentionSummary = memo<ComposeMentionSummaryProps>(({ texts, mention
     return null;
   }
 
-  // The rows keep React Native views: their column and row gaps differ, and
-  // the language's stack has one spacing.
-  return (
-    <View style={styles.container}>
-      {toElement(
-        RawText(
-          isPrivate
-            ? t('compose.mentions.onlyVisibleTo', { defaultValue: 'Only visible to' })
-            : t('compose.mentions.willMention', {
-                defaultValue: 'This post will mention',
-              }),
-        )
-          .foreground('muted')
-          .font('sm'),
-      )}
-      <View style={styles.handles}>
-        {recipients.map((recipient) =>
-          toElement(
-            RawText('@', recipient.username)
-              .foreground('primary')
+  return toElement(
+    HStack(
+      RawText(
+        isPrivate
+          ? t('compose.mentions.onlyVisibleTo', { defaultValue: 'Only visible to' })
+          : t('compose.mentions.willMention', {
+              defaultValue: 'This post will mention',
+            }),
+      )
+        .foreground('muted')
+        .font('sm'),
+      HStack(
+        recipients.map((recipient) =>
+          RawText('@', recipient.username)
+            .foreground('primary')
+            .font('sm')
+            .weight('semibold')
+            .lines(1)
+            .id(recipient.userId),
+        ),
+        isResolving
+          ? RawText(t('compose.mentions.checkingLinks', { defaultValue: 'checking links…' }))
+              .foreground('muted')
               .font('sm')
-              .weight('semibold')
-              .lines(1),
-            recipient.userId,
-          ),
-        )}
-        {isResolving
-          ? toElement(
-              RawText(t('compose.mentions.checkingLinks', { defaultValue: 'checking links…' }))
-                .foreground('muted')
-                .font('sm'),
-            )
-          : null}
-      </View>
-    </View>
+          : null,
+      )
+        .wrap()
+        .align('center')
+        .horizontalSpacing('6')
+        .verticalSpacing('2xs')
+        .shrink('normal'),
+    )
+      .wrap()
+      .align('center')
+      .horizontalSpacing('6')
+      .verticalSpacing('2xs')
+      .padding('top', '6'),
   );
 });
 
 ComposeMentionSummary.displayName = 'ComposeMentionSummary';
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 6,
-    rowGap: 2,
-    paddingTop: 6,
-  },
-  handles: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 6,
-    rowGap: 2,
-    flexShrink: 1,
-  },
-});
 
 export default ComposeMentionSummary;
