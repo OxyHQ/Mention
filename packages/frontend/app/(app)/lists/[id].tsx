@@ -2,7 +2,7 @@ import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, RefreshControl, Platform, TouchableOpacity, type ViewStyle } from 'react-native';
+import { View, RefreshControl, Platform, type ViewStyle } from 'react-native';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -23,7 +23,7 @@ import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import Feed from '@/components/Feed/Feed';
 import { listsService } from '@/services/listsService';
 import { subscribeToListChanges } from '@/services/listMutations';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
@@ -83,17 +83,6 @@ const listTokens = defineTokens({ leading: { title: 26 / 22 } });
 
 // Tailwind's `ml-auto`: the language has no auto margin, so this slot stays a view.
 const followSlot: ViewStyle = { marginLeft: 'auto' };
-
-// Kept as React Native's TouchableOpacity (the language has no node for its fading
-// press); its style draws what its classes drew.
-const addPeopleRow: ViewStyle = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 12,
-  paddingHorizontal: 16,
-  paddingVertical: 12,
-  borderBottomWidth: 1,
-};
 
 const TABS_CONFIG = [
   { id: 'posts', labelKey: 'lists.tabs.posts' },
@@ -529,7 +518,6 @@ function ListMembers({
 }) {
   const router = useRouter();
   const theme = useTheme();
-  const colors = useColorTokens();
   const { t } = useTranslation();
   const { oxyServices, user } = useAuth();
 
@@ -558,28 +546,28 @@ function ListMembers({
       }
     >
       {header}
-      {isOwnList && (
-        <TouchableOpacity
-          style={[addPeopleRow, { borderColor: colors.border }]}
-          onPress={() => router.push(`/lists/${listId}/edit`)}
-          activeOpacity={0.7}
-        >
-          {toElement(
+      {isOwnList &&
+        toElement(
+          HStack(
             VStack(Icon(RiUserAddFill).size('md').foreground(appColors.color.hexfff))
               .frame({ width: '4xl', height: '4xl' })
               .background('primary')
               .corner('infinite')
               .align('center')
               .justify('center'),
-          )}
-          {toElement(
             RawText(t('lists.addPeople', { defaultValue: 'Add people' }))
               .foreground('primary')
               .font('md')
               .weight('semibold'),
-          )}
-        </TouchableOpacity>
-      )}
+          )
+            .align('center')
+            .spacing('md')
+            .padding('horizontal', 'lg')
+            .padding('vertical', 'md')
+            .border('border', 'thin', 'bottom')
+            .onPress(() => router.push(`/lists/${listId}/edit`))
+            .pressFade('70'),
+        )}
       {memberIds.length === 0 ? (
         <EmptyState
           title={t('lists.emptyMembers', { defaultValue: 'No members yet' })}

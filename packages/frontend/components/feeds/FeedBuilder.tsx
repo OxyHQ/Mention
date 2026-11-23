@@ -1,4 +1,3 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { FormSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import {
@@ -10,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Platform, TouchableOpacity, StyleSheet, type ViewStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Screen } from '@oxy.so/bloom/screen';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
@@ -37,7 +36,7 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { TagField, commitTag } from '@oxy.so/bloom/tag-field';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedModules } from '@/hooks/useFeedModules';
@@ -325,14 +324,10 @@ const AccountPicker = ({
                   .lines(1),
                 RawText('@', u.username).font('sm').foreground('muted').lines(1),
               ).flex('1'),
-              Embed(
-                <TouchableOpacity
-                  onPress={() => onChange(selected.filter((s) => s.id !== u.id))}
-                  hitSlop={tokens.hitSlop.md}
-                >
-                  {toElement(Icon(RiCloseCircleLine).size('22').foreground('muted'))}
-                </TouchableOpacity>,
-              ),
+              VStack(Icon(RiCloseCircleLine).size('22').foreground('muted'))
+                .onPress(() => onChange(selected.filter((s) => s.id !== u.id)))
+                .hitSlop('md')
+                .pressFade(),
             )
               .align('center')
               .spacing('md'),
@@ -343,44 +338,34 @@ const AccountPicker = ({
       LSearch([search, doSearch])
         .label(t('feeds.builder.searchAccounts'))
         .onClearText(() => doSearch('')),
-      Embed(
-        results.map((u) => (
-          <TouchableOpacity
-            key={u.id}
-            style={touchables.accountRow}
-            onPress={() => add(u)}
-            activeOpacity={0.7}
-          >
+      ...results.map((u) =>
+        HStack(
+          Embed(
             <AccountAvatar
               account={u}
               source={u.avatar ?? undefined}
               size={36}
               variant={MEDIA_VARIANT_AVATAR}
-            />
-            {toElement(
-              VStack(
-                RawText(accountName(u))
-                  .font('md')
-                  .weight('semibold')
-                  .foreground('foreground')
-                  .lines(1),
-                RawText('@', u.username).font('sm').foreground('muted').lines(1),
-              ).flex('1'),
-            )}
-            {toElement(
-              VStack(
-                RawText(t('feeds.builder.add'))
-                  .font('sm')
-                  .weight('semibold')
-                  .foreground('foreground'),
-              )
-                .padding('horizontal', 'md')
-                .padding('vertical', 'xs')
-                .border('border', 'thin')
-                .corner('10'),
-            )}
-          </TouchableOpacity>
-        )),
+            />,
+          ),
+          VStack(
+            RawText(accountName(u)).font('md').weight('semibold').foreground('foreground').lines(1),
+            RawText('@', u.username).font('sm').foreground('muted').lines(1),
+          ).flex('1'),
+          VStack(
+            RawText(t('feeds.builder.add')).font('sm').weight('semibold').foreground('foreground'),
+          )
+            .padding('horizontal', 'md')
+            .padding('vertical', 'xs')
+            .border('border', 'thin')
+            .corner('10'),
+        )
+          .align('center')
+          .spacing('md')
+          .padding('vertical', '6')
+          .onPress(() => add(u))
+          .pressFade('70')
+          .id(u.id),
       ),
     ).spacing('sm'),
   );
@@ -417,7 +402,6 @@ const ParamControl = ({
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const colors = useColorTokens();
   const label = useParamLabel(descriptor);
 
   switch (descriptor.control) {
@@ -446,26 +430,21 @@ const ParamControl = ({
         VStack(
           RawText(label).font('sm').weight('semibold').foreground('foreground'),
           VStack(
-            Embed(
-              options.map((option) => {
-                const active = selected === option.value;
-                return (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={touchables.optionRow}
-                    onPress={() => onChange(active ? undefined : option.value)}
-                    activeOpacity={0.7}
-                  >
-                    {toElement(
-                      RawText(t(option.labelKey, { defaultValue: option.label }))
-                        .font('14')
-                        .foreground('foreground'),
-                    )}
-                    {active ? toElement(Icon(RiCheckLine).size('18').foreground('primary')) : null}
-                  </TouchableOpacity>
-                );
-              }),
-            ),
+            ...options.map((option) => {
+              const active = selected === option.value;
+              return HStack(
+                RawText(t(option.labelKey, { defaultValue: option.label }))
+                  .font('14')
+                  .foreground('foreground'),
+                active ? Icon(RiCheckLine).size('18').foreground('primary') : null,
+              )
+                .align('center')
+                .justify('between')
+                .padding('vertical', 'sm')
+                .onPress(() => onChange(active ? undefined : option.value))
+                .pressFade('70')
+                .id(option.value);
+            }),
           ),
         ).spacing('6'),
       );
@@ -489,34 +468,22 @@ const ParamControl = ({
           VStack(
             RawText(label).font('sm').weight('semibold').foreground('foreground'),
             HStack(
-              Embed(
-                descriptor.options.map((option) => {
-                  const active = arr.includes(option.value);
-                  return (
-                    <TouchableOpacity
-                      key={option.value}
-                      onPress={() => toggle(option.value)}
-                      activeOpacity={0.7}
-                      style={[
-                        touchables.optionChip,
-                        active
-                          ? { backgroundColor: colors.primary }
-                          : {
-                              backgroundColor: colors.background,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                            },
-                      ]}
-                    >
-                      {toElement(
-                        RawText(t(option.labelKey, { defaultValue: option.label }))
-                          .font('sm')
-                          .foreground(active ? 'white' : 'foreground'),
-                      )}
-                    </TouchableOpacity>
-                  );
-                }),
-              ),
+              ...descriptor.options.map((option) => {
+                const active = arr.includes(option.value);
+                return VStack(
+                  RawText(t(option.labelKey, { defaultValue: option.label }))
+                    .font('sm')
+                    .foreground(active ? 'white' : 'foreground'),
+                )
+                  .padding('horizontal', 'md')
+                  .padding('vertical', 'xs')
+                  .background(active ? 'primary' : 'background')
+                  .when(!active, (v) => v.border('border', 'thin'))
+                  .corner('infinite')
+                  .onPress(() => toggle(option.value))
+                  .pressFade('70')
+                  .id(option.value);
+              }),
             )
               .wrap()
               .spacing('6'),
@@ -1230,20 +1197,6 @@ const ModeCheck = ({ active }: { active: boolean }) => {
     ? toElement(Icon(RiCheckLine).size('md').foreground('primary'))
     : toElement(VStack().frame({ width: 'xl', height: 'xl' }));
 };
-
-// Rows and chips stay React Native's TouchableOpacity (the language has no node for
-// its fading press); these draw their classes.
-const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
-const touchables = {
-  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-  },
-  optionChip: { borderRadius: PILL_RADIUS, paddingHorizontal: 12, paddingVertical: 4 },
-} satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({
   scrollContent: {
