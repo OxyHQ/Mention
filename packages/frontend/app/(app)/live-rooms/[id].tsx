@@ -1,6 +1,5 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState, useCallback } from 'react';
-import type { ViewStyle } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
@@ -8,7 +7,6 @@ import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
-import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
@@ -46,6 +44,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 
 import {
   Button as LButton,
+  Card,
   Embed,
   HStack,
   Header,
@@ -62,16 +61,6 @@ import {
 } from '@oxy.so/bloom-language';
 
 const liveColors = defineTokens({ color: { LIVE_INDICATOR_COLOR } });
-
-// The stats card lays its two figures out in a row: Bloom's Card takes no axis in the
-// language, so it stays a Card element with that layout as its style.
-const statsCardStyle: ViewStyle = {
-  marginHorizontal: 16,
-  marginTop: 24,
-  flexDirection: 'row',
-  alignItems: 'center',
-  padding: 16,
-};
 
 /** The participant pile stays glanceable; the overflow collapses into Bloom's "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
@@ -573,9 +562,9 @@ const RoomDetailScreen = () => {
                     )}
 
                   {/* Stats */}
-                  {room.stats && (
-                    <Card radius="radius-12" style={statsCardStyle} appearance="outline">
-                      {toElement(
+                  {room.stats &&
+                    toElement(
+                      Card(
                         VStack(
                           LText(room.stats.peakListeners || 0)
                             .font('title-1')
@@ -587,9 +576,13 @@ const RoomDetailScreen = () => {
                         )
                           .flex('1')
                           .align('center'),
-                      )}
-                      <Divider vertical spacing={16} style={{ height: 40, alignSelf: 'center' }} />
-                      {toElement(
+                        Embed(
+                          <Divider
+                            vertical
+                            spacing={16}
+                            style={{ height: 40, alignSelf: 'center' }}
+                          />,
+                        ),
                         VStack(
                           LText(room.stats.totalJoined || 0)
                             .font('title-1')
@@ -601,9 +594,15 @@ const RoomDetailScreen = () => {
                         )
                           .flex('1')
                           .align('center'),
-                      )}
-                    </Card>
-                  )}
+                      )
+                        .radius('md')
+                        .style('outline')
+                        .margin('horizontal', 'lg')
+                        .margin('top', '2xl')
+                        .axis('horizontal')
+                        .align('center')
+                        .padding('all', 'lg'),
+                    )}
                 </>
               ),
             ),
