@@ -2,7 +2,7 @@ import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import type { HydratedPost } from '@mention/shared-types';
 import { createCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
 import { useOperatesAccount } from '@/components/Profile/hooks/useOperatesAccount';
-import { buildPostMenuActions, type PostMenuEntry } from './postMenuActions';
+import { buildPostMenuActions, type PostMenuAction, type PostMenuEntry } from './postMenuActions';
 import { moderatedCommunity, usePostMenuServices, type PostMenuServices } from './postMenuServices';
 export type { PostMenuServices } from './postMenuServices';
 import { currentPost } from './postInteractions';
@@ -31,7 +31,7 @@ export function postMenuGroups(
   services: PostMenuServices,
   moderatesCommunity: boolean,
 ): PostMenuEntry[][] {
-  const { theme, t, router, noteHandlers } = services;
+  const { t, router, noteHandlers } = services;
   const post = currentPost(rowPost);
   const { viewerState } = post;
   const permissions = post.permissions ?? {};
@@ -57,11 +57,12 @@ export function postMenuGroups(
   // CrowdSource ownership stays where it was: the handlers decide whether the
   // flow is offered at all, and an author never notes their own post.
   const noteSheets = createCommunityNoteSheets({ router, handlers: noteHandlers });
-  const communityNoteAction =
+  const communityNoteAction: PostMenuAction[] =
     noteSheets.canWrite && !isOwner
       ? [
           {
-            icon: <RiTeamLine width={20} height={20} fill={theme.colors.textSecondary} />,
+            icon: RiTeamLine,
+            iconForeground: 'muted',
             label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
             onPress: () => noteSheets.openWriteFlow(post),
           },
