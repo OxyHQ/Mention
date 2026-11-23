@@ -6,9 +6,15 @@ import { useTranslation } from 'react-i18next';
 import { LogoIcon } from '@/assets/logo';
 import { useWindowBreakpoint } from '@oxy.so/bloom/hooks';
 import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
-import { Button } from '@oxy.so/bloom/button';
-
-import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  RawText,
+  VStack,
+  toElement,
+  Button as LButton,
+  Text as LText,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 export default function AuthScreen() {
   const { signIn } = useAuth();
@@ -54,15 +60,14 @@ export default function AuthScreen() {
                 .weight('bold')
                 .foreground('foreground'),
               Embed(
-                <Button
-                  appearance="solid"
-                  tone="accent"
-                  size="lg"
-                  style={styles.signInButton}
-                  onPress={() => signIn().catch(() => {})}
-                >
-                  {t('auth.signIn.withOxy')}
-                </Button>,
+                LtoElement(
+                  LButton(LText(t('auth.signIn.withOxy')))
+                    .style('solid')
+                    .tint('accent')
+                    .size('lg')
+                    .onPress(() => signIn().catch(() => {}))
+                    .frame({ width: 'full' }),
+                ),
               ),
             )
               .frame({ width: 'full', maxWidth: '360' })
@@ -101,15 +106,14 @@ export default function AuthScreen() {
         {toElement(
           VStack(
             Embed(
-              <Button
-                appearance="solid"
-                tone="accent"
-                size="lg"
-                style={styles.signInButton}
-                onPress={() => signIn().catch(() => {})}
-              >
-                {t('auth.signIn.withOxy')}
-              </Button>,
+              LtoElement(
+                LButton(LText(t('auth.signIn.withOxy')))
+                  .style('solid')
+                  .tint('accent')
+                  .size('lg')
+                  .onPress(() => signIn().catch(() => {}))
+                  .frame({ width: 'full' }),
+              ),
             ),
           )
             .padding('bottom', '3xl')

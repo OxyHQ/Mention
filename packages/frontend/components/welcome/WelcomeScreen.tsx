@@ -4,7 +4,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { CardBody, CardDescription, CardHeader } from '@oxy.so/bloom/card';
 
 import { PageFooter } from '@oxy.so/bloom/page-footer';
-import { Screen } from '@oxy.so/bloom/screen';
 import { WizardProgress, type WizardStep } from '@oxy.so/bloom/wizard';
 import { TopicPicker } from '@/components/interests/TopicPicker';
 import { requestSettings } from '@/components/settings/settingsRoutes';
@@ -20,7 +19,10 @@ import {
   ScrollView,
   Text,
   toElement,
+  Embed as LEmbed,
 } from '@oxy.so/bloom-language';
+
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * Where to go once the flow is done: the in-app path the person was opening
@@ -46,7 +48,7 @@ function StepHeading({ title, description }: { title: string; description?: stri
  * people, set up the profile. Every step is optional, and finishing or skipping
  * is recorded once on the server, so the flow never comes back.
  */
-export function WelcomeScreen() {
+export const WelcomeScreen = screen(function WelcomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { next } = useLocalSearchParams<{ next?: string }>();
@@ -85,34 +87,70 @@ export function WelcomeScreen() {
       .loading(complete.isPending),
   );
 
-  return (
-    <Screen
-      // Content passes under the floating header and footer, as in Bloom's own
-      // floating chrome, instead of stopping at a bar.
-      bottomBarPlacement="overlay"
-      header={toElement(
-        Header()
-          .onBack(null)
-          .toolbar(
-            LButton(Text(t('welcome.skip')))
-              .size('sm')
-              .style('subtle')
-              .tint('neutral')
-              .onPress(finish),
-          )
-          .accessory(
-            Embed(
-              <WizardProgress
-                steps={steps}
-                current={step}
-                hideTitle
-                formatStepCount={(position, total) => t('welcome.stepCount', { position, total })}
-              />,
-            ),
-          )
-          .inPage(),
-      )}
-      bottomBar={
+  return LEmbed(
+    step === 0 ? (
+      toElement(
+        ScrollView(
+          Embed(<StepHeading title={steps[0].title} description={steps[0].description} />),
+          Embed(<TopicPicker query="" />),
+        ),
+      )
+    ) : step === 1 ? (
+      <LazyWhoToFollowTab
+        showInviteBanner={false}
+        listHeaderComponent={
+          <>
+            <StepHeading title={steps[1].title} description={steps[1].description} />
+            <WelcomeStarterPacks />
+          </>
+        }
+      />
+    ) : (
+      toElement(
+        ScrollView(
+          Embed(<StepHeading title={steps[2].title} description={steps[2].description} />),
+          Embed(
+            <CardBody>
+              {toElement(Text(t('welcome.profile.body')).textStyle('muted'))}
+              {toElement(
+                LButton(Text(t('welcome.profile.edit'))).onPress(() =>
+                  requestSettings('/settings/edit-profile'),
+                ),
+              )}
+            </CardBody>,
+          ),
+        ),
+      )
+    ),
+  )
+    .header(
+      LEmbed(
+        toElement(
+          Header()
+            .onBack(null)
+            .toolbar(
+              LButton(Text(t('welcome.skip')))
+                .size('sm')
+                .style('subtle')
+                .tint('neutral')
+                .onPress(finish),
+            )
+            .accessory(
+              Embed(
+                <WizardProgress
+                  steps={steps}
+                  current={step}
+                  hideTitle
+                  formatStepCount={(position, total) => t('welcome.stepCount', { position, total })}
+                />,
+              ),
+            )
+            .inPage(),
+        ),
+      ),
+    )
+    .footer(
+      LEmbed(
         <PageFooter scrim="always" actions={primaryAction}>
           {/* Always present, so the primary action stays on the right on every step. */}
           <Button.Group separated>
@@ -120,43 +158,8 @@ export function WelcomeScreen() {
               ? toElement(LButton(Text(t('welcome.back'))).onPress(() => setStep(step - 1)))
               : null}
           </Button.Group>
-        </PageFooter>
-      }
-    >
-      {step === 0 ? (
-        toElement(
-          ScrollView(
-            Embed(<StepHeading title={steps[0].title} description={steps[0].description} />),
-            Embed(<TopicPicker query="" />),
-          ),
-        )
-      ) : step === 1 ? (
-        <LazyWhoToFollowTab
-          showInviteBanner={false}
-          listHeaderComponent={
-            <>
-              <StepHeading title={steps[1].title} description={steps[1].description} />
-              <WelcomeStarterPacks />
-            </>
-          }
-        />
-      ) : (
-        toElement(
-          ScrollView(
-            Embed(<StepHeading title={steps[2].title} description={steps[2].description} />),
-            Embed(
-              <CardBody>
-                {toElement(Text(t('welcome.profile.body')).textStyle('muted'))}
-                {toElement(
-                  LButton(Text(t('welcome.profile.edit'))).onPress(() =>
-                    requestSettings('/settings/edit-profile'),
-                  ),
-                )}
-              </CardBody>,
-            ),
-          ),
-        )
-      )}
-    </Screen>
-  );
-}
+        </PageFooter>,
+      ),
+      { placement: 'overlay' },
+    );
+});
