@@ -2,7 +2,7 @@ import { memo, useCallback, useState } from 'react';
 import { Image, type ImageStyle } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
-import { CappedChipRow, Chip } from '@oxy.so/bloom/chip';
+import { CappedChipRow } from '@oxy.so/bloom/chip';
 import { RiArrowRightUpLine } from '@oxy.so/bloom/icons/RiArrowRightUpLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
@@ -14,7 +14,7 @@ import { presentSheet } from '@/utils/sheet';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { prettifyUrl } from '@/utils/prettifyUrl';
 
-import { Embed, Icon, Row, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Icon, Row, VStack, toElement, Chip as LChip, Text } from '@oxy.so/bloom-language';
 
 /** A site icon: 16pt, its corners rounded 4pt, as `size-4 rounded` drew it. */
 const FAVICON_STYLE: ImageStyle = { width: 16, height: 16, borderRadius: 4 };
@@ -153,24 +153,28 @@ export const ProfileLinkChips = memo(function ProfileLinkChips({
                   defaultValue: 'Support on {{provider}}',
                 })
               : chipLabel(link);
-            return (
-              <Chip
-                key={link.id}
-                size="md"
-                variant={support ? 'solid' : 'subtle'}
-                color={support ? 'success' : undefined}
-                leading={<LinkIcon link={link} />}
-                endIcon={<OutboundArrow support={support !== null} />}
-                accessibilityLabel={label}
-                onPress={() => open(link.url)}
-                onLongPress={() =>
-                  void presentSheet((surface) => (
-                    <LinkActionsSheet link={link} onOpen={open} onClose={() => surface.dismiss()} />
-                  ))
-                }
-              >
-                {label}
-              </Chip>
+            return toElement(
+              LChip(
+                Embed(<LinkIcon link={link} />),
+                Text(label),
+                Embed(<OutboundArrow support={support !== null} />),
+              )
+                .size('md')
+                .style(support ? 'solid' : 'subtle')
+                .tint(support ? 'success' : undefined)
+                .label(label)
+                .onPress(() => open(link.url))
+                .onLongPress(
+                  () =>
+                    void presentSheet((surface) => (
+                      <LinkActionsSheet
+                        link={link}
+                        onOpen={open}
+                        onClose={() => surface.dismiss()}
+                      />
+                    )),
+                ),
+              link.id,
             );
           })}
         </CappedChipRow>,
