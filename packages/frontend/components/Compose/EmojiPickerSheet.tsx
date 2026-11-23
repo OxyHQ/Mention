@@ -2,7 +2,6 @@ import { chunk } from '@oxy.so/utils/text';
 import type React from 'react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
-  View,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
@@ -26,6 +25,9 @@ import {
   VStack,
   defineTokens,
   toElement,
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 const RECENT_EMOJIS_KEY = '@mention/recent_emojis';
@@ -151,50 +153,57 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
         >
           {categories.map((cat) => {
             const rows = chunk(cat.emojis, NUM_COLUMNS);
-            return (
-              <View
-                key={cat.id}
-                onLayout={(e) => handleSectionLayout(cat.id, e.nativeEvent.layout.y)}
-              >
-                {toElement(
-                  VStack(
-                    RawText(cat.name)
-                      .font('sm')
-                      .weight('semibold')
-                      .textCase('uppercase')
-                      .tracking('wide')
-                      .foreground('muted'),
-                  )
-                    .padding('horizontal', 'lg')
-                    .padding('top', 'md')
-                    .padding('bottom', '6'),
-                )}
-                {rows.map((row, rowIndex) =>
+            return LtoElement(
+              LVStack(
+                LEmbed(
                   toElement(
-                    HStack(
-                      Embed(
-                        row.map((emoji, colIndex) => (
-                          <TouchableOpacity
-                            key={`${cat.id}-${rowIndex}-${colIndex}`}
-                            style={styles.emojiCell}
-                            onPress={() => handleEmojiPress(emoji)}
-                            activeOpacity={0.6}
-                          >
-                            {toElement(RawText(emoji).font(EMOJI_FONT))}
-                          </TouchableOpacity>
-                        )),
-                      ),
-                      /* Fill remaining cells to maintain grid alignment */ Embed(
-                        row.length < NUM_COLUMNS &&
-                          Array.from({ length: NUM_COLUMNS - row.length }).map((_, i) => (
-                            <View key={`pad-${i}`} style={styles.emojiCell} />
-                          )),
-                      ),
-                    ).padding('horizontal', 'sm'),
-                    rowIndex,
+                    VStack(
+                      RawText(cat.name)
+                        .font('sm')
+                        .weight('semibold')
+                        .textCase('uppercase')
+                        .tracking('wide')
+                        .foreground('muted'),
+                    )
+                      .padding('horizontal', 'lg')
+                      .padding('top', 'md')
+                      .padding('bottom', '6'),
                   ),
-                )}
-              </View>
+                ),
+                LEmbed(
+                  rows.map((row, rowIndex) =>
+                    toElement(
+                      HStack(
+                        Embed(
+                          row.map((emoji, colIndex) =>
+                            LtoElement(
+                              LVStack(LEmbed(toElement(RawText(emoji).font(EMOJI_FONT))))
+                                .aspectRatio(1)
+                                .justify('center')
+                                .align('center')
+                                .grow()
+                                .onPress(() => handleEmojiPress(emoji))
+                                .pressFade('60'),
+                              `${cat.id}-${rowIndex}-${colIndex}`,
+                            ),
+                          ),
+                        ),
+                        /* Fill remaining cells to maintain grid alignment */ Embed(
+                          row.length < NUM_COLUMNS &&
+                            Array.from({ length: NUM_COLUMNS - row.length }).map((_, i) =>
+                              LtoElement(
+                                LVStack().aspectRatio(1).justify('center').align('center').grow(),
+                                `pad-${i}`,
+                              ),
+                            ),
+                        ),
+                      ).padding('horizontal', 'sm'),
+                      rowIndex,
+                    ),
+                  ),
+                ),
+              ).onLayout((e) => handleSectionLayout(cat.id, e.nativeEvent.layout.y)),
+              cat.id,
             );
           })}
         </ScrollView>,

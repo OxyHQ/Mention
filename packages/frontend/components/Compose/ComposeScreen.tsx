@@ -237,6 +237,10 @@ import {
   Toggle,
   VStack,
   toElement,
+  Chip as LChip,
+  Icon as LIcon,
+  Text,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 /** A commerce attachment's card in the attachment row (`w-[280px]`). */
@@ -4362,41 +4366,50 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     </Chip>
                     {/* WHAT LANGUAGE everything written here is in. `+N` counts the
                   additional author renditions. */}
-                    <Chip
-                      size="xl"
-                      variant="subtle"
-                      disabled={isPosting}
-                      onPress={openLanguageSheet}
-                      accessibilityLabel={t('compose.languages.a11y', {
-                        defaultValue: 'Choose the language of this post',
-                      })}
-                      leadingIcon={RiGlobalLine}
-                      trailingIcon={RiArrowDownSLine}
-                    >
-                      {variants.variantTags.length > 0
-                        ? `${describeContentLanguage(activeTag).nativeName} +${variants.variantTags.length}`
-                        : describeContentLanguage(activeTag).nativeName}
-                    </Chip>
+                    {LtoElement(
+                      LChip(
+                        LIcon(RiGlobalLine),
+                        Text(
+                          variants.variantTags.length > 0
+                            ? `${describeContentLanguage(activeTag).nativeName} +${variants.variantTags.length}`
+                            : describeContentLanguage(activeTag).nativeName,
+                        ),
+                        LIcon(RiArrowDownSLine),
+                      )
+                        .size('xl')
+                        .style('subtle')
+                        .disabled(isPosting)
+                        .onPress(openLanguageSheet)
+                        .label(
+                          t('compose.languages.a11y', {
+                            defaultValue: 'Choose the language of this post',
+                          }),
+                        ),
+                    )}
                     {/* WHERE the post is written: a community hosted here, or none.
                   Only for the posts that can be written in one. */}
-                    {communityEligible && (
-                      <Chip
-                        size="xl"
-                        variant="subtle"
-                        selected={Boolean(effectiveCommunity)}
-                        disabled={isPosting}
-                        onPress={handleCommunityPress}
-                        accessibilityLabel={t('compose.community.a11y', {
-                          defaultValue: 'Choose a community to post in',
-                        })}
-                        leadingIcon={RiGroupLine}
-                        trailingIcon={RiArrowDownSLine}
-                      >
-                        {effectiveCommunity?.username
-                          ? `!${effectiveCommunity.username}`
-                          : t('compose.community.chip', { defaultValue: 'Community' })}
-                      </Chip>
-                    )}
+                    {communityEligible &&
+                      LtoElement(
+                        LChip(
+                          LIcon(RiGroupLine),
+                          Text(
+                            effectiveCommunity?.username
+                              ? `!${effectiveCommunity.username}`
+                              : t('compose.community.chip', { defaultValue: 'Community' }),
+                          ),
+                          LIcon(RiArrowDownSLine),
+                        )
+                          .size('xl')
+                          .style('subtle')
+                          .selected(Boolean(effectiveCommunity))
+                          .disabled(isPosting)
+                          .onPress(handleCommunityPress)
+                          .label(
+                            t('compose.community.a11y', {
+                              defaultValue: 'Choose a community to post in',
+                            }),
+                          ),
+                      )}
                     {/* WHO can see it: everyone, or only the people it mentions.
                   A reply inside a private mention cannot choose — the server
                   keeps it inside the conversation — so it is told instead. */}
@@ -4417,17 +4430,20 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         </Chip>
                       </AudienceMenu>
                     ) : isPrivateMention(replyToPost) ? (
-                      <Chip
-                        size="xl"
-                        variant="subtle"
-                        selected
-                        leadingIcon={RiLockLine}
-                        testID="compose-private-reply"
-                      >
-                        {t('privateMentions.replyAudience', {
-                          defaultValue: 'Only people in this conversation',
-                        })}
-                      </Chip>
+                      LtoElement(
+                        LChip(
+                          LIcon(RiLockLine),
+                          Text(
+                            t('privateMentions.replyAudience', {
+                              defaultValue: 'Only people in this conversation',
+                            }),
+                          ),
+                        )
+                          .size('xl')
+                          .style('subtle')
+                          .selected()
+                          .testID('compose-private-reply'),
+                      )
                     ) : null}
                     {!(postingMode === 'beast' && threadItems.length > 0) && (
                       <>
