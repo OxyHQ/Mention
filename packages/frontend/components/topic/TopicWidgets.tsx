@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { TouchableOpacity } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
@@ -12,6 +11,11 @@ import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 /** The topic's live numbers, shared by every widget below. */
 function useTopic(term: string) {
@@ -128,32 +132,38 @@ function TopicRelatedWidget({ related }: { related: TrendRelatedDTO[] }) {
       {toElement(
         VStack(
           Embed(
-            related.map((item) => (
-              <TouchableOpacity
-                key={item.term}
-                accessibilityRole="link"
-                onPress={() => router.push(`/t/${encodeURIComponent(item.term)}`)}
-              >
-                {toElement(
-                  LText(item.displayName ?? item.term)
-                    .font('md')
-                    .weight('bold')
-                    .foreground('foreground')
-                    .lines(1),
-                )}
-                {toElement(
-                  LText(
-                    t('trend.topic.relatedPosts', {
-                      count: item.volume,
-                      defaultValue: '{{count}} publicaciones',
-                    }),
-                  )
-                    .font('xs')
-                    .leading('16px')
-                    .foreground('muted'),
-                )}
-              </TouchableOpacity>
-            )),
+            related.map((item) =>
+              LtoElement(
+                LVStack(
+                  LEmbed(
+                    toElement(
+                      LText(item.displayName ?? item.term)
+                        .font('md')
+                        .weight('bold')
+                        .foreground('foreground')
+                        .lines(1),
+                    ),
+                  ),
+                  LEmbed(
+                    toElement(
+                      LText(
+                        t('trend.topic.relatedPosts', {
+                          count: item.volume,
+                          defaultValue: '{{count}} publicaciones',
+                        }),
+                      )
+                        .font('xs')
+                        .leading('16px')
+                        .foreground('muted'),
+                    ),
+                  ),
+                )
+                  .role('link')
+                  .onPress(() => router.push(`/t/${encodeURIComponent(item.term)}`))
+                  .pressFade(),
+                item.term,
+              ),
+            ),
           ),
         ).spacing('sm'),
       )}
