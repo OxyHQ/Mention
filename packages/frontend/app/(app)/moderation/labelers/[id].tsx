@@ -1,15 +1,6 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Platform,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  type TextStyle,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import { Platform, StyleSheet, Text, type TextStyle, TouchableOpacity, View } from 'react-native';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
@@ -20,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, type Severity, type LabelActionType } from '@/components/LabelBadge';
 import { logger } from '@oxy.so/core/logger';
-
 import {
   Divider as LDivider,
   Embed,
@@ -33,7 +23,11 @@ import {
   VStack,
   defineTokens,
   toElement,
+  Embed as LEmbed,
+  ScrollView as LScrollView,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+
 import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
@@ -504,18 +498,12 @@ export default screen(function LabelerDetailScreen() {
 
   // The pull's spinner is tinted on iOS only (`tintColor`), so the scroller stays Bloom's.
   return Embed(
-    <ScreenScrollView
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.colors.primary}
-        />
-      }
-    >
-      {body}
-    </ScreenScrollView>,
+    LtoElement(
+      LScrollView(LEmbed(body))
+        .contentMargins('lg')
+        .spacing('sm')
+        .refreshable({ refreshing: refreshing, onRefresh: onRefresh }, { ios: 'primary' }),
+    ),
   ).header(
     Header(labeler.name)
       .backLabel(t('common.back', { defaultValue: 'Back' }))
