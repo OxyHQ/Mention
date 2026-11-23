@@ -16,10 +16,9 @@ import {
 import { usePathname } from '@/lib/navigation/router';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Platform, TouchableOpacity, type ViewStyle } from 'react-native';
+import { Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
 import { cacheActors } from '@/lib/actorCache';
@@ -36,20 +35,7 @@ import { shareLink } from '@/utils/shareLink';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
-import { Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
-
-/** The invite banner, as its classes drew it: a 20pt-round outlined row, 12pt inside. */
-const INVITE_BANNER_STYLE: ViewStyle = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  padding: 12,
-  marginHorizontal: 16,
-  marginTop: 12,
-  marginBottom: 8,
-  borderRadius: 20,
-  borderWidth: 1,
-  gap: 10,
-};
+import { HStack, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 type TabType = ConnectionTab;
 
@@ -202,7 +188,6 @@ function ConnectionsContent({
   const pathname = usePathname();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
-  const theme = useTheme();
 
   // The route IS the active tab — `handleTabPress` navigates, so there is
   // nothing else that could select one. Derived rather than held in state, which
@@ -383,24 +368,15 @@ function ConnectionsContent({
   }, []);
 
   const renderInviteBanner = useCallback(
-    () => (
-      <TouchableOpacity
-        style={[
-          INVITE_BANNER_STYLE,
-          { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
-        ]}
-        onPress={handleInviteFriends}
-        activeOpacity={0.7}
-      >
-        {toElement(
+    () =>
+      toElement(
+        HStack(
           VStack(Icon(RiGroupFill).size('md').foreground('card'))
             .frame({ width: '4xl', height: '4xl' })
             .background('primary')
             .corner('infinite')
             .align('center')
             .justify('center'),
-        )}
-        {toElement(
           VStack(
             LText(
               t('settings.inviteContacts.inviteBannerTitle', {
@@ -420,11 +396,21 @@ function ConnectionsContent({
               .weight('medium')
               .foreground('muted'),
           ).flex('1'),
-        )}
-        {toElement(Icon(RiArrowRightSLine).size('md').foreground('muted'))}
-      </TouchableOpacity>
-    ),
-    [handleInviteFriends, theme.colors.card, theme.colors.border, theme.colors.textSecondary, t],
+          Icon(RiArrowRightSLine).size('md').foreground('muted'),
+        )
+          .align('center')
+          .padding('all', 'md')
+          .background('card')
+          .border('border', 'thin')
+          .corner('xl')
+          .spacing('10')
+          .margin('horizontal', 'lg')
+          .margin('top', 'md')
+          .margin('bottom', 'sm')
+          .onPress(handleInviteFriends)
+          .pressFade('70'),
+      ),
+    [handleInviteFriends, t],
   );
 
   const currentData = useMemo(() => {
