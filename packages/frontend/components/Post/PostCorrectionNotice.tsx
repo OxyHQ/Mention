@@ -1,14 +1,10 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback } from 'react';
-import { type GestureResponderEvent, Pressable } from 'react-native';
+import type { GestureResponderEvent } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 
-import { Embed, HStack, RawText, toElement } from '@oxy.so/bloom-language';
-
-const NOTICE_ICON_SIZE = 13;
+import { HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   /** The post this trail belongs to — the row leads to its history screen. */
@@ -44,7 +40,6 @@ interface Props {
  * word-sized target on a phone.
  */
 const PostCorrectionNotice: React.FC<Props> = ({ postId, count }) => {
-  const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -64,31 +59,22 @@ const PostCorrectionNotice: React.FC<Props> = ({ postId, count }) => {
   });
   const actionLabel = t('post.corrections.viewHistory', { defaultValue: 'View history' });
 
-  return (
-    <Pressable
-      onPress={openHistory}
-      hitSlop={tokens.hitSlop.md}
-      accessibilityRole="link"
-      accessibilityLabel={`${countLabel}. ${actionLabel}`}
-    >
-      {toElement(
-        HStack(
-          Embed(
-            <RiEditBoxLine
-              width={NOTICE_ICON_SIZE}
-              height={NOTICE_ICON_SIZE}
-              fill={theme.colors.textSecondary}
-            />,
-          ),
-          RawText(countLabel).foreground('muted').font('sm').lines(1),
-          RawText('·').foreground('muted').font('sm'),
-          RawText(actionLabel).foreground('primary').font('sm').weight('semibold').lines(1),
-        )
-          .margin('top', '6')
-          .align('center')
-          .spacing('xs'),
-      )}
-    </Pressable>
+  return toElement(
+    VStack(
+      HStack(
+        Icon(RiEditBoxLine).size('13').foreground('muted'),
+        RawText(countLabel).foreground('muted').font('sm').lines(1),
+        RawText('·').foreground('muted').font('sm'),
+        RawText(actionLabel).foreground('primary').font('sm').weight('semibold').lines(1),
+      )
+        .margin('top', '6')
+        .align('center')
+        .spacing('xs'),
+    )
+      .onPress(openHistory)
+      .hitSlop('md')
+      .role('link')
+      .label(`${countLabel}. ${actionLabel}`),
   );
 };
 

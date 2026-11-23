@@ -1,11 +1,8 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import React from 'react';
-import { Pressable } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { useTranslation } from 'react-i18next';
 
-import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   /** The content-warning summary carried on the post (e.g. Mastodon `summary`). */
@@ -30,7 +27,6 @@ interface Props {
  * system notice.
  */
 const ContentWarning: React.FC<Props> = ({ text, revealed, onToggle }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const label = t('post.contentWarning', { defaultValue: 'Content warning' });
   const show = t('post.contentWarningShow', { defaultValue: 'Show' });
@@ -45,16 +41,11 @@ const ContentWarning: React.FC<Props> = ({ text, revealed, onToggle }) => {
           .shrink('normal')
           .font('sm')
           .lines(1),
-        Embed(
-          <Pressable
-            onPress={onToggle}
-            hitSlop={tokens.hitSlop.md}
-            accessibilityRole="button"
-            accessibilityLabel={hide}
-          >
-            {toElement(RawText(hide).foreground('primary').font('sm').weight('semibold'))}
-          </Pressable>,
-        ),
+        VStack(RawText(hide).foreground('primary').font('sm').weight('semibold'))
+          .onPress(onToggle)
+          .hitSlop('md')
+          .role('button')
+          .label(hide),
       )
         .margin('bottom', '6')
         .align('center')
