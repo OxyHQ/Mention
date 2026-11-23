@@ -24,6 +24,7 @@ const socialIconNames = new Set([
   'LikeFillIcon',
   'LikeIcon',
   'MediaAttachmentIcon',
+  'MenuIcon',
   'ReplyIcon',
   'RepostIcon',
   'ShareIcon',
