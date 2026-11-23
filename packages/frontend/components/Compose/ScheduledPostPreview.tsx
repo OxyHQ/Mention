@@ -120,27 +120,25 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
     <PostPreviewSurface
       post={post}
       title={t('compose.scheduled.previewTitle', { defaultValue: 'Preview' })}
-      subtitle={toElement(
-        HStack(
-          Icon(RiCalendarLine).size('xs').foreground('muted'),
-          RawText(
-            publishAt === null
-              ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
-              : pastDue
-                ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
-                : t('compose.scheduled.publishesAt', {
-                    defaultValue: 'Publishes {{time}}',
-                    time: formatScheduledLabel(publishAt),
-                  }),
-          )
-            .font('xs')
-            .leading('16px')
-            .foreground('muted'),
+      subtitle={HStack(
+        Icon(RiCalendarLine).size('xs').foreground('muted'),
+        RawText(
+          publishAt === null
+            ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
+            : pastDue
+              ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
+              : t('compose.scheduled.publishesAt', {
+                  defaultValue: 'Publishes {{time}}',
+                  time: formatScheduledLabel(publishAt),
+                }),
         )
-          .align('center')
-          .spacing('6')
-          .margin('top', '2xs'),
-      )}
+          .font('xs')
+          .leading('16px')
+          .foreground('muted'),
+      )
+        .align('center')
+        .spacing('6')
+        .margin('top', '2xs')}
       notice={
         pastDue
           ? toElement(

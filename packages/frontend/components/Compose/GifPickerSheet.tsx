@@ -2,8 +2,7 @@ import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import type React from 'react';
 import { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
-import { useColorTokens } from '@oxy.so/bloom/theme';
+import { StyleSheet, FlatList } from 'react-native';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { useTranslation } from 'react-i18next';
@@ -54,7 +53,6 @@ interface GifSearchResponse {
 }
 
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
-  const colorTokens = useColorTokens();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const { user, canUsePrivateApi } = useAuth();
@@ -122,32 +120,42 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
     const isSelected = selectedGif === item.id || selectedGif === item.slug;
     const isUploading = uploading && isSelected;
 
-    return (
-      <TouchableOpacity
-        style={[
-          { backgroundColor: colorTokens.surface },
-          styles.gifItem,
-          { borderColor: isSelected ? colorTokens.primary : colorTokens.border },
-          isSelected && { opacity: 0.7 },
-        ]}
-        onPress={() => handleSelectGif(item)}
-        disabled={uploading}
-        activeOpacity={0.8}
-      >
-        {item.previewUrl ? (
-          <VideoPlayer
-            src={item.previewUrl}
-            autoPlay
-            loop
-            gif
-            contentFit="cover"
-            style={StyleSheet.absoluteFill}
-          />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: colorTokens.muted }]} />
-        )}
-        {isUploading && <View style={styles.uploading}>{toElement(Loading().size('sm'))}</View>}
-      </TouchableOpacity>
+    // The tile: a square cell of the row, its border the selection.
+    return toElement(
+      VStack(
+        item.previewUrl
+          ? Embed(
+              <VideoPlayer
+                src={item.previewUrl}
+                autoPlay
+                loop
+                gif
+                contentFit="cover"
+                style={StyleSheet.absoluteFill}
+              />,
+            )
+          : VStack()
+              .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+              .background('mutedFill'),
+        // The upload veil (`absolute inset-0 bg-black/50`).
+        isUploading
+          ? VStack(Loading().size('sm'))
+              .justify('center')
+              .align('center')
+              .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+              .background('black/half')
+          : null,
+      )
+        .grow()
+        .aspectRatio(1)
+        .background('surface')
+        .border(isSelected ? 'primary' : 'border', 'thin')
+        .borderStyle('solid')
+        .clipped()
+        .when(isSelected, (v) => v.opacity('70'))
+        .onPress(() => handleSelectGif(item))
+        .disabled(uploading)
+        .pressFade('80'),
     );
   };
 
@@ -240,22 +248,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 0,
     width: '100%',
-  },
-  // Tailwind's `absolute inset-0 bg-black/50`: one `inset`, which the language's
-  // `.position()` writes as four edges.
-  uploading: {
-    position: 'absolute',
-    inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gifItem: {
-    flex: 1,
-    aspectRatio: 1,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderStyle: 'solid',
   },
 });
 

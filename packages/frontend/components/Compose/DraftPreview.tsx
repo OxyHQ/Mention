@@ -79,18 +79,16 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
       title={t('compose.draftPreviewTitle', { defaultValue: 'Draft preview' })}
       subtitle={
         remainingThreadItems > 0
-          ? toElement(
-              RawText(
-                t('compose.draftPreviewThread', {
-                  defaultValue: 'First post of {{count}} more in this thread',
-                  count: remainingThreadItems,
-                }),
-              )
-                .font('xs')
-                .leading('16px')
-                .foreground('muted')
-                .margin('top', '2xs'),
+          ? RawText(
+              t('compose.draftPreviewThread', {
+                defaultValue: 'First post of {{count}} more in this thread',
+                count: remainingThreadItems,
+              }),
             )
+              .font('xs')
+              .leading('16px')
+              .foreground('muted')
+              .margin('top', '2xs')
           : undefined
       }
       onBack={onBack}

@@ -55,10 +55,16 @@ import {
 
 /**
  * The camera's own colours: the selected zoom stop (`text-yellow-400`, as NativeWind
- * drew it), the selected stop's darker disc and the recording red.
+ * drew it), the selected stop's darker disc, the recording red and a control's
+ * badge.
  */
 const cameraColors = defineTokens({
-  color: { active: '#fcc800', zoomSelected: 'rgba(0,0,0,0.55)', recording: '#ef4444' },
+  color: {
+    active: '#fcc800',
+    zoomSelected: 'rgba(0,0,0,0.55)',
+    recording: '#ef4444',
+    badge: '#facc15',
+  },
 });
 /**
  * Where the camera's chrome sits over the frame: the control column's top, the
@@ -743,11 +749,18 @@ function RoundButton({
       accessibilityLabel={value ? `${label}: ${value}` : label}
     >
       <Icon width={20} height={20} fill={active ? '#facc15' : '#fff'} />
-      {badge ? (
-        <View style={styles.roundBadge}>
-          {toElement(LText(badge).font('9').weight('bold').foreground('black'))}
-        </View>
-      ) : null}
+      {badge
+        ? toElement(
+            VStack(LText(badge).font('9').weight('bold').foreground('black'))
+              .align('center')
+              .justify('center')
+              .padding('horizontal', '3')
+              .frame({ minWidth: '14', height: '14' })
+              .background(cameraColors.color.badge)
+              .corner('7')
+              .position({ top: '1', right: '1' }),
+          )
+        : null}
     </Pressable>
   );
 }
@@ -779,18 +792,6 @@ const styles = StyleSheet.create({
     // Dark enough to carry a white icon over a bright frame, light enough that
     // the preview still reads through it.
     backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  roundBadge: {
-    position: 'absolute',
-    top: 1,
-    right: 1,
-    minWidth: 14,
-    height: 14,
-    borderRadius: 7,
-    paddingHorizontal: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#facc15',
   },
   recordingBadge: {
     position: 'absolute',

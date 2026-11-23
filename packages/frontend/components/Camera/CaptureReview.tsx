@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { useVideoPlayer } from 'expo-video';
 import { VideoView } from '@oxy.so/bloom/video-view';
 
-import { Text } from '@oxy.so/bloom/typography';
 import type { LocalCapture } from './useCaptureUpload';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Button as LButton, Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
@@ -127,23 +126,21 @@ export function CaptureReview({
           ? VStack(
               // The language's Loading takes a tone, not a fixed colour: white over the capture.
               Embed(<Loading size="sm" color="#fff" />),
-              Embed(
-                <Text
-                  style={styles.progress}
-                  accessibilityRole="progressbar"
-                  accessibilityLabel={progressLabel}
-                  accessibilityValue={
-                    percentage === null || uploadProgress?.phase === 'verify'
-                      ? { text: progressLabel }
-                      : { min: 0, max: 100, now: percentage }
-                  }
-                >
-                  {progressLabel}
-                  {percentage !== null && uploadProgress?.phase !== 'verify'
-                    ? ` ${percentage}%`
-                    : ''}
-                </Text>,
-              ),
+              LText(
+                progressLabel,
+                percentage !== null && uploadProgress?.phase !== 'verify' ? ` ${percentage}%` : '',
+              )
+                .foreground('white')
+                .font('16')
+                .leading('24px')
+                .textAlign('center')
+                .role('progressbar')
+                .label(progressLabel)
+                .accessibilityValue(
+                  percentage === null || uploadProgress?.phase === 'verify'
+                    ? { text: progressLabel }
+                    : { min: 0, max: 100, now: percentage },
+                ),
             )
               .padding('bottom', 'xs')
               .align('center')
@@ -166,8 +163,3 @@ export function CaptureReview({
       .background('black'),
   );
 }
-
-const styles = StyleSheet.create({
-  // Tailwind's `text-white text-base text-center`: the progress reads on the dark preview.
-  progress: { color: '#fff', fontSize: 16, lineHeight: 24, textAlign: 'center' },
-});

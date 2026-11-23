@@ -80,26 +80,24 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
     <PostPreviewSurface
       post={post}
       title={t('compose.draftPreviewTitle', { defaultValue: 'Draft preview' })}
-      subtitle={toElement(
-        HStack(
-          Icon(RiCloudLine).size('xs').foreground('muted'),
-          RawText(
-            otherLanguages.length > 0
-              ? t('compose.serverDrafts.savedAlsoIn', {
-                  defaultValue: 'Saved to your account · also in {{languages}}',
-                  languages: otherLanguages.join(', '),
-                })
-              : t('compose.serverDrafts.title', { defaultValue: 'Saved to your account' }),
-          )
-            .font('xs')
-            .leading('16px')
-            .foreground('muted')
-            .lines(1),
+      subtitle={HStack(
+        Icon(RiCloudLine).size('xs').foreground('muted'),
+        RawText(
+          otherLanguages.length > 0
+            ? t('compose.serverDrafts.savedAlsoIn', {
+                defaultValue: 'Saved to your account · also in {{languages}}',
+                languages: otherLanguages.join(', '),
+              })
+            : t('compose.serverDrafts.title', { defaultValue: 'Saved to your account' }),
         )
-          .align('center')
-          .spacing('6')
-          .margin('top', '2xs'),
-      )}
+          .font('xs')
+          .leading('16px')
+          .foreground('muted')
+          .lines(1),
+      )
+        .align('center')
+        .spacing('6')
+        .margin('top', '2xs')}
       onBack={onBack}
     >
       {toElement(
