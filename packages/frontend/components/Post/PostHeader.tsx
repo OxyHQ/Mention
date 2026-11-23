@@ -26,10 +26,34 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Link, type Href } from '@/lib/navigation/router';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 
-import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  toElement,
+  type IconComponent,
+} from '@oxy.so/bloom-language';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
 const INDICATOR_ICON_SIZE = 14;
+
+/**
+ * A marker after the time (edited, private mention): its 14pt glyph, pressed
+ * for a toast saying what it means. It keeps its width (`shrink('never')`) and
+ * centres against the row, whose shared line is its children's bottom edge.
+ */
+function indicator(icon: IconComponent, label: string, message: string) {
+  return VStack(Icon(icon).size('14').foreground('muted'))
+    .onPress(() => toast(message))
+    .pressFade()
+    .role('button')
+    .label(label)
+    .hitSlop('md')
+    .shrink('never')
+    .alignSelf('center');
+}
 
 // PostHeader-local default spacing. HPAD here (8px) is only the fallback for the
 // `paddingHorizontal` prop — callers (PostItem, compose, detail) pass their own
@@ -586,54 +610,37 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               ) : (
                 timeText
               )))}
-          {isEdited ? (
-            // `flexShrink: 0` because an indicator glyph has no width to give up
-            // and the identity line's other children are already shrink-ranked
-            // against each other — the `@handle` is what yields.
-            //
-            // `alignSelf: 'center'` for the same reason {@link AccountBadge} above
-            // uses `self-center`: this row is `items-end`, so a child's BOTTOM
-            // edge is the shared line — and a text box's bottom is its descender,
-            // several pixels below the letters. An icon hung from that line reads
-            // as sunk. Centring it against the row puts it on the text's optical
-            // middle, where the badge already sits.
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={t('post.editedIndicator', { defaultValue: 'Edited' })}
-              hitSlop={tokens.hitSlop.md}
-              style={{ flexShrink: 0, alignSelf: 'center' }}
-              onPress={() => toast(t('post.editedToast', { defaultValue: 'This post was edited' }))}
-            >
-              <RiPencilLine
-                width={INDICATOR_ICON_SIZE}
-                height={INDICATOR_ICON_SIZE}
-                fill={theme.colors.textSecondary}
-              />
-            </TouchableOpacity>
-          ) : null}
-          {isPrivateMention ? (
-            // Same placement and alignment as the edited marker above.
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={t('privateMentions.badge', { defaultValue: 'Private mention' })}
-              hitSlop={tokens.hitSlop.md}
-              style={{ flexShrink: 0, alignSelf: 'center' }}
-              onPress={() =>
-                toast(
+          {isEdited
+            ? // `flexShrink: 0` because an indicator glyph has no width to give up
+              // and the identity line's other children are already shrink-ranked
+              // against each other — the `@handle` is what yields.
+              //
+              // `alignSelf: 'center'` for the same reason {@link AccountBadge} above
+              // uses `self-center`: this row is `items-end`, so a child's BOTTOM
+              // edge is the shared line — and a text box's bottom is its descender,
+              // several pixels below the letters. An icon hung from that line reads
+              // as sunk. Centring it against the row puts it on the text's optical
+              // middle, where the badge already sits.
+              toElement(
+                indicator(
+                  RiPencilLine,
+                  t('post.editedIndicator', { defaultValue: 'Edited' }),
+                  t('post.editedToast', { defaultValue: 'This post was edited' }),
+                ),
+              )
+            : null}
+          {isPrivateMention
+            ? // Same placement and alignment as the edited marker above.
+              toElement(
+                indicator(
+                  RiLockLine,
+                  t('privateMentions.badge', { defaultValue: 'Private mention' }),
                   t('privateMentions.onlyMentioned', {
                     defaultValue: 'Only visible to the people mentioned',
                   }),
-                )
-              }
-              testID="post-private-mention-badge"
-            >
-              <RiLockLine
-                width={INDICATOR_ICON_SIZE}
-                height={INDICATOR_ICON_SIZE}
-                fill={theme.colors.textSecondary}
-              />
-            </TouchableOpacity>
-          ) : null}
+                ).testID('post-private-mention-badge'),
+              )
+            : null}
           {laneSlot}
           {showBoost &&
             toElement(
