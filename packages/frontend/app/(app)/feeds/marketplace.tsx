@@ -19,7 +19,6 @@ import {
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { Screen } from '@oxy.so/bloom/screen';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -44,6 +43,7 @@ import {
   ScrollView as LScrollView,
   Search as LSearch,
   VStack,
+  VirtualList,
   toElement,
 } from '@oxy.so/bloom-language';
 
@@ -482,53 +482,48 @@ function FeedMarketplaceScreen() {
           .inPage(),
       )}
     >
-      {loading && feeds.length === 0 ? (
-        toElement(
-          LScrollView(
-            Embed(Array.from({ length: 4 }).map((_, i) => <FeedCardSkeleton key={i} />)),
-          ).contentView((v) => v.padding('horizontal', 'lg').padding('top', 'lg').spacing('md')),
-        )
-      ) : IS_WEB ? (
-        toElement(
-          LScrollView(
-            Embed(ListHeader),
-            Embed(
-              feeds.length === 0
-                ? ListEmpty
-                : feeds.map((item) => (
-                    <MarketplaceFeedCard
-                      key={keyExtractor(item)}
-                      item={item}
-                      onSubscribeToggle={handleSubscribeToggle}
-                      subscribingId={subscribingId}
-                    />
-                  )),
-            ),
-            Embed(ListFooter),
+      {loading && feeds.length === 0
+        ? toElement(
+            LScrollView(
+              Embed(Array.from({ length: 4 }).map((_, i) => <FeedCardSkeleton key={i} />)),
+            ).contentView((v) => v.padding('horizontal', 'lg').padding('top', 'lg').spacing('md')),
           )
-            .contentView((v) => v.padding('bottom', '3xl'))
-            .onEndReached(handleLoadMore)
-            .keyboardTaps('handled'),
-        )
-      ) : (
-        <VirtualList
-          screen={{}}
-          data={feeds}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={ListEmpty}
-          ListFooterComponent={ListFooter}
-          contentContainerStyle={styles.listContent}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.4}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
-          scrollbar="never"
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        />
-      )}
+        : IS_WEB
+          ? toElement(
+              LScrollView(
+                Embed(ListHeader),
+                Embed(
+                  feeds.length === 0
+                    ? ListEmpty
+                    : feeds.map((item) => (
+                        <MarketplaceFeedCard
+                          key={keyExtractor(item)}
+                          item={item}
+                          onSubscribeToggle={handleSubscribeToggle}
+                          subscribingId={subscribingId}
+                        />
+                      )),
+                ),
+                Embed(ListFooter),
+              )
+                .contentView((v) => v.padding('bottom', '3xl'))
+                .onEndReached(handleLoadMore)
+                .keyboardTaps('handled'),
+            )
+          : toElement(
+              VirtualList(feeds, renderItem)
+                .screen()
+                .itemKey(keyExtractor)
+                .headerContent(Embed(ListHeader))
+                .emptyState(Embed(ListEmpty))
+                .footerContent(Embed(ListFooter))
+                .contentMargins('bottom', '3xl')
+                .onEndReached(handleLoadMore, 0.4)
+                .refreshable({ refreshing, onRefresh: handleRefresh })
+                .scrollbar('never')
+                .keyboardTaps('handled')
+                .scrollDismissesKeyboard('immediately'),
+            )}
     </Screen>
   );
 }
@@ -540,9 +535,6 @@ const classStyles = {
 } satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({
-  listContent: {
-    paddingBottom: 32,
-  },
   pillsContent: {
     paddingHorizontal: 16,
     gap: 8,
