@@ -202,6 +202,11 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     const theme = useTheme();
     const colorTokens = useColorTokens();
     const connector = { backgroundColor: tokenAlpha(colorTokens.primary, 0.2) };
+    // The item's article, poll and room cards' frame.
+    const cardStyle = [
+      styles.articleAttachmentWrapper,
+      { borderColor: colorTokens.border, backgroundColor: colorTokens.surface },
+    ];
     const { t } = useTranslation();
     const threadId = item.id;
 
@@ -453,7 +458,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                                 disabled={mediaIndex === 0}
                                 style={[
                                   styles.mediaReorderButton,
-                                  { backgroundColor: theme.colors.background },
+                                  { backgroundColor: colorTokens.background },
                                   mediaIndex === 0 && styles.mediaReorderButtonDisabled,
                                 ]}
                               >
@@ -472,7 +477,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                                 disabled={mediaIndex === mediaCount - 1}
                                 style={[
                                   styles.mediaReorderButton,
-                                  { backgroundColor: theme.colors.background },
+                                  { backgroundColor: colorTokens.background },
                                   mediaIndex === mediaCount - 1 &&
                                     styles.mediaReorderButtonDisabled,
                                 ]}
@@ -509,17 +514,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                         VStack(
                           Embed(
                             <TouchableOpacity
-                              style={[
-                                {
-                                  borderColor: colorTokens.border,
-                                  backgroundColor: colorTokens.muted,
-                                },
-                                styles.articleAttachmentWrapper,
-                                {
-                                  borderColor: theme.colors.border,
-                                  backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                              ]}
+                              style={cardStyle}
                               activeOpacity={0.85}
                               onPress={handleArticlePress}
                             >
@@ -552,17 +547,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                         VStack(
                           Embed(
                             <TouchableOpacity
-                              style={[
-                                {
-                                  borderColor: colorTokens.border,
-                                  backgroundColor: colorTokens.muted,
-                                },
-                                styles.articleAttachmentWrapper,
-                                {
-                                  borderColor: theme.colors.border,
-                                  backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                              ]}
+                              style={cardStyle}
                               activeOpacity={0.85}
                               onPress={handleEventPress}
                             >
@@ -663,15 +648,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       toElement(
                         VStack(
                           Embed(
-                            <View
-                              style={[
-                                styles.articleAttachmentWrapper,
-                                {
-                                  borderColor: theme.colors.border,
-                                  backgroundColor: theme.colors.backgroundSecondary,
-                                },
-                              ]}
-                            >
+                            <View style={cardStyle}>
                               <RoomCard
                                 room={{
                                   _id: item.room.roomId,

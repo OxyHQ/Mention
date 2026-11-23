@@ -273,6 +273,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const insets = useSafeAreaInsets();
   // The thread's connector: the primary token at 20%, never a hex suffix (see below).
   const connector = { backgroundColor: tokenAlpha(colorTokens.primary, 0.2) };
+  // The attachment cards' frame (article, poll, event, room, job) and the media cards'.
+  const cardWrapperStyle = [
+    styles.articleAttachmentWrapper,
+    { borderColor: colorTokens.border, backgroundColor: colorTokens.card },
+  ];
+  const mediaWrapperStyle = [
+    styles.mediaPreviewItem,
+    { borderColor: colorTokens.border, backgroundColor: colorTokens.surface },
+  ];
   const haptic = useHaptics();
   const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
   const { drafts, saveDraft, queueDeleteDraft, readDraft } = useDrafts();
@@ -3649,13 +3658,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                 total={total}
                                                 onMove={moveAttachment}
                                                 onRemove={removeArticle}
-                                                wrapperStyle={[
-                                                  styles.articleAttachmentWrapper,
-                                                  {
-                                                    borderColor: theme.colors.border,
-                                                    backgroundColor: theme.colors.card,
-                                                  },
-                                                ]}
+                                                wrapperStyle={cardWrapperStyle}
                                               >
                                                 <PostArticlePreview
                                                   title={article.title}
@@ -3677,13 +3680,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                 total={total}
                                                 onMove={moveAttachment}
                                                 onRemove={removeEvent}
-                                                wrapperStyle={[
-                                                  styles.articleAttachmentWrapper,
-                                                  {
-                                                    borderColor: theme.colors.border,
-                                                    backgroundColor: theme.colors.card,
-                                                  },
-                                                ]}
+                                                wrapperStyle={cardWrapperStyle}
                                               >
                                                 <PostAttachmentEvent
                                                   name={event.name}
@@ -3706,13 +3703,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                 total={total}
                                                 onMove={moveAttachment}
                                                 onRemove={removeRoom}
-                                                wrapperStyle={[
-                                                  styles.articleAttachmentWrapper,
-                                                  {
-                                                    borderColor: theme.colors.border,
-                                                    backgroundColor: theme.colors.card,
-                                                  },
-                                                ]}
+                                                wrapperStyle={cardWrapperStyle}
                                               >
                                                 <RoomCard
                                                   room={{
@@ -3740,13 +3731,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                 total={total}
                                                 onMove={moveAttachment}
                                                 onRemove={removePodcast}
-                                                wrapperStyle={[
-                                                  styles.articleAttachmentWrapper,
-                                                  {
-                                                    borderColor: theme.colors.border,
-                                                    backgroundColor: theme.colors.card,
-                                                  },
-                                                ]}
+                                                wrapperStyle={cardWrapperStyle}
                                               >
                                                 <PostPodcastAttachment
                                                   podcast={podcast}
@@ -3794,13 +3779,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                 total={total}
                                                 onMove={moveAttachment}
                                                 onRemove={removeJob}
-                                                wrapperStyle={[
-                                                  styles.articleAttachmentWrapper,
-                                                  {
-                                                    borderColor: theme.colors.border,
-                                                    backgroundColor: theme.colors.card,
-                                                  },
-                                                ]}
+                                                wrapperStyle={cardWrapperStyle}
                                               >
                                                 {/* Not `JobCard` (which navigates to the job page on
                                   press): tapping this preview mid-compose must not
@@ -3886,14 +3865,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                 total={total}
                                                 onMove={moveAttachment}
                                                 onRemove={() => removeMedia(mediaItem.id)}
-                                                wrapperStyle={[
-                                                  styles.mediaPreviewItem,
-                                                  {
-                                                    borderColor: theme.colors.border,
-                                                    backgroundColor:
-                                                      theme.colors.backgroundSecondary,
-                                                  },
-                                                ]}
+                                                wrapperStyle={mediaWrapperStyle}
                                               >
                                                 <ComposeMediaPreview
                                                   type={mediaItem.type}
