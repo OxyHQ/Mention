@@ -513,3 +513,43 @@ describe('aggregateTermCandidates — provenance is carried, not scored', () => 
     expect(candidate.measurement.recentVolume).toBe(3);
   });
 });
+
+describe('aggregateTermCandidates — one story written in different words', () => {
+  const minutesAgo = (minutes: number): Date => new Date(Date.now() - minutes * 60 * 1000);
+  const MIN_CORPUS_PER_HOUR = 20;
+
+  it('joins terms that rise together without sharing most posts, and leaves out one that does not', async () => {
+    const story = term('storyalpha');
+    const fragment = term('storybeta');
+    const bystander = term('storygamma');
+
+    // An hour only counts toward a term's SHARE when the corpus had enough posts
+    // in it, as every hour of a real network does.
+    for (const minutes of [80, 140, 200, 280, 340]) {
+      await seedMany(MIN_CORPUS_PER_HOUR, { createdAt: minutesAgo(minutes) });
+    }
+
+    // `fragment` is mostly written WITHOUT `story` (0.4 co-occurrence, below the
+    // 0.6 bar) but rises hour for hour with it: 20/40/60 against 10/20/30.
+    for (const [minutes, alone, other, both] of [
+      [80, 16, 6, 4],
+      [140, 32, 12, 8],
+      [200, 48, 18, 12],
+    ] as const) {
+      await seedMany(alone, { trendTerms: [story], createdAt: minutesAgo(minutes) });
+      await seedMany(other, { trendTerms: [fragment], createdAt: minutesAgo(minutes) });
+      await seedMany(both, { trendTerms: [story, fragment], createdAt: minutesAgo(minutes) });
+    }
+    // The control shares 8 posts with `story` — enough overlap to be considered —
+    // but peaks in the hours where `story` is quiet.
+    await seedMany(8, { trendTerms: [story, bystander], createdAt: minutesAgo(280) });
+    await seedMany(12, { trendTerms: [bystander], createdAt: minutesAgo(340) });
+
+    const rows = await candidatesFor([story, fragment, bystander]);
+    const byName = new Map(rows.map((row) => [row.measurement.term, row]));
+
+    expect(byName.get(story)?.members.sort()).toEqual([story, fragment].sort());
+    expect(byName.has(fragment)).toBe(false);
+    expect(byName.get(bystander)?.members).toEqual([bystander]);
+  });
+});
