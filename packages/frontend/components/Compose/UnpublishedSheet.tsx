@@ -1,9 +1,6 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/lib/navigation/router';
-import { View, TouchableOpacity, type ViewStyle } from 'react-native';
-import { tokens } from '@oxy.so/bloom/styles';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
@@ -41,18 +38,6 @@ const unpublishedSheet = (...children: Child[]) =>
     .flex('1')
     .frame({ maxHeight: sheetTokens.space.maxHeight })
     .background('background');
-/** A tab: half the strip, its name and count over an underline (`flex-1 flex-row items-center justify-center gap-1.5 py-3 border-b-2`). */
-const TAB = {
-  flexGrow: 1,
-  flexShrink: 1,
-  flexBasis: '0%',
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-  paddingVertical: tokens.space.md,
-  borderBottomWidth: 2,
-} satisfies ViewStyle;
 
 type UnpublishedTab = 'drafts' | 'scheduled';
 
@@ -69,42 +54,39 @@ interface TabButtonProps {
   onPress: () => void;
 }
 
-const TabButton: React.FC<TabButtonProps> = ({ label, count, isActive, onPress }) => {
-  const colorTokens = useColorTokens();
-
-  return (
-    <TouchableOpacity
-      style={[TAB, { borderBottomColor: isActive ? colorTokens.primary : 'transparent' }]}
-      onPress={onPress}
-      activeOpacity={0.75}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: isActive }}
-    >
-      {toElement(
-        RawText(label)
-          .font('md')
-          .weight('semibold')
-          .foreground(isActive ? 'primary' : 'muted'),
-      )}
-      {count !== undefined && count > 0
-        ? toElement(
-            VStack(
-              RawText(count)
-                .font('11')
-                .weight('semibold')
-                .foreground(isActive ? 'card' : 'muted'),
-            )
-              .padding('horizontal', '6')
-              .padding('vertical', '2xs')
-              .frame({ minWidth: 'xl' })
-              .background(isActive ? 'primary' : 'border')
-              .corner('infinite')
-              .align('center'),
+const TabButton: React.FC<TabButtonProps> = ({ label, count, isActive, onPress }) =>
+  toElement(
+    HStack(
+      RawText(label)
+        .font('md')
+        .weight('semibold')
+        .foreground(isActive ? 'primary' : 'muted'),
+      count !== undefined && count > 0
+        ? VStack(
+            RawText(count)
+              .font('11')
+              .weight('semibold')
+              .foreground(isActive ? 'card' : 'muted'),
           )
-        : null}
-    </TouchableOpacity>
+            .padding('horizontal', '6')
+            .padding('vertical', '2xs')
+            .frame({ minWidth: 'xl' })
+            .background(isActive ? 'primary' : 'border')
+            .corner('infinite')
+            .align('center')
+        : null,
+    )
+      .flex('1')
+      .align('center')
+      .justify('center')
+      .spacing('6')
+      .padding('vertical', 'md')
+      .border(isActive ? 'primary' : 'transparent', 'thick', 'bottom')
+      .onPress(onPress)
+      .role('tab')
+      .accessibilityState({ selected: isActive })
+      .pressFade('75'),
   );
-};
 
 /**
  * Everything the viewer has written but not published, in one sheet.
@@ -294,38 +276,29 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
         )
         .inPage(),
       switchingDraft ? RawText(t('common.saving')).role('alert') : null,
-      // The body takes no input while a draft opens; the language has no
-      // modifier for hiding a subtree from assistive technology.
-      Embed(
-        <View
-          pointerEvents={switchingDraft ? 'none' : 'auto'}
-          accessibilityElementsHidden={switchingDraft}
-          importantForAccessibility={switchingDraft ? 'no-hide-descendants' : 'auto'}
-          style={{ flex: 1 }}
-        >
-          {toElement(
-            HStack(
-              Embed(
-                <TabButton
-                  label={t('compose.drafts')}
-                  isActive={activeTab === 'drafts'}
-                  onPress={showDrafts}
-                />,
-              ),
-              Embed(
-                <TabButton
-                  label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
-                  count={scheduledPosts.length}
-                  isActive={activeTab === 'scheduled'}
-                  onPress={showScheduled}
-                />,
-              ),
-            )
-              .border('border', 'thin', 'bottom')
-              .role('tablist'),
-          )}
-
-          {activeTab === 'drafts' ? (
+      // The body takes no input and is hidden from assistive technology while a draft opens.
+      VStack(
+        HStack(
+          Embed(
+            <TabButton
+              label={t('compose.drafts')}
+              isActive={activeTab === 'drafts'}
+              onPress={showDrafts}
+            />,
+          ),
+          Embed(
+            <TabButton
+              label={t('compose.scheduled.tab', { defaultValue: 'Scheduled' })}
+              count={scheduledPosts.length}
+              isActive={activeTab === 'scheduled'}
+              onPress={showScheduled}
+            />,
+          ),
+        )
+          .border('border', 'thin', 'bottom')
+          .role('tablist'),
+        Embed(
+          activeTab === 'drafts' ? (
             <DraftsList
               onLoadDraft={openDraft}
               onPreviewDraft={openDraftPreview}
@@ -344,9 +317,12 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
               onCancel={cancelScheduledPost}
               viewerId={viewerId}
             />
-          )}
-        </View>,
-      ),
+          ),
+        ),
+      )
+        .grow()
+        .allowsHitTesting(!switchingDraft)
+        .accessibilityHidden(switchingDraft),
     ),
   );
 };

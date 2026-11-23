@@ -1,16 +1,15 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Image, ScrollView, TouchableOpacity, type ImageStyle, type ViewStyle } from 'react-native';
-import { tokens } from '@oxy.so/bloom/styles';
+import { Image, ScrollView, type ImageStyle } from 'react-native';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { Textarea } from '@oxy.so/bloom/textarea';
-import { tokenAlpha, useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import {
   Button as LButton,
   Card as LCard,
   Embed,
+  HStack,
   Header,
   Icon,
   RawText,
@@ -18,9 +17,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** Tailwind's `rounded-full` as it drew: a pill at any size. */
-const ROUNDED_FULL = Number.MAX_SAFE_INTEGER;
 
 /** Matches the backend cap on `content.media[].alt`. */
 const ALT_MAX_LENGTH = 2000;
@@ -63,8 +59,6 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
   onSave,
   onClose,
 }) => {
-  const colorTokens = useColorTokens();
-
   const { t } = useTranslation();
 
   const tags = useMemo(
@@ -153,41 +147,31 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
               {tags.map((tag) => {
                 const isActive = tag === activeTag;
                 const hasAlt = (values[tag] ?? '').trim().length > 0;
-                return (
-                  <TouchableOpacity
-                    key={tag}
-                    onPress={() => setActiveTag(tag)}
-                    activeOpacity={0.75}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: isActive }}
-                    // `bg-primary/10`, not `${theme.colors.primary}1A`. Bloom
-                    // resolves ACCENT tokens to `rgb(0 98 157)` (the tonal engine
-                    // derives them; only the STATUS_COLORS family stays hex), so
-                    // appending hex alpha yields a malformed colour that
-                    // react-native-web renders as the OPAQUE token — measured here
-                    // at contrast 1.00, primary text on primary, the language name
-                    // fully invisible.
-                    style={[
-                      tabStyle,
-                      isActive && { backgroundColor: tokenAlpha(colorTokens.primary, 0.1) },
-                      { borderColor: isActive ? colorTokens.primary : colorTokens.border },
-                    ]}
-                  >
-                    {toElement(
-                      RawText(describeContentLanguage(tag).nativeName)
-                        .font('sm')
-                        .weight('semibold')
-                        .foreground(isActive ? 'primary' : 'muted'),
-                    )}
-                    {hasAlt
-                      ? toElement(
-                          VStack()
-                            .frame({ width: '6', height: '6' })
-                            .background('primary')
-                            .corner('infinite'),
-                        )
-                      : null}
-                  </TouchableOpacity>
+                return toElement(
+                  HStack(
+                    RawText(describeContentLanguage(tag).nativeName)
+                      .font('sm')
+                      .weight('semibold')
+                      .foreground(isActive ? 'primary' : 'muted'),
+                    hasAlt
+                      ? VStack()
+                          .frame({ width: '6', height: '6' })
+                          .background('primary')
+                          .corner('infinite')
+                      : null,
+                  )
+                    .align('center')
+                    .spacing('6')
+                    .padding('horizontal', 'md')
+                    .padding('vertical', '6')
+                    .when(isActive, (v) => v.background('primary/10'))
+                    .border(isActive ? 'primary' : 'border', 'thin')
+                    .corner('infinite')
+                    .onPress(() => setActiveTag(tag))
+                    .role('tab')
+                    .accessibilityState({ selected: isActive })
+                    .pressFade('75'),
+                  tag,
                 );
               })}
             </ScrollView>
@@ -226,18 +210,6 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
 const scrollContentStyle = { paddingBottom: 24 };
 /** Tailwind's `w-full` on the preview, at the picture's own ratio. */
 const previewStyle = { width: '100%', aspectRatio: 16 / 9 } satisfies ImageStyle;
-/** A language tab: a pill of its name (`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border`). */
-/** Tailwind's 1.5 step, off Bloom's space scale. */
-const SPACE_6 = 6;
-const tabStyle = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: SPACE_6,
-  paddingHorizontal: tokens.space.md,
-  paddingVertical: SPACE_6,
-  borderRadius: ROUNDED_FULL,
-  borderWidth: 1,
-} satisfies ViewStyle;
 const textareaStyle = { marginHorizontal: 16 };
 const tabsContentStyle = { gap: 8, paddingHorizontal: 16, paddingBottom: 12 };
 

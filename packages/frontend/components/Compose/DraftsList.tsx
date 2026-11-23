@@ -1,8 +1,7 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import { FlatList, StyleSheet } from 'react-native';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
@@ -268,168 +267,154 @@ const DraftsList: React.FC<DraftsListProps> = ({
       // paints solid primary under its own foreground text.
       return toElement(
         HStack(
-          Embed(
-            <TouchableOpacity
-              style={styles.open}
-              onPress={open}
-              disabled={isBusy}
-              accessibilityRole="button"
-              accessibilityLabel={t('compose.draftPreviewEdit', {
-                defaultValue: 'Continue writing',
-              })}
-            >
-              {toElement(
-                VStack(
-                  HStack(
-                    HStack(
-                      Embed(
-                        isCurrentDraft &&
-                          toElement(
-                            VStack(
-                              RawText(t('compose.current'))
-                                .font('2xs')
-                                .weight('semibold')
-                                .foreground('card'),
-                            )
-                              .padding('horizontal', '6')
-                              .padding('vertical', '2xs')
-                              .background('primary')
-                              .corner('xs'),
-                          ),
+          HStack(
+            VStack(
+              HStack(
+                HStack(
+                  Embed(
+                    isCurrentDraft &&
+                      toElement(
+                        VStack(
+                          RawText(t('compose.current'))
+                            .font('2xs')
+                            .weight('semibold')
+                            .foreground('card'),
+                        )
+                          .padding('horizontal', '6')
+                          .padding('vertical', '2xs')
+                          .background('primary')
+                          .corner('xs'),
                       ),
-                      RawText(formatDate(item.updatedAt))
+                  ),
+                  RawText(formatDate(item.updatedAt))
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                  !isServer
+                    ? RawText(t('compose.draftOnThisDevice', { defaultValue: 'On this device' }))
                         .font('xs')
                         .leading('16px')
-                        .foreground('muted'),
-                      !isServer
-                        ? RawText(
-                            t('compose.draftOnThisDevice', { defaultValue: 'On this device' }),
+                        .foreground('muted')
+                    : null,
+                  draftedFor !== undefined
+                    ? RawText(draftedFor)
+                        .font('xs')
+                        .leading('16px')
+                        .foreground('muted')
+                        .shrink('normal')
+                        .lines(1)
+                    : null,
+                )
+                  .align('center')
+                  .spacing('sm')
+                  .shrink('normal'),
+              )
+                .justify('between')
+                .align('center')
+                .margin('bottom', 'xs'),
+              RawText(preview)
+                .font('14')
+                .leading('20px')
+                .foreground('foreground')
+                .margin('bottom', 'xs')
+                .lines(2),
+              mediaCount > 0 || threadCount > 0 || otherLanguages.length > 0
+                ? HStack(
+                    mediaCount > 0
+                      ? HStack(
+                          Icon(RiImageLine).size('14').foreground('muted'),
+                          RawText(mediaCount).font('xs').leading('16px').foreground('muted'),
+                        )
+                          .align('center')
+                          .spacing('xs')
+                      : null,
+                    threadCount > 0
+                      ? HStack(
+                          Icon(RiFileCopyLine).size('14').foreground('muted'),
+                          RawText(threadCount + 1)
+                            .font('xs')
+                            .leading('16px')
+                            .foreground('muted'),
+                        )
+                          .align('center')
+                          .spacing('xs')
+                      : null,
+                    otherLanguages.length > 0
+                      ? HStack(
+                          Icon(RiGlobalLine).size('14').foreground('muted'),
+                          RawText(
+                            t('compose.serverDrafts.alsoIn', {
+                              defaultValue: 'Also in {{languages}}',
+                              languages: otherLanguages.join(', '),
+                            }),
                           )
                             .font('xs')
                             .leading('16px')
                             .foreground('muted')
-                        : null,
-                      draftedFor !== undefined
-                        ? RawText(draftedFor)
-                            .font('xs')
-                            .leading('16px')
-                            .foreground('muted')
                             .shrink('normal')
-                            .lines(1)
-                        : null,
-                    )
-                      .align('center')
-                      .spacing('sm')
-                      .shrink('normal'),
+                            .lines(1),
+                        )
+                          .align('center')
+                          .spacing('xs')
+                          .shrink('normal')
+                      : null,
                   )
-                    .justify('between')
                     .align('center')
-                    .margin('bottom', 'xs'),
-                  RawText(preview)
-                    .font('14')
-                    .leading('20px')
-                    .foreground('foreground')
-                    .margin('bottom', 'xs')
-                    .lines(2),
-                  mediaCount > 0 || threadCount > 0 || otherLanguages.length > 0
-                    ? HStack(
-                        mediaCount > 0
-                          ? HStack(
-                              Icon(RiImageLine).size('14').foreground('muted'),
-                              RawText(mediaCount).font('xs').leading('16px').foreground('muted'),
-                            )
-                              .align('center')
-                              .spacing('xs')
-                          : null,
-                        threadCount > 0
-                          ? HStack(
-                              Icon(RiFileCopyLine).size('14').foreground('muted'),
-                              RawText(threadCount + 1)
-                                .font('xs')
-                                .leading('16px')
-                                .foreground('muted'),
-                            )
-                              .align('center')
-                              .spacing('xs')
-                          : null,
-                        otherLanguages.length > 0
-                          ? HStack(
-                              Icon(RiGlobalLine).size('14').foreground('muted'),
-                              RawText(
-                                t('compose.serverDrafts.alsoIn', {
-                                  defaultValue: 'Also in {{languages}}',
-                                  languages: otherLanguages.join(', '),
-                                }),
-                              )
-                                .font('xs')
-                                .leading('16px')
-                                .foreground('muted')
-                                .shrink('normal')
-                                .lines(1),
-                            )
-                              .align('center')
-                              .spacing('xs')
-                              .shrink('normal')
-                          : null,
-                      )
-                        .align('center')
-                        .spacing('md')
-                        .margin('top', 'xs')
-                    : null,
+                    .spacing('md')
+                    .margin('top', 'xs')
+                : null,
+            )
+              .flex('1')
+              .margin('right', 'md'),
+            Icon(RiArrowRightSLine).size('md').foreground('muted'),
+          )
+            .flex('1')
+            .align('center')
+            .onPress(open)
+            .disabled(isBusy)
+            .role('button')
+            .label(
+              t('compose.draftPreviewEdit', {
+                defaultValue: 'Continue writing',
+              }),
+            )
+            .pressFade(),
+          isServer
+            ? VStack(Icon(RiSendPlaneLine).size('18').foreground('primary'))
+                .padding('xs')
+                .margin('right', 'xs')
+                .onPress(() => handlePublishServerDraft(item.post))
+                .disabled(isBusy)
+                .hitSlop('lg')
+                .role('button')
+                .label(
+                  t('compose.serverDrafts.publishTitle', {
+                    defaultValue: 'Publish draft',
+                  }),
                 )
-                  .flex('1')
-                  .margin('right', 'md'),
-              )}
-              {toElement(Icon(RiArrowRightSLine).size('md').foreground('muted'))}
-            </TouchableOpacity>,
-          ),
-          Embed(
-            isServer && (
-              <TouchableOpacity
-                style={{ padding: tokens.space.xs, marginRight: tokens.space.xs }}
-                onPress={() => handlePublishServerDraft(item.post)}
-                disabled={isBusy}
-                hitSlop={tokens.hitSlop.lg}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={t('compose.serverDrafts.publishTitle', {
-                  defaultValue: 'Publish draft',
-                })}
-              >
-                {toElement(Icon(RiSendPlaneLine).size('18').foreground('primary'))}
-              </TouchableOpacity>
-            ),
-          ),
-          Embed(
-            <TouchableOpacity
-              style={{ padding: tokens.space.xs, marginRight: tokens.space.xs }}
-              onPress={openPreview}
-              disabled={isBusy}
-              hitSlop={tokens.hitSlop.lg}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' })}
-            >
-              {toElement(Icon(RiEyeLine).size('18').foreground('muted'))}
-            </TouchableOpacity>,
-          ),
-          Embed(
-            <TouchableOpacity
-              style={{ padding: tokens.space.xs }}
-              onPress={remove}
-              disabled={isBusy}
-              hitSlop={tokens.hitSlop.lg}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('compose.deleteDraft')}
-            >
-              {toElement(
-                isBusy
-                  ? Loading().style('inline').size('sm')
-                  : Icon(RiDeleteBinLine).size('18').foreground('muted'),
-              )}
-            </TouchableOpacity>,
-          ),
+                .pressFade('70')
+            : null,
+          VStack(Icon(RiEyeLine).size('18').foreground('muted'))
+            .padding('xs')
+            .margin('right', 'xs')
+            .onPress(openPreview)
+            .disabled(isBusy)
+            .hitSlop('lg')
+            .role('button')
+            .label(t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' }))
+            .pressFade('70'),
+          VStack(
+            isBusy
+              ? Loading().style('inline').size('sm')
+              : Icon(RiDeleteBinLine).size('18').foreground('muted'),
+          )
+            .padding('xs')
+            .onPress(remove)
+            .disabled(isBusy)
+            .hitSlop('lg')
+            .role('button')
+            .label(t('compose.deleteDraft'))
+            .pressFade('70'),
         )
           .padding('horizontal', 'lg')
           .padding('vertical', 'md')
@@ -544,9 +529,6 @@ const DraftsList: React.FC<DraftsListProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // A row's press area takes the width its actions leave (`flex-1`: grow,
-  // shrink, from nothing), its content in a row.
-  open: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', flexDirection: 'row', alignItems: 'center' },
   list: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
 });
 

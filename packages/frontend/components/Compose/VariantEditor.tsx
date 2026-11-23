@@ -15,10 +15,10 @@ import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
-import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD } from './composeLayout';
+import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD, composeSpace } from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
-import { Embed, Icon, Loading, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, Icon, Loading, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface VariantEditorProps {
   /** `MAIN_ITEM_ID` for the main post, or the thread item's id. */
@@ -155,25 +155,25 @@ const VariantEditor = memo(function VariantEditor({
                 </View>
               ) : null,
             ),
-            Embed(
-              <TouchableOpacity
-                onPress={handleTranslate}
-                disabled={!canTranslate}
-                activeOpacity={0.75}
-                style={[
-                  TRANSLATE,
-                  { borderColor: colorTokens.border, opacity: canTranslate ? 1 : 0.5 },
-                ]}
-              >
-                {isTranslating ? toElement(Loading().style('inline').size('sm')) : null}
-                {toElement(
-                  RawText(t('compose.languages.translate', { defaultValue: 'Translate with AI' }))
-                    .font('sm')
-                    .weight('semibold')
-                    .foreground('primary'),
-                )}
-              </TouchableOpacity>,
-            ),
+            HStack(
+              isTranslating ? Loading().style('inline').size('sm') : null,
+              RawText(t('compose.languages.translate', { defaultValue: 'Translate with AI' }))
+                .font('sm')
+                .weight('semibold')
+                .foreground('primary'),
+            )
+              .align('center')
+              .spacing('6')
+              .padding('horizontal', 'md')
+              .padding('vertical', '6')
+              .border('border', 'thin')
+              .corner('infinite')
+              .opacity(canTranslate ? 'opaque' : 'half')
+              .margin('top', 'sm')
+              .alignSelf('start')
+              .onPress(handleTranslate)
+              .disabled(!canTranslate)
+              .pressFade('75'),
           )
             .padding('top', '2xs')
             .grow(),
@@ -245,28 +245,16 @@ const VariantEditor = memo(function VariantEditor({
                   ) : null}
                 </ScrollView>,
               ),
-              Embed(
-                <TouchableOpacity
-                  onPress={ownMedia ? handleUseSharedMedia : handlePickOwnMedia}
-                  activeOpacity={0.75}
-                  style={styles.mediaModeButton}
-                >
-                  {toElement(
-                    RawText(
-                      ownMedia
-                        ? t('compose.languages.useSharedMedia', {
-                            defaultValue: 'Use the original images',
-                          })
-                        : t('compose.languages.useOwnMedia', {
-                            defaultValue: 'Use different images for {{language}}',
-                            language: language.nativeName,
-                          }),
-                    )
-                      .font('sm')
-                      .weight('semibold')
-                      .foreground('primary'),
-                  )}
-                </TouchableOpacity>,
+              mediaModeButton(
+                ownMedia
+                  ? t('compose.languages.useSharedMedia', {
+                      defaultValue: 'Use the original images',
+                    })
+                  : t('compose.languages.useOwnMedia', {
+                      defaultValue: 'Use different images for {{language}}',
+                      language: language.nativeName,
+                    }),
+                ownMedia ? handleUseSharedMedia : handlePickOwnMedia,
               ),
             ).margin('top', 'xs'),
           )
@@ -292,41 +280,25 @@ const VariantEditor = memo(function VariantEditor({
                         style={styles.articlePreview}
                       />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleArticleReset}
-                      activeOpacity={0.75}
-                      style={styles.mediaModeButton}
-                    >
-                      {toElement(
-                        RawText(
-                          t('compose.languages.useSharedArticle', {
-                            defaultValue: 'Use the original article',
-                          }),
-                        )
-                          .font('sm')
-                          .weight('semibold')
-                          .foreground('primary'),
-                      )}
-                    </TouchableOpacity>
+                    {toElement(
+                      mediaModeButton(
+                        t('compose.languages.useSharedArticle', {
+                          defaultValue: 'Use the original article',
+                        }),
+                        handleArticleReset,
+                      ),
+                    )}
                   </>
                 ) : (
-                  <TouchableOpacity
-                    onPress={handleArticlePress}
-                    activeOpacity={0.75}
-                    style={styles.mediaModeButton}
-                  >
-                    {toElement(
-                      RawText(
-                        t('compose.languages.localizeArticle', {
-                          defaultValue: 'Write the article in {{language}}',
-                          language: language.nativeName,
-                        }),
-                      )
-                        .font('sm')
-                        .weight('semibold')
-                        .foreground('primary'),
-                    )}
-                  </TouchableOpacity>
+                  toElement(
+                    mediaModeButton(
+                      t('compose.languages.localizeArticle', {
+                        defaultValue: 'Write the article in {{language}}',
+                        language: language.nativeName,
+                      }),
+                      handleArticlePress,
+                    ),
+                  )
                 ),
               ),
             ).margin('top', 'xs'),
@@ -336,18 +308,15 @@ const VariantEditor = memo(function VariantEditor({
   );
 });
 
-/** Translate with AI: an outlined pill under the text (`flex-row items-center gap-1.5 self-start px-3 py-1.5 rounded-full border mt-2`). */
-const TRANSLATE = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 6,
-  alignSelf: 'flex-start',
-  paddingHorizontal: tokens.space.md,
-  paddingVertical: 6,
-  borderRadius: Number.MAX_SAFE_INTEGER, // Tailwind's `rounded-full` as it drew
-  borderWidth: 1,
-  marginTop: tokens.space.sm,
-} satisfies ViewStyle;
+/** A text action under the attachments, in line with the text column (`ml-[68px] px-4 py-2 self-start`). */
+const mediaModeButton = (label: string, onPress: () => void) =>
+  VStack(RawText(label).font('sm').weight('semibold').foreground('primary'))
+    .padding('horizontal', 'lg')
+    .padding('vertical', 'sm')
+    .margin('left', composeSpace.space.bottomLeftPad)
+    .alignSelf('start')
+    .onPress(onPress)
+    .pressFade('75');
 /** Add an image: a dashed slot beside the images (`items-center justify-center border border-dashed rounded-[15px]`). */
 const MEDIA_ADD = {
   alignItems: 'center',
@@ -418,12 +387,6 @@ const styles = StyleSheet.create({
     right: 8,
     borderRadius: 999,
     padding: 6,
-  },
-  mediaModeButton: {
-    marginLeft: BOTTOM_LEFT_PAD,
-    paddingHorizontal: HPAD,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
   },
   articleSection: {
     marginTop: 4,

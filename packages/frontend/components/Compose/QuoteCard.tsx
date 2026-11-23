@@ -1,14 +1,11 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useMemo } from 'react';
-import { TouchableOpacity } from 'react-native';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 
-import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 
 import {
@@ -20,22 +17,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** The dismiss button's inset from its edge, in points (Tailwind's `p-1.5`). */
-const CLOSE_PADDING = 6;
-/** Tailwind's `rounded-full` as it drew: a pill at any size. */
-const ROUNDED_FULL = Number.MAX_SAFE_INTEGER;
-
-const useCloseStyles = createTokenStyles((t) => ({
-  close: {
-    position: 'absolute',
-    right: tokens.space.sm,
-    top: tokens.space.sm,
-    padding: CLOSE_PADDING,
-    borderRadius: ROUNDED_FULL,
-    backgroundColor: t.background,
-  },
-}));
 
 interface QuoteCardProps {
   /** The fetched quoted post; null while loading or if not found. */
@@ -58,7 +39,6 @@ interface QuoteCardProps {
  * of rendering this card — so an "unknown post" state isn't represented here.
  */
 const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
-  const closeStyles = useCloseStyles();
   const { t } = useTranslation();
 
   const previewText = useMemo(() => {
@@ -121,17 +101,16 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
           .padding('right', '2xl')
           .flex('1'),
       ).align('start'),
-      Embed(
-        <TouchableOpacity
-          onPress={onDismiss}
-          accessibilityRole="button"
-          accessibilityLabel={t('compose.quote.dismiss', { defaultValue: 'Remove quoted post' })}
-          style={closeStyles.close}
-          hitSlop={tokens.hitSlop.sm}
-        >
-          {toElement(Icon(RiCloseLine).size('14').foreground('foreground'))}
-        </TouchableOpacity>,
-      ),
+      VStack(Icon(RiCloseLine).size('14').foreground('foreground'))
+        .padding('6')
+        .background('background')
+        .corner('infinite')
+        .position({ right: 'sm', top: 'sm' })
+        .onPress(onDismiss)
+        .hitSlop('sm')
+        .role('button')
+        .label(t('compose.quote.dismiss', { defaultValue: 'Remove quoted post' }))
+        .pressFade(),
     )
       .style('subtle')
       .outline('thin')

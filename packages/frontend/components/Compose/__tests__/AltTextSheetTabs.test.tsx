@@ -78,9 +78,10 @@ function renderSheet() {
   return created;
 }
 
-/** A tab's fill, as its style draws it. */
+/** A tab's fill, as the style of its outermost host view draws it. */
 function tint(tab: TestRenderer.ReactTestInstance) {
-  return StyleSheet.flatten(tab.props.style)?.backgroundColor;
+  const host = tab.findAll((node) => typeof node.type === 'string')[0];
+  return StyleSheet.flatten(host?.props.style)?.backgroundColor;
 }
 
 /** Outermost node per tab — the role propagates down the nested tree. */

@@ -1,8 +1,7 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import { FlatList, StyleSheet } from 'react-native';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -204,112 +203,105 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
 
       return toElement(
         HStack(
-          Embed(
-            <TouchableOpacity
-              style={styles.open}
-              onPress={() => onPreview(item)}
-              disabled={isCancelling}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('compose.scheduled.previewA11y', {
-                defaultValue: 'Preview scheduled post',
-              })}
-            >
-              {toElement(
-                VStack(
-                  HStack(
-                    Icon(RiCalendarLine).size('14').foreground('primary'),
-                    RawText(timeLabel)
+          HStack(
+            VStack(
+              HStack(
+                Icon(RiCalendarLine).size('14').foreground('primary'),
+                RawText(timeLabel)
+                  .font('xs')
+                  .leading('16px')
+                  .weight('semibold')
+                  .foreground('primary'),
+                queuedFor !== undefined
+                  ? RawText(queuedFor)
                       .font('xs')
                       .leading('16px')
-                      .weight('semibold')
-                      .foreground('primary'),
-                    queuedFor !== undefined
-                      ? RawText(queuedFor)
-                          .font('xs')
-                          .leading('16px')
-                          .foreground('muted')
-                          .shrink('normal')
-                          .label(
-                            t('compose.scheduled.queuedForA11y', {
-                              defaultValue: 'Queued for {{account}}',
-                              account: queuedFor,
-                            }),
+                      .foreground('muted')
+                      .shrink('normal')
+                      .label(
+                        t('compose.scheduled.queuedForA11y', {
+                          defaultValue: 'Queued for {{account}}',
+                          account: queuedFor,
+                        }),
+                      )
+                      .lines(1)
+                  : null,
+              )
+                .align('center')
+                .spacing('6')
+                .margin('bottom', 'xs'),
+              RawText(getPreview(item))
+                .font('14')
+                .leading('20px')
+                .foreground('foreground')
+                .margin('bottom', 'xs')
+                .lines(2),
+              Embed(
+                (mediaCount > 0 || hasPoll) &&
+                  toElement(
+                    HStack(
+                      mediaCount > 0
+                        ? HStack(
+                            Icon(RiImageLine).size('14').foreground('muted'),
+                            RawText(mediaCount).font('xs').leading('16px').foreground('muted'),
                           )
-                          .lines(1)
-                      : null,
-                  )
-                    .align('center')
-                    .spacing('6')
-                    .margin('bottom', 'xs'),
-                  RawText(getPreview(item))
-                    .font('14')
-                    .leading('20px')
-                    .foreground('foreground')
-                    .margin('bottom', 'xs')
-                    .lines(2),
-                  Embed(
-                    (mediaCount > 0 || hasPoll) &&
-                      toElement(
-                        HStack(
-                          mediaCount > 0
-                            ? HStack(
-                                Icon(RiImageLine).size('14').foreground('muted'),
-                                RawText(mediaCount).font('xs').leading('16px').foreground('muted'),
-                              )
-                                .align('center')
-                                .spacing('xs')
-                            : null,
-                          Embed(
-                            hasPoll && toElement(Icon(RiListCheck3).size('14').foreground('muted')),
-                          ),
-                        )
-                          .align('center')
-                          .spacing('md')
-                          .margin('top', 'xs'),
+                            .align('center')
+                            .spacing('xs')
+                        : null,
+                      Embed(
+                        hasPoll && toElement(Icon(RiListCheck3).size('14').foreground('muted')),
                       ),
+                    )
+                      .align('center')
+                      .spacing('md')
+                      .margin('top', 'xs'),
                   ),
-                )
-                  .flex('1')
-                  .margin('right', 'md'),
-              )}
-              {toElement(Icon(RiArrowRightSLine).size('md').foreground('muted'))}
-            </TouchableOpacity>,
-          ),
-          Embed(
-            <TouchableOpacity
-              style={{ padding: tokens.space.xs, marginRight: tokens.space.xs }}
-              onPress={() => onEdit(item)}
-              disabled={isCancelling}
-              hitSlop={tokens.hitSlop.lg}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('compose.scheduled.edit', {
+              ),
+            )
+              .flex('1')
+              .margin('right', 'md'),
+            Icon(RiArrowRightSLine).size('md').foreground('muted'),
+          )
+            .flex('1')
+            .align('center')
+            .onPress(() => onPreview(item))
+            .disabled(isCancelling)
+            .role('button')
+            .label(
+              t('compose.scheduled.previewA11y', {
+                defaultValue: 'Preview scheduled post',
+              }),
+            )
+            .pressFade('70'),
+          VStack(Icon(RiEditLine).size('18').foreground('muted'))
+            .padding('xs')
+            .margin('right', 'xs')
+            .onPress(() => onEdit(item))
+            .disabled(isCancelling)
+            .hitSlop('lg')
+            .role('button')
+            .label(
+              t('compose.scheduled.edit', {
                 defaultValue: 'Edit scheduled post',
-              })}
-            >
-              {toElement(Icon(RiEditLine).size('18').foreground('muted'))}
-            </TouchableOpacity>,
-          ),
-          Embed(
-            <TouchableOpacity
-              style={{ padding: tokens.space.xs }}
-              onPress={() => handleCancel(item)}
-              disabled={isCancelling}
-              hitSlop={tokens.hitSlop.lg}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t('compose.scheduled.cancelTitle', {
+              }),
+            )
+            .pressFade('70'),
+          VStack(
+            isCancelling
+              ? Loading().style('inline').size('sm')
+              : Icon(RiDeleteBinLine).size('18').foreground('muted'),
+          )
+            .padding('xs')
+            .onPress(() => handleCancel(item))
+            .disabled(isCancelling)
+            .hitSlop('lg')
+            .role('button')
+            .label(
+              t('compose.scheduled.cancelTitle', {
                 defaultValue: 'Cancel scheduled post',
-              })}
-            >
-              {toElement(
-                isCancelling
-                  ? Loading().style('inline').size('sm')
-                  : Icon(RiDeleteBinLine).size('18').foreground('muted'),
-              )}
-            </TouchableOpacity>,
-          ),
+              }),
+            )
+            .pressFade('70'),
         )
           .padding('horizontal', 'lg')
           .padding('vertical', 'md')
@@ -374,9 +366,6 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // A row's press area takes the width its actions leave (`flex-1`: grow,
-  // shrink, from nothing), its content in a row.
-  open: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', flexDirection: 'row', alignItems: 'center' },
   list: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
 });
 
