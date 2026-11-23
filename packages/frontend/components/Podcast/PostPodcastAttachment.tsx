@@ -1,6 +1,5 @@
 import { useRef } from 'react';
-import { Text, View, type DimensionValue, type ViewInstance, type ViewStyle } from 'react-native';
-import { useColorTokens } from '@oxy.so/bloom/theme';
+import { View, type DimensionValue, type ViewInstance, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { PostPodcastContent } from '@mention/shared-types/post';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
@@ -9,11 +8,10 @@ import { syraPodcastCards } from '@/lib/references/syraPodcastCards';
 import { PodcastCard } from './PodcastCard';
 import { PodcastSaveButton } from './PodcastSaveButton';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 // The card's box stays a view (it is measured for visibility and sized by its post);
-// this draws its classes, `rounded-2xl overflow-hidden`. Its status text stays
-// React Native's Text, a polite live region the language has no modifier for.
+// this draws its classes, `rounded-2xl overflow-hidden`.
 const attachmentBox: ViewStyle = { borderRadius: 16, overflow: 'hidden' };
 
 /** Even cached pre-migration feed objects contribute ONLY their ID. */
@@ -33,7 +31,6 @@ export function PostPodcastAttachment({
   onPress?: () => void;
 }) {
   const { t } = useTranslation();
-  const colors = useColorTokens();
   const cardRef = useRef<ViewInstance>(null);
   const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
   const state = useVisibleReference(syraPodcastCards, podcast.syraPodcastId, visible);
@@ -54,13 +51,13 @@ export function PostPodcastAttachment({
       ) : (
         toElement(
           VStack(
-            Embed(
-              <Text accessibilityLiveRegion="polite" style={{ color: colors.mutedForeground }}>
-                {state.status === 'loading'
-                  ? t('podcast.loading', { defaultValue: 'Loading Syra podcast…' })
-                  : t('podcast.unavailable', { defaultValue: 'This Syra podcast is unavailable' })}
-              </Text>,
-            ),
+            RawText(
+              state.status === 'loading'
+                ? t('podcast.loading', { defaultValue: 'Loading Syra podcast…' })
+                : t('podcast.unavailable', { defaultValue: 'This Syra podcast is unavailable' }),
+            )
+              .foreground('muted')
+              .liveRegion('polite'),
           )
             .padding('all', 'lg')
             .background('card')

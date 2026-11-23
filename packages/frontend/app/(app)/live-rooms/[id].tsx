@@ -20,12 +20,6 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@oxy.so/bloom/dropdown-menu';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -56,6 +50,8 @@ import {
   HStack,
   Header,
   Icon,
+  Item,
+  Menu,
   RawText,
   ScrollView,
   Text as LText,
@@ -318,64 +314,36 @@ const RoomDetailScreen = () => {
           Header(room ? undefined : t('agora.room'))
             .backLabel(t('common.back', { defaultValue: 'Back' }))
             .toolbar(
-              Embed(
-                room
-                  ? toElement(
-                      // The trigger hands its press and name to its child (`asChild`): draw the
-                      // button as its own host with `render`, not behind a toElement boundary.
-                      Embed((render) => (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            asChild
-                            label={t('common.options', { defaultValue: 'Options' })}
-                          >
-                            {
-                              render(
-                                LButton(Icon(RiMoreFill))
-                                  .shape('circle')
-                                  .style('subtle')
-                                  .tint('neutral')
-                                  .label(t('common.options', { defaultValue: 'Options' })),
-                              ) as React.ReactElement
-                            }
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            label={t('common.options', { defaultValue: 'Options' })}
-                          >
-                            <DropdownMenuItem
-                              leading={toElement(
-                                Icon(RiShareForwardLine).size('22').foreground('foreground'),
-                              )}
-                              onPress={handleShareRoom}
-                            >
-                              {t('agora.shareRoom', { defaultValue: 'Share room' })}
-                            </DropdownMenuItem>
-                            {isJoined && !isHost ? (
-                              <DropdownMenuItem
-                                variant="destructive"
-                                leading={toElement(
-                                  Icon(RiLogoutBoxRLine).size('22').foreground('error'),
-                                )}
-                                onPress={handleLeave}
-                              >
-                                {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
-                              </DropdownMenuItem>
-                            ) : null}
-                            {isHost ? null : (
-                              <DropdownMenuItem
-                                variant="destructive"
-                                leading={toElement(Icon(RiFlagLine).size('22').foreground('error'))}
-                                onPress={handleReport}
-                              >
-                                {t('agora.reportRoom', { defaultValue: 'Report room' })}
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )),
-                    )
-                  : undefined,
-              ),
+              room
+                ? Menu(
+                    LButton(Icon(RiMoreFill))
+                      .shape('circle')
+                      .style('subtle')
+                      .tint('neutral')
+                      .label(t('common.options', { defaultValue: 'Options' })),
+                    Item(t('agora.shareRoom', { defaultValue: 'Share room' }))
+                      .icon(RiShareForwardLine)
+                      .iconSize('22')
+                      .iconForeground('foreground')
+                      .onPress(handleShareRoom),
+                    isJoined && !isHost
+                      ? Item(t('agora.leaveRoom', { defaultValue: 'Leave room' }))
+                          .icon(RiLogoutBoxRLine)
+                          .iconSize('22')
+                          .iconForeground('error')
+                          .destructive()
+                          .onPress(handleLeave)
+                      : null,
+                    isHost
+                      ? null
+                      : Item(t('agora.reportRoom', { defaultValue: 'Report room' }))
+                          .icon(RiFlagLine)
+                          .iconSize('22')
+                          .iconForeground('error')
+                          .destructive()
+                          .onPress(handleReport),
+                  ).label(t('common.options', { defaultValue: 'Options' }))
+                : null,
             )
             .inPage(),
         )}
