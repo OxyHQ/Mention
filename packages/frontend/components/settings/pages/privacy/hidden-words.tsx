@@ -13,7 +13,6 @@ import { getErrorMessage } from '@/utils/apiError';
 import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { confirm as confirmSettingsAction } from '@oxy.so/bloom/surfaces';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -35,6 +34,8 @@ import {
   VStack,
   defineTokens,
   toElement,
+  TextField,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 const hiddenWordsLogger = createLogger('HiddenWords');
@@ -180,21 +181,24 @@ export default function HiddenWordsScreen() {
             HStack(
               Icon(RiEyeOffLine).size('md').foreground('muted'),
               Embed(
-                <TextFieldInput
-                  value={input}
-                  onValueChange={setInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  placeholder={t('settings.privacy.addWordPlaceholder', {
-                    defaultValue: 'Word or #hashtag',
-                  })}
-                  editable={!addMutation.isPending}
-                  onSubmitEditing={handleAdd}
-                  returnKeyType="done"
-                  label={t('settings.privacy.addWordPlaceholder', {
-                    defaultValue: 'Word or #hashtag',
-                  })}
-                />,
+                LtoElement(
+                  TextField(
+                    [input, setInput],
+                    t('settings.privacy.addWordPlaceholder', {
+                      defaultValue: 'Word or #hashtag',
+                    }),
+                  )
+                    .autocapitalize('none')
+                    .autocorrect(false)
+                    .placeholder(
+                      t('settings.privacy.addWordPlaceholder', {
+                        defaultValue: 'Word or #hashtag',
+                      }),
+                    )
+                    .editable(!addMutation.isPending)
+                    .onSubmit(handleAdd)
+                    .submitLabel('done'),
+                ),
               ),
               addMutation.isPending
                 ? Loading().style('inline').size('sm')
