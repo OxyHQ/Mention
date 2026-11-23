@@ -40,7 +40,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
       <Surface
         material="lens"
         radius={CAPSULE}
-        className="m-3 min-h-14 flex-row items-center gap-3 px-3 py-3"
+        className="m-3 min-h-14 flex-row items-center gap-3 self-stretch px-3 py-3"
       >
         <PressableScale
           onPress={compose}
