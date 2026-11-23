@@ -6,7 +6,6 @@ import { useRouter, Redirect } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
-import { Button } from '@oxy.so/bloom/button';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
@@ -453,29 +452,29 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     <>
       {/* The bell is a toggle rendered as two different glyphs, so its
                 label has to carry the state a sighted user reads from the icon. */}
-      <Button
-        appearance="subtle"
-        tone="neutral"
-        iconOnly
-        icon={
+      {toElement(
+        LButton(
           subscribed
-            ? toElement(Icon(RiNotification3Fill).size('md').foreground('primary'))
-            : RiNotification3Line
-        }
-        onPress={toggleSubscription}
-        disabled={subLoading}
-        accessibilityLabel={
-          subscribed
-            ? t('profile.actions.unsubscribe', {
-                handle,
-                defaultValue: 'Stop notifying me about new posts from @{{handle}}',
-              })
-            : t('profile.actions.subscribe', {
-                handle,
-                defaultValue: 'Notify me about new posts from @{{handle}}',
-              })
-        }
-      />
+            ? Icon(RiNotification3Fill).size('md').foreground('primary')
+            : Icon(RiNotification3Line),
+        )
+          .shape('circle')
+          .style('subtle')
+          .tint('neutral')
+          .onPress(toggleSubscription)
+          .disabled(subLoading)
+          .label(
+            subscribed
+              ? t('profile.actions.unsubscribe', {
+                  handle,
+                  defaultValue: 'Stop notifying me about new posts from @{{handle}}',
+                })
+              : t('profile.actions.subscribe', {
+                  handle,
+                  defaultValue: 'Notify me about new posts from @{{handle}}',
+                }),
+          ),
+      )}
       {toElement(
         LButton(Icon(RiUpload2Line))
           .shape('circle')
