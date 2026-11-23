@@ -17,7 +17,6 @@ import { RiCameraSwitchLine } from '@oxy.so/bloom/icons/RiCameraSwitchLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
 import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
-import { Text, fontFamilyStyle } from '@oxy.so/bloom/typography';
 import {
   FLASH_CHOICES,
   HOLD_TO_RECORD_MS,
@@ -525,7 +524,14 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
         .spacing('10')
         .position({ top: cameraSpace.space.controlTop, right: 'lg' }),
       countdown !== null
-        ? VStack(Embed(<Text style={styles.countdownText}>{countdown}</Text>))
+        ? VStack(
+            LText(String(countdown))
+              .font('96')
+              .leading('96px')
+              .weight('bold')
+              .font('display')
+              .foreground('white'),
+          )
             .align('center')
             .justify('center')
             .position({ top: 'none', left: 'none', right: 'none', bottom: 'none' })
@@ -785,17 +791,6 @@ function formatRemaining(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
-  // Off Bloom's type scale (`text-8xl font-bold`) in the display face, as Bloom's Text
-  // drew it from a size of `text-3xl` up: the language's Text has the size ('96') and
-  // the line ('96px') but draws the display face only for a ramp step, never at a
-  // numeric size, so the countdown stays a view.
-  countdownText: {
-    ...fontFamilyStyle('display'),
-    color: '#fff',
-    fontSize: 96,
-    lineHeight: 96,
-    fontWeight: '700',
-  },
   close: { position: 'absolute', top: 56, left: 20 },
   roundButton: {
     width: 40,
