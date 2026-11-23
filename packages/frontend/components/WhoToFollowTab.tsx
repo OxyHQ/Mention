@@ -1,7 +1,7 @@
 import { shareLink } from '@/utils/shareLink';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
@@ -24,7 +24,7 @@ import {
 } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
-import { Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const APP_URL = 'https://mention.earth';
 
@@ -162,36 +162,44 @@ function ProfileDiscoveryList({
     () => (
       <>
         {listHeaderComponent}
-        {showInviteBanner ? (
-          <TouchableOpacity
-            style={[
-              styles.inviteBanner,
-              { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
-            ]}
-            onPress={handleInviteFriends}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}>
-              <RiGroupFill width={18} fill={theme.colors.card} />
-            </View>
-            {toElement(
-              VStack(
-                LText(t('settings.inviteContacts.inviteBannerTitle'))
-                  .font('14')
-                  .weight('bold')
-                  .leading('24px')
-                  .foreground('foreground')
-                  .margin('bottom', '2xs'),
-                LText(t('settings.inviteContacts.inviteBannerSubtitle'))
-                  .font('xs')
-                  .weight('medium')
-                  .leading('24px')
-                  .foreground('muted'),
-              ).grow(),
-            )}
-            <RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        ) : null}
+        {showInviteBanner
+          ? toElement(
+              HStack(
+                Embed(
+                  <View
+                    style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}
+                  >
+                    <RiGroupFill width={18} fill={theme.colors.card} />
+                  </View>,
+                ),
+                VStack(
+                  LText(t('settings.inviteContacts.inviteBannerTitle'))
+                    .font('14')
+                    .weight('bold')
+                    .leading('24px')
+                    .foreground('foreground')
+                    .margin('bottom', '2xs'),
+                  LText(t('settings.inviteContacts.inviteBannerSubtitle'))
+                    .font('xs')
+                    .weight('medium')
+                    .leading('24px')
+                    .foreground('muted'),
+                ).grow(),
+                Embed(<RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />),
+              )
+                .align('center')
+                .padding('all', '10')
+                .background('card')
+                .border('border', 'thin')
+                .corner('xl')
+                .spacing('10')
+                .margin('horizontal', 'lg')
+                .margin('top', 'md')
+                .margin('bottom', 'sm')
+                .onPress(handleInviteFriends)
+                .pressFade('70'),
+            )
+          : null}
       </>
     ),
     [
@@ -199,7 +207,6 @@ function ProfileDiscoveryList({
       showInviteBanner,
       handleInviteFriends,
       theme.colors.card,
-      theme.colors.border,
       theme.colors.primary,
       theme.colors.textSecondary,
       t,
@@ -322,17 +329,6 @@ const styles = StyleSheet.create({
   footer: {
     paddingVertical: 16,
     alignItems: 'center',
-  },
-  inviteBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 10,
   },
   inviteIconContainer: {
     width: 34,
