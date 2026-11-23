@@ -4,7 +4,7 @@ import { Image, ScrollView, TouchableOpacity, type ImageStyle, type ViewStyle } 
 import { tokens } from '@oxy.so/bloom/styles';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { Textarea } from '@oxy.so/bloom/textarea';
-import { tokenAlpha, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { tokenAlpha, useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import {
@@ -63,7 +63,6 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
   onSave,
   onClose,
 }) => {
-  const theme = useTheme();
   const colorTokens = useColorTokens();
 
   const { t } = useTranslation();
@@ -171,7 +170,7 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
                     style={[
                       tabStyle,
                       isActive && { backgroundColor: tokenAlpha(colorTokens.primary, 0.1) },
-                      { borderColor: isActive ? theme.colors.primary : theme.colors.border },
+                      { borderColor: isActive ? colorTokens.primary : colorTokens.border },
                     ]}
                   >
                     {toElement(

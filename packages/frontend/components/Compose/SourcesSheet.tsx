@@ -7,7 +7,7 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
 
@@ -57,7 +57,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
   validateUrl,
   maxSources = 5,
 }) => {
-  const theme = useTheme();
+  const colorTokens = useColorTokens();
   const { t } = useTranslation();
 
   const canAddMore = sources.length < maxSources;
@@ -144,10 +144,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                         appearance="outline"
                         elevation="none"
                         radius="radius-12"
-                        style={[
-                          SOURCE_CARD,
-                          isUrlInvalid && { borderColor: theme.colors.error || '#ff4d4f' },
-                        ]}
+                        style={[SOURCE_CARD, isUrlInvalid && { borderColor: colorTokens.error }]}
                       >
                         {toElement(
                           HStack(
