@@ -36,6 +36,7 @@ jest.mock('react-native-reanimated', () => ({
   Extrapolation: { CLAMP: 'clamp' },
   interpolate: (value: number) => value,
   useAnimatedStyle: (callback: () => object) => callback(),
+  useSharedValue: (value: unknown) => ({ value }),
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ oxyServices: {} }),
