@@ -60,6 +60,12 @@ export interface FeedProps {
   style?: React.ComponentProps<typeof View>['style'];
   contentContainerStyle?: React.ComponentProps<typeof View>['style'];
   listHeaderComponent?: React.ReactElement | null;
+  /**
+   * A row above the header (the compose prompt): the screen's own navigation,
+   * such as Home's feed tabs, so it scrolls up and away with the feed instead of
+   * staying pinned over it.
+   */
+  listTopComponent?: React.ReactElement | null;
   /** A normal row rendered before the sticky row. */
   listContentHeaderComponent?: React.ReactElement | null;
   /**
@@ -303,18 +309,25 @@ export function useFeedCore(props: FeedProps) {
     caughtUp ||
     (!isAuthenticated && presentedRows.length > 0);
 
-  const { listHeaderComponent, showComposeButton, onComposePress, hideHeader } = merged;
-  const header = useMemo(
-    () =>
-      listHeaderComponent ?? (
-        <FeedHeader
-          showComposeButton={showComposeButton}
-          onComposePress={onComposePress}
-          hideHeader={hideHeader}
-        />
-      ),
-    [listHeaderComponent, showComposeButton, onComposePress, hideHeader],
-  );
+  const { listHeaderComponent, listTopComponent, showComposeButton, onComposePress, hideHeader } =
+    merged;
+  const header = useMemo(() => {
+    const own = listHeaderComponent ?? (
+      <FeedHeader
+        showComposeButton={showComposeButton}
+        onComposePress={onComposePress}
+        hideHeader={hideHeader}
+      />
+    );
+    return listTopComponent ? (
+      <>
+        {listTopComponent}
+        {own}
+      </>
+    ) : (
+      own
+    );
+  }, [listHeaderComponent, listTopComponent, showComposeButton, onComposePress, hideHeader]);
 
   const isThread = type === 'replies' && Boolean(filters?.parentPostId || filters?.postId);
   const emptyState = useMemo(
@@ -431,6 +444,7 @@ export function areFeedPropsEqual(prevProps: FeedProps, nextProps: FeedProps): b
     prevProps.threaded !== nextProps.threaded ||
     prevProps.threadPostId !== nextProps.threadPostId ||
     prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
+    prevProps.listTopComponent !== nextProps.listTopComponent ||
     prevProps.listContentHeaderComponent !== nextProps.listContentHeaderComponent ||
     prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
     prevProps.listLeadingComponent !== nextProps.listLeadingComponent ||

@@ -205,6 +205,28 @@ it('refreshes feed and profile chrome concurrently and waits for both', async ()
   });
 });
 
+it("draws the screen's top row above the compose prompt, inside the list, so Home's tabs scroll away", () => {
+  const state: {
+    core?: ReturnType<typeof useFeedCore>;
+    renderer?: TestRenderer.ReactTestRenderer;
+  } = {};
+  const tabs = React.createElement('home-tabs');
+  function Harness() {
+    state.core = useFeedCore({ type: 'for_you', showComposeButton: true, listTopComponent: tabs });
+    return null;
+  }
+  act(() => {
+    state.renderer = TestRenderer.create(<Harness />);
+  });
+  const header = state.core?.header as React.ReactElement<{ children: React.ReactElement[] }>;
+  const [first, second] = React.Children.toArray(header.props.children) as React.ReactElement[];
+  expect(first?.type).toBe('home-tabs');
+  expect((second?.props as { showComposeButton?: boolean }).showComposeButton).toBe(true);
+  act(() => {
+    state.renderer?.unmount();
+  });
+});
+
 describe('a pinned post holds the first presentation on native too (#1216)', () => {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   afterEach(() => {

@@ -138,6 +138,29 @@ const HomeScreen = screen(function HomeScreen() {
     ? { showComposeButton: true, onComposePress: () => router.push('/compose') }
     : {};
 
+  // The feed tabs are the first row of each tab's feed, so they scroll up and
+  // away with it rather than staying pinned under the header, and each tab
+  // keeps its own scroll position with its own copy of the bar at the top.
+  const tabBar = toElement(
+    LTabs(
+      [activeTab, setActiveTab],
+      homeTabs.map((tab) =>
+        TabItem(tab.key, tab.label)
+          .font('md')
+          .leading('18px')
+          .weight(activeTab === tab.key ? 'bold' : 'medium')
+          .padding('left', 'md')
+          .padding('right', 'md')
+          .padding('top', 'none')
+          .padding('bottom', 'none')
+          .frame({ height: '38', minWidth: '76' }),
+      ),
+    )
+      .pressOpenTab('reselect')
+      .style('underline')
+      .frame({ height: '38' }),
+  );
+
   const renderTabFeed = (tab: HomeTabModel) =>
     tab.kind === 'custom' ? (
       <Feed
@@ -145,6 +168,7 @@ const HomeScreen = screen(function HomeScreen() {
         type="custom"
         filters={{ customFeedId: tab.feedId }}
         reloadKey={reloadKeyFor(tab.key)}
+        listTopComponent={tabBar}
         {...composeProps}
       />
     ) : (
@@ -152,6 +176,7 @@ const HomeScreen = screen(function HomeScreen() {
         key={`${tab.type}-${feedIdentity}`}
         type={tab.type}
         reloadKey={reloadKeyFor(tab.key)}
+        listTopComponent={tabBar}
         {...composeProps}
       />
     );
@@ -165,27 +190,6 @@ const HomeScreen = screen(function HomeScreen() {
         description={t('seo.home.description')}
         jsonLd={SITE_STRUCTURED_DATA}
       />,
-    ),
-    Embed(
-      toElement(
-        LTabs(
-          [activeTab, setActiveTab],
-          homeTabs.map((tab) =>
-            TabItem(tab.key, tab.label)
-              .font('md')
-              .leading('18px')
-              .weight(activeTab === tab.key ? 'bold' : 'medium')
-              .padding('left', 'md')
-              .padding('right', 'md')
-              .padding('top', 'none')
-              .padding('bottom', 'none')
-              .frame({ height: '38', minWidth: '76' }),
-          ),
-        )
-          .pressOpenTab('reselect')
-          .style('underline')
-          .frame({ height: '38' }),
-      ),
     ),
     Embed(
       mountedTabs.map((tab) => (
