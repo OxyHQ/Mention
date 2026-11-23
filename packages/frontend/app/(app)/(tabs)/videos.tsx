@@ -103,6 +103,9 @@ import {
   VStack,
   defineTokens,
   toElement,
+  Embed as LEmbed,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 // ── Tuning constants ─────────────────────────────────────────────
@@ -910,128 +913,154 @@ const VideoItem = memo<VideoItemProps>(
             style={styles.gradientOverlay}
           />
 
-          <View style={styles.bottomInfo} pointerEvents="box-none">
-            {isActive && item.viewerState.isBoosted && (
-              <VideoRepostBubble
-                visible
-                onAddThought={item.metadata.quotesDisabled ? undefined : () => onQuote(item.id)}
-              />
-            )}
-            {toElement(
-              VStack(
-                HStack(
-                  HStack(
-                    Embed(
-                      <Avatar
-                        source={item.user?.avatar ?? undefined}
-                        size={32}
-                        variant={MEDIA_VARIANT_AVATAR}
-                        verified={item.user?.verified || false}
-                        style={styles.userAvatar}
-                      />,
-                    ),
-                    VStack(
+          {LtoElement(
+            LVStack(
+              LEmbed(
+                isActive && item.viewerState.isBoosted && (
+                  <VideoRepostBubble
+                    visible
+                    onAddThought={item.metadata.quotesDisabled ? undefined : () => onQuote(item.id)}
+                  />
+                ),
+              ),
+              LEmbed(
+                toElement(
+                  VStack(
+                    HStack(
                       HStack(
                         Embed(
-                          <Text style={styles.userFullName} numberOfLines={1}>
-                            {userName}
-                          </Text>,
+                          <Avatar
+                            source={item.user?.avatar ?? undefined}
+                            size={32}
+                            variant={MEDIA_VARIANT_AVATAR}
+                            verified={item.user?.verified || false}
+                            style={styles.userAvatar}
+                          />,
                         ),
-                        Embed(
-                          item.user?.verified && (
-                            <RiVerifiedBadgeFill
-                              width={14}
-                              height={14}
-                              fill={VERIFIED_BADGE_COLOR}
-                              style={styles.verifiedIcon}
-                            />
-                          ),
-                        ),
-                      )
-                        .align('center')
-                        .spacing('xs'),
-                      HStack(
-                        Icon(RiMusic2Line).size('13').foreground(appColors.color.hexFFFFFF),
-                        Embed(
-                          <Text style={styles.soundText} numberOfLines={1}>
-                            {t('videos.original_audio')} · @{userHandle}
-                          </Text>,
-                        ),
-                      )
-                        .align('center')
-                        .spacing('6')
-                        .margin('top', '2xs')
-                        .allowsHitTesting(false),
-                    ).grow(),
-                  )
-                    .frame({ minWidth: 'none' })
-                    .align('center')
-                    .spacing('10')
-                    .shrink('normal')
-                    .onPress(handleProfilePress),
-                  Embed(
-                    showOnVideoFollow &&
-                      item.user?.id &&
-                      toElement(
                         VStack(
-                          Embed(
-                            <FollowButton userId={item.user.id} username={userHandle} size="sm" />,
+                          HStack(
+                            Embed(
+                              <Text style={styles.userFullName} numberOfLines={1}>
+                                {userName}
+                              </Text>,
+                            ),
+                            Embed(
+                              item.user?.verified && (
+                                <RiVerifiedBadgeFill
+                                  width={14}
+                                  height={14}
+                                  fill={VERIFIED_BADGE_COLOR}
+                                  style={styles.verifiedIcon}
+                                />
+                              ),
+                            ),
+                          )
+                            .align('center')
+                            .spacing('xs'),
+                          HStack(
+                            Icon(RiMusic2Line).size('13').foreground(appColors.color.hexFFFFFF),
+                            Embed(
+                              <Text style={styles.soundText} numberOfLines={1}>
+                                {t('videos.original_audio')} · @{userHandle}
+                              </Text>,
+                            ),
+                          )
+                            .align('center')
+                            .spacing('6')
+                            .margin('top', '2xs')
+                            .allowsHitTesting(false),
+                        ).grow(),
+                      )
+                        .frame({ minWidth: 'none' })
+                        .align('center')
+                        .spacing('10')
+                        .shrink('normal')
+                        .onPress(handleProfilePress),
+                      Embed(
+                        showOnVideoFollow &&
+                          item.user?.id &&
+                          toElement(
+                            VStack(
+                              Embed(
+                                <FollowButton
+                                  userId={item.user.id}
+                                  username={userHandle}
+                                  size="sm"
+                                />,
+                              ),
+                            ).shrink('never'),
                           ),
-                        ).shrink('never'),
                       ),
-                  ),
-                )
-                  .align('center')
-                  .spacing('md')
-                  .allowsHitTesting('children'),
-                postText
-                  ? VStack(
-                      Embed(
-                        <LinkifiedText
-                          text={postText}
-                          style={styles.postText}
-                          linkStyle={styles.postLink}
-                          numberOfLines={captionExpanded ? undefined : 1}
-                        />,
-                      ),
-                      Embed(
-                        showCaptionToggle && (
-                          <Text
-                            style={styles.captionToggle}
-                            onPress={toggleCaption}
-                            accessibilityRole="button"
-                          >
-                            {t(captionExpanded ? 'videos.less' : 'videos.more')}
-                          </Text>
-                        ),
-                      ),
-                    ).margin('top', 'xs')
-                  : null,
-              )
-                .spacing('xs')
-                .allowsHitTesting('children'),
-            )}
-          </View>
+                    )
+                      .align('center')
+                      .spacing('md')
+                      .allowsHitTesting('children'),
+                    postText
+                      ? VStack(
+                          Embed(
+                            <LinkifiedText
+                              text={postText}
+                              style={styles.postText}
+                              linkStyle={styles.postLink}
+                              numberOfLines={captionExpanded ? undefined : 1}
+                            />,
+                          ),
+                          Embed(
+                            showCaptionToggle && (
+                              <Text
+                                style={styles.captionToggle}
+                                onPress={toggleCaption}
+                                accessibilityRole="button"
+                              >
+                                {t(captionExpanded ? 'videos.less' : 'videos.more')}
+                              </Text>
+                            ),
+                          ),
+                        ).margin('top', 'xs')
+                      : null,
+                  )
+                    .spacing('xs')
+                    .allowsHitTesting('children'),
+                ),
+              ),
+            )
+              .padding('bottom', 'none')
+              .frame({ minWidth: 'none' })
+              .justify('end')
+              .margin('right', 'lg')
+              .grow()
+              .zIndex('6')
+              .allowsHitTesting('children'),
+          )}
 
-          <View style={styles.rightActions} pointerEvents="box-none">
-            <PostActions
-              presentation="video"
-              t={t}
-              engagement={{
-                ...item.engagement,
-                replies: cachedActivePost?.engagement.replies ?? item.engagement.replies,
-              }}
-              isLiked={item.viewerState.isLiked}
-              isBoosted={item.viewerState.isBoosted}
-              isSaved={item.viewerState.isSaved}
-              onLike={() => onLike(item.id, item.viewerState.isLiked)}
-              onReply={postAcceptsReplies(item) ? () => onComment(item.id) : undefined}
-              onBoost={() => onBoost(item.id, item.viewerState.isBoosted)}
-              onSave={() => onSave(item.id, item.viewerState.isSaved)}
-              onShare={() => onShare(item)}
-              onSendInAllo={() => onSendInAllo(item.id)}
-            />
-          </View>
+          {LtoElement(
+            LVStack(
+              LEmbed(
+                <PostActions
+                  presentation="video"
+                  t={t}
+                  engagement={{
+                    ...item.engagement,
+                    replies: cachedActivePost?.engagement.replies ?? item.engagement.replies,
+                  }}
+                  isLiked={item.viewerState.isLiked}
+                  isBoosted={item.viewerState.isBoosted}
+                  isSaved={item.viewerState.isSaved}
+                  onLike={() => onLike(item.id, item.viewerState.isLiked)}
+                  onReply={postAcceptsReplies(item) ? () => onComment(item.id) : undefined}
+                  onBoost={() => onBoost(item.id, item.viewerState.isBoosted)}
+                  onSave={() => onSave(item.id, item.viewerState.isSaved)}
+                  onShare={() => onShare(item)}
+                  onSendInAllo={() => onSendInAllo(item.id)}
+                />,
+              ),
+            )
+              .justify('end')
+              .align('center')
+              .spacing('none')
+              .zIndex('6')
+              .allowsHitTesting('children'),
+          )}
         </View>
       </Animated.View>
     );
