@@ -1,7 +1,5 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { Suspense, lazy, useCallback, useEffect, useRef } from 'react';
-import { TouchableOpacity, type ViewStyle } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -34,9 +32,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** The report link sits centred, 16pt under the actions (`mt-4 self-center`). */
-const REPORT_STYLE: ViewStyle = { marginTop: 16, alignSelf: 'center' };
 import { screen } from '@oxy.so/bloom-language/router';
 
 const ReportModal = lazy(() =>
@@ -308,16 +303,17 @@ export default screen(function JobDetailScreen() {
     )
       .spacing('md')
       .margin('top', '2xl'),
-    Embed((render) => (
-      <TouchableOpacity onPress={openReport} style={REPORT_STYLE} hitSlop={tokens.hitSlop.md}>
-        {render(
-          RawText(t('jobs.detail.report', { defaultValue: 'Report this listing' }))
-            .foreground('muted')
-            .font('xs')
-            .leading('16px'),
-        )}
-      </TouchableOpacity>
-    )),
+    VStack(
+      RawText(t('jobs.detail.report', { defaultValue: 'Report this listing' }))
+        .foreground('muted')
+        .font('xs')
+        .leading('16px'),
+    )
+      .margin('top', 'lg')
+      .alignSelf('center')
+      .onPress(openReport)
+      .hitSlop('md')
+      .pressFade(),
   )
     .contentView((v) => v.padding('horizontal', 'lg').padding('bottom', '64').padding('top', 'sm'))
     .header(Embed(header));
