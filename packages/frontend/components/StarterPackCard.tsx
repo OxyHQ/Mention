@@ -165,9 +165,13 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
                 HStack(
                   VStack(
                     Embed(
-                      <Text variant="headline-semibold" style={styles.title} numberOfLines={2}>
-                        {pack.name}
-                      </Text>,
+                      LtoElement(
+                        LText(pack.name)
+                          .leading('20px')
+                          .font('headline')
+                          .weight('semibold')
+                          .lines(2),
+                      ),
                     ),
                     Embed(
                       pack.creator && (

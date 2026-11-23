@@ -2,7 +2,7 @@ import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import type React from 'react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Platform, type ViewStyle } from 'react-native';
+import { Platform, type ViewStyle } from 'react-native';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -273,17 +273,21 @@ const ListDetailScreen = screen(function ListDetailScreen() {
               .align('center')
               .spacing('xs'),
             Embed(
-              !isOwnList ? (
-                <View style={followSlot}>
-                  <EntityFollowButton
-                    entityType="list"
-                    entityId={listId}
-                    label={t('lists.followList', { defaultValue: 'Follow list' })}
-                    followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
-                    size="sm"
-                  />
-                </View>
-              ) : null,
+              !isOwnList
+                ? LtoElement(
+                    LVStack(
+                      LEmbed(
+                        <EntityFollowButton
+                          entityType="list"
+                          entityId={listId}
+                          label={t('lists.followList', { defaultValue: 'Follow list' })}
+                          followingLabel={t('lists.followingList', { defaultValue: 'Following' })}
+                          size="sm"
+                        />,
+                      ),
+                    ).margin('left', 'auto'),
+                  )
+                : null,
             ),
           )
             .align('center')
