@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
 
@@ -19,18 +19,25 @@ import { ProfileCard } from '@/components/ProfileCard';
 import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { Embed, HStack, Header, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
-
 import {
+  Embed,
+  HStack,
+  Header,
+  Text as LText,
+  VStack,
+  toElement,
   Embed as LEmbed,
   VStack as LVStack,
   toElement as LtoElement,
+  Group,
 } from '@oxy.so/bloom-language';
+
+import { screen } from '@oxy.so/bloom-language/router';
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
 
-export default function PokesScreen() {
+export default screen(function PokesScreen() {
   const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
@@ -343,40 +350,39 @@ export default function PokesScreen() {
     );
   };
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(
       <SEO
         title={t('pokes.seo.title', { defaultValue: 'Pokes' })}
         description={t('pokes.seo.description', {
           defaultValue: 'See who poked you and poke them back',
         })}
-      />
-      <Screen
-        header={toElement(
-          Header(t('pokes.title', { defaultValue: 'Pokes' }))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .inPage(),
-        )}
+      />,
+    ),
+    Embed(
+      <ScreenScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+        refreshControl={
+          isAuthenticated ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          ) : undefined
+        }
       >
-        <ScreenScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
-          refreshControl={
-            isAuthenticated ? (
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                colors={[theme.colors.primary]}
-                tintColor={theme.colors.primary}
-              />
-            ) : undefined
-          }
-        >
-          {renderContent()}
-        </ScreenScrollView>
-      </Screen>
-    </>
+        {renderContent()}
+      </ScreenScrollView>,
+    ),
+  ).header(
+    Header(t('pokes.title', { defaultValue: 'Pokes' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-}
+});
 
 const styles = StyleSheet.create({
   pokeButton: {

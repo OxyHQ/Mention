@@ -3,14 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { List } from '@oxy.so/bloom/list';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { Screen } from '@oxy.so/bloom/screen';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 import { PrivateMentionRow } from '@/components/privateMentions/PrivateMentionRow';
 import { usePrivateMentionConversations } from '@/hooks/usePrivateMentionConversations';
 
-import { Embed, Header, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Header, VStack, toElement, Group } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 const ROW_HEIGHT = 72;
 
@@ -21,7 +21,7 @@ const conversationKey = (item: PrivateMentionConversation) => item.rootId;
  * conversations, newest activity first. Each row opens the conversation's
  * thread (`/p/:rootId`), which only its participants can read.
  */
-export default function PrivateMentionsScreen() {
+export default screen(function PrivateMentionsScreen() {
   const { t } = useTranslation();
   const { user, isAuthResolved, isPrivateApiPending, canUsePrivateApi } = useAuth();
   const {
@@ -89,38 +89,37 @@ export default function PrivateMentionsScreen() {
     );
   };
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(
       <SEO
         title={t('privateMentions.title', { defaultValue: 'Private mentions' })}
         description={t('privateMentions.onlyMentioned', {
           defaultValue: 'Only visible to the people mentioned',
         })}
         robots="noindex,nofollow"
-      />
-      <Screen
-        header={toElement(
-          Header(t('privateMentions.title', { defaultValue: 'Private mentions' }))
-            .backLabel(t('common.back', { defaultValue: 'Back' }))
-            .inPage(),
-        )}
-      >
-        <VirtualList
-          screen={{}}
-          data={canUsePrivateApi ? conversations : []}
-          keyExtractor={conversationKey}
-          renderItem={renderItem}
-          estimatedItemSize={ROW_HEIGHT}
-          onEndReached={hasNextPage ? loadMore : undefined}
-          onEndReachedThreshold={0.5}
-          refreshing={isRefetching}
-          onRefresh={canUsePrivateApi ? handleRefresh : undefined}
-          ListEmptyComponent={renderEmpty()}
-          ListFooterComponent={
-            isFetchingNextPage ? toElement(VStack(Embed(<List loading loadingCount={2} />))) : null
-          }
-        />
-      </Screen>
-    </>
+      />,
+    ),
+    Embed(
+      <VirtualList
+        screen={{}}
+        data={canUsePrivateApi ? conversations : []}
+        keyExtractor={conversationKey}
+        renderItem={renderItem}
+        estimatedItemSize={ROW_HEIGHT}
+        onEndReached={hasNextPage ? loadMore : undefined}
+        onEndReachedThreshold={0.5}
+        refreshing={isRefetching}
+        onRefresh={canUsePrivateApi ? handleRefresh : undefined}
+        ListEmptyComponent={renderEmpty()}
+        ListFooterComponent={
+          isFetchingNextPage ? toElement(VStack(Embed(<List loading loadingCount={2} />))) : null
+        }
+      />,
+    ),
+  ).header(
+    Header(t('privateMentions.title', { defaultValue: 'Private mentions' }))
+      .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .inPage(),
   );
-}
+});
