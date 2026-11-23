@@ -122,20 +122,20 @@ export function InterstitialShell<TItem>({
         renderControls={({ previous, next }) => (
           <Button.Group size="sm" accessibilityLabel={title}>
             {toElement(LButton(LText(seeMoreLabel)).onPress(handleSeeMore).label(seeMoreLabel))}
-            <Button
-              onPress={previous.onPress}
-              disabled={previous.disabled}
-              accessibilityLabel={previous.accessibilityLabel}
-              leadingIcon={previous.icon}
-              iconOnly
-            />
-            <Button
-              onPress={next.onPress}
-              disabled={next.disabled}
-              accessibilityLabel={next.accessibilityLabel}
-              leadingIcon={next.icon}
-              iconOnly
-            />
+            {toElement(
+              LButton(Icon(previous.icon))
+                .shape('circle')
+                .disabled(previous.disabled)
+                .label(previous.accessibilityLabel)
+                .onPress(previous.onPress),
+            )}
+            {toElement(
+              LButton(Icon(next.icon))
+                .shape('circle')
+                .disabled(next.disabled)
+                .label(next.accessibilityLabel)
+                .onPress(next.onPress),
+            )}
           </Button.Group>
         )}
         showDots={false}

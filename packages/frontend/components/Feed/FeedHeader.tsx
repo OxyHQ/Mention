@@ -4,12 +4,11 @@ import { Platform } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from '@/lib/navigation/router';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Embed, HStack, Icon, Text as LText, toElement } from '@oxy.so/bloom-language';
+import { Button, Embed, HStack, Icon, Text as LText, toElement } from '@oxy.so/bloom-language';
 
 interface FeedHeaderProps {
   showComposeButton?: boolean;
@@ -55,30 +54,22 @@ export const FeedHeader = memo<FeedHeaderProps>(
           .role('button')
           .label(t('settings.quickActions.createPost'))
           .pressScale(),
-        Embed(
-          Platform.OS !== 'web' && (
-            <Button
-              appearance="plain"
-              tone="neutral"
-              size="xs"
-              iconOnly
-              icon={RiCameraLine}
-              accessibilityLabel={t('camera.open')}
-              onPress={() => router.navigate('/camera')}
-            />
-          ),
-        ),
-        Embed(
-          <Button
-            appearance="plain"
-            tone="neutral"
-            size="xs"
-            iconOnly
-            icon={toElement(Icon(MediaAttachmentIcon).size('md').foreground('muted'))}
-            accessibilityLabel={t('compose.toolbar.media')}
-            onPress={() => router.push('/compose')}
-          />,
-        ),
+        Platform.OS !== 'web'
+          ? Button(Icon(RiCameraLine))
+              .style('plain')
+              .tint('neutral')
+              .size('xs')
+              .shape('circle')
+              .label(t('camera.open'))
+              .onPress(() => router.navigate('/camera'))
+          : null,
+        Button(Icon(MediaAttachmentIcon).size('md').foreground('muted'))
+          .style('plain')
+          .tint('neutral')
+          .size('xs')
+          .shape('circle')
+          .label(t('compose.toolbar.media'))
+          .onPress(() => router.push('/compose')),
       )
         .padding('horizontal', 'md')
         .padding('vertical', 'md')
