@@ -169,6 +169,8 @@
     "expo-router@58.0.30": "patches/expo-router@58.0.30.patch",
     "lottie-react-native@7.5.0": "patches/lottie-react-native@7.5.0.patch",
     "react-native-pager-view@9.0.11": "patches/react-native-pager-view@9.0.11.patch",
-    "expo-updates@58.0.21": "patches/expo-updates@58.0.21.patch"
+    "expo-updates@58.0.21": "patches/expo-updates@58.0.21.patch",
+    "react-native-reanimated@4.7.1": "patches/react-native-reanimated@4.7.1.patch",
+    "react-native-worklets@0.13.1": "patches/react-native-worklets@0.13.1.patch"
   }
 }
