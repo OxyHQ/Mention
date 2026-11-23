@@ -4,9 +4,8 @@ import { VirtualList } from '@oxy.so/bloom/list';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import type { CommerceReference } from '@mention/shared-types/commerce';
-import { Dimensions, Linking, View } from 'react-native';
+import { Dimensions, Linking } from 'react-native';
 import { useScreenVisible } from '@oxy.so/bloom/screen';
-import { Search } from '@oxy.so/bloom/search';
 import { isNotFoundError } from '@/utils/apiError';
 import {
   FeaturedCollectionObserver,
@@ -30,7 +29,6 @@ import { commerceReferenceKey } from '@/utils/commerceReferences';
 import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
-
 import {
   Button as LButton,
   Embed,
@@ -40,6 +38,10 @@ import {
   Toggle,
   VStack,
   toElement,
+  Embed as LEmbed,
+  Search as LSearch,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 type ShopRow =
@@ -197,15 +199,14 @@ export function ProfileShop({
         VStack(
           // Bloom's Search as JSX: the language's Search has no `.maxLength()`.
           Embed(
-            <Search
-              label={t('commerce.searchProducts')}
-              value={searchText}
-              onChangeText={setSearchText}
-              onClearText={() => setSearchText('')}
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={200}
-            />,
+            LtoElement(
+              LSearch([searchText, setSearchText])
+                .label(t('commerce.searchProducts'))
+                .onClearText(() => setSearchText(''))
+                .autocapitalize('none')
+                .autocorrect(false)
+                .maxLength(200),
+            ),
           ),
           Embed(
             <Select
@@ -384,45 +385,53 @@ export function ProfileShop({
     },
     [columns],
   );
-  return (
-    <View onLayout={onLayout} style={{ flex: 1, minHeight: 0 }} testID="commerce-shop">
-      {storeId
-        ? selectedCollections.map((collection) => (
-            <FeaturedCollectionObserver
-              key={JSON.stringify(
-                viewerQueryKeys.commerceFeaturedProducts(
-                  user?.id,
-                  accountId,
-                  storeId,
-                  collection.ref.id,
-                ),
-              )}
-              viewerId={user?.id}
-              accountId={accountId}
-              storeId={storeId}
-              collectionId={collection.ref.id}
-              onChange={onShelfChange}
-            />
-          ))
-        : null}
-      <VirtualList
-        key="catalog-grid"
-        screen={{}}
-        data={rows}
-        keyExtractor={(item) => item.key}
-        renderItem={renderRow}
-        getItemType={(item) => item.kind}
-        numColumns={columns}
-        overrideItemLayout={span}
-        stickyHeaderIndices={
-          listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined
-        }
-        estimatedItemSize={272}
-        overscan={2}
-        maxItemsInRecyclePool={24}
-        drawDistance={544}
-        scrollbar="never"
-      />
-    </View>
+  return LtoElement(
+    LVStack(
+      LEmbed(
+        storeId
+          ? selectedCollections.map((collection) => (
+              <FeaturedCollectionObserver
+                key={JSON.stringify(
+                  viewerQueryKeys.commerceFeaturedProducts(
+                    user?.id,
+                    accountId,
+                    storeId,
+                    collection.ref.id,
+                  ),
+                )}
+                viewerId={user?.id}
+                accountId={accountId}
+                storeId={storeId}
+                collectionId={collection.ref.id}
+                onChange={onShelfChange}
+              />
+            ))
+          : null,
+      ),
+      LEmbed(
+        <VirtualList
+          key="catalog-grid"
+          screen={{}}
+          data={rows}
+          keyExtractor={(item) => item.key}
+          renderItem={renderRow}
+          getItemType={(item) => item.kind}
+          numColumns={columns}
+          overrideItemLayout={span}
+          stickyHeaderIndices={
+            listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined
+          }
+          estimatedItemSize={272}
+          overscan={2}
+          maxItemsInRecyclePool={24}
+          drawDistance={544}
+          scrollbar="never"
+        />,
+      ),
+    )
+      .frame({ minHeight: 'none' })
+      .grow()
+      .onLayout(onLayout)
+      .testID('commerce-shop'),
   );
 }

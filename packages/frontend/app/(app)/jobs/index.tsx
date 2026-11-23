@@ -2,7 +2,6 @@ import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Field } from '@oxy.so/bloom/field';
 import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -22,7 +21,6 @@ import JobDiscoveryResultCard, {
   ExternalJobReportSheet,
 } from '@/components/Jobs/JobDiscoveryResultCard';
 import { EmptyState } from '@/components/common/EmptyState';
-
 import {
   Button as LButton,
   Chip as LChip,
@@ -38,7 +36,10 @@ import {
   VStack,
   VirtualList as LVirtualList,
   toElement,
+  Embed as LEmbed,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
@@ -327,54 +328,58 @@ export default Lscreen(function JobsDiscoveryScreen() {
       showMoreFilters
         ? VStack(
             Embed(
-              <Field
-                label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-                multiple
-              >
-                {toElement(
-                  HStack(
-                    Embed(
-                      MENTION_JOB_WORKPLACE_TYPES.map((value) =>
-                        toElement(
-                          LChip(Text(WORKPLACE_LABELS[value]))
-                            .selected(draft.workplaceType === value)
-                            .onPress(() =>
-                              setWorkplaceType(draft.workplaceType === value ? '' : value),
+              LtoElement(
+                LField(
+                  t('jobs.create.workplaceType', { defaultValue: 'Workplace type' }),
+                  LEmbed(
+                    toElement(
+                      HStack(
+                        Embed(
+                          MENTION_JOB_WORKPLACE_TYPES.map((value) =>
+                            toElement(
+                              LChip(Text(WORKPLACE_LABELS[value]))
+                                .selected(draft.workplaceType === value)
+                                .onPress(() =>
+                                  setWorkplaceType(draft.workplaceType === value ? '' : value),
+                                ),
+                              value,
                             ),
-                          value,
+                          ),
                         ),
-                      ),
+                      )
+                        .wrap()
+                        .spacing('sm'),
                     ),
-                  )
-                    .wrap()
-                    .spacing('sm'),
-                )}
-              </Field>,
+                  ),
+                ).multiple(),
+              ),
             ),
             Embed(
-              <Field
-                label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
-                multiple
-              >
-                {toElement(
-                  HStack(
-                    Embed(
-                      MENTION_JOB_EMPLOYMENT_TYPES.map((value) =>
-                        toElement(
-                          LChip(Text(EMPLOYMENT_LABELS[value]))
-                            .selected(draft.employmentType === value)
-                            .onPress(() =>
-                              setEmploymentType(draft.employmentType === value ? '' : value),
+              LtoElement(
+                LField(
+                  t('jobs.create.employmentType', { defaultValue: 'Employment type' }),
+                  LEmbed(
+                    toElement(
+                      HStack(
+                        Embed(
+                          MENTION_JOB_EMPLOYMENT_TYPES.map((value) =>
+                            toElement(
+                              LChip(Text(EMPLOYMENT_LABELS[value]))
+                                .selected(draft.employmentType === value)
+                                .onPress(() =>
+                                  setEmploymentType(draft.employmentType === value ? '' : value),
+                                ),
+                              value,
                             ),
-                          value,
+                          ),
                         ),
-                      ),
+                      )
+                        .wrap()
+                        .spacing('sm'),
                     ),
-                  )
-                    .wrap()
-                    .spacing('sm'),
-                )}
-              </Field>,
+                  ),
+                ).multiple(),
+              ),
             ),
             HStack(
               VStack(
