@@ -7,7 +7,6 @@ import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
-import { Divider } from '@oxy.so/bloom/divider';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
@@ -43,6 +42,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import {
   Button as LButton,
   Card,
+  Divider as LDivider,
   Embed,
   HStack,
   Header,
@@ -486,9 +486,11 @@ const RoomDetailScreen = screen(function RoomDetailScreen() {
                   )
                     .flex('1')
                     .align('center'),
-                  Embed(
-                    <Divider vertical spacing={16} style={{ height: 40, alignSelf: 'center' }} />,
-                  ),
+                  LDivider()
+                    .axis('vertical')
+                    .spacing('lg')
+                    .frame({ height: '4xl' })
+                    .alignSelf('center'),
                   VStack(
                     LText(room.stats.totalJoined || 0)
                       .font('title-1')
