@@ -265,12 +265,10 @@ function AccountInfoContent({
             isAutomated={profileData.isAutomated}
             copyableHandle
             align="center"
-            variant="default"
-            // UserName exposes name/handle sizing only through this typed style
-            // object (no 24px `variant`), so the profile header itself sets the
-            // display-name scale the same way — matched here for parity.
+            // The profile header's title size and spacing, matched here for parity.
+            size="xl"
             style={{
-              name: { fontSize: 24, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
+              name: { fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
               handle: { fontSize: 15 },
             }}
           />,

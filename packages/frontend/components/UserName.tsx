@@ -9,11 +9,40 @@ import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
 import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { AccountBadge } from '@/components/AccountBadge';
-import type { UserNameProps } from '@/components/Profile/types';
+import type { UserNameProps, UserNameSize } from '@/components/Profile/types';
+import {
+  defineTokens,
+  Embed,
+  Icon,
+  RawText,
+  toElement,
+  VStack,
+  type IconSizeToken,
+  type PaddingToken,
+} from '@oxy.so/bloom-language';
 
-import { Embed, RawText, toElement } from '@oxy.so/bloom-language';
+/** The verified badge's blue, an app colour: the same in both schemes and under every preset. */
+const BADGE = defineTokens({ color: { verified: VERIFIED_BADGE_COLOR } });
 
-import { Embed as LEmbed, VStack, toElement as LtoElement } from '@oxy.so/bloom-language';
+interface NameSize {
+  /** The name's font size, and the side of every glyph beside it. */
+  font: number;
+  /** How far the glyphs sit below the row's centre, onto the text's baseline. */
+  nudge: number;
+  /** The verified badge's side and nudge, as tokens: the same `font` and `nudge` (native only, see below). */
+  badge: { size: IconSizeToken; nudge: PaddingToken };
+}
+
+/**
+ * Each size of name. The glyphs are as large as the font, nudged down by 6%
+ * of it (18% for the title size), rounded to a whole point.
+ */
+const NAME_SIZES: Record<UserNameSize, NameSize> = {
+  sm: { font: 14, nudge: 1, badge: { size: '14', nudge: '1' } },
+  md: { font: 15, nudge: 1, badge: { size: '15', nudge: '1' } },
+  lg: { font: 16, nudge: 1, badge: { size: 'sm', nudge: '1' } },
+  xl: { font: 24, nudge: 4, badge: { size: 'lg', nudge: 'xs' } },
+};
 
 const UserName: React.FC<UserNameProps> = ({
   name,
@@ -29,18 +58,14 @@ const UserName: React.FC<UserNameProps> = ({
   onExplainNetwork,
   onExplainChannel,
   copyableHandle,
-  variant = 'default',
+  size = 'md',
   align = 'start',
   style,
   handleTrailing,
 }) => {
   const theme = useTheme();
-  const nameStyle = [
-    { color: theme.colors.text },
-    styles.name,
-    variant === 'small' && styles.nameSmall,
-    style?.name,
-  ];
+  const { font, nudge, badge } = NAME_SIZES[size];
+  const nameStyle = [{ color: theme.colors.text }, styles.name, { fontSize: font }, style?.name];
 
   // Opt-in centered layout (default `'start'` keeps every existing caller
   // byte-unchanged): center the name row + handle line for a stacked, centered
@@ -56,19 +81,7 @@ const UserName: React.FC<UserNameProps> = ({
     toast('Copied to clipboard', { type: 'success' });
   }, [handle]);
 
-  // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
-  const flattenedNameStyle = style?.name
-    ? (StyleSheet.flatten(style.name) as TextStyle)
-    : undefined;
-  const passedFontSize = flattenedNameStyle?.fontSize;
-  const effectiveFontSize = passedFontSize ?? (variant === 'small' ? 14 : 15);
-  // Use the same size as the font so badge matches text size (profile header requirement)
-  const iconSize = Math.round(effectiveFontSize);
-  // Small positive translateY to nudge the icon downward to align with text baseline.
-  // Use a slightly larger nudge for larger fonts (e.g., header titles) to improve visual alignment.
-  const baselineNudge = Math.round(
-    effectiveFontSize >= 18 ? effectiveFontSize * 0.18 : effectiveFontSize * 0.06,
-  );
+  const glyphNudge = { transform: [{ translateY: nudge }] };
 
   // Single source of truth for the "display name else handle, once" rule:
   //  - a real display name owns the bold primary slot, with the muted `@handle`
@@ -110,8 +123,8 @@ const UserName: React.FC<UserNameProps> = ({
           ]}
         >
           {isFederated && copyableHandle
-            ? LtoElement(
-                VStack(LEmbed(handleText))
+            ? toElement(
+                VStack(Embed(handleText))
                   .frame({ minWidth: 'none' })
                   .shrink('normal')
                   .onPress(handleCopyHandle)
@@ -122,9 +135,9 @@ const UserName: React.FC<UserNameProps> = ({
         </View>
       );
     } else if (isFederated && copyableHandle) {
-      handleLineNode = LtoElement(
+      handleLineNode = toElement(
         VStack(
-          LEmbed(
+          Embed(
             <Text
               style={[handleLook, styles.handle, style?.handle]}
               numberOfLines={1}
@@ -194,14 +207,16 @@ const UserName: React.FC<UserNameProps> = ({
                     every profile, and the compact scroll header opted out into
                     `text-foreground` on top of that, drawing it black/white a
                     few pixels above the very same badge in the identity line. */}
-        {verified && (
-          <RiVerifiedBadgeFill
-            width={iconSize}
-            height={iconSize}
-            fill={VERIFIED_BADGE_COLOR}
-            style={{ transform: [{ translateY: baselineNudge }] }}
-          />
-        )}
+        {verified &&
+          toElement(
+            Icon(RiVerifiedBadgeFill)
+              .size(badge.size)
+              .foreground(BADGE.color.verified)
+              // Natively only: the badge's nudge was its icon's own style, which a
+              // Bloom icon on the web drops (react-native-svg's web svg), so the web
+              // badge has always sat on the row's centre.
+              .when('native', (v) => v.offset({ y: badge.nudge })),
+          )}
         {/* One marker for the account's whole identity state — remote or
                     channel, never both, and nothing at all for an ordinary local
                     account. Inert unless the caller passed the handler for the
@@ -211,25 +226,25 @@ const UserName: React.FC<UserNameProps> = ({
           kind={kind}
           onExplainNetwork={onExplainNetwork}
           onExplainChannel={onExplainChannel}
-          size={iconSize}
+          size={font}
           color={theme.colors.text}
-          style={{ transform: [{ translateY: baselineNudge }] }}
+          style={glyphNudge}
         />
 
         {isAgent && (
           <RiSparklingLine
-            width={iconSize}
-            height={iconSize}
+            width={font}
+            height={font}
             fill={theme.colors.textSecondary}
-            style={{ transform: [{ translateY: baselineNudge }] }}
+            style={glyphNudge}
           />
         )}
         {isAutomated && (
           <RiRobot2Line
-            width={iconSize}
-            height={iconSize}
+            width={font}
+            height={font}
             fill={theme.colors.textSecondary}
-            style={{ transform: [{ translateY: baselineNudge }] }}
+            style={glyphNudge}
           />
         )}
       </View>
@@ -265,16 +280,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   name: {
-    fontSize: 15,
     fontWeight: '700',
     // Shrink (and ellipsize via numberOfLines=1) only when the parent
     // constrains width; a no-op when there is room, so unconstrained
     // callers keep the name's intrinsic width.
     flexShrink: 1,
-  },
-  nameSmall: {
-    fontSize: 14,
-    fontWeight: '700',
   },
   handle: {
     maxWidth: '100%',

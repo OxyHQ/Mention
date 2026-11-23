@@ -426,7 +426,7 @@ export function usePersonProfileView({
 
   const userNameStyle = useMemo(
     () => ({
-      name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
+      name: { fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
       handle: { fontSize: 15, marginBottom: 12 },
       container: undefined,
     }),
@@ -523,7 +523,7 @@ export function usePersonProfileView({
                 onExplainNetwork={showFediverseInfo}
                 copyableHandle
                 asHeading
-                variant="default"
+                size="xl"
                 style={userNameStyle}
                 handleTrailing={followsYouTag}
               />,

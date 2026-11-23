@@ -354,6 +354,8 @@ type FollowButtonComponent = React.ComponentType<
 >;
 
 // Component props for UserName
+export type UserNameSize = 'sm' | 'md' | 'lg' | 'xl';
+
 export interface UserNameProps {
   name?: string | null;
   handle?: string | null;
@@ -367,7 +369,13 @@ export interface UserNameProps {
   kind?: AccountKind;
   isAgent?: boolean;
   isAutomated?: boolean;
-  variant?: 'default' | 'small';
+  /**
+   * The name's size, as its font size: `sm` 14, `md` 15 (the default), `lg` 16
+   * and `xl` 24 (a profile's title). The glyphs beside the name (verified,
+   * account, agent and automated) take their side and their nudge onto the
+   * text's baseline from it.
+   */
+  size?: UserNameSize;
   /**
    * Horizontal alignment of the stacked name row + `@handle` line. `'start'`
    * (default) keeps the left-aligned column every existing caller relies on;

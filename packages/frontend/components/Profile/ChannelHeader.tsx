@@ -119,9 +119,9 @@ export const ChannelHeader = memo(function ChannelHeader({
           // purpose: it cannot reach the fediverse explainer, nor that one this.
           onExplainChannel={showChannelInfo}
           align="center"
-          variant="default"
+          size="xl"
           style={{
-            name: { fontSize: 24, fontWeight: 'bold' as const, marginTop: 12, marginBottom: 4 },
+            name: { fontWeight: 'bold' as const, marginTop: 12, marginBottom: 4 },
             handle: { fontSize: 15 },
             container: undefined,
           }}
