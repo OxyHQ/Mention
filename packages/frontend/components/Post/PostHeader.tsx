@@ -1,8 +1,6 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
-import { tokens } from '@oxy.so/bloom/styles';
 import { POST_AVATAR_SIZE } from '@/styles/shared';
-import React, { useMemo, useState, type ReactNode } from 'react';
-import { DropdownMenu, DropdownMenuTrigger } from '@oxy.so/bloom/dropdown-menu';
+import React, { useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -13,7 +11,6 @@ import { ProfileHoverCard } from '../ProfileHoverCard';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiChat3Fill } from '@oxy.so/bloom/icons/RiChat3Fill';
-import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
@@ -102,8 +99,8 @@ interface PostHeaderProps {
    * to") rendered as the FIRST child of the name's content column — above the
    * name row, so the context text aligns with the display name (same column, no
    * left padding needed). Pass an ARRAY of fixed-height ({@link POST_CONTEXT_ROW_HEIGHT})
-   * rows; the avatar and the ⋯ menu are offset down by that height so they stay
-   * aligned with the name row, and `PostItem` applies the same offset to the
+   * rows; the avatar is offset down by that height so it stays aligned with
+   * the name row, and `PostItem` applies the same offset to the
    * thread line so it reaches the offset avatar.
    */
   contextTop?: React.ReactNode;
@@ -200,11 +197,6 @@ interface PostHeaderProps {
    */
   onPressCollaborators?: () => void;
   /**
-   * The ⋯ menu's `DropdownMenuContent`; omit to hide the button. Only
-   * mounted while the menu is open, so a feed row holds an element, not a menu.
-   */
-  menu?: ReactNode;
-  /**
    * Each name in a collaborative byline links to that author's profile. Off
    * where the header is not pointing at anyone else (the composer's preview).
    */
@@ -276,14 +268,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressAvatar,
   onPressName,
   onPressCollaborators,
-  menu,
   linkAuthors,
   disableHoverCard,
   boostedBy,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const timeLabel = useTimeAgo(date);
   const timeText = timeLabel
@@ -398,7 +388,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 
   // `contextTop` rows are the first children of the flex-1 content column, so the
   // name row is pushed down by each fixed-height context row plus the column gap.
-  // Offset the avatar + ⋯ menu by the same amount so they keep aligning with the
+  // Offset the avatar by the same amount so it keeps aligning with the
   // NAME row (not the context row). Zero — and a no-op — when there is no context.
   const contextRowCount = contextTop ? React.Children.toArray(contextTop).length : 0;
   const headerTopOffset = contextRowCount * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
@@ -457,23 +447,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       />
     </ProfileHoverCard>
   );
-
-  const menuButton = menu ? (
-    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-      <DropdownMenuTrigger asChild label={t('postActions.title', { defaultValue: 'Post options' })}>
-        <TouchableOpacity
-          hitSlop={tokens.hitSlop.md}
-          style={[
-            compact ? styles.menuButtonCompact : styles.menuButton,
-            { marginTop: compact ? 0 : headerTopOffset },
-          ]}
-        >
-          {toElement(Icon(RiMoreFill).size('18').foreground('muted'))}
-        </TouchableOpacity>
-      </DropdownMenuTrigger>
-      {menuOpen ? menu : null}
-    </DropdownMenu>
-  ) : null;
 
   const identityName = (
     <UserName
@@ -656,7 +629,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 .role('image')
                 .label('Reposted'),
             )}
-          {compact ? menuButton : null}
           {showReply &&
             toElement(
               HStack(
@@ -670,7 +642,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         {bylineSlot}
         {children ? toElement(VStack(Embed(children))) : null}
       </View>
-      {compact ? null : menuButton}
     </View>
   );
 };
@@ -686,8 +657,6 @@ const styles = StyleSheet.create({
   identityLineCompact: { flexDirection: 'row', alignItems: 'center', gap: ROW_GAP },
   identity: { flexDirection: 'row', alignItems: 'flex-end', flexShrink: 1, minWidth: 0 },
   identityDetail: { alignItems: 'flex-start', minWidth: 0 },
-  menuButton: { paddingHorizontal: 8 },
-  menuButtonCompact: { marginLeft: 'auto', flexShrink: 0, paddingHorizontal: 8 },
 });
 
 /** The identity marker sits centred on the name line, 4pt after the name. */
