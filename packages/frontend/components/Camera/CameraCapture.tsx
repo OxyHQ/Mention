@@ -65,9 +65,12 @@ const cameraColors = defineTokens({
 });
 /**
  * Where the camera's chrome sits over the frame: the control column's top, the
- * shutter row's distance from the bottom, and a zoom stop's narrowest width.
+ * shutter row's distance from the bottom, a zoom stop's narrowest width and the
+ * zoom row's distance from the bottom.
  */
-const cameraSpace = defineTokens({ space: { controlTop: 52, controlsBottom: 74, zoomStop: 34 } });
+const cameraSpace = defineTokens({
+  space: { controlTop: 52, controlsBottom: 74, zoomStop: 34, zoomRowBottom: 148 },
+});
 
 /** The arc drawn around the shutter while recording. */
 const RING_SIZE = 92;
@@ -525,32 +528,35 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
             .position({ top: 'none', left: 'none', right: 'none', bottom: 'none' })
             .allowsHitTesting(false)
         : null,
-      Embed(
-        recording ? (
-          <View style={styles.recordingBadge} pointerEvents="none">
-            {toElement(
-              VStack()
-                .frame({ width: 'sm', height: 'sm' })
-                .background(cameraColors.color.recording)
-                .corner('xs'),
-            )}
-            {toElement(
-              LText(phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining))
-                .foreground('white')
-                .font('14')
-                .leading('20px'),
-            )}
-          </View>
-        ) : null,
-      ),
+      recording
+        ? HStack(
+            VStack()
+              .frame({ width: 'sm', height: 'sm' })
+              .background(cameraColors.color.recording)
+              .corner('xs'),
+            LText(phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining))
+              .foreground('white')
+              .font('14')
+              .leading('20px'),
+          )
+            .align('center')
+            .spacing('6')
+            .padding('horizontal', '10')
+            .padding('vertical', 'xs')
+            .background('black/45')
+            .corner('full')
+            .position({ top: '5xl' })
+            .alignSelf('center')
+            .allowsHitTesting(false)
+        : null,
       /* ZOOM STOPS, the row a phone camera puts just above its shutter. The
          pinch and the drag move the same value, so the selected pill follows
          them; between two stops the selected one shows the live multiplier
          instead of its own label, which is the only way the row can stay
          honest about a zoom it did not choose. */
-      Embed(
-        <View style={styles.zoomRow}>
-          {ZOOM_STOPS.map((stop) => {
+      HStack(
+        Embed(
+          ZOOM_STOPS.map((stop) => {
             const selected = stop === activeStop;
             // Its own label when the zoom is ON the stop, the live figure when it
             // is merely nearest to it.
@@ -579,9 +585,16 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                 ),
               stop,
             );
-          })}
-        </View>,
-      ),
+          }),
+        ),
+      )
+        .align('center')
+        .spacing('xs')
+        .padding('xs')
+        .background('black/40')
+        .corner('full')
+        .position({ bottom: cameraSpace.space.zoomRowBottom })
+        .alignSelf('center'),
       HStack(
         /* Keeps the shutter centred where the thumb expects it. Instagram's
            gallery shortcut would live here; `CameraCapture`'s header says why
@@ -769,9 +782,10 @@ function formatRemaining(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
-  // Off Bloom's type scale (`text-8xl font-bold`) in the display face: the language's
-  // Text draws neither that face at a numeric size nor a 96pt line.
-  // The display face, as Bloom's Text drew it from a size of `text-3xl` up.
+  // Off Bloom's type scale (`text-8xl font-bold`) in the display face, as Bloom's Text
+  // drew it from a size of `text-3xl` up: the language's Text has the size ('96') and
+  // the line ('96px') but draws the display face only for a ramp step, never at a
+  // numeric size, so the countdown stays a view.
   countdownText: {
     ...fontFamilyStyle('display'),
     color: '#fff',
@@ -788,29 +802,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     // Dark enough to carry a white icon over a bright frame, light enough that
     // the preview still reads through it.
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  recordingBadge: {
-    position: 'absolute',
-    top: 60,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  zoomRow: {
-    position: 'absolute',
-    bottom: 148,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: 4,
-    borderRadius: 999,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sideSlot: { width: 48, height: 48, borderRadius: 24 },
