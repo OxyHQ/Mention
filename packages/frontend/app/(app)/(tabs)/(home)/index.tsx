@@ -1,6 +1,4 @@
-import type React from 'react';
 import { Activity, useState, useEffect, useMemo } from 'react';
-import { Screen } from '@oxy.so/bloom/screen';
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/lib/navigation/router';
@@ -14,6 +12,8 @@ import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
 import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { Embed, Group } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * The site's own identity (site name and logo in search results). The
@@ -49,7 +49,7 @@ const FOR_YOU_TAB: HomeTabModel = {
   type: 'for_you',
 };
 
-const HomeScreen: React.FC = () => {
+const HomeScreen = screen(function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { isAuthResolved, canUsePrivateApi, user } = useAuth();
@@ -157,51 +157,57 @@ const HomeScreen: React.FC = () => {
       />
     );
 
-  return (
-    <>
+  // The SEO tags draw nothing in place (the document's head on the web).
+  return Group(
+    Embed(
       <SEO
         robots="index,follow"
         title={t('seo.home.title')}
         description={t('seo.home.description')}
         jsonLd={SITE_STRUCTURED_DATA}
-      />
-      <Screen reselect={{ refresh: reloadCurrentTab }} scroll="auto" header={<MentionHomeHeader />}>
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          pressOpenTab="reselect"
-          variant="underline"
-          style={{ height: 38 }}
-        >
-          {homeTabs.map((tab) => (
-            <TabsTrigger
-              key={tab.key}
-              value={tab.key}
-              label={tab.label}
-              style={{
-                height: 38,
-                minWidth: 76,
-                paddingLeft: 12,
-                paddingRight: 12,
-                paddingTop: 0,
-                paddingBottom: 0,
-              }}
-              textStyle={{
-                fontSize: 15,
-                lineHeight: 18,
-                fontWeight: activeTab === tab.key ? '700' : '500',
-              }}
-            />
-          ))}
-        </Tabs>
-        {mountedTabs.map((tab) => (
-          <Activity key={tab.key} mode={tab.key === currentTab.key ? 'visible' : 'hidden'}>
-            {renderTabFeed(tab)}
-          </Activity>
+      />,
+    ),
+    Embed(
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        pressOpenTab="reselect"
+        variant="underline"
+        style={{ height: 38 }}
+      >
+        {homeTabs.map((tab) => (
+          <TabsTrigger
+            key={tab.key}
+            value={tab.key}
+            label={tab.label}
+            style={{
+              height: 38,
+              minWidth: 76,
+              paddingLeft: 12,
+              paddingRight: 12,
+              paddingTop: 0,
+              paddingBottom: 0,
+            }}
+            textStyle={{
+              fontSize: 15,
+              lineHeight: 18,
+              fontWeight: activeTab === tab.key ? '700' : '500',
+            }}
+          />
         ))}
-      </Screen>
-    </>
-  );
-};
+      </Tabs>,
+    ),
+    Embed(
+      mountedTabs.map((tab) => (
+        <Activity key={tab.key} mode={tab.key === currentTab.key ? 'visible' : 'hidden'}>
+          {renderTabFeed(tab)}
+        </Activity>
+      )),
+    ),
+  )
+    .onReselect(reloadCurrentTab)
+    .screenScroll('auto')
+    .header(Embed(<MentionHomeHeader />));
+});
 
 export default HomeScreen;
