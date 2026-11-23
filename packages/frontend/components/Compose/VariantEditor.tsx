@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, TouchableOpacity, View, type ViewStyle } from '
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -100,7 +100,6 @@ const VariantEditor = memo(function VariantEditor({
   toolbar,
 }: VariantEditorProps) {
   const { t } = useTranslation();
-  const theme = useTheme();
   const colorTokens = useColorTokens();
   const language = describeContentLanguage(tag);
 
@@ -151,7 +150,7 @@ const VariantEditor = memo(function VariantEditor({
             ),
             Embed(
               primaryText.trim().length > 0 ? (
-                <View style={[styles.reference, { borderLeftColor: theme.colors.border }]}>
+                <View style={[styles.reference, { borderLeftColor: colorTokens.border }]}>
                   {toElement(RawText(primaryText).foreground('muted').font('sm').lines(3))}
                 </View>
               ) : null,
@@ -163,7 +162,7 @@ const VariantEditor = memo(function VariantEditor({
                 activeOpacity={0.75}
                 style={[
                   TRANSLATE,
-                  { borderColor: theme.colors.border, opacity: canTranslate ? 1 : 0.5 },
+                  { borderColor: colorTokens.border, opacity: canTranslate ? 1 : 0.5 },
                 ]}
               >
                 {isTranslating ? toElement(Loading().style('inline').size('sm')) : null}
