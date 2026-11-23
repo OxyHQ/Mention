@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
@@ -14,6 +14,7 @@ import {
   Embed,
   VStack as LVStack,
   toElement as LtoElement,
+  Embed as LEmbed,
 } from '@oxy.so/bloom-language';
 const posterTokens = defineTokens({ color: { white: 'white' } });
 
@@ -84,24 +85,29 @@ export function ExternalEmbedPoster({
       /* React Native's Pressable: while the player loads it has no press and
         stays in the focus order, as it was; the language takes a press-less
         stack out of it. */ Embed(
-        <Pressable
-          onPress={active ? undefined : onPressPlay}
-          accessibilityRole="button"
-          style={styles.play}
-        >
-          {active ? (
-            <SpinnerIcon size={36} color="white" />
-          ) : (
-            toElement(
-              VStack(Icon(RiPlayFill).size('2xl').foreground(posterTokens.color.white))
-                .frame({ height: '64', width: '64' })
-                .background('black/60')
-                .corner('infinite')
-                .align('center')
-                .justify('center'),
-            )
-          )}
-        </Pressable>,
+        LtoElement(
+          LVStack(
+            LEmbed(
+              active ? (
+                <SpinnerIcon size={36} color="white" />
+              ) : (
+                toElement(
+                  VStack(Icon(RiPlayFill).size('2xl').foreground(posterTokens.color.white))
+                    .frame({ height: '64', width: '64' })
+                    .background('black/60')
+                    .corner('infinite')
+                    .align('center')
+                    .justify('center'),
+                )
+              ),
+            ),
+          )
+            .align('center')
+            .justify('center')
+            .flex('1')
+            .onPress(active ? undefined : onPressPlay)
+            .role('button'),
+        ),
       ),
     )
       .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
