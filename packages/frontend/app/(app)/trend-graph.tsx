@@ -1,15 +1,7 @@
 import { InsightsSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useMemo, useState } from 'react';
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  type ViewStyle,
-} from 'react-native';
-import { useColorTokens } from '@oxy.so/bloom/theme';
+import { ScrollView, type ViewStyle } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -23,6 +15,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 import {
   Embed,
+  HStack,
   Header,
   ScrollView as LScrollView,
   Text as LText,
@@ -57,7 +50,6 @@ const GRAPH_STALE_TIME_MS = 5 * 60_000;
 
 export default function TrendGraphScreen() {
   const { t } = useTranslation();
-  const colors = useColorTokens();
 
   const [language, setLanguage] = useState<string | null>(null);
   const [region, setRegion] = useState<string | null>(null);
@@ -135,21 +127,20 @@ export default function TrendGraphScreen() {
                       .font('14')
                       .foreground('muted')
                       .leading('24px'),
-                    Embed(
-                      <TouchableOpacity
-                        accessibilityRole="button"
-                        onPress={() => void refetch()}
-                        style={[classStyles.retry, { backgroundColor: colors.primary }]}
-                      >
-                        {toElement(
-                          LText(t('trendGraph.retry'))
-                            .font('14')
-                            .weight('semibold')
-                            .foreground('onPrimary')
-                            .leading('24px'),
-                        )}
-                      </TouchableOpacity>,
-                    ),
+                    VStack(
+                      LText(t('trendGraph.retry'))
+                        .font('14')
+                        .weight('semibold')
+                        .foreground('onPrimary')
+                        .leading('24px'),
+                    )
+                      .padding('horizontal', 'lg')
+                      .padding('vertical', 'sm')
+                      .background('primary')
+                      .corner('infinite')
+                      .onPress(() => void refetch())
+                      .role('button')
+                      .pressFade(),
                   )
                     .padding('horizontal', 'lg')
                     .padding('vertical', '4xl')
@@ -210,40 +201,43 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * two lines per term.
  */
 function Branch({ entry }: { entry: TrendTreeNode }) {
-  const colors = useColorTokens();
-  return (
-    <View style={[styles.branchBorder, classStyles.branch, { borderColor: colors.border }]}>
-      <TermRow
-        term={entry.node.term}
-        label={entry.node.displayName ?? entry.node.term}
-        volume={entry.node.volume}
-        authors={entry.node.authorCount}
-        emphasis
-      />
-      {entry.children.length > 0
+  return toElement(
+    VStack(
+      Embed(
+        <TermRow
+          term={entry.node.term}
+          label={entry.node.displayName ?? entry.node.term}
+          volume={entry.node.volume}
+          authors={entry.node.authorCount}
+          emphasis
+        />,
+      ),
+      entry.children.length > 0
         ? // The trunk: one continuous rule down the left of everything merged into
           // the term above. This is what makes the block read as a tree at a
           // glance rather than as an indent.
-          toElement(
-            VStack(
-              entry.children.map((child) =>
-                Embed(
-                  <TermRow
-                    term={child.node.term}
-                    label={child.node.displayName ?? child.node.term}
-                    volume={child.node.volume}
-                    authors={child.node.authorCount}
-                  />,
-                ).id(child.node.term),
-              ),
-            )
-              .margin('left', 'xs')
-              .padding('left', 'md')
-              .border('border', 'thin', 'left'),
+          VStack(
+            entry.children.map((child) =>
+              Embed(
+                <TermRow
+                  term={child.node.term}
+                  label={child.node.displayName ?? child.node.term}
+                  volume={child.node.volume}
+                  authors={child.node.authorCount}
+                />,
+              ).id(child.node.term),
+            ),
           )
-        : null}
-      <RelatedLine entry={entry} />
-    </View>
+            .margin('left', 'xs')
+            .padding('left', 'md')
+            .border('border', 'thin', 'left')
+        : null,
+      Embed(<RelatedLine entry={entry} />),
+    )
+      .padding('vertical', 'xs')
+      // Hairline separators, the same weight `TrendItemRow` uses: the app draws
+      // lists with rules, not with cards.
+      .border('border', '0.5', 'bottom'),
   );
 }
 
@@ -261,7 +255,6 @@ const RELATED_SHOWN = 3;
  */
 function RelatedLine({ entry }: { entry: TrendTreeNode }) {
   const { t } = useTranslation();
-  const colors = useColorTokens();
 
   const names = useMemo(() => {
     const seen = new Set<string>();
@@ -281,21 +274,27 @@ function RelatedLine({ entry }: { entry: TrendTreeNode }) {
   const shown = names.slice(0, RELATED_SHOWN);
   const rest = names.length - shown.length;
 
-  return (
-    <View style={[styles.dashedTrunk, classStyles.relatedTrunk, { borderColor: colors.border }]}>
-      {toElement(
-        LText(
-          t('trendGraph.related', {
-            terms: shown.join(', '),
-            count: rest,
-          }),
-        )
-          .font('xs')
-          .foreground('muted')
-          .leading('24px')
-          .lines(2),
-      )}
-    </View>
+  // The trunk a branch hangs from is solid for merged terms (its rule is the chain
+  // in `Branch`), dashed for the ones that were related and not merged, which is
+  // the distinction the screen exists to show.
+  return toElement(
+    VStack(
+      LText(
+        t('trendGraph.related', {
+          terms: shown.join(', '),
+          count: rest,
+        }),
+      )
+        .font('xs')
+        .foreground('muted')
+        .leading('24px')
+        .lines(2),
+    )
+      .margin('left', 'xs')
+      .padding('bottom', 'xs')
+      .padding('left', 'md')
+      .border('border', 'thin', 'left')
+      .borderStyle('dashed'),
   );
 }
 
@@ -322,35 +321,32 @@ function TermRow({
   const { t } = useTranslation();
   const { navigateToTerm } = useTrendNavigation();
 
-  return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      activeOpacity={0.7}
-      onPress={() => navigateToTerm(term, 'graph')}
-      style={classStyles.termRow}
-    >
-      {toElement(
-        LText(label)
-          .margin('right', 'md')
-          .shrink('normal')
-          .foreground('foreground')
-          .leading('24px')
-          .when(Boolean(emphasis), (v) => v.font('md').weight('bold'))
-          .when(!emphasis, (v) => v.font('14'))
-          .lines(1),
-      )}
-      {toElement(
-        LText(
-          t('trendGraph.node.posts', { count: volume }),
-          ' · ',
-          t('trendGraph.node.authors', { count: authors }),
-        )
-          .shrink('never')
-          .font('xs')
-          .foreground('muted')
-          .leading('24px'),
-      )}
-    </TouchableOpacity>
+  return toElement(
+    HStack(
+      LText(label)
+        .margin('right', 'md')
+        .shrink('normal')
+        .foreground('foreground')
+        .leading('24px')
+        .when(Boolean(emphasis), (v) => v.font('md').weight('bold'))
+        .when(!emphasis, (v) => v.font('14'))
+        .lines(1),
+      LText(
+        t('trendGraph.node.posts', { count: volume }),
+        ' · ',
+        t('trendGraph.node.authors', { count: authors }),
+      )
+        .shrink('never')
+        .font('xs')
+        .foreground('muted')
+        .leading('24px'),
+    )
+      .align('baseline')
+      .justify('between')
+      .padding('vertical', '6')
+      .onPress(() => navigateToTerm(term, 'graph'))
+      .role('button')
+      .pressFade('70'),
   );
 }
 
@@ -366,7 +362,6 @@ function FilterRow({
   onSelect: (value: string | null) => void;
   allLabel: string;
 }) {
-  const colors = useColorTokens();
   if (values.length === 0) return null;
 
   return (
@@ -377,55 +372,30 @@ function FilterRow({
     >
       {[null, ...values].map((value) => {
         const isActive = value === selected;
-        return (
-          <TouchableOpacity
-            key={value ?? '__all'}
-            accessibilityRole="button"
-            activeOpacity={0.7}
-            onPress={() => onSelect(value)}
-            style={[
-              classStyles.filter,
-              { backgroundColor: isActive ? colors.primary : colors.muted },
-            ]}
-          >
-            {toElement(
-              LText(value ?? allLabel)
-                .font('sm')
-                .weight('medium')
-                .foreground(isActive ? 'onPrimary' : 'foreground')
-                .leading('24px'),
-            )}
-          </TouchableOpacity>
+        return toElement(
+          VStack(
+            LText(value ?? allLabel)
+              .font('sm')
+              .weight('medium')
+              .foreground(isActive ? 'onPrimary' : 'foreground')
+              .leading('24px'),
+          )
+            .padding('horizontal', 'md')
+            .padding('vertical', '6')
+            .background(isActive ? 'primary' : 'mutedFill')
+            .corner('infinite')
+            .onPress(() => onSelect(value))
+            .role('button')
+            .pressFade('70'),
+          value ?? '__all',
         );
       })}
     </ScrollView>
   );
 }
 
-// The buttons, rows and filters stay React Native's TouchableOpacity (the language has
-// no node for its fading press; it is a pointer on the web already), and the tree's
-// rules stay views over the hairline styles below; these draw what their classes drew.
-const PILL_RADIUS = Platform.OS === 'web' ? 'calc(infinity * 1px)' : 9007199254740000;
+// The filters' scroller stays React Native's horizontal ScrollView; this draws what
+// its class drew.
 const classStyles = {
-  retry: { borderRadius: PILL_RADIUS, paddingHorizontal: 16, paddingVertical: 8 },
-  branch: { paddingVertical: 4 },
-  relatedTrunk: { marginLeft: 4, paddingBottom: 4, paddingLeft: 12 },
-  termRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
   filters: { gap: 8, paddingInline: 16, paddingBottom: 12 },
-  filter: { borderRadius: PILL_RADIUS, paddingHorizontal: 12, paddingVertical: 6 },
 } satisfies Record<string, ViewStyle>;
-
-const styles = StyleSheet.create({
-  // Hairline separators, the same weight `TrendItemRow` uses — the app draws
-  // lists with rules, not with cards.
-  branchBorder: { borderBottomWidth: 0.5 },
-  // The trunk a branch hangs from is solid for merged terms (its rule is the
-  // chain in `Branch`), dashed for the ones that were related and not merged,
-  // which is the distinction the screen exists to show.
-  dashedTrunk: { borderLeftWidth: 1, borderStyle: 'dashed' },
-});

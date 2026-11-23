@@ -1,33 +1,18 @@
 import { useMemo, useState } from 'react';
-import { Platform, type TextStyle } from 'react-native';
+import { Platform } from 'react-native';
 import { useLocalSearchParams, usePathname } from '@/lib/navigation/router';
-import { Text } from '@oxy.so/bloom/typography';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import { SEO } from '@/components/SEO';
 import { WEB_BASE_URL } from '@/config';
 import { matchesServerSEOPath, readServerSEO } from '@/lib/seoHandoff';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
-import { Embed, Group, HStack, Header, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Group, HStack, Header, Text, VStack, toElement } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
-
-// The heading stays Bloom's Text with a style: its 28pt size is no step of Bloom's
-// type scale, and the language's Text takes only those.
-const headingStyle: TextStyle = {
-  fontSize: 28,
-  lineHeight: 32,
-  fontWeight: '700',
-  marginBottom: 4,
-  flexGrow: 1,
-  flexShrink: 1,
-  flexBasis: '0%',
-};
 
 export default screen(function HashtagScreen() {
   const { tag } = useLocalSearchParams<{ tag: string }>();
   const { t } = useTranslation();
-  const colors = useColorTokens();
 
   const hashtag = tag?.replace(/^#/, '') || '';
   const displayTag = `#${hashtag}`;
@@ -49,7 +34,13 @@ export default screen(function HashtagScreen() {
       toElement(
         VStack(
           HStack(
-            Embed(<Text style={[headingStyle, { color: colors.foreground }]}>{displayTag}</Text>),
+            Text(displayTag)
+              .font('28')
+              .leading('32px')
+              .weight('bold')
+              .foreground('foreground')
+              .margin('bottom', 'xs')
+              .flex('1'),
             Embed(
               <EntityFollowButton
                 entityType="hashtag"
@@ -65,7 +56,7 @@ export default screen(function HashtagScreen() {
           .padding('horizontal', 'lg')
           .padding('bottom', 'sm'),
       ),
-    [displayTag, hashtag, colors.foreground],
+    [displayTag, hashtag],
   );
 
   return Group(
