@@ -1,17 +1,9 @@
 import { useLocalSearchParams } from '@/lib/navigation/router';
-import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  type TextInputInstance,
-  type ViewStyle,
-} from 'react-native';
+import { View, TextInput, type TextInputInstance, type ViewStyle } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
-import { Screen, useScreenBack } from '@oxy.so/bloom/screen';
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
@@ -30,20 +22,20 @@ import {
   Dialog,
   Divider as LDivider,
   Embed,
+  Group,
   HStack,
   Icon,
   RawText,
   ScrollView,
   VStack,
   defineTokens,
-  toElement,
 } from '@oxy.so/bloom-language';
+import { screen } from '@oxy.so/bloom-language/router';
 
 /** "Post not found" sits 100pt down the empty screen. */
 const boost = defineTokens({ space: { notFoundTop: 100 } });
 
 // What the screen's classes drew, as plain objects (inline, as the classes were).
-const FILL_STYLE: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' };
 const HEADER_ROW_STYLE: ViewStyle = {
   flexDirection: 'row',
   justifyContent: 'space-between',
@@ -54,7 +46,7 @@ const HEADER_ROW_STYLE: ViewStyle = {
 
 const MAX_CHARACTERS = 280;
 
-const BoostScreen: React.FC = () => {
+export default screen(function BoostScreen() {
   const { user } = useAuth();
   const { id: postId } = useLocalSearchParams<{ id: string }>();
   const insets = useContentSafeAreaInsets();
@@ -136,195 +128,186 @@ const BoostScreen: React.FC = () => {
     }
   };
 
+  // A Screen of no header, scroll or footer: its fill (the page's) and its
+  // content box flush with the route, so the text sits where it did.
   if (!originalPost) {
-    return toElement(
-      VStack(
-        RawText('Post not found')
-          .font('18')
-          .leading('28px')
-          .textAlign('center')
-          .margin('top', boost.space.notFoundTop),
-      ).flex('1'),
-    );
+    return VStack(
+      RawText('Post not found')
+        .font('18')
+        .leading('28px')
+        .textAlign('center')
+        .margin('top', boost.space.notFoundTop),
+    )
+      .flex('1')
+      .header(false)
+      .screenScroll('none');
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={FILL_STYLE}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <Screen
-        header={toElement(
+  // The discard dialog draws nothing in place (an alert over the app).
+  return Group(
+    ScrollView(
+      /* Boost Header */ HStack(
+        Icon(RiRepeat2Line).size('md').foreground('primary'),
+        RawText('Boost')
+          .foreground('primary')
+          .font('16')
+          .leading('normal')
+          .weight('semibold')
+          .margin('left', 'sm'),
+      )
+        .padding('vertical', 'md')
+        .align('center'),
+      LDivider(),
+      /* Original Post */ VStack(
+        HStack(
+          Embed(
+            <AccountAvatar
+              account={originalPost.user}
+              source={originalPost.user.avatar ?? undefined}
+              size={32}
+              variant={MEDIA_VARIANT_AVATAR}
+              style={{ marginRight: 8 }}
+            />,
+          ),
           VStack(
-            // A View: its top pad is the safe area's, a number known only as it renders.
-            Embed((render) => (
-              <View style={[HEADER_ROW_STYLE, { paddingTop: insets.top }]}>
-                {render(
-                  VStack(
-                    RawText('Cancel')
-                      .foreground('primary')
-                      .font('16')
-                      .leading('normal')
-                      .weight('semibold'),
-                  )
-                    .padding('vertical', 'sm')
-                    .padding('horizontal', 'md')
-                    .onPress(handleCancel)
-                    .pressFade(),
-                )}
-
-                {render(
-                  HStack(
-                    VStack(canBoost ? boostLabel : boostLabel.opacity('70'))
-                      .padding('horizontal', 'xl')
-                      .padding('vertical', 'sm')
-                      .corner('infinite')
-                      .when(!canBoost, (v) => v.opacity('half'))
-                      .onPress(handleBoost)
-                      .disabled(!canBoost)
-                      .pressFade(),
-                  ).align('center'),
-                )}
-              </View>
-            )),
-            LDivider(),
-          ).background('background'),
-        )}
-      >
-        {toElement(
-          ScrollView(
-            /* Boost Header */ HStack(
-              Icon(RiRepeat2Line).size('md').foreground('primary'),
-              RawText('Boost')
-                .foreground('primary')
-                .font('16')
-                .leading('normal')
-                .weight('semibold')
-                .margin('left', 'sm'),
-            )
-              .padding('vertical', 'md')
-              .align('center'),
-            LDivider(),
-            /* Original Post */ VStack(
-              HStack(
-                Embed(
-                  <AccountAvatar
-                    account={originalPost.user}
-                    source={originalPost.user.avatar ?? undefined}
-                    size={32}
-                    variant={MEDIA_VARIANT_AVATAR}
-                    style={{ marginRight: 8 }}
-                  />,
-                ),
-                VStack(
-                  Embed(
-                    <UserName
-                      name={originalPost.user.name?.displayName}
-                      handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
-                      verified={originalPost.user.verified}
-                      size="sm"
-                      style={{ handle: { fontSize: 13 } }}
-                    />,
-                  ),
-                ).flex('1'),
+            Embed(
+              <UserName
+                name={originalPost.user.name?.displayName}
+                handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
+                verified={originalPost.user.verified}
+                size="sm"
+                style={{ handle: { fontSize: 13 } }}
+              />,
+            ),
+          ).flex('1'),
+        )
+          .align('center')
+          .margin('bottom', 'sm'),
+        Embed(
+          <PostContentText
+            content={originalPost.content}
+            postId={originalPost.id}
+            previewChars={Infinity}
+          />,
+        ),
+      )
+        .padding('vertical', 'lg')
+        .margin('top', 'lg'),
+      LDivider(),
+      /* Boost Input */ VStack(
+        HStack(
+          Embed(
+            <AccountAvatar
+              account={user ?? undefined}
+              source={user?.avatar}
+              size={48}
+              variant={MEDIA_VARIANT_AVATAR}
+              style={{ marginRight: 12 }}
+            />,
+          ),
+          VStack(
+            RawText(user?.name.displayName)
+              .foreground('foreground')
+              .font('16')
+              .leading('normal')
+              .weight('bold')
+              .margin('bottom', '2xs'),
+            RawText('@', user?.username).foreground('muted').font('14').leading('20px'),
+          ).justify('center'),
+        ).margin('bottom', 'md'),
+        Embed(
+          <TextInput
+            ref={textInputRef}
+            style={{
+              fontSize: 20,
+              lineHeight: 28,
+              minHeight: 120,
+              textAlignVertical: 'top',
+              color: theme.colors.text,
+            }}
+            placeholder={t('compose.commentPlaceholder')}
+            placeholderTextColor={theme.colors.textTertiary}
+            value={content}
+            onChangeText={setContent}
+            multiline
+            autoFocus
+            maxLength={MAX_CHARACTERS + 50}
+            textAlignVertical="top"
+          />,
+        ),
+        /* Character Count */ HStack(
+          RawText(characterCount)
+            .font('14')
+            .leading('20px')
+            .weight('medium')
+            .foreground(isOverLimit ? 'error' : 'muted'),
+          RawText('/', MAX_CHARACTERS)
+            .foreground('muted')
+            .font('14')
+            .leading('20px')
+            .margin('left', '2xs'),
+        )
+          .justify('end')
+          .align('center')
+          .margin('top', 'lg')
+          .margin('bottom', 'xl'),
+      )
+        .flex('1')
+        .margin('top', 'lg'),
+    )
+      .contentView((v) => v.padding('horizontal', 'lg'))
+      .scrollIndicators('hidden', 'vertical'),
+    Dialog()
+      .title('Discard Boost?')
+      .message('Are you sure you want to discard this boost?')
+      .buttons([
+        {
+          label: 'Discard',
+          color: 'destructive',
+          onPress: () => back?.(),
+        },
+        {
+          label: 'Keep Editing',
+          color: 'cancel',
+        },
+      ])
+      .presented([discarding, setDiscarding]),
+  )
+    .header(
+      VStack(
+        // A View: its top pad is the safe area's, a number known only as it renders.
+        Embed((render) => (
+          <View style={[HEADER_ROW_STYLE, { paddingTop: insets.top }]}>
+            {render(
+              VStack(
+                RawText('Cancel')
+                  .foreground('primary')
+                  .font('16')
+                  .leading('normal')
+                  .weight('semibold'),
               )
-                .align('center')
-                .margin('bottom', 'sm'),
-              Embed(
-                <PostContentText
-                  content={originalPost.content}
-                  postId={originalPost.id}
-                  previewChars={Infinity}
-                />,
-              ),
-            )
-              .padding('vertical', 'lg')
-              .margin('top', 'lg'),
-            LDivider(),
-            /* Boost Input */ VStack(
-              HStack(
-                Embed(
-                  <AccountAvatar
-                    account={user ?? undefined}
-                    source={user?.avatar}
-                    size={48}
-                    variant={MEDIA_VARIANT_AVATAR}
-                    style={{ marginRight: 12 }}
-                  />,
-                ),
-                VStack(
-                  RawText(user?.name.displayName)
-                    .foreground('foreground')
-                    .font('16')
-                    .leading('normal')
-                    .weight('bold')
-                    .margin('bottom', '2xs'),
-                  RawText('@', user?.username).foreground('muted').font('14').leading('20px'),
-                ).justify('center'),
-              ).margin('bottom', 'md'),
-              Embed(
-                <TextInput
-                  ref={textInputRef}
-                  style={{
-                    fontSize: 20,
-                    lineHeight: 28,
-                    minHeight: 120,
-                    textAlignVertical: 'top',
-                    color: theme.colors.text,
-                  }}
-                  placeholder={t('compose.commentPlaceholder')}
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={content}
-                  onChangeText={setContent}
-                  multiline
-                  autoFocus
-                  maxLength={MAX_CHARACTERS + 50}
-                  textAlignVertical="top"
-                />,
-              ),
-              /* Character Count */ HStack(
-                RawText(characterCount)
-                  .font('14')
-                  .leading('20px')
-                  .weight('medium')
-                  .foreground(isOverLimit ? 'error' : 'muted'),
-                RawText('/', MAX_CHARACTERS)
-                  .foreground('muted')
-                  .font('14')
-                  .leading('20px')
-                  .margin('left', '2xs'),
-              )
-                .justify('end')
-                .align('center')
-                .margin('top', 'lg')
-                .margin('bottom', 'xl'),
-            )
-              .flex('1')
-              .margin('top', 'lg'),
-          )
-            .contentView((v) => v.padding('horizontal', 'lg'))
-            .scrollIndicators('hidden', 'vertical'),
-        )}
-      </Screen>
-      {toElement(
-        Dialog()
-          .title('Discard Boost?')
-          .message('Are you sure you want to discard this boost?')
-          .buttons([
-            {
-              label: 'Discard',
-              color: 'destructive',
-              onPress: () => back?.(),
-            },
-            {
-              label: 'Keep Editing',
-              color: 'cancel',
-            },
-          ])
-          .presented([discarding, setDiscarding]),
-      )}
-    </KeyboardAvoidingView>
-  );
-};
+                .padding('vertical', 'sm')
+                .padding('horizontal', 'md')
+                .onPress(handleCancel)
+                .pressFade(),
+            )}
 
-export default BoostScreen;
+            {render(
+              HStack(
+                VStack(canBoost ? boostLabel : boostLabel.opacity('70'))
+                  .padding('horizontal', 'xl')
+                  .padding('vertical', 'sm')
+                  .corner('infinite')
+                  .when(!canBoost, (v) => v.opacity('half'))
+                  .onPress(handleBoost)
+                  .disabled(!canBoost)
+                  .pressFade(),
+              ).align('center'),
+            )}
+          </View>
+        )),
+        LDivider(),
+      ).background('background'),
+    )
+    .keyboardAvoiding('1');
+});
