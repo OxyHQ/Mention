@@ -55,6 +55,8 @@ import {
   VStack,
   defineTokens,
   toElement,
+  VStack as LVStack,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 const logger = createLogger('NotificationItem');
@@ -1040,13 +1042,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   if (separateGestures) {
     return (
       <View style={rowStyle} {...hoverGroupProps}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={handlePress}
-          onLongPress={handleLongPress}
-          accessibilityRole="button"
-          accessibilityLabel={accessibilityLabel}
-        />
+        {LtoElement(
+          LVStack()
+            .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+            .onPress(handlePress)
+            .onLongPress(handleLongPress)
+            .role('button')
+            .label(accessibilityLabel),
+        )}
         {rowContent}
       </View>
     );

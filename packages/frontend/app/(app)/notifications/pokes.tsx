@@ -9,10 +9,9 @@ import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { ScreenScrollView } from '@oxy.so/bloom/screen';
-import { Text } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
-
 import { Error as ErrorComponent } from '@/components/Error';
+
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import { SEO } from '@/components/SEO';
 import { ProfileCard } from '@/components/ProfileCard';
@@ -31,7 +30,6 @@ import {
   toElement as LtoElement,
   Group,
 } from '@oxy.so/bloom-language';
-
 import { screen } from '@oxy.so/bloom-language/router';
 
 const SENT_PREVIEW_COUNT = 3;
@@ -191,11 +189,16 @@ export default screen(function PokesScreen() {
               LtoElement(
                 LVStack(
                   LEmbed(
-                    <Text style={[styles.seeAll, { color: theme.colors.primary }]}>
-                      {showAll
-                        ? t('pokes.showLess', { defaultValue: 'Show less' })
-                        : t('pokes.seeAll', { defaultValue: 'See all' })}
-                    </Text>,
+                    LtoElement(
+                      LText(
+                        showAll
+                          ? t('pokes.showLess', { defaultValue: 'Show less' })
+                          : t('pokes.seeAll', { defaultValue: 'See all' }),
+                      )
+                        .weight('semibold')
+                        .font('sm')
+                        .foreground('primary'),
+                    ),
                   ),
                 )
                   .onPress(onToggle)
