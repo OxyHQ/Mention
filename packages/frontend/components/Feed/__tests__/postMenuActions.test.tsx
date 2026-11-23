@@ -120,7 +120,6 @@ const queryClient = { invalidateQueries: jest.fn() };
 const back = jest.fn();
 
 const deps = {
-  theme: { colors: { textSecondary: '#888', error: '#f00' } },
   t: (key: string) => key,
   viewerId: 'viewer-1',
   canUsePrivateApi: true,

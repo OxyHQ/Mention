@@ -2,9 +2,8 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import type { useRouter } from '@/lib/navigation/router';
 import type { QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
-import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { createLogger } from '@oxy.so/core/logger';
-import type { useTheme } from '@oxy.so/bloom/theme';
+import type { IconComponent, InkToken } from '@oxy.so/bloom-language';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
@@ -69,7 +68,6 @@ const logger = createLogger('postMenuActions');
 
 /** App-lifetime services the menu needs, bound once by `PostInteractionsBinder`. */
 export interface PostMenuDeps {
-  theme: ReturnType<typeof useTheme>;
   t: TFunction;
   viewerId: string | undefined;
   /**
@@ -116,9 +114,21 @@ export type PostMenuSubmenuRows =
   | { kind: 'replySettings'; post: HydratedPost }
   | { kind: 'sources'; sources: PostSourceLink[] };
 
-/** A row that opens a submenu of its own rows instead of acting. */
+/**
+ * A row that acts. Its glyph is a Bloom icon in a colour role, the menu row's
+ * `.iconForeground()`; a destructive row's title takes the negative ink.
+ */
+export interface PostMenuAction {
+  icon: IconComponent;
+  iconForeground: InkToken;
+  label: string;
+  onPress: () => void;
+  destructive?: boolean;
+}
+
+/** A row that opens a submenu of its own rows instead of acting. Its glyph takes the menu's quiet ink. */
 interface PostMenuSubmenu {
-  icon: ReactNode;
+  icon: IconComponent;
   label: string;
   /** Bloom menu rows: a flyout on web, an inline disclosure on native. */
   submenu: ReactNode;
@@ -126,19 +136,19 @@ interface PostMenuSubmenu {
   rows: PostMenuSubmenuRows;
 }
 
-export type PostMenuEntry = ActionMenuAction | PostMenuSubmenu;
+export type PostMenuEntry = PostMenuAction | PostMenuSubmenu;
 
 export interface PostMenuActions {
-  insightsAction: ActionMenuAction[];
+  insightsAction: PostMenuAction[];
   saveActionGroup: PostMenuEntry[];
-  addToListAction: ActionMenuAction[];
-  stopSharingAction: ActionMenuAction[];
-  deleteAction: ActionMenuAction[];
-  articleAction: ActionMenuAction[];
+  addToListAction: PostMenuAction[];
+  stopSharingAction: PostMenuAction[];
+  deleteAction: PostMenuAction[];
+  articleAction: PostMenuAction[];
   sourcesAction: PostMenuEntry[];
-  muteReportAction: ActionMenuAction[];
-  communityModerationAction: ActionMenuAction[];
-  copyLinkAction: ActionMenuAction[];
+  muteReportAction: PostMenuAction[];
+  communityModerationAction: PostMenuAction[];
+  copyLinkAction: PostMenuAction[];
 }
 
 export function buildPostMenuActions(
@@ -155,7 +165,7 @@ export function buildPostMenuActions(
     onOpenArticle,
     onInsights,
   }: PostMenuParams,
-  { theme, t, viewerId, canUsePrivateApi, router, back, queryClient }: PostMenuDeps,
+  { t, viewerId, canUsePrivateApi, router, back, queryClient }: PostMenuDeps,
 ): PostMenuActions {
   const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
   {
@@ -205,10 +215,11 @@ export function buildPostMenuActions(
       }
     };
 
-    const insightsAction = canViewInsights
+    const insightsAction: PostMenuAction[] = canViewInsights
       ? [
           {
-            icon: <RiBarChartBoxLine width={20} height={20} fill={theme.colors.textSecondary} />,
+            icon: RiBarChartBoxLine,
+            iconForeground: 'muted',
             label: t('postActions.insights'),
             onPress: onInsights,
           },
@@ -222,13 +233,15 @@ export function buildPostMenuActions(
       // viewer's account, and `isOwner` is false without a session.
     } else if (!isSaved) {
       saveActionGroup.push({
-        icon: <RiBookmarkLine width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiBookmarkLine,
+        iconForeground: 'muted',
         label: t('postActions.save'),
         onPress: onSave,
       });
     } else {
       saveActionGroup.push({
-        icon: <RiBookmarkFill width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiBookmarkFill,
+        iconForeground: 'muted',
         label: t('postActions.unsave'),
         onPress: onSave,
       });
@@ -251,7 +264,8 @@ export function buildPostMenuActions(
       const withinEditWindow = createdAtMs > 0 && Date.now() - createdAtMs < 30 * 60 * 1000;
       if (isChannelPost || withinEditWindow) {
         saveActionGroup.push({
-          icon: <RiEditBoxLine width={20} height={20} fill={theme.colors.textSecondary} />,
+          icon: RiEditBoxLine,
+          iconForeground: 'muted',
           label: t('postActions.edit'),
           onPress: () => router.push(`/compose?editPostId=${postId}`),
         });
@@ -260,11 +274,8 @@ export function buildPostMenuActions(
 
     if (isOwner) {
       saveActionGroup.push({
-        icon: isPinned ? (
-          <RiUnpinLine width={20} height={20} fill={theme.colors.textSecondary} />
-        ) : (
-          <RiPushpinLine width={20} height={20} fill={theme.colors.textSecondary} />
-        ),
+        icon: isPinned ? RiUnpinLine : RiPushpinLine,
+        iconForeground: 'muted',
         label: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
         onPress: async () => {
           if (!(await savePostSettings(postId, { isPinned: !isPinned }))) {
@@ -295,7 +306,7 @@ export function buildPostMenuActions(
     const isReplyOrBoost = Boolean(viewPost?.parentPostId) || Boolean(viewPost?.boost);
     if (isOwner && !isReplyOrBoost) {
       saveActionGroup.push({
-        icon: <RiNodeTree width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiNodeTree,
         label: t('lanes.postActions.moveToLane'),
         submenu: <PostLaneSubmenu post={viewPost} />,
         rows: { kind: 'lane', post: viewPost },
@@ -305,7 +316,8 @@ export function buildPostMenuActions(
     if (isOwner) {
       const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
       saveActionGroup.push({
-        icon: <RiEyeOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiEyeOffLine,
+        iconForeground: 'muted',
         label: isHidden
           ? t('postActions.showEngagementCounts')
           : t('postActions.hideEngagementCounts'),
@@ -319,17 +331,18 @@ export function buildPostMenuActions(
 
     if (isOwner) {
       saveActionGroup.push({
-        icon: <RiChat3Line width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiChat3Line,
         label: t('postActions.replyOptions'),
         submenu: <PostReplySettingsSubmenu post={viewPost} />,
         rows: { kind: 'replySettings', post: viewPost },
       });
     }
 
-    const stopSharingAction = canStopSharing
+    const stopSharingAction: PostMenuAction[] = canStopSharing
       ? [
           {
-            icon: <RiCloseCircleLine width={20} height={20} fill={theme.colors.error} />,
+            icon: RiCloseCircleLine,
+            iconForeground: 'error',
             label: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
             onPress: async () => {
               const confirmed = await confirmDialog({
@@ -361,26 +374,28 @@ export function buildPostMenuActions(
                 });
               }
             },
-            color: theme.colors.error,
+            destructive: true,
           },
         ]
       : [];
 
-    const deleteAction = isOwner
+    const deleteAction: PostMenuAction[] = isOwner
       ? [
           {
-            icon: <RiDeleteBinLine width={20} height={20} fill={theme.colors.error} />,
+            icon: RiDeleteBinLine,
+            iconForeground: 'error',
             label: t('postActions.delete'),
             onPress: handleDelete,
-            color: theme.colors.error,
+            destructive: true,
           },
         ]
       : [];
 
-    const articleAction = hasArticle
+    const articleAction: PostMenuAction[] = hasArticle
       ? [
           {
-            icon: <RiFileList2Line width={20} height={20} fill={theme.colors.textSecondary} />,
+            icon: RiFileList2Line,
+            iconForeground: 'muted',
             label: t('post.viewArticle', { defaultValue: 'View article' }),
             onPress: () => {
               onOpenArticle();
@@ -394,7 +409,7 @@ export function buildPostMenuActions(
       sources.length > 0
         ? [
             {
-              icon: <RiLinksLine width={20} height={20} fill={theme.colors.textSecondary} />,
+              icon: RiLinksLine,
               label: t('post.sources'),
               submenu: <PostSourcesSubmenu sources={sources} />,
               rows: { kind: 'sources', sources },
@@ -502,14 +517,15 @@ export function buildPostMenuActions(
       }
     };
 
-    const muteReportAction: ActionMenuAction[] = [];
+    const muteReportAction: PostMenuAction[] = [];
 
     if (!isOwner && canUsePrivateApi) {
       const username =
         getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'user';
       if (postLane) {
         muteReportAction.push({
-          icon: <RiMicOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
+          icon: RiMicOffLine,
+          iconForeground: 'muted',
           label: t('lanes.postActions.muteLane', {
             lane: postLane.name,
             username,
@@ -519,25 +535,28 @@ export function buildPostMenuActions(
         });
       }
       muteReportAction.push({
-        icon: <RiMicOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiMicOffLine,
+        iconForeground: 'muted',
         label: t('postActions.muteUser', { username }),
         onPress: handleMuteUser,
       });
 
       muteReportAction.push({
-        icon: <RiSpamLine width={20} height={20} fill={theme.colors.error} />,
+        icon: RiSpamLine,
+        iconForeground: 'error',
         label: t('postActions.reportPost'),
         onPress: handleReportPost,
-        color: theme.colors.error,
+        destructive: true,
       });
     }
 
-    const addToListAction: ActionMenuAction[] = [];
+    const addToListAction: PostMenuAction[] = [];
     const authorId = viewPost?.user?.id;
     if (!isOwner && authorId && canUsePrivateApi) {
       const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
       addToListAction.push({
-        icon: <RiListUnordered width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiListUnordered,
+        iconForeground: 'muted',
         label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
         onPress: () => {
           void presentSheet((surface) => (
@@ -557,13 +576,14 @@ export function buildPostMenuActions(
     // takes it out of the community — it stays its author's — and banning its
     // author refuses their posts there from now on. Neither is offered on the
     // moderator's own post's author (a moderator cannot ban themselves).
-    const communityModerationAction: ActionMenuAction[] = [];
+    const communityModerationAction: PostMenuAction[] = [];
     const community = viewPost?.community;
     if (moderatesCommunity && community?.id && postId) {
       const communityHandle = getNormalizedUserHandle(community) || '';
       const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
       communityModerationAction.push({
-        icon: <RiEyeOffLine width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiEyeOffLine,
+        iconForeground: 'muted',
         label: t('communities.postActions.remove', {
           community: communityHandle,
           defaultValue: 'Remove from !{{community}}',
@@ -605,13 +625,14 @@ export function buildPostMenuActions(
       const authorId = viewPost?.user?.id;
       if (authorId && authorId !== viewerId) {
         communityModerationAction.push({
-          icon: <RiSpamLine width={20} height={20} fill={theme.colors.error} />,
+          icon: RiSpamLine,
+          iconForeground: 'error',
           label: t('communities.postActions.ban', {
             username: authorHandle,
             community: communityHandle,
             defaultValue: 'Ban @{{username}} from !{{community}}',
           }),
-          color: theme.colors.error,
+          destructive: true,
           onPress: async () => {
             const confirmed = await confirmDialog({
               title: t('communities.postActions.banTitle', {
@@ -652,9 +673,10 @@ export function buildPostMenuActions(
       }
     }
 
-    const copyLinkAction = [
+    const copyLinkAction: PostMenuAction[] = [
       {
-        icon: <RiLinkM width={20} height={20} fill={theme.colors.textSecondary} />,
+        icon: RiLinkM,
+        iconForeground: 'muted',
         label: t('postActions.copyLink'),
         onPress: async () => {
           try {

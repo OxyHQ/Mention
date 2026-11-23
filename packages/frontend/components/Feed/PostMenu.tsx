@@ -14,18 +14,10 @@
  * as `useOperatesAccount`) and the author's lanes. A lane list not yet cached is
  * one row that opens the lane picker, which loads it.
  */
-import { isValidElement, lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import {
-  actions,
-  Divider,
-  Item,
-  Section,
-  Submenu,
-  type IconComponent,
-  type MenuChild,
-} from '@oxy.so/bloom-language';
+import { actions, Divider, Item, Section, Submenu, type MenuChild } from '@oxy.so/bloom-language';
 import type { HydratedPost, Lane } from '@mention/shared-types';
 import type { AccountNode } from '@oxy.so/core';
 import {
@@ -60,18 +52,6 @@ interface PostMenuRows {
   actions: Record<string, () => void>;
 }
 
-/** An entry's glyph is a Bloom icon element; the menu draws its component in its own ink. */
-function glyphOf(icon: ReactNode): IconComponent | undefined {
-  return isValidElement(icon) && typeof icon.type !== 'string'
-    ? (icon.type as IconComponent)
-    : undefined;
-}
-
-function withGlyph<V extends { icon(icon: IconComponent): V }>(row: V, icon: ReactNode): V {
-  const glyph = glyphOf(icon);
-  return glyph ? row.icon(glyph) : row;
-}
-
 function postMenuRows(groups: PostMenuEntry[][], context: RowContext): PostMenuRows {
   const handlers: Record<string, () => void> = {};
   const item = (title: string, tag: string, run: () => unknown) => {
@@ -82,13 +62,12 @@ function postMenuRows(groups: PostMenuEntry[][], context: RowContext): PostMenuR
     Section(
       ...group.map((entry): MenuChild => {
         if ('rows' in entry) {
-          return withGlyph(
-            Submenu(entry.label, ...submenuRows(entry.rows, context, item)),
-            entry.icon,
-          );
+          return Submenu(entry.label, ...submenuRows(entry.rows, context, item)).icon(entry.icon);
         }
-        const row = withGlyph(item(entry.label, `entry:${entry.label}`, entry.onPress), entry.icon);
-        return entry.color ? row.destructive() : row;
+        const row = item(entry.label, `entry:${entry.label}`, entry.onPress)
+          .icon(entry.icon)
+          .iconForeground(entry.iconForeground);
+        return entry.destructive ? row.destructive() : row;
       }),
     ),
   );

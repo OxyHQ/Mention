@@ -9,7 +9,6 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useScreenBack } from '@oxy.so/bloom/screen';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { isMentionCommunity } from '@mention/shared-types/profileUrls';
 import type { HydratedPost } from '@mention/shared-types';
@@ -21,7 +20,7 @@ import type { PostMenuDeps } from './postMenuActions';
 
 /**
  * What a post's ⋯ menu is built from besides the post: the app's services
- * (theme, i18n, the viewer, router, Back, the query client, the community-note
+ * (i18n, the viewer, router, Back, the query client, the community-note
  * handlers, the save command) and whether communities are on.
  */
 export interface PostMenuServices extends PostMenuDeps {
@@ -53,7 +52,6 @@ export function menuTranslations(t: TFunction): TFunction {
 
 /** The services where the menu is placed: called only while it is open, or when a row is chosen. */
 export function usePostMenuServices(): PostMenuServices {
-  const theme = useTheme();
   const { t: translate } = useTranslation();
   const t = useMemo(() => menuTranslations(translate), [translate]);
   const { user, canUsePrivateApi } = useAuth();
@@ -64,7 +62,6 @@ export function usePostMenuServices(): PostMenuServices {
   const interactions = usePostInteractions();
   const communitiesPreview = useCommunitiesPreview();
   return {
-    theme,
     t,
     viewerId: user?.id,
     canUsePrivateApi,
