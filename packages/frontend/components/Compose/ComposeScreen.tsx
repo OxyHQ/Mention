@@ -4362,28 +4362,29 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   has a publish time in both posting modes. The FILLED glyph once
                   a time is set, not just a tint, and never the event control's
                   `RiCalendarEventLine`. */}
-                        <Chip
-                          size="xl"
-                          variant="subtle"
-                          selected={Boolean(scheduledAt)}
-                          disabled={isPosting}
-                          onPress={handleSchedulePress}
-                          accessibilityLabel={t('compose.schedule.a11y', {
-                            defaultValue: 'Schedule this post',
-                          })}
-                          startIcon={
+                        {LtoElement(
+                          LChip(
                             scheduledAt
-                              ? toElement(Icon(RiTimeFill).size('sm').foreground('primary'))
-                              : toElement(Icon(RiTimeLine).size('sm').foreground('muted'))
-                          }
-                          trailingIcon={RiArrowDownSLine}
-                        >
-                          {/* The SAME short spelling the identity rows show, so the two
-                    places that name this instant cannot read differently. */}
-                          {scheduledAt
-                            ? formatScheduledShort(scheduledAt)
-                            : t('compose.schedule.now', { defaultValue: 'Now' })}
-                        </Chip>
+                              ? LIcon(RiTimeFill).size('sm').foreground('primary')
+                              : LIcon(RiTimeLine).size('sm').foreground('muted'),
+                            // The SAME short spelling the identity rows show, so the two
+                            // places that name this instant cannot read differently.
+                            Text(
+                              scheduledAt
+                                ? formatScheduledShort(scheduledAt)
+                                : t('compose.schedule.now', { defaultValue: 'Now' }),
+                            ),
+                            LIcon(RiArrowDownSLine),
+                          )
+                            .size('xl')
+                            .style('subtle')
+                            .selected(Boolean(scheduledAt))
+                            .disabled(isPosting)
+                            .onPress(handleSchedulePress)
+                            .label(
+                              t('compose.schedule.a11y', { defaultValue: 'Schedule this post' }),
+                            ),
+                        )}
                         {/* WHAT LANGUAGE everything written here is in. `+N` counts the
                   additional author renditions. */}
                         {LtoElement(
