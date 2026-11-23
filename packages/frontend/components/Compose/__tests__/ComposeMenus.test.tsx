@@ -58,7 +58,7 @@ jest.mock('@oxy.so/bloom/dropdown-menu', () => {
     DropdownMenuRadioItem: ({ value, keepOpen, children }: MockProps & { value: string }) => {
       const group = R.useContext(Radio);
       return R.createElement(
-        RNText,
+        RNText as React.ElementType,
         {
           accessibilityRole: 'radio',
           accessibilityState: { checked: group.value === value },
@@ -75,7 +75,7 @@ jest.mock('@oxy.so/bloom/dropdown-menu', () => {
       children,
     }: MockProps & { checked: boolean; onCheckedChange: (checked: boolean) => void }) =>
       R.createElement(
-        RNText,
+        RNText as React.ElementType,
         {
           accessibilityRole: 'checkbox',
           accessibilityState: { checked },
@@ -116,7 +116,7 @@ function rows(renderer: TestRenderer.ReactTestRenderer) {
   return renderer.root
     .findAll(
       (node) =>
-        node.type === 'Text' &&
+        String(node.type) === 'Text' &&
         ['header', 'radio', 'checkbox'].includes(node.props.accessibilityRole as string),
     )
     .map((node) => ({
@@ -130,7 +130,7 @@ function rows(renderer: TestRenderer.ReactTestRenderer) {
 function press(renderer: TestRenderer.ReactTestRenderer, title: string) {
   const row = renderer.root.find(
     (node) =>
-      node.type === 'Text' &&
+      String(node.type) === 'Text' &&
       typeof node.props.onPress === 'function' &&
       node.children.join('') === title,
   );
@@ -201,7 +201,9 @@ describe('the who-can-reply menu', () => {
       },
     ]);
     expect(
-      renderer.root.findAll((node) => node.type === 'View' && node.props.testID === 'separator'),
+      renderer.root.findAll(
+        (node) => String(node.type) === 'View' && node.props.testID === 'separator',
+      ),
     ).toHaveLength(2);
   });
 
