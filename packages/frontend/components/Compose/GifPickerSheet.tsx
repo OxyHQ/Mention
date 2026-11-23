@@ -3,7 +3,7 @@ import { useDebouncedValue } from '@oxy.so/bloom/hooks';
 import type React from 'react';
 import { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { useTranslation } from 'react-i18next';
@@ -54,7 +54,6 @@ interface GifSearchResponse {
 }
 
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
-  const theme = useTheme();
   const colorTokens = useColorTokens();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,7 +127,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         style={[
           { backgroundColor: colorTokens.surface },
           styles.gifItem,
-          { borderColor: isSelected ? theme.colors.primary : theme.colors.border },
+          { borderColor: isSelected ? colorTokens.primary : colorTokens.border },
           isSelected && { opacity: 0.7 },
         ]}
         onPress={() => handleSelectGif(item)}
@@ -145,7 +144,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
             style={StyleSheet.absoluteFill}
           />
         ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.contrast50 }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colorTokens.muted }]} />
         )}
         {isUploading && <View style={styles.uploading}>{toElement(Loading().size('sm'))}</View>}
       </TouchableOpacity>

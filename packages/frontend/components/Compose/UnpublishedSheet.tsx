@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { View, TouchableOpacity, type ViewStyle } from 'react-native';
 import { tokens } from '@oxy.so/bloom/styles';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
@@ -70,11 +70,11 @@ interface TabButtonProps {
 }
 
 const TabButton: React.FC<TabButtonProps> = ({ label, count, isActive, onPress }) => {
-  const theme = useTheme();
+  const colorTokens = useColorTokens();
 
   return (
     <TouchableOpacity
-      style={[TAB, { borderBottomColor: isActive ? theme.colors.primary : 'transparent' }]}
+      style={[TAB, { borderBottomColor: isActive ? colorTokens.primary : 'transparent' }]}
       onPress={onPress}
       activeOpacity={0.75}
       accessibilityRole="tab"
