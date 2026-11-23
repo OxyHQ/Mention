@@ -7,7 +7,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAppShell } from '@oxy.so/bloom/app-shell/hooks';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { RiMenuLine } from '@oxy.so/bloom/icons/RiMenuLine';
+import { MenuIcon } from '@oxy.so/bloom/icons/MenuIcon';
 
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
@@ -48,7 +48,7 @@ export function MentionHomeHeader() {
               tone="neutral"
               iconOnly
               size="md"
-              leadingIcon={shell.drawerOpen ? RiCloseLine : RiMenuLine}
+              leadingIcon={shell.drawerOpen ? RiCloseLine : MenuIcon}
               accessibilityLabel={t('navigation.menu')}
               aria-expanded={shell.drawerOpen}
               onPress={shell.toggleDrawer}
