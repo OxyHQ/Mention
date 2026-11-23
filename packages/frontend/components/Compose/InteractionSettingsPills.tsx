@@ -67,21 +67,22 @@ const InteractionSettingsPills = memo<InteractionSettingsPillsProps>(
             </TouchableOpacity>
           </ReplySettingsMenu>,
         ),
-        Embed(
-          <TouchableOpacity onPress={onSensitiveToggle} activeOpacity={0.7} style={styles.pill}>
-            {toElement(Icon(SensitiveIcon).size('14').foreground(sensitiveTone))}
-            {toElement(
-              RawText(
-                isSensitive
-                  ? t('compose.sensitive.on', 'CW: On')
-                  : t('compose.sensitive.off', 'CW'),
-              )
-                .font('xs')
-                .weight('medium')
-                .foreground(sensitiveTone),
-            )}
-          </TouchableOpacity>,
-        ),
+        HStack(
+          Icon(SensitiveIcon).size('14').foreground(sensitiveTone),
+          RawText(
+            isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW'),
+          )
+            .font('xs')
+            .weight('medium')
+            .foreground(sensitiveTone),
+        )
+          .align('center')
+          .spacing('xs')
+          .padding('horizontal', 'sm')
+          .padding('vertical', 'xs')
+          .corner('md')
+          .onPress(onSensitiveToggle)
+          .pressFade('70'),
       )
         .padding('vertical', 'xs')
         .align('center')
