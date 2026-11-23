@@ -1,8 +1,8 @@
-import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, useAuth } from '@oxy.so/services/ui/client';
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 /** Real followed accounts, sharing the graph already seeded by the app root. */
 export function FollowingAvatars() {
@@ -40,16 +40,20 @@ export function FollowingAvatars() {
       : [];
   });
   if (items.length === 0) return null;
-  return (
-    <View pointerEvents="none" aria-hidden importantForAccessibility="no-hide-descendants">
-      <AccountAvatarGroup
-        items={items}
-        size={18}
-        overlap={6}
-        max={3}
-        ringWidth={0}
-        testID="video-following-avatars"
-      />
-    </View>
+  return toElement(
+    VStack(
+      Embed(
+        <AccountAvatarGroup
+          items={items}
+          size={18}
+          overlap={6}
+          max={3}
+          ringWidth={0}
+          testID="video-following-avatars"
+        />,
+      ),
+    )
+      .allowsHitTesting(false)
+      .accessibilityHidden(),
   );
 }
