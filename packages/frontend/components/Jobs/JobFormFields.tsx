@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Field } from '@oxy.so/bloom/field';
 import { SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { TagField } from '@oxy.so/bloom/tag-field';
 import type {
@@ -133,12 +132,9 @@ export function JobFormFields({ form }: { form: JobForm }) {
       )}
       {/* Employment type — a chip row rather than a SegmentedControl: six
           values would cram into an unreadable pill row on a phone width. */}
-      <Field
-        label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
-        multiple
-        style={{ marginTop: 16 }}
-      >
-        {toElement(
+      {toElement(
+        LField(
+          t('jobs.create.employmentType', { defaultValue: 'Employment type' }),
           HStack(
             Embed(
               MENTION_JOB_EMPLOYMENT_TYPES.map((value) =>
@@ -153,14 +149,13 @@ export function JobFormFields({ form }: { form: JobForm }) {
           )
             .wrap()
             .spacing('sm'),
-        )}
-      </Field>
-      <Field
-        label={t('jobs.create.salary', { defaultValue: 'Salary (optional)' })}
-        multiple
-        style={{ marginTop: 16 }}
-      >
-        {toElement(
+        )
+          .multiple()
+          .margin('top', 'lg'),
+      )}
+      {toElement(
+        LField(
+          t('jobs.create.salary', { defaultValue: 'Salary (optional)' }),
           HStack(
             VStack(
               LTextField(
@@ -175,13 +170,9 @@ export function JobFormFields({ form }: { form: JobForm }) {
               ).keyboard('numeric'),
             ).flex('1'),
           ).spacing('sm'),
-        )}
-        {toElement(
           VStack(
             Embed(<JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />),
           ).margin('top', 'sm'),
-        )}
-        {toElement(
           VStack(
             Segmented(
               [salaryInterval, setSalaryInterval],
@@ -190,8 +181,10 @@ export function JobFormFields({ form }: { form: JobForm }) {
               .label(t('jobs.create.salaryInterval', { defaultValue: 'Per' }))
               .size('sm'),
           ).margin('top', 'sm'),
-        )}
-      </Field>
+        )
+          .multiple()
+          .margin('top', 'lg'),
+      )}
       {/* Skills — Enter or a comma commits a skill; each chip removes itself. */}
       {toElement(
         LField(
