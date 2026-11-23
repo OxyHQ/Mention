@@ -1,10 +1,7 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   View,
-  Pressable,
   StyleSheet,
-  Text,
   Platform,
   type StyleProp,
   type ViewStyle,
@@ -30,8 +27,37 @@ import { VIDEO_BUFFER_OPTIONS, videoSourceFor } from '@/utils/videoSource';
 import { useVideoPlayerEvent } from '@/hooks/useVideoPlayerEvent';
 import { findVideoElement } from './videoElementSize';
 
-import { Icon, RawText, defineTokens, toElement } from '@oxy.so/bloom-language';
-const appColors = defineTokens({ color: { white: 'white' } });
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+const appColors = defineTokens({
+  color: {
+    white: 'white',
+    overlay: 'rgba(0, 0, 0, 0.3)',
+    bar: 'rgba(0, 0, 0, 0.5)',
+    muteFill: 'rgba(0, 0, 0, 0.55)',
+    muteEdge: 'rgba(255, 255, 255, 0.2)',
+  },
+});
+
+/** The surface's whole box (`StyleSheet.absoluteFill`), as a view's four edges. */
+const FILL = { top: 'none', left: 'none', right: 'none', bottom: 'none' } as const;
+
+/** The playhead and the duration either side of the progress bar. */
+const timeText = (value: string) =>
+  RawText(value)
+    .foreground(appColors.color.white)
+    .font('xs')
+    .weight('medium')
+    .monospacedDigit()
+    .frame({ minWidth: '36' })
+    .textAlign('center');
 
 interface VideoPlayerProps {
   src: string;
@@ -600,7 +626,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
         (isPreviewMode ? (
           <>
             {/* Whole-surface tap opens the immersive viewer (Instagram Reels style) */}
-            <Pressable style={styles.tapArea} onPress={onPress} />
+            {toElement(VStack().position(FILL).zIndex('raised').onPress(onPress))}
 
             {/* The browser refused to start this video — Safari does without a
                 tap, always in Low Power Mode — so offer the tap that starts it
@@ -610,67 +636,79 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
             )}
 
             {/* Mute/unmute stays available without leaving the feed; sits above the tap surface */}
-            <Pressable
-              onPress={handlePreviewMuteToggle}
-              hitSlop={tokens.hitSlop.md}
-              style={styles.previewMuteButton}
-            >
-              <View style={styles.previewMuteButtonInner}>
-                <MuteIcon width={18} height={18} fill="white" />
-              </View>
-            </Pressable>
+            {toElement(
+              VStack(
+                VStack(Icon(MuteIcon).size('18').foreground(appColors.color.white))
+                  .frame({ width: '3xl', height: '3xl' })
+                  .background(appColors.color.muteFill)
+                  .border(appColors.color.muteEdge, 'thin')
+                  .corner('lg')
+                  .align('center')
+                  .justify('center'),
+              )
+                .position({ bottom: '10', right: '10' })
+                .zIndex('2')
+                .onPress(handlePreviewMuteToggle)
+                .hitSlop('md'),
+            )}
           </>
         ) : (
           /* Tap area to toggle controls */
-          <Pressable style={styles.tapArea} onPress={handleTap}>
-            {showControls && (
-              <View style={styles.controlsOverlay}>
-                {/* Play/Pause center button */}
-                <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
-
-                {/* Bottom bar: progress + time + buttons */}
-                <View style={styles.bottomBar}>
-                  {/* Time display */}
-                  <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
-
-                  {/* Progress bar */}
-                  <Pressable
-                    ref={progressBarRef}
-                    style={styles.progressBarContainer}
-                    onPress={handleProgressBarPress}
-                  >
-                    <View style={styles.progressBarTrack}>
-                      <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-                      <View style={[styles.progressBarThumb, { left: `${progress * 100}%` }]} />
-                    </View>
-                  </Pressable>
-
-                  {/* Duration */}
-                  <Text style={styles.timeText}>{formatDuration(duration)}</Text>
-
-                  {/* Mute button */}
-                  <Pressable
-                    onPress={handleMuteToggle}
-                    hitSlop={tokens.hitSlop.md}
-                    style={styles.controlButton}
-                  >
-                    <MuteIcon size="md" fill="white" />
-                  </Pressable>
-
-                  {/* Fullscreen button */}
-                  <Pressable
-                    onPress={handleFullscreen}
-                    hitSlop={tokens.hitSlop.md}
-                    style={styles.controlButton}
-                  >
-                    {toElement(
-                      Icon(RiExpandDiagonalSLine).size('md').foreground(appColors.color.white),
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </Pressable>
+          toElement(
+            VStack(
+              showControls
+                ? VStack(
+                    /* Play/Pause center button */
+                    Embed(<VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />),
+                    /* Bottom bar: progress + time + buttons */
+                    HStack(
+                      timeText(formatDuration(currentTime)),
+                      VStack(
+                        Embed(
+                          <View style={styles.progressBarTrack}>
+                            <View
+                              style={[styles.progressBarFill, { width: `${progress * 100}%` }]}
+                            />
+                            <View
+                              style={[styles.progressBarThumb, { left: `${progress * 100}%` }]}
+                            />
+                          </View>,
+                        ),
+                      )
+                        .frame({ height: '2xl' })
+                        .justify('center')
+                        .grow()
+                        .ref(progressBarRef)
+                        .onPress(handleProgressBarPress),
+                      timeText(formatDuration(duration)),
+                      VStack(Icon(MuteIcon).size('md').foreground(appColors.color.white))
+                        .padding('all', 'xs')
+                        .onPress(handleMuteToggle)
+                        .hitSlop('md'),
+                      VStack(
+                        Icon(RiExpandDiagonalSLine).size('md').foreground(appColors.color.white),
+                      )
+                        .padding('all', 'xs')
+                        .onPress(handleFullscreen)
+                        .hitSlop('md'),
+                    )
+                      .padding('horizontal', '10')
+                      .padding('vertical', 'sm')
+                      .background(appColors.color.bar)
+                      .position({ bottom: 'none', left: 'none', right: 'none' })
+                      .align('center')
+                      .spacing('sm'),
+                  )
+                    .background(appColors.color.overlay)
+                    .position(FILL)
+                    .align('center')
+                    .justify('center')
+                : null,
+            )
+              .position(FILL)
+              .zIndex('raised')
+              .onPress(handleTap),
+          )
         ))}
     </View>
   );
@@ -698,59 +736,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     zIndex: 1,
   },
-  tapArea: {
-    ...StyleSheet.absoluteFill,
-    zIndex: 1,
-  },
-  previewMuteButton: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    zIndex: 2,
-  },
-  previewMuteButtonInner: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  controlsOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   playPauseButton: {
     zIndex: 2,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    gap: 8,
-  },
-  timeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-    fontVariant: ['tabular-nums'],
-    minWidth: 36,
-    textAlign: 'center',
-  },
-  progressBarContainer: {
-    flex: 1,
-    height: 24,
-    justifyContent: 'center',
   },
   progressBarTrack: {
     height: 3,
@@ -772,9 +759,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: 'white',
     ...(Platform.OS === 'web' ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.4)' } : { elevation: 2 }),
-  },
-  controlButton: {
-    padding: 4,
   },
 });
 
