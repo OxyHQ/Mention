@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react';
-import { Divider } from '@oxy.so/bloom/divider';
-import { Card, Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Card,
+  Divider,
+  Embed,
+  HStack,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type BaseWidgetProps = {
   title?: string;
@@ -29,7 +36,7 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
         VStack(Embed(children)),
         // The rule under a widget in a stacked rail: 8px of the card's
         // spacing plus this margin keep the 16px it always sat below.
-        divider ? Embed(<Divider style={{ marginTop: 8 }} />) : null,
+        divider ? Divider().margin('top', 'sm') : null,
       )
         .style('plain')
         .radius('none')
