@@ -1,12 +1,10 @@
 import type React from 'react';
 import { useState } from 'react';
 import { ScrollView, TouchableOpacity, View, type ViewStyle } from 'react-native';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { REPORT_CATEGORIES } from '@/services/reportService';
-
 import {
   Checkbox as LCheckbox,
   Divider as LDivider,
@@ -21,6 +19,7 @@ import {
   VStack as LVStack,
   toElement as LtoElement,
   Embed as LEmbed,
+  TextEditor,
 } from '@oxy.so/bloom-language';
 
 const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
@@ -172,16 +171,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
             LField(
               'Additional details (optional)',
               Embed(
-                <Textarea
-                  placeholder={t('report.contextPlaceholder')}
-                  value={details}
-                  onChangeText={setDetails}
-                  rows={5}
-                  autoResize
-                  maxRows={7}
-                  maxLength={500}
-                  showCount
-                />,
+                LtoElement(
+                  TextEditor([details, setDetails])
+                    .placeholder(t('report.contextPlaceholder'))
+                    .rows(5)
+                    .autoResize(7)
+                    .maxLength(500)
+                    .showCount(),
+                ),
               ),
             ).margin('bottom', 'lg'),
           )}
