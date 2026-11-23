@@ -8,7 +8,7 @@
  * The THREAD_LINE_* tokens below are context-independent and shared with PostItem.
  */
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { Icon, VStack, defineTokens } from '@oxy.so/bloom-language';
+import { Icon, VStack, defineModifier, defineTokens } from '@oxy.so/bloom-language';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 
 export const HPAD = 16;
@@ -28,6 +28,40 @@ export const composeSpace = defineTokens({
     timelineLine: TIMELINE_LINE_OFFSET,
   },
 });
+/**
+ * An attachment card's frame (article, poll, event, room, job, podcast): 280 by the card
+ * height at the row's start, a thin border and a 15 corner that clips it, on the card fill.
+ */
+export const attachmentCard = defineModifier((v) =>
+  v
+    .alignSelf('start')
+    .frame({ width: '280', height: composeSpace.space.cardHeight })
+    .background('card')
+    .border('border', 'thin')
+    .corner('15')
+    .clipped(),
+);
+/** A thread item's attachment card: the same frame on the surface fill. */
+export const attachmentCardOnSurface = defineModifier((v) =>
+  v
+    .alignSelf('start')
+    .frame({ width: '280', height: composeSpace.space.cardHeight })
+    .background('surface')
+    .border('border', 'thin')
+    .corner('15')
+    .clipped(),
+);
+/** A media card in the composer's row: 280 by the card height on the surface fill. */
+export const mediaCard = defineModifier((v) =>
+  v
+    .frame({ width: '280', height: composeSpace.space.cardHeight })
+    .background('surface')
+    .border('border', 'thin')
+    .corner('15')
+    .clipped(),
+);
+/** A link card's place: Bloom's LinkPreviewCard draws its own border, corner and surface. */
+export const linkCard = defineModifier((v) => v.alignSelf('start').frame({ width: '280' }));
 export const THREAD_LINE_WIDTH = 2;
 export const THREAD_LINE_BORDER_RADIUS = 9999;
 export const THREAD_LINE_Z_INDEX = -1;

@@ -1,14 +1,7 @@
 import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
 import { commerceReferenceKey } from '@/utils/commerceReferences';
 import { memo, useCallback, useMemo } from 'react';
-import {
-  View,
-  TouchableOpacity,
-  ScrollView,
-  type ImageStyle,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import { View, ScrollView, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import type { AccountNode } from '@oxy.so/core';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
@@ -20,7 +13,6 @@ import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 // Deep imports rather than this directory's own barrel: the barrel re-exports
 // eight sheets, so naming it from inside `components/Compose/` pulled all of them
@@ -39,6 +31,8 @@ import type { MentionTextValue } from '@/utils/mentions';
 
 import {
   BOTTOM_LEFT_PAD,
+  attachmentCard,
+  attachmentCardOnSurface,
   cardRemoveControl,
   composeSpace,
   timelineLineAbove,
@@ -59,12 +53,11 @@ const appColors = defineTokens({ color: { hex5e5e5e: '#5e5e5e' } });
  */
 export interface ComposeThreadItemStyles {
   timelineForeground: ViewStyle;
-  threadTextInput: TextStyle;
   mediaPreviewContainer: ViewStyle;
+  threadTextInput: TextStyle;
   mediaPreviewScroll: ViewStyle;
   mediaPreviewImage: ImageStyle;
   mediaReorderControls: ViewStyle;
-  articleAttachmentWrapper: ViewStyle;
   articleAttachmentPreview: ViewStyle;
 }
 
@@ -196,12 +189,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     textInputRef,
     styles,
   }) => {
-    const colorTokens = useColorTokens();
-    // The item's article, poll and room cards' frame.
-    const cardStyle = [
-      styles.articleAttachmentWrapper,
-      { borderColor: colorTokens.border, backgroundColor: colorTokens.surface },
-    ];
     const { t } = useTranslation();
     const threadId = item.id;
 
@@ -470,20 +457,19 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       item.article &&
                       toElement(
                         VStack(
-                          Embed(
-                            <TouchableOpacity
-                              style={cardStyle}
-                              activeOpacity={0.85}
-                              onPress={handleArticlePress}
-                            >
+                          VStack(
+                            Embed(
                               <PostArticlePreview
                                 title={item.article.title}
                                 body={item.article.body}
                                 onPress={handleArticlePress}
                                 style={styles.articleAttachmentPreview}
-                              />
-                            </TouchableOpacity>,
-                          ),
+                              />,
+                            ),
+                          )
+                            .modifier(attachmentCardOnSurface)
+                            .onPress(handleArticlePress)
+                            .pressFade('85'),
                           cardRemoveControl(handleArticleRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
@@ -492,21 +478,20 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       item.event &&
                       toElement(
                         VStack(
-                          Embed(
-                            <TouchableOpacity
-                              style={cardStyle}
-                              activeOpacity={0.85}
-                              onPress={handleEventPress}
-                            >
+                          VStack(
+                            Embed(
                               <PostAttachmentEvent
                                 name={item.event.name}
                                 date={item.event.date}
                                 location={item.event.location}
                                 onPress={handleEventPress}
                                 style={styles.articleAttachmentPreview}
-                              />
-                            </TouchableOpacity>,
-                          ),
+                              />,
+                            ),
+                          )
+                            .modifier(attachmentCardOnSurface)
+                            .onPress(handleEventPress)
+                            .pressFade('85'),
                           cardRemoveControl(handleEventRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
@@ -524,7 +509,9 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                           )
                             .role('button')
                             .label(
-                              t('commerce.remove', { defaultValue: 'Remove commerce attachment' }),
+                              t('commerce.remove', {
+                                defaultValue: 'Remove commerce attachment',
+                              }),
                             ),
                         ).alignSelf('start'),
                         commerceReferenceKey(ref),
@@ -535,25 +522,17 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       item.podcast &&
                       toElement(
                         VStack(
-                          Embed(
-                            <View
-                              style={[
-                                {
-                                  borderColor: colorTokens.border,
-                                  backgroundColor: colorTokens.card,
-                                },
-                                styles.articleAttachmentWrapper,
-                              ]}
-                            >
+                          VStack(
+                            Embed(
                               <PostPodcastAttachment
                                 podcast={item.podcast}
                                 width={320}
                                 height={120}
                                 showSaveButton={false}
                                 onPress={handlePodcastPress}
-                              />
-                            </View>,
-                          ),
+                              />,
+                            ),
+                          ).modifier(attachmentCard),
                           cardRemoveControl(handlePodcastRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
@@ -562,8 +541,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                       item.room &&
                       toElement(
                         VStack(
-                          Embed(
-                            <View style={cardStyle}>
+                          VStack(
+                            Embed(
                               <RoomCard
                                 room={{
                                   _id: item.room.roomId,
@@ -575,9 +554,9 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                                 }}
                                 variant="compact"
                                 style={styles.articleAttachmentPreview}
-                              />
-                            </View>,
-                          ),
+                              />,
+                            ),
+                          ).modifier(attachmentCardOnSurface),
                           cardRemoveControl(handleRoomRemove).hitSlop('sm'),
                         ).alignSelf('start'),
                       )}
