@@ -2,29 +2,19 @@ import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { useDeckSettings } from '@/components/deck/deckSettings';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { Text, type TextStyle } from 'react-native';
-import { tokens } from '@oxy.so/bloom/styles';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 
 import {
   Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
+  RawText,
   SettingsSection as LSettingsSection,
   Toggle,
   toElement,
 } from '@oxy.so/bloom-language';
 
-/** Where the workspace is saved, under its settings (`text-sm px-4`). */
-const STATUS = {
-  fontSize: 14,
-  lineHeight: 20,
-  paddingHorizontal: tokens.space.lg,
-} satisfies TextStyle;
-
 export default function DeckSettingsPage() {
   const { t } = useTranslation();
-  const colorTokens = useColorTokens();
   const available = useDeckAvailable();
   const homeScreen = useDeckSettings((state) => state.homeScreen === true);
   const setHomeScreen = useDeckSettings((state) => state.setHomeScreen);
@@ -73,35 +63,35 @@ export default function DeckSettingsPage() {
             ),
           ),
       ),
-      Embed(
-        // A live region, which the language's text has no modifier for.
-        <Text
-          style={[STATUS, { color: colorTokens.mutedForeground }]}
-          accessibilityLiveRegion="polite"
-        >
-          {!user?.id
+      // A live region: it announces where the workspace is saved.
+      RawText(
+        !user?.id
+          ? t(
+              'deck.workspace.anonymous',
+              'Sign in to sync your Deck. Your workspace is saved on this device.',
+            )
+          : status === 'error'
             ? t(
-                'deck.workspace.anonymous',
-                'Sign in to sync your Deck. Your workspace is saved on this device.',
+                'deck.workspace.error',
+                'Changes are saved on this device. Sync could not finish and will retry automatically.',
               )
-            : status === 'error'
+            : !syncEnabled
               ? t(
-                  'deck.workspace.error',
-                  'Changes are saved on this device. Sync could not finish and will retry automatically.',
+                  'deck.workspace.local',
+                  'Your workspace stays on this device. Turn sync on to share this workspace with your other devices.',
                 )
-              : !syncEnabled
-                ? t(
-                    'deck.workspace.local',
-                    'Your workspace stays on this device. Turn sync on to share this workspace with your other devices.',
-                  )
-                : status === 'saved'
-                  ? t('deck.workspace.saved', 'Your Deck is saved to your account.')
-                  : t(
-                      'deck.workspace.saving',
-                      'Your workspace is available immediately. Saving to your account…',
-                    )}
-        </Text>,
-      ),
+              : status === 'saved'
+                ? t('deck.workspace.saved', 'Your Deck is saved to your account.')
+                : t(
+                    'deck.workspace.saving',
+                    'Your workspace is available immediately. Saving to your account…',
+                  ),
+      )
+        .font('14')
+        .leading('20px')
+        .foreground('muted')
+        .padding('horizontal', 'lg')
+        .liveRegion('polite'),
     ),
   );
 }
