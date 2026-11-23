@@ -4,7 +4,6 @@ import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
 import { Item } from '@oxy.so/bloom/item';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -349,10 +348,10 @@ export default screen(function EditStarterPackScreen() {
             .margin('top', '10'),
         ),
     ),
-    Embed(
-      results.length > 0 && (
-        <Card border="thin" elevation="none" radius="radius-16" style={{ marginTop: 10 }}>
-          {results.map((u, index) => {
+    results.length > 0 &&
+      LCard(
+        Embed(
+          results.map((u, index) => {
             const already = memberIdSet.has(u.id);
             const busy = pendingIds.has(u.id);
             const blockedByCap = atCapacity && !already;
@@ -402,10 +401,13 @@ export default screen(function EditStarterPackScreen() {
                 />
               </React.Fragment>
             );
-          })}
-        </Card>
-      ),
-    ),
+          }),
+        ),
+      )
+        .outline('thin')
+        .elevation('none')
+        .radius('lg')
+        .margin('top', '10'),
     /* Current members. */ HStack(
       RawText('Members (', members.length, ')')
         .font('14')
