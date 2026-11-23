@@ -18,7 +18,6 @@ import {
   VStack,
   toElement,
   Text,
-  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 export type ScheduleOption = {
@@ -245,27 +244,19 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
       </ScrollView>
       {toElement(
         HStack(
-          Embed(
-            LtoElement(
-              LButton(Text(t('compose.schedule.cancel', { defaultValue: 'Close' })))
-                .style('outline')
-                .tint('neutral')
-                .size('lg')
-                .onPress(handleClose)
-                .testID('scheduleSheetClose')
-                .grow(),
-            ),
-          ),
-          Embed(
-            LtoElement(
-              LButton(Text(t('compose.schedule.apply', { defaultValue: 'Schedule' })))
-                .tint('action')
-                .size('lg')
-                .onPress(handleCustomApply)
-                .testID('scheduleSheetApply')
-                .grow(),
-            ),
-          ),
+          LButton(Text(t('compose.schedule.cancel', { defaultValue: 'Close' })))
+            .style('outline')
+            .tint('neutral')
+            .size('lg')
+            .onPress(handleClose)
+            .testID('scheduleSheetClose')
+            .grow(),
+          LButton(Text(t('compose.schedule.apply', { defaultValue: 'Schedule' })))
+            .tint('action')
+            .size('lg')
+            .onPress(handleCustomApply)
+            .testID('scheduleSheetApply')
+            .grow(),
         )
           .padding('vertical', 'md')
           .spacing('md'),
@@ -304,9 +295,6 @@ const styles = StyleSheet.create({
   timeField: {
     flexShrink: 0,
     width: 112,
-  },
-  footerButton: {
-    flex: 1,
   },
   optionButton: {
     width: '31%',

@@ -37,7 +37,6 @@ import {
   VStack,
   toElement,
   TextField,
-  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 /**
@@ -304,22 +303,14 @@ export function ExperienceEmployerField({
                         />
                       </Select>,
                     ),
-                    Embed(
-                      LtoElement(
-                        TextField([website, setWebsite], t('profile.experience.website'))
-                          .autocapitalize('none')
-                          .keyboard('url')
-                          .editable(!create.isPending),
-                      ),
-                    ),
-                    Embed(
-                      LtoElement(
-                        TextField([country, setCountry], t('profile.experience.country'))
-                          .maxLength(2)
-                          .autocapitalize('characters')
-                          .editable(!create.isPending),
-                      ),
-                    ),
+                    TextField([website, setWebsite], t('profile.experience.website'))
+                      .autocapitalize('none')
+                      .keyboard('url')
+                      .editable(!create.isPending),
+                    TextField([country, setCountry], t('profile.experience.country'))
+                      .maxLength(2)
+                      .autocapitalize('characters')
+                      .editable(!create.isPending),
                     createInvalid ? alertText(t('profile.experience.organizationInvalid')) : null,
                     create.isError
                       ? alertText(t('profile.experience.organizationCreateError'))

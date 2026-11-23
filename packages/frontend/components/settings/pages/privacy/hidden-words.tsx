@@ -35,7 +35,6 @@ import {
   defineTokens,
   toElement,
   TextField,
-  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 const hiddenWordsLogger = createLogger('HiddenWords');
@@ -180,26 +179,22 @@ export default function HiddenWordsScreen() {
           LGroupedSection(
             HStack(
               Icon(RiEyeOffLine).size('md').foreground('muted'),
-              Embed(
-                LtoElement(
-                  TextField(
-                    [input, setInput],
-                    t('settings.privacy.addWordPlaceholder', {
-                      defaultValue: 'Word or #hashtag',
-                    }),
-                  )
-                    .autocapitalize('none')
-                    .autocorrect(false)
-                    .placeholder(
-                      t('settings.privacy.addWordPlaceholder', {
-                        defaultValue: 'Word or #hashtag',
-                      }),
-                    )
-                    .editable(!addMutation.isPending)
-                    .onSubmit(handleAdd)
-                    .submitLabel('done'),
-                ),
-              ),
+              TextField(
+                [input, setInput],
+                t('settings.privacy.addWordPlaceholder', {
+                  defaultValue: 'Word or #hashtag',
+                }),
+              )
+                .autocapitalize('none')
+                .autocorrect(false)
+                .placeholder(
+                  t('settings.privacy.addWordPlaceholder', {
+                    defaultValue: 'Word or #hashtag',
+                  }),
+                )
+                .editable(!addMutation.isPending)
+                .onSubmit(handleAdd)
+                .submitLabel('done'),
               addMutation.isPending
                 ? Loading().style('inline').size('sm')
                 : LButton(
