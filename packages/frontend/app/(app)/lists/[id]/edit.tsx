@@ -3,7 +3,6 @@ import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { Screen } from '@oxy.so/bloom/screen';
-import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
 import { Search } from '@oxy.so/bloom/search';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -286,10 +285,10 @@ function EditListMembersScreen() {
             </Field>,
           ),
           Embed(searching && <ListSkeleton count={2} />),
-          Embed(
-            results.length > 0 && (
-              <Card appearance="outline" radius="radius-12" style={{ marginBottom: 12 }}>
-                {results.map((u, index) => {
+          results.length > 0 &&
+            LCard(
+              Embed(
+                results.map((u, index) => {
                   const already = memberIdSet.has(u.id);
                   const busy = pendingIds.has(u.id);
                   return (
@@ -327,10 +326,12 @@ function EditListMembersScreen() {
                       )}
                     </React.Fragment>
                   );
-                })}
-              </Card>
-            ),
-          ),
+                }),
+              ),
+            )
+              .style('outline')
+              .radius('md')
+              .margin('bottom', 'md'),
           RawText(
             members.length,
             ' ',
