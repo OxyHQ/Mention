@@ -1,7 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { experienceService } from '@/services/experienceService';
 import { useState } from 'react';
-import { Text, type TextStyle, View, type ViewStyle } from 'react-native';
+import { Text, type TextStyle } from 'react-native';
 import { Link } from '@/lib/navigation/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -52,7 +52,6 @@ function CompanyLogo({
 }
 
 /** A role's company line (16/24) and a group's company heading (18/28 semibold), as their classes drew them. */
-const RAIL_STYLE: ViewStyle = { width: 48, alignItems: 'center' };
 const COMPANY_LINE_STYLE: TextStyle = { fontSize: 16, lineHeight: 24, marginTop: 2 };
 const COMPANY_HEADING_STYLE: TextStyle = { fontSize: 18, lineHeight: 28, fontWeight: '600' };
 
@@ -159,33 +158,26 @@ export function ProfileExperience({
   function role(entry: Experience, grouped: boolean, last: boolean) {
     return toElement(
       HStack(
-        // A View: the rail is hidden from assistive technology, which no modifier says.
+        // The rail is hidden from assistive technology.
         grouped
-          ? Embed((render) => (
-              <View
-                style={RAIL_STYLE}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                {render(
-                  VStack()
-                    .frame({ height: '10', width: '10' })
-                    .background('muted')
-                    .corner('infinite')
-                    .margin('top', 'sm'),
-                )}
-                {!last
-                  ? render(
-                      VStack()
-                        .frame({ width: '2xs' })
-                        .background('border')
-                        .flex('1')
-                        .margin('top', 'sm')
-                        .margin('bottom', 'xs'),
-                    )
-                  : null}
-              </View>
-            ))
+          ? VStack(
+              VStack()
+                .frame({ height: '10', width: '10' })
+                .background('muted')
+                .corner('infinite')
+                .margin('top', 'sm'),
+              !last
+                ? VStack()
+                    .frame({ width: '2xs' })
+                    .background('border')
+                    .flex('1')
+                    .margin('top', 'sm')
+                    .margin('bottom', 'xs')
+                : null,
+            )
+              .frame({ width: '48' })
+              .align('center')
+              .accessibilityHidden()
           : null,
         VStack(
           HStack(

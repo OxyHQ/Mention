@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image, type ImageProps, type ImageStyle } from 'expo-image';
-import { Dialog, useDialogControl, useDialogFrame } from '@oxy.so/bloom/dialog';
+import { useDialogFrame } from '@oxy.so/bloom/dialog';
 import {
   Button as LButton,
+  Dialog as LDialog,
   Embed,
   HStack,
   RawText,
@@ -109,11 +110,10 @@ export function FediverseInfoDialogProvider() {
  * ONLY once a request exists, so `useTranslation` here is always safe (i18n is
  * initialized well before any badge/settings tap).
  *
- * It owns its own `control` and OPENS ITSELF on mount: the Dialog's imperative
- * handle binds `control` during the commit's layout phase, before this passive
- * mount effect runs, so `control.open()` always reaches a bound handle — no
- * `setTimeout` and no dependency on how the request was triggered (badge tap,
- * settings button, or a programmatic call).
+ * It is presented from its first render (its binding starts true), so it opens
+ * however the request was triggered (badge tap, settings button, or a
+ * programmatic call); closing flips the binding, and once the dialog has
+ * finished leaving, `onDismissed` tells the host to unmount it.
  */
 function FediverseInfoDialogContent({
   options,
@@ -123,12 +123,8 @@ function FediverseInfoDialogContent({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const control = useDialogControl();
+  const [isPresented, setPresented] = useState(true);
   const [step, setStep] = useState<SheetStep>(0);
-
-  useEffect(() => {
-    control.open();
-  }, [control]);
 
   const isFirstStep = step === 0;
   const isLastStep = step === 2;
@@ -142,31 +138,32 @@ function FediverseInfoDialogContent({
     if (showEnableCta) {
       options.onEnable?.();
     }
-    control.close();
-  }, [control, isLastStep, options, showEnableCta]);
+    setPresented(false);
+  }, [isLastStep, options, showEnableCta]);
 
   const onSecondary = useCallback(() => {
     if (isFirstStep) {
-      control.close();
+      setPresented(false);
       return;
     }
     setStep((current) => (current - 1) as SheetStep);
-  }, [control, isFirstStep]);
+  }, [isFirstStep]);
 
-  return (
-    <Dialog
-      control={control}
-      onClose={onClose}
-      placement={{ base: 'bottom', md: 'center' }}
-      label={t('fediverse.badge.a11yLabel')}
-    >
-      <FediverseInfoSteps
-        step={step}
-        showEnableCta={showEnableCta}
-        onPrimary={onPrimary}
-        onSecondary={onSecondary}
-      />
-    </Dialog>
+  return toElement(
+    LDialog(
+      Embed(
+        <FediverseInfoSteps
+          step={step}
+          showEnableCta={showEnableCta}
+          onPrimary={onPrimary}
+          onSecondary={onSecondary}
+        />,
+      ),
+    )
+      .presentAt('bottom', { md: 'center' })
+      .label(t('fediverse.badge.a11yLabel'))
+      .onDismissed(onClose)
+      .presented([isPresented, setPresented]),
   );
 }
 

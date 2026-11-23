@@ -57,15 +57,33 @@ jest.mock('@oxy.so/bloom/item', () => ({
   ...jest.requireActual('@oxy.so/bloom/item'),
   Item: 'item',
 }));
-jest.mock('@oxy.so/bloom/dialog', () => ({
-  ...jest.requireActual('@oxy.so/bloom/dialog'),
-  Dialog: 'dialog',
-  useDialogControl: () =>
-    require('react').useMemo(
-      () => ({ open: jest.fn(), close: (callback?: () => void) => callback?.() }),
-      [],
-    ),
-}));
+/**
+ * Bloom's `Dialog` reduced to the controlled contract the language's `.presented()`
+ * uses: a `dialog` host while `open`, and `onDismissed` once `open` has turned false
+ * (the real one reports it after its exit animation).
+ */
+jest.mock('@oxy.so/bloom/dialog', () => {
+  const ReactActual = jest.requireActual<typeof import('react')>('react');
+  return {
+    ...jest.requireActual('@oxy.so/bloom/dialog'),
+    Dialog: ({
+      open,
+      onDismissed,
+      ...props
+    }: {
+      open: boolean;
+      onDismissed?: () => void;
+      [prop: string]: unknown;
+    }) => {
+      const wasOpen = ReactActual.useRef(open);
+      ReactActual.useEffect(() => {
+        if (wasOpen.current && !open) onDismissed?.();
+        wasOpen.current = open;
+      }, [open, onDismissed]);
+      return open ? ReactActual.createElement('dialog', props) : null;
+    },
+  };
+});
 jest.mock('@oxy.so/bloom/switch', () => ({
   ...jest.requireActual('@oxy.so/bloom/switch'),
   Switch: 'switch',

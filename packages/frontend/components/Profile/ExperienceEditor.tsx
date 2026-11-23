@@ -1,10 +1,9 @@
 import { experienceService } from '@/services/experienceService';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ClarityError } from '@clarity.surf/sdk';
 import { ScrollView } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import {
   Select,
   SelectContent,
@@ -27,6 +26,7 @@ import { confirmDialog } from '@/utils/alerts';
 
 import {
   Button as LButton,
+  Dialog as LDialog,
   Embed,
   HStack,
   RawText,
@@ -50,10 +50,10 @@ export function ExperienceEditor({
   onSaved: () => void;
 }) {
   const { t } = useTranslation();
-  const control = useDialogControl();
-  useEffect(() => {
-    control.open();
-  }, [control]);
+  // Presented from the first render; a save or delete closes it with the session it
+  // finished in, and `onSaved` runs once the dialog has left, if that session still holds.
+  const [isPresented, setPresented] = useState(true);
+  const [savedInEpoch, setSavedInEpoch] = useState<number | null>(null);
   const { user, canUsePrivateApi, oxyServices } = useAuth();
   const [ownerSessionEpoch] = useState(() => oxyServices.http.getSessionEpoch());
   const canEdit = user?.id === ownerId && canUsePrivateApi;
@@ -74,10 +74,7 @@ export function ExperienceEditor({
       return entry ? experienceService.update(entry.id, input) : experienceService.create(input);
     },
     onSuccess: (_result, { sessionEpoch }) => {
-      if (oxyServices.http.getSessionEpoch() === sessionEpoch)
-        control.close(() => {
-          if (oxyServices.http.getSessionEpoch() === sessionEpoch) onSaved();
-        });
+      if (oxyServices.http.getSessionEpoch() === sessionEpoch) closeSaved(sessionEpoch);
     },
   });
   const remove = useMutation({
@@ -87,12 +84,17 @@ export function ExperienceEditor({
       return experienceService.remove(entry.id);
     },
     onSuccess: (_result, sessionEpoch) => {
-      if (oxyServices.http.getSessionEpoch() === sessionEpoch)
-        control.close(() => {
-          if (oxyServices.http.getSessionEpoch() === sessionEpoch) onSaved();
-        });
+      if (oxyServices.http.getSessionEpoch() === sessionEpoch) closeSaved(sessionEpoch);
     },
   });
+  function closeSaved(sessionEpoch: number) {
+    setSavedInEpoch(sessionEpoch);
+    setPresented(false);
+  }
+  function dismissed() {
+    if (savedInEpoch !== null && oxyServices.http.getSessionEpoch() === savedInEpoch) onSaved();
+    onClose();
+  }
   const busy = save.isPending || remove.isPending;
   function field<Key extends keyof ExperienceInput>(key: Key, value: ExperienceInput[Key]) {
     setDraft((previous) => ({ ...previous, [key]: value }));
@@ -159,133 +161,132 @@ export function ExperienceEditor({
     })),
   ];
   const title = t(entry ? 'profile.experience.edit' : 'profile.experience.add');
-  return (
-    <Dialog
-      control={control}
-      dismissOnBackdrop={!busy}
-      title={title}
-      label={title}
-      onClose={onClose}
-    >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ maxHeight: 560 }}
-        contentContainerStyle={{ paddingBottom: 8 }}
-      >
-        {toElement(
-          VStack(
-            RawText(t('profile.experience.publicHint'))
-              .foreground('muted')
-              .font('14')
-              .leading('20px'),
-            Embed(textField('title', 200)),
-            Embed(
-              <ExperienceEmployerField
-                initialEmployer={employer}
-                value={draft.employerOxyAccountId}
-                disabled={busy || !canEdit}
-                invalid={errors.includes('employerOxyAccountId')}
-                onChange={(organization) =>
-                  field('employerOxyAccountId', organization?.accountId ?? '')
-                }
-              />,
-            ),
+  return toElement(
+    LDialog(
+      Embed(
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          style={{ maxHeight: 560 }}
+          contentContainerStyle={{ paddingBottom: 8 }}
+        >
+          {toElement(
             VStack(
+              RawText(t('profile.experience.publicHint'))
+                .foreground('muted')
+                .font('14')
+                .leading('20px'),
+              Embed(textField('title', 200)),
               Embed(
-                <TextFieldLabel>{t('profile.experience.fields.employmentType')}</TextFieldLabel>,
-              ),
-              Embed(
-                <Select
-                  value={draft.employmentType ?? ''}
-                  disabled={busy}
-                  onValueChange={(value) =>
-                    field(
-                      'employmentType',
-                      value
-                        ? (EXPERIENCE_EMPLOYMENT_TYPES.find((type) => type === value) ?? null)
-                        : null,
-                    )
+                <ExperienceEmployerField
+                  initialEmployer={employer}
+                  value={draft.employerOxyAccountId}
+                  disabled={busy || !canEdit}
+                  invalid={errors.includes('employerOxyAccountId')}
+                  onChange={(organization) =>
+                    field('employerOxyAccountId', organization?.accountId ?? '')
                   }
-                >
-                  <SelectTrigger label={t('profile.experience.fields.employmentType')}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent
-                    items={employmentOptions}
-                    renderItem={(option) => (
-                      <SelectItem value={option.value} label={option.label}>
-                        <SelectItemText>{option.label}</SelectItemText>
-                      </SelectItem>
-                    )}
-                  />
-                </Select>,
+                />,
               ),
-            ).spacing('xs'),
-            Embed(textField('location', 300)),
-            Embed(textField('startDate', 7)),
-            HStack(
-              RawText(t('profile.experience.current'))
-                .foreground('foreground')
-                .font('16')
-                .leading('normal')
-                .flex('1'),
-              Toggle([draft.endDate === null, (current) => field('endDate', current ? null : '')])
-                .label(t('profile.experience.current'))
-                .disabled(busy),
-            )
-              .align('center')
-              .justify('between')
-              .spacing('md'),
-            Embed(draft.endDate !== null ? textField('endDate', 7) : null),
-            RawText(t('profile.experience.dateHint'))
-              .foreground('muted')
-              .font('14')
-              .leading('20px'),
-            Embed(textField('description', 5000)),
-            save.isError || remove.isError
-              ? alertText(
-                  t(
-                    remove.isError
-                      ? 'profile.experience.deleteError'
-                      : save.error instanceof ClarityError &&
-                          save.error.code === 'experience_limit_reached'
-                        ? 'profile.experience.limitReached'
+              VStack(
+                Embed(
+                  <TextFieldLabel>{t('profile.experience.fields.employmentType')}</TextFieldLabel>,
+                ),
+                Embed(
+                  <Select
+                    value={draft.employmentType ?? ''}
+                    disabled={busy}
+                    onValueChange={(value) =>
+                      field(
+                        'employmentType',
+                        value
+                          ? (EXPERIENCE_EMPLOYMENT_TYPES.find((type) => type === value) ?? null)
+                          : null,
+                      )
+                    }
+                  >
+                    <SelectTrigger label={t('profile.experience.fields.employmentType')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      items={employmentOptions}
+                      renderItem={(option) => (
+                        <SelectItem value={option.value} label={option.label}>
+                          <SelectItemText>{option.label}</SelectItemText>
+                        </SelectItem>
+                      )}
+                    />
+                  </Select>,
+                ),
+              ).spacing('xs'),
+              Embed(textField('location', 300)),
+              Embed(textField('startDate', 7)),
+              HStack(
+                RawText(t('profile.experience.current'))
+                  .foreground('foreground')
+                  .font('16')
+                  .leading('normal')
+                  .flex('1'),
+                Toggle([draft.endDate === null, (current) => field('endDate', current ? null : '')])
+                  .label(t('profile.experience.current'))
+                  .disabled(busy),
+              )
+                .align('center')
+                .justify('between')
+                .spacing('md'),
+              Embed(draft.endDate !== null ? textField('endDate', 7) : null),
+              RawText(t('profile.experience.dateHint'))
+                .foreground('muted')
+                .font('14')
+                .leading('20px'),
+              Embed(textField('description', 5000)),
+              save.isError || remove.isError
+                ? alertText(
+                    t(
+                      remove.isError
+                        ? 'profile.experience.deleteError'
                         : save.error instanceof ClarityError &&
-                            save.error.code === 'invalid_employer'
-                          ? 'profile.experience.validation.employerOxyAccountId'
-                          : 'profile.experience.saveError',
-                  ),
-                )
-              : null,
-          ).spacing('lg'),
-        )}
-      </ScrollView>
-      {toElement(
-        HStack(
-          entry
-            ? LButton(LText(t('common.delete', { defaultValue: 'Delete' })))
-                .style('plain')
-                .tint('danger')
-                .onPress(() => void deleteEntry())
-                .disabled(busy || !canEdit)
-                .loading(remove.isPending)
-            : null,
-          LButton(LText(t('common.cancel', { defaultValue: 'Cancel' })))
-            .style('plain')
-            .tint('neutral')
-            .onPress(() => control.close())
-            .disabled(busy),
-          LButton(LText(t('common.save', { defaultValue: 'Save' })))
-            .onPress(submit)
-            .disabled(busy || !canEdit)
-            .loading(save.isPending),
-        )
-          .padding('top', 'lg')
-          .wrap()
-          .align('center')
-          .justify('end')
-          .spacing('sm'),
-      )}
-    </Dialog>
+                            save.error.code === 'experience_limit_reached'
+                          ? 'profile.experience.limitReached'
+                          : save.error instanceof ClarityError &&
+                              save.error.code === 'invalid_employer'
+                            ? 'profile.experience.validation.employerOxyAccountId'
+                            : 'profile.experience.saveError',
+                    ),
+                  )
+                : null,
+            ).spacing('lg'),
+          )}
+        </ScrollView>,
+      ),
+      HStack(
+        entry
+          ? LButton(LText(t('common.delete', { defaultValue: 'Delete' })))
+              .style('plain')
+              .tint('danger')
+              .onPress(() => void deleteEntry())
+              .disabled(busy || !canEdit)
+              .loading(remove.isPending)
+          : null,
+        LButton(LText(t('common.cancel', { defaultValue: 'Cancel' })))
+          .style('plain')
+          .tint('neutral')
+          .onPress(() => setPresented(false))
+          .disabled(busy),
+        LButton(LText(t('common.save', { defaultValue: 'Save' })))
+          .onPress(submit)
+          .disabled(busy || !canEdit)
+          .loading(save.isPending),
+      )
+        .padding('top', 'lg')
+        .wrap()
+        .align('center')
+        .justify('end')
+        .spacing('sm'),
+    )
+      .title(title)
+      .label(title)
+      .dismissOnBackdrop(!busy)
+      .onDismissed(dismissed)
+      .presented([isPresented, setPresented]),
   );
 }
