@@ -19,14 +19,7 @@ import { ProfileCard } from '@/components/ProfileCard';
 import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import {
-  Embed,
-  HStack,
-  Header,
-  Text as LText,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Embed, HStack, Header, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;

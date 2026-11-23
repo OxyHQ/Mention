@@ -283,15 +283,15 @@ export default function HiddenWordsScreen() {
                       )
                       .trailing(
                         LButton(Text(t('common.remove', { defaultValue: 'Remove' })))
-                                .size('sm')
-                                .style('subtle')
-                                .tint('danger')
-                                .onPress(() => handleRemove(word))
-                                .label(
-                                  t('settings.privacy.removeMutedWord', {
-                                    defaultValue: 'Remove muted word',
-                                  }),
-                                ),
+                          .size('sm')
+                          .style('subtle')
+                          .tint('danger')
+                          .onPress(() => handleRemove(word))
+                          .label(
+                            t('settings.privacy.removeMutedWord', {
+                              defaultValue: 'Remove muted word',
+                            }),
+                          ),
                       ),
                     word.id,
                   );
