@@ -54,6 +54,13 @@ const byTestID = (tree: TestRenderer.ReactTestRenderer, testID: string) => {
   return node;
 };
 
+/** The host view a node is laid out in; the language's own components draw no host. */
+const hostParent = (node: TestRenderer.ReactTestInstance) => {
+  let parent = node.parent;
+  while (parent && typeof parent.type !== 'string') parent = parent.parent;
+  return parent;
+};
+
 const renderSheet = (onSelect: (date: Date) => void, scheduledAt: Date | null = null) => {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
@@ -156,11 +163,11 @@ describe('ScheduleSheet custom time', () => {
 
   it('puts Close and Schedule in one footer row, as Bloom buttons', () => {
     const tree = renderSheet(jest.fn());
-    const close = byTestID(tree, 'scheduleSheetClose');
-    const apply = byTestID(tree, 'scheduleSheetApply');
-    expect(close.parent).toBe(apply.parent);
+    const close = hostParent(byTestID(tree, 'scheduleSheetClose'));
+    const apply = hostParent(byTestID(tree, 'scheduleSheetApply'));
+    expect(close).toBe(apply);
     // The footer is a language row: a host whose style lays its children out in a row.
-    expect(StyleSheet.flatten(close.parent?.props.style)?.flexDirection).toBe('row');
+    expect(StyleSheet.flatten(close?.props.style)?.flexDirection).toBe('row');
     act(() => tree.unmount());
   });
 });

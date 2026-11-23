@@ -565,8 +565,8 @@ describe('central employer identity', () => {
     await press('Organization missing? Add it');
     await waitUntil(() => rendered().includes('does not grant you ownership'), 'the add form');
     act(() => {
-      input('Website (optional)').props.onChangeText(' https://example.com ');
-      input('Country code (optional, e.g. US)').props.onChangeText('gb');
+      changeOf(input('Website (optional)'))(' https://example.com ');
+      changeOf(input('Country code (optional, e.g. US)'))('gb');
     });
     await press('Add to directory');
     await waitUntil(
@@ -601,7 +601,7 @@ describe('central employer identity', () => {
     });
     await waitUntil(() => button('Organization missing? Add it') !== undefined, 'the add offer');
     await press('Organization missing? Add it');
-    act(() => input('Website (optional)').props.onChangeText('not a URL'));
+    act(() => changeOf(input('Website (optional)'))('not a URL'));
     await press('Add to directory');
     expect(rendered()).toContain('Check the name, website URL and two-letter country code.');
     expect(mockAuth.oxyServices.organizations.create).not.toHaveBeenCalled();
