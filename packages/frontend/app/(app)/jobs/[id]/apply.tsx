@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
@@ -14,7 +13,6 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
-
 import {
   Button as LButton,
   Embed,
@@ -30,7 +28,11 @@ import {
   TextField as LTextField,
   VStack,
   toElement,
+  Card as LCard,
+  Embed as LEmbed,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 
 /**
@@ -220,80 +222,98 @@ export default Lscreen(function JobApplyScreen() {
         .leading('20px')
         .margin('bottom', 'lg'),
       Embed(
-        <Card appearance="outline" radius="radius-16" style={{ padding: 16, gap: 12 }}>
-          {toElement(
-            VStack(
-              RawText(t('jobs.apply.displayName', { defaultValue: 'Name' }))
-                .font('xs')
-                .leading('16px')
-                .foreground('muted'),
-              RawText(
-                displayName.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
-              )
-                .foreground('foreground')
-                .font('md'),
-            ),
-          )}
-          {toElement(
-            VStack(
-              RawText(t('jobs.apply.contactMethod', { defaultValue: 'Contact method' }))
-                .font('xs')
-                .leading('16px')
-                .foreground('muted'),
-              RawText(
-                contactMethod.trim() ||
-                  t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
-              )
-                .foreground('foreground')
-                .font('md'),
-            ),
-          )}
-          {toElement(
-            VStack(
-              RawText(t('jobs.apply.coverNote', { defaultValue: 'Cover note' }))
-                .font('xs')
-                .leading('16px')
-                .foreground('muted'),
-              RawText(
-                coverNote.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
-              )
-                .foreground('foreground')
-                .font('md'),
-            ),
-          )}
-          {toElement(
-            VStack(
-              RawText(t('jobs.apply.portfolio', { defaultValue: 'Portfolio links' }))
-                .font('xs')
-                .leading('16px')
-                .foreground('muted'),
-              Embed(
-                portfolioLinks.length > 0
-                  ? portfolioLinks.map((link) =>
-                      toElement(RawText(link).foreground('foreground').font('md'), link),
-                    )
-                  : toElement(
-                      RawText(t('jobs.apply.notProvided', { defaultValue: 'Not provided' }))
-                        .foreground('foreground')
-                        .font('md'),
-                    ),
+        LtoElement(
+          LCard(
+            LEmbed(
+              toElement(
+                VStack(
+                  RawText(t('jobs.apply.displayName', { defaultValue: 'Name' }))
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                  RawText(
+                    displayName.trim() ||
+                      t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+                  )
+                    .foreground('foreground')
+                    .font('md'),
+                ),
               ),
             ),
-          )}
-          {toElement(
-            VStack(
-              RawText(t('jobs.apply.resume', { defaultValue: 'Resume' }))
-                .font('xs')
-                .leading('16px')
-                .foreground('muted'),
-              RawText(
-                resumeFileName || t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
-              )
-                .foreground('foreground')
-                .font('md'),
+            LEmbed(
+              toElement(
+                VStack(
+                  RawText(t('jobs.apply.contactMethod', { defaultValue: 'Contact method' }))
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                  RawText(
+                    contactMethod.trim() ||
+                      t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+                  )
+                    .foreground('foreground')
+                    .font('md'),
+                ),
+              ),
             ),
-          )}
-        </Card>,
+            LEmbed(
+              toElement(
+                VStack(
+                  RawText(t('jobs.apply.coverNote', { defaultValue: 'Cover note' }))
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                  RawText(
+                    coverNote.trim() ||
+                      t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+                  )
+                    .foreground('foreground')
+                    .font('md'),
+                ),
+              ),
+            ),
+            LEmbed(
+              toElement(
+                VStack(
+                  RawText(t('jobs.apply.portfolio', { defaultValue: 'Portfolio links' }))
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                  Embed(
+                    portfolioLinks.length > 0
+                      ? portfolioLinks.map((link) =>
+                          toElement(RawText(link).foreground('foreground').font('md'), link),
+                        )
+                      : toElement(
+                          RawText(t('jobs.apply.notProvided', { defaultValue: 'Not provided' }))
+                            .foreground('foreground')
+                            .font('md'),
+                        ),
+                  ),
+                ),
+              ),
+            ),
+            LEmbed(
+              toElement(
+                VStack(
+                  RawText(t('jobs.apply.resume', { defaultValue: 'Resume' }))
+                    .font('xs')
+                    .leading('16px')
+                    .foreground('muted'),
+                  RawText(
+                    resumeFileName || t('jobs.apply.notProvided', { defaultValue: 'Not provided' }),
+                  )
+                    .foreground('foreground')
+                    .font('md'),
+                ),
+              ),
+            ),
+          )
+            .style('outline')
+            .radius('lg')
+            .padding('all', 'lg')
+            .spacing('md'),
+        ),
       ),
       HStack(
         LButton(LText(t('jobs.apply.backToEdit', { defaultValue: 'Edit' })))
@@ -408,28 +428,31 @@ export default Lscreen(function JobApplyScreen() {
       t('jobs.apply.resume', { defaultValue: 'Resume (optional)' }),
       resumeFileName
         ? Embed(
-            <Card
-              appearance="outline"
-              radius="radius-16"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-              }}
-            >
-              {toElement(
-                RawText(resumeFileName).foreground('foreground').font('14').flex('1').lines(1),
-              )}
-              {toElement(
-                LButton(LText(t('common.remove', { defaultValue: 'Remove' })))
-                  .style('plain')
-                  .tint('neutral')
-                  .size('sm')
-                  .onPress(removeResume),
-              )}
-            </Card>,
+            LtoElement(
+              LCard(
+                LEmbed(
+                  toElement(
+                    RawText(resumeFileName).foreground('foreground').font('14').flex('1').lines(1),
+                  ),
+                ),
+                LEmbed(
+                  toElement(
+                    LButton(LText(t('common.remove', { defaultValue: 'Remove' })))
+                      .style('plain')
+                      .tint('neutral')
+                      .size('sm')
+                      .onPress(removeResume),
+                  ),
+                ),
+              )
+                .style('outline')
+                .radius('lg')
+                .axis('horizontal')
+                .padding('horizontal', 'lg')
+                .padding('vertical', 'md')
+                .align('center')
+                .justify('between'),
+            ),
           )
         : LButton(LText(t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })))
             .style('subtle')

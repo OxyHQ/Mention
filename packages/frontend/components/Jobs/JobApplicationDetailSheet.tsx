@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { useColorTokens } from '@oxy.so/bloom/theme';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -25,6 +24,8 @@ import {
   Text as LText,
   VStack,
   toElement,
+  TextField as LTextField,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 /** The sheet's scroll: 16pt sides, 12pt top, at most 90% of the window. */
@@ -320,14 +321,12 @@ const JobApplicationDetailSheet = ({
             ),
           ),
           Embed(
-            <TextField>
-              <TextFieldInput
-                label={t('jobs.applications.addNote', { defaultValue: 'Add a note' })}
-                value={noteDraft}
-                onChangeText={setNoteDraft}
-                multiline
-              />
-            </TextField>,
+            LtoElement(
+              LTextField(
+                [noteDraft, setNoteDraft],
+                t('jobs.applications.addNote', { defaultValue: 'Add a note' }),
+              ).multiline(),
+            ),
           ),
           LButton(LText(t('common.add', { defaultValue: 'Add' })))
             .style('subtle')
