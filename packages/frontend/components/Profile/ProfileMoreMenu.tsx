@@ -1,15 +1,7 @@
-import type { ReactElement, ReactNode } from 'react';
+import type { TFunction } from 'i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@oxy.so/bloom/dropdown-menu';
 import { presentSheet } from '@/utils/sheet';
 import { ReportModal } from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
@@ -26,9 +18,9 @@ import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { RiSpamLine } from '@oxy.so/bloom/icons/RiSpamLine';
 import type { ProfileData } from '@/hooks/useProfileData';
 
-import { Icon, toElement } from '@oxy.so/bloom-language';
+import { Divider, Item, Menu, menu, type Child, type MenuChild } from '@oxy.so/bloom-language';
 
-/** What the profile's "…" button needs: the menu's name and its groups, built on open. */
+/** What the profile's "…" menu needs: its account, what the viewer may do there, and the words. */
 export interface ProfileMoreMenuProps {
   profileData: ProfileData | null;
   /**
@@ -38,19 +30,22 @@ export interface ProfileMoreMenuProps {
    * `isOwnProfile || useOperatesAccount(...)`, never as an id comparison alone.
    */
   viewerOperatesAccount: boolean;
+  /** `useAuth().canUsePrivateApi`: whether the viewer's session may write on their own account. */
+  canUsePrivateApi: boolean;
   /**
-   * `DropdownMenuItem`s shown ABOVE the shared ones, for actions that are about
+   * Menu rows (`Item`s) shown ABOVE the shared ones, for actions that are about
    * RUNNING this account rather than about the viewer's relationship to it. A
    * channel's operator gets its settings here; everybody else never sees a row
    * that would refuse them.
    */
-  leadingItems?: ReactNode;
-  /** The "…" button that opens the menu. */
-  children: ReactElement;
+  leadingItems?: MenuChild;
+  t: TFunction;
 }
 
 /**
- * The "…" menu on a profile (Bloom's `DropdownMenu` around the caller's button): add to lists / starter packs, mute, block, report.
+ * The "…" menu on a profile (Bloom's DropdownMenu, `.menuStyle('dropdown')`, around the
+ * caller's button): add to lists / starter packs, mute, block, report. Its rows, and the
+ * hooks and handlers they need, are built only while it is open.
  *
  * Shared by both profile screens because it is about the VIEWER's relationship to
  * an account, and that relationship has the same shape whichever kind of account
@@ -89,20 +84,34 @@ export interface ProfileMoreMenuProps {
  * starter packs, their mutes and blocks, a report filed in their name — so
  * without a session each one could only answer 401 (#1126). They are gated on
  * `canUsePrivateApi`, never bare `isAuthenticated`, and when that leaves
- * nothing to offer the component renders nothing, so no "…" button opens an empty menu.
+ * nothing to offer there is no menu (`null`), so no "…" button opens an empty menu.
  */
-export function ProfileMoreMenu({
+export function ProfileMoreMenu(
+  trigger: Child,
+  { profileData, viewerOperatesAccount, canUsePrivateApi, leadingItems, t }: ProfileMoreMenuProps,
+): Child {
+  if (!profileData || (!canUsePrivateApi && !leadingItems)) return null;
+  const label = t('profile.moreOptions', {
+    username: profileData.username,
+    defaultValue: 'Options for @{{username}}',
+  });
+  return Menu(
+    trigger,
+    ProfileMoreMenuRows({ profileData, viewerOperatesAccount, canUsePrivateApi, leadingItems }),
+  )
+    .menuStyle('dropdown')
+    .label(label);
+}
+
+/** The menu's rows, with the hooks and handlers they need: built only while it is open. */
+const ProfileMoreMenuRows = menu(function ProfileMoreMenuRows({
   profileData,
   viewerOperatesAccount,
+  canUsePrivateApi,
   leadingItems,
-  children,
-}: ProfileMoreMenuProps) {
-  const theme = useTheme();
+}: Omit<ProfileMoreMenuProps, 't'> & { profileData: ProfileData }) {
   const { t } = useTranslation();
-  const { oxyServices, canUsePrivateApi, user } = useAuth();
-
-  if (!profileData || (!canUsePrivateApi && !leadingItems)) return null;
-
+  const { oxyServices, user } = useAuth();
   const displayUsername = profileData.username;
 
   const handleMute = async () => {
@@ -201,68 +210,46 @@ export function ProfileMoreMenu({
     ));
   };
 
-  const label = t('profile.moreOptions', {
-    username: displayUsername,
-    defaultValue: 'Options for @{{username}}',
-  });
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild label={label}>
-        {children}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent label={label}>
-        {leadingItems}
-        {canUsePrivateApi ? (
-          <>
-            <DropdownMenuItem
-              leading={toElement(Icon(RiListUnordered).size('22').foreground('foreground'))}
-              onPress={handleAddToList}
-            >
-              {t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' })}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              leading={toElement(Icon(RiRocket2Line).size('22').foreground('foreground'))}
-              onPress={handleAddToStarterPack}
-            >
-              {t('starterPacks.addTo.menuItem', {
-                defaultValue: 'Add/remove from starter packs',
-              })}
-            </DropdownMenuItem>
-            {viewerOperatesAccount ? null : (
-              <>
-                <DropdownMenuItem
-                  leading={toElement(Icon(RiMicOffLine).size('22').foreground('foreground'))}
-                  onPress={handleMute}
-                >
-                  {t('profile.muteUser', {
-                    username: displayUsername,
-                    defaultValue: 'Mute @{{username}}',
-                  })}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  leading={toElement(Icon(RiForbidLine).size('22').foreground('error'))}
-                  onPress={handleBlock}
-                >
-                  {t('profile.blockUser', {
-                    username: displayUsername,
-                    defaultValue: 'Block @{{username}}',
-                  })}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant="destructive"
-                  leading={toElement(Icon(RiSpamLine).size('22').foreground('error'))}
-                  onPress={handleReport}
-                >
-                  {t('profile.reportUser', { defaultValue: 'Report' })}
-                </DropdownMenuItem>
-              </>
-            )}
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+  return [
+    leadingItems,
+    canUsePrivateApi && [
+      Item(t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }))
+        .icon(RiListUnordered)
+        .iconSize('22')
+        .iconForeground('foreground')
+        .onPress(handleAddToList),
+      Item(t('starterPacks.addTo.menuItem', { defaultValue: 'Add/remove from starter packs' }))
+        .icon(RiRocket2Line)
+        .iconSize('22')
+        .iconForeground('foreground')
+        .onPress(handleAddToStarterPack),
+      !viewerOperatesAccount && [
+        Item(
+          t('profile.muteUser', { username: displayUsername, defaultValue: 'Mute @{{username}}' }),
+        )
+          .icon(RiMicOffLine)
+          .iconSize('22')
+          .iconForeground('foreground')
+          .onPress(handleMute),
+        Divider(),
+        Item(
+          t('profile.blockUser', {
+            username: displayUsername,
+            defaultValue: 'Block @{{username}}',
+          }),
+        )
+          .destructive()
+          .icon(RiForbidLine)
+          .iconSize('22')
+          .iconForeground('error')
+          .onPress(handleBlock),
+        Item(t('profile.reportUser', { defaultValue: 'Report' }))
+          .destructive()
+          .icon(RiSpamLine)
+          .iconSize('22')
+          .iconForeground('error')
+          .onPress(handleReport),
+      ],
+    ],
+  ];
+});

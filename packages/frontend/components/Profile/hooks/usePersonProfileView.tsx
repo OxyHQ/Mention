@@ -707,28 +707,18 @@ export function usePersonProfileView({
         )}
         {!isOwnProfile &&
           canUsePrivateApi &&
-          // The menu's trigger takes the press and the name its slot hands it (`asChild`), so
-          // the button is drawn as its own host by `render`: a `toElement` boundary would drop them.
           toElement(
-            Embed((render) => (
-              <ProfileMoreMenu
-                profileData={profileData}
-                viewerOperatesAccount={operatesThisAccount}
-              >
-                {
-                  render(
-                    LButton(Icon(RiMoreFill))
-                      .shape('circle')
-                      .label(
-                        t('profile.actions.more', {
-                          handle,
-                          defaultValue: 'More options for @{{handle}}',
-                        }),
-                      ),
-                  ) as React.ReactElement
-                }
-              </ProfileMoreMenu>
-            )),
+            ProfileMoreMenu(
+              LButton(Icon(RiMoreFill))
+                .shape('circle')
+                .label(
+                  t('profile.actions.more', {
+                    handle,
+                    defaultValue: 'More options for @{{handle}}',
+                  }),
+                ),
+              { profileData, viewerOperatesAccount: operatesThisAccount, canUsePrivateApi, t },
+            ),
           )}
       </Button.Group>
     </>

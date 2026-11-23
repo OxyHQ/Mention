@@ -1,6 +1,9 @@
+import type React from 'react';
+import type { TFunction } from 'i18next';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
-import { DropdownMenuItem } from '@oxy.so/bloom/dropdown-menu';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { Item, Text as LText, toElement } from '@oxy.so/bloom-language';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { ProfileMoreMenu, type ProfileMoreMenuProps } from '../ProfileMoreMenu';
 
@@ -13,11 +16,42 @@ import { ProfileMoreMenu, type ProfileMoreMenuProps } from '../ProfileMoreMenu';
  * profile screen renders a "…" that opens an empty menu.
  */
 
-let mockAuth = { canUsePrivateApi: true, oxyServices: { blockUser: jest.fn() } };
-jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
+/** Whether the menu is open, and its setter. */
+type MockOpenState = [boolean, (open: boolean) => void];
+
+// Bloom's menu, controlled as the language's menu holds it (`open`, `onOpenChange`): the
+// trigger's press opens it, and its rows are read once it is open.
+jest.mock('@oxy.so/bloom/dropdown-menu', () => {
+  const R = jest.requireActual<typeof import('react')>('react');
+  const { Text: RNText, View } = jest.requireActual<typeof import('react-native')>('react-native');
+  const Open = R.createContext<MockOpenState>([false, () => {}]);
+  return {
+    DropdownMenu: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      children: React.ReactNode;
+    }) => R.createElement(Open.Provider, { value: [open, onOpenChange] }, children),
+    DropdownMenuTrigger: ({ children }: { children: React.ReactElement }) => {
+      const [, setOpen] = R.useContext(Open);
+      return R.cloneElement(R.Children.only(children), { onPress: () => setOpen(true) } as object);
+    },
+    DropdownMenuContent: ({ children }: { children: React.ReactNode }) =>
+      R.createElement(View, null, children),
+    DropdownMenuSeparator: () => null,
+    DropdownMenuItem: ({ children }: { children: React.ReactNode }) =>
+      R.createElement(RNText, { accessibilityRole: 'menuitem' }, children),
+  };
+});
+
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useAuth: () => ({ oxyServices: { blockUser: jest.fn() }, user: { id: 'me' } }),
+}));
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { error: '#f00' } }) }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -33,27 +67,30 @@ jest.mock('@/services/reportService', () => ({ reportService: { reportUser: jest
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
 
 const profileData = { id: 'u1', username: 'ana' } as ProfileData;
-const channelSettings = <DropdownMenuItem>Channel settings</DropdownMenuItem>;
+const channelSettings = [Item('Channel settings')];
+const t = ((key: string) => key) as unknown as TFunction;
 
-/** The labels of the menu's rows, or `null` when the component renders nothing. */
-async function render(props: Omit<ProfileMoreMenuProps, 'profileData' | 'children'>) {
+type Options = Omit<ProfileMoreMenuProps, 'profileData' | 't' | 'canUsePrivateApi'> & {
+  canUsePrivateApi?: boolean;
+};
+
+/** The labels of the menu's rows once its trigger opens it, or `null` when there is no menu. */
+async function render({ canUsePrivateApi = true, ...props }: Options) {
+  const menu = ProfileMoreMenu(LText('more'), { profileData, canUsePrivateApi, t, ...props });
+  if (menu === null) return null;
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
-      <ProfileMoreMenu profileData={profileData} {...props}>
-        <Text>more</Text>
-      </ProfileMoreMenu>,
+      <BloomThemeProvider fonts={false}>{toElement(menu)}</BloomThemeProvider>,
     );
   });
-  if (renderer.toJSON() === null) return null;
+  await act(async () => {
+    renderer.root.find((node) => node.type === Text && node.props.onPress).props.onPress();
+  });
   return renderer.root
     .findAll((node) => node.type === Text && node.props.accessibilityRole === 'menuitem')
     .map((node) => String(node.props.children));
 }
-
-beforeEach(() => {
-  mockAuth = { canUsePrivateApi: true, oxyServices: { blockUser: jest.fn() } };
-});
 
 describe('ProfileMoreMenu', () => {
   it("offers a signed-in reader lists, starter packs, mute, block and report on someone else's profile", async () => {
@@ -75,14 +112,16 @@ describe('ProfileMoreMenu', () => {
   });
 
   it('gives a signed-out reader no menu at all', async () => {
-    mockAuth = { ...mockAuth, canUsePrivateApi: false };
-    expect(await render({ viewerOperatesAccount: false })).toBeNull();
+    expect(await render({ viewerOperatesAccount: false, canUsePrivateApi: false })).toBeNull();
   });
 
   it('signed out, keeps only rows the caller supplied, never the viewer-account ones', async () => {
-    mockAuth = { ...mockAuth, canUsePrivateApi: false };
-    expect(await render({ viewerOperatesAccount: false, leadingItems: channelSettings })).toEqual([
-      'Channel settings',
-    ]);
+    expect(
+      await render({
+        viewerOperatesAccount: false,
+        canUsePrivateApi: false,
+        leadingItems: channelSettings,
+      }),
+    ).toEqual(['Channel settings']);
   });
 });
