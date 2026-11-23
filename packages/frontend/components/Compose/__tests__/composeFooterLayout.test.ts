@@ -75,8 +75,10 @@ describe('the composer footer', () => {
   });
 
   it('clears the bottom safe area itself, since the shell bar is never drawn over it', () => {
-    // The root pads itself by the device's insets, top and bottom.
-    expect(screen).toMatch(/paddingTop: insets\.top,\s*paddingBottom: insets\.bottom,/);
+    // The root pads itself by the device's insets, top and bottom: the language's
+    // safe-area padding on the root stack, painted by the fill chained after it.
+    const root = screen.slice(screen.indexOf('</KeyboardAvoidingView>'));
+    expect(root).toMatch(/\.safeAreaPadding\('vertical'\)\s*\.background\('card'\)/);
     // The old per-screen guesses at the shell bar's height are gone.
     expect(screen).not.toMatch(/bottomBarVisible/);
   });
