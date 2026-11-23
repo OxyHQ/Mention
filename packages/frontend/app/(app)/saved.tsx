@@ -12,7 +12,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Fab } from '@oxy.so/bloom/fab';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { feedService, type SavedPostsPage } from '@/services/feedService';
@@ -20,7 +19,6 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
 import SavedPostsList, { type SavedPost } from '@/components/saved/SavedPostsList';
 import { usePostsStore } from '@/stores/postsStore';
-
 import {
   Button as LButton,
   Dialog as LDialog,
@@ -32,6 +30,9 @@ import {
   TextField as LTextField,
   VStack,
   toElement,
+  TabItem,
+  Tabs as LTabs,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 const PAGE_SIZE = 30;
@@ -349,16 +350,17 @@ const SavedPostsScreen: React.FC = () => {
                 .margin('horizontal', 'lg')
                 .margin('vertical', 'sm'),
             )}
-            <Tabs
-              value={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)}
-              onValueChange={handleFolderTabPress}
-              pressOpenTab="reselect"
-              variant="underline"
-            >
-              {folderTabs.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} />
-              ))}
-            </Tabs>
+            {LtoElement(
+              LTabs(
+                [
+                  selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder),
+                  handleFolderTabPress,
+                ],
+                folderTabs.map((tab) => TabItem(tab.id, tab.label)),
+              )
+                .pressOpenTab('reselect')
+                .style('underline'),
+            )}
           </StickySection>
 
           <SavedPostsList

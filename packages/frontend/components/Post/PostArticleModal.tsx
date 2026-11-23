@@ -18,16 +18,20 @@ import { ScaleAndFadeIn, ScaleAndFadeOut } from '@oxy.so/bloom/motion';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { articleService } from '@/services/articleService';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Portal } from '@oxy.so/bloom/portal';
 import { logger } from '@oxy.so/core/logger';
-
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
-
-import { VStack as LVStack, toElement as LtoElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  VStack,
+  toElement,
+  VStack as LVStack,
+  toElement as LtoElement,
+  Button as LButton,
+  Icon,
+} from '@oxy.so/bloom-language';
 
 /*
  * A full-screen reader, which Bloom's `Dialog` has no placement for (its
@@ -164,15 +168,16 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
           VStack(
             Embed(
               <View style={[headerStyle, ink.headerRule]}>
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  iconOnly
-                  leadingIcon={RiCloseLine}
-                  accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-                  onPress={onClose}
-                  style={styles.closeButton}
-                />
+                {LtoElement(
+                  LButton(Icon(RiCloseLine))
+                    .shape('circle')
+                    .style('subtle')
+                    .tint('neutral')
+                    .label(t('common.close', { defaultValue: 'Close' }))
+                    .onPress(onClose)
+                    .margin('right', '6')
+                    .zIndex('raised'),
+                )}
                 <Text style={[ink.foreground, headerTitleStyle, { pointerEvents: 'none' }]}>
                   {titleText}
                 </Text>
