@@ -3,9 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+
 import { RiFlagLine } from '@oxy.so/bloom/icons/RiFlagLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { toast } from '@oxy.so/bloom/toast';
@@ -36,6 +35,9 @@ import {
   Text as LText,
   VStack,
   toElement,
+  TabItem,
+  Tabs as LTabs,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
@@ -240,21 +242,17 @@ export default screen(function TrendScreen() {
             Platform.OS !== 'web' && term ? <TopicInlineWidgets term={term} /> : null,
           ),
           Embed(
-            <Tabs
-              value={sort}
-              onValueChange={(value) => setSort(value as TopicSort)}
-              variant="underline"
-              fullWidth
-              // Pressing the sort you are on reselects the screen: back to the top, then a reload.
-              pressOpenTab="reselect"
-              label={t('trend.topic.order', { defaultValue: 'Orden' })}
-            >
-              <TabsTrigger value="top" label={t('trend.topic.sortTop', { defaultValue: 'Top' })} />
-              <TabsTrigger
-                value="latest"
-                label={t('trend.topic.sortLatest', { defaultValue: 'Latest' })}
-              />
-            </Tabs>,
+            LtoElement(
+              LTabs(
+                [sort, (value) => setSort(value as TopicSort)],
+                TabItem('top', t('trend.topic.sortTop', { defaultValue: 'Top' })),
+                TabItem('latest', t('trend.topic.sortLatest', { defaultValue: 'Latest' })),
+              )
+                .style('underline')
+                .fullWidth()
+                .pressOpenTab('reselect')
+                .label(t('trend.topic.order', { defaultValue: 'Orden' })),
+            ),
           ),
         )
           .padding('horizontal', 'lg')

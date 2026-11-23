@@ -1,4 +1,3 @@
-import { Button } from '@oxy.so/bloom/button';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import React, { useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +11,14 @@ import { BaseWidget } from './BaseWidget';
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  VStack,
+  toElement,
+  Button as LButton,
+  Text,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 const MAX_DISPLAY_USERS = 5;
 /** Height of the small plain "Show more" button (Bloom `Button size="sm"`). */
@@ -83,14 +89,13 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
             ),
           ),
           Embed(
-            <Button
-              appearance="plain"
-              size="sm"
-              onPress={handleShowMore}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              {t('common.showMore')}
-            </Button>,
+            LtoElement(
+              LButton(Text(t('common.showMore')))
+                .style('plain')
+                .size('sm')
+                .onPress(handleShowMore)
+                .alignSelf('start'),
+            ),
           ),
         ).spacing('sm'),
       )}

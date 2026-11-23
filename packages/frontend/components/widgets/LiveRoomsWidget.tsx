@@ -1,4 +1,3 @@
-import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from '@/lib/navigation/router';
@@ -7,8 +6,8 @@ import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine
 import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
-
 import { BaseWidget } from './BaseWidget';
+
 import { WidgetItemMenu, type WidgetItemMenuActions } from './WidgetItemMenu';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { Room } from '@/lib/syraApi';
@@ -18,7 +17,6 @@ import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
-
 import {
   Embed,
   HStack,
@@ -27,6 +25,8 @@ import {
   VStack,
   defineTokens,
   toElement,
+  Button as LButton,
+  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 const liveColors = defineTokens({ color: { LIVE_INDICATOR_COLOR } });
@@ -191,14 +191,13 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
                 ),
               ),
               Embed(
-                <Button
-                  appearance="plain"
-                  size="sm"
-                  onPress={handleShowMore}
-                  style={{ alignSelf: 'flex-start' }}
-                >
-                  {t('common.showMore')}
-                </Button>,
+                LtoElement(
+                  LButton(LText(t('common.showMore')))
+                    .style('plain')
+                    .size('sm')
+                    .onPress(handleShowMore)
+                    .alignSelf('start'),
+                ),
               ),
             ).spacing('sm'),
           )}

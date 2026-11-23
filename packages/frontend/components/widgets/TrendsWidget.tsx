@@ -1,4 +1,3 @@
-import { Button } from '@oxy.so/bloom/button';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -11,8 +10,15 @@ import type { Trend } from '@/interfaces/Trend';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { TrendItemRow, TrendItemRowSkeleton } from '@/components/trending/TrendItemRow';
-
-import { Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  Text as LText,
+  VStack,
+  toElement,
+  Button as LButton,
+  Text,
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 const MAX_TRENDS_DISPLAYED = 5;
 /** Height of the small plain "Show more" button (Bloom `Button size="small"`). */
@@ -126,14 +132,13 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
             ),
           ),
           Embed(
-            <Button
-              appearance="plain"
-              size="sm"
-              onPress={handleMorePress}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              Show more
-            </Button>,
+            LtoElement(
+              LButton(Text('Show more'))
+                .style('plain')
+                .size('sm')
+                .onPress(handleMorePress)
+                .alignSelf('start'),
+            ),
           ),
         ).spacing('sm'),
       );

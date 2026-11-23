@@ -1,10 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Button } from '@oxy.so/bloom/button';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
-import { Embed, Group, Header } from '@oxy.so/bloom-language';
+import { Embed, Group, Header, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /**
@@ -51,11 +50,14 @@ export default screen(function ExploreLayout() {
       />,
     ),
     Embed(
-      <Tabs value={activeTab} onValueChange={pushTab} pressOpenTab="reselect" variant="underline">
-        {TABS.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id} label={t(tab.label)} />
-        ))}
-      </Tabs>,
+      toElement(
+        LTabs(
+          [activeTab, pushTab],
+          TABS.map((tab) => TabItem(tab.id, t(tab.label))),
+        )
+          .pressOpenTab('reselect')
+          .style('underline'),
+      ),
     ),
     Embed(<Slot />),
   )
