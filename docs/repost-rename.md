@@ -1,7 +1,7 @@
 # The boost -> repost rename in storage
 
 "Boost" is being freed up for the paid feature (`docs/boost.md`); until now it
-meant *repost* in code, on the wire and in the database. Code and wire names moved
+meant _repost_ in code, on the wire and in the database. Code and wire names moved
 first; this is the storage half. It runs as expand / contract, so a deploy that
 rolls (old and new pods side by side) never meets a name it cannot read.
 
