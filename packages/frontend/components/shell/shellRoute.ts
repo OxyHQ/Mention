@@ -1,4 +1,5 @@
 import { createContext, createElement, useContext, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { usePathname } from '@/lib/navigation/router';
 import { hidesBottomBar } from './bottomBarRoutes';
 
@@ -18,7 +19,12 @@ export interface ShellRoute {
   insights: boolean;
   /** The full-bleed camera, which reserves no bar space on the web. */
   camera: boolean;
-  /** A post's own page (`/p/<id>`), whose reply prompt replaces the bar. */
+  /**
+   * A post's own page (`/p/<id>`), whose reply prompt replaces the bar: on the
+   * web only, where the document reserves the bar's space and the shell drops
+   * the bar for it. On a device the post's screen hides the bar itself
+   * (Bloom's `replacesBottomBar`), so a pushed post re-renders no shell.
+   */
   post: boolean;
   /** A full-screen route, under no bar at all. */
   fullScreen: boolean;
@@ -34,7 +40,7 @@ export function shellRouteOf(pathname: string | null | undefined): ShellRoute {
     deck: path === '/deck',
     insights: path === '/insights' || path === '/insights/weekly_recap' || INSIGHTS.test(path),
     camera: path === '/camera',
-    post: POST.test(path),
+    post: Platform.OS === 'web' && POST.test(path),
     fullScreen: hidesBottomBar(path),
   };
 }

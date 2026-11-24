@@ -161,7 +161,12 @@ const MentionShell = layout(function MentionShell() {
   // it or the bar shows follows the route and the session; Bloom hides both
   // under the keyboard.
   const bottomContent = bottomBarContent({ route, isAuthenticated, isAuthResolved });
-  const ownsMainReplyNavigation = isAuthenticated && !deckOpen && route.post;
+  // A post in the main panel replaces the bar with its reply prompt, the tabs
+  // docked beside it. On a device its screen hides the bar (Bloom's
+  // `replacesBottomBar`); on the web, whose document reserves the bar's space,
+  // the shell drops the bar on a post (`route.post` is only ever true there).
+  const postOwnsNavigation = isAuthenticated && !deckOpen;
+  const ownsMainReplyNavigation = postOwnsNavigation && route.post;
 
   return AppLayout(Stack('(tabs)', Sheet('compose'), 'p/[id]/boost'))
     .primaryAction(RiQuillPenLine, t('sidebar.compose'), 'write')
@@ -227,7 +232,7 @@ const MentionShell = layout(function MentionShell() {
                       .allowsHitTesting('children')
                       .ref(registerPanelSurface),
                   )}
-                  <PostReplyNavigationContext.Provider value={ownsMainReplyNavigation}>
+                  <PostReplyNavigationContext.Provider value={postOwnsNavigation}>
                     <DeckHomeEntry>{navigator}</DeckHomeEntry>
                   </PostReplyNavigationContext.Provider>
                 </RouteErrorBoundary>
