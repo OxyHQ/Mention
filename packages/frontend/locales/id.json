@@ -2907,7 +2907,7 @@
       "since": "Postingan setelah tanggal tertentu",
       "until": "Postingan sebelum tanggal tertentu",
       "min_likes": "Suka minimum",
-      "min_boosts": "Boost minimum",
+      "min_reposts": "Boost minimum",
       "fromMe": "Postinganmu sendiri",
       "to": "Postingan yang menyebut pengguna tertentu",
       "toMe": "Postingan yang menyebutmu",

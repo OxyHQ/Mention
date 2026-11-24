@@ -297,9 +297,9 @@ export const SEARCH_OPERATORS: readonly SearchOperatorHint[] = [
     description: 'Minimum likes',
   },
   {
-    operator: 'min_boosts:N',
-    insert: 'min_boosts:',
-    labelKey: 'min_boosts',
+    operator: 'min_reposts:N',
+    insert: 'min_reposts:',
+    labelKey: 'min_reposts',
     description: 'Minimum boosts',
   },
 ];

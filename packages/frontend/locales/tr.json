@@ -2907,7 +2907,7 @@
       "since": "Bir tarihten sonraki gönderiler",
       "until": "Bir tarihten önceki gönderiler",
       "min_likes": "En az beğeni",
-      "min_boosts": "En az yeniden paylaşım",
+      "min_reposts": "En az yeniden paylaşım",
       "fromMe": "Kendi gönderilerin",
       "to": "Belirli bir kullanıcıdan bahseden gönderiler",
       "toMe": "Senden bahseden gönderiler",

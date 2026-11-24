@@ -92,7 +92,7 @@ for (const kind of ['likedBy', 'boostedBy'] as const)
     );
     let engagementReads = 0;
     await page.route(
-      `**/posts/${quoteId}/${kind === 'likedBy' ? 'likes' : 'boosts'}?**`,
+      `**/posts/${quoteId}/${kind === 'likedBy' ? 'likes' : 'reposts'}?**`,
       (route) => {
         engagementReads += 1;
         return route.fulfill({ json: { users: [], hasMore: false, total: 0 } });

@@ -2931,7 +2931,7 @@
       "since": "Publicacions posteriors a una data",
       "until": "Publicacions anteriors a una data",
       "min_likes": "Mínim de m'agrada",
-      "min_boosts": "Mínim d'impulsos",
+      "min_reposts": "Mínim d'impulsos",
       "fromMe": "Les teves publicacions",
       "to": "Publicacions que mencionen un usuari concret",
       "toMe": "Publicacions que et mencionen",
