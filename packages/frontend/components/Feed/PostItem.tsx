@@ -49,7 +49,7 @@ import {
   THREAD_LINE_Z_INDEX,
 } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
-import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
+import { SubtleHover, usePressHighlight } from '@oxy.so/bloom/subtle-hover';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
 import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
 import { ThreadHoverOverlay } from './ThreadHoverOverlay';
@@ -365,6 +365,10 @@ const PostItemContent: React.FC<PostItemProps> = ({
     },
     [router, openPostHref, isNested, recordOpen],
   );
+  // The row's pressed state on native (Android's ripple, iOS's wash), shown the
+  // frame the finger lands, before the navigation. A child control that takes
+  // the press (like, avatar, a link) keeps it from the row; a scroll cancels it.
+  const pressHighlight = usePressHighlight();
 
   // Canonical profile handle for the author. Built from the full actor so a
   // federated actor resolves to `username@domain` (via isFederated + instance)
@@ -1027,7 +1031,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
         // `Pressable` `tabIndex=0`, and the focused detail post would
         // otherwise become a second `[aria-label][tabindex="0"]` match.
         focusable={isTappable}
-        {...(isTappable ? { onPress: goToPost } : {})}
+        {...(isTappable ? { onPress: goToPost, ...pressHighlight.hostProps } : {})}
         {...(isThreadUnit
           ? {
               onHoverIn: () => {
@@ -1040,9 +1044,14 @@ const PostItemContent: React.FC<PostItemProps> = ({
           : {})}
       >
         {isThreadUnit && sliceKey ? (
-          <ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} visible={isTappable} />
+          <ThreadHoverOverlay
+            sliceKey={sliceKey}
+            owner={hoverOwner}
+            visible={isTappable}
+            pressed={pressHighlight.pressed}
+          />
         ) : isTappable ? (
-          <SubtleHover />
+          <SubtleHover pressed={pressHighlight.pressed} />
         ) : null}
         {/* Thread line above avatar — connects from previous post's bottom.
                     Ends `headerTopOffset` below the top, leaving the same small gap

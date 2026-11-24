@@ -89,7 +89,10 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({
+  SubtleHover: () => null,
+  usePressHighlight: () => ({ hostProps: {}, pressed: undefined }),
+}));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
