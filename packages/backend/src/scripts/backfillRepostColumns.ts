@@ -14,6 +14,7 @@
  *
  * Runnable as a Fargate one-shot after the deploy that carries 0126:
  *   bun packages/backend/dist/src/scripts/backfillRepostColumns.js --dry-run
+ *   (a long corpus can be shared: run it with --shard=0/4 .. --shard=3/4 at the same time)
  *   CONFIRM_ADMIN_MUTATION=backfillRepostColumns bun packages/backend/dist/src/scripts/backfillRepostColumns.js
  */
 
@@ -54,12 +55,29 @@ export async function backfillRepostColumns(
     dryRun?: boolean;
     postIds?: readonly string[];
     pauseMs?: number;
+    /** Work only on the rows whose id hashes to `index` of `count`, so `count` runs can share the corpus. */
+    shard?: { index: number; count: number };
   } = {},
 ): Promise<BackfillRepostColumnsResult> {
   const batchSize = opts.batchSize ?? DEFAULT_BATCH_SIZE;
   const dryRun = opts.dryRun ?? false;
   const pauseMs = opts.pauseMs ?? DEFAULT_PAUSE_MS;
+  const shard = opts.shard;
+  if (
+    shard &&
+    !(
+      Number.isInteger(shard.count) &&
+      shard.count > 0 &&
+      shard.index >= 0 &&
+      shard.index < shard.count
+    )
+  ) {
+    throw new Error(`Invalid shard ${shard.index}/${shard.count}`);
+  }
   const db = getDb();
+  const shardScope = shard
+    ? sql`and mod(hashtext(id)::bigint & 2147483647, ${shard.count}) = ${shard.index}`
+    : sql``;
   const scope = opts.postIds
     ? sql`and id in (${sql.join(
         opts.postIds.map((id) => sql`${id}`),
@@ -74,7 +92,7 @@ export async function backfillRepostColumns(
     // The ids of the next page of rows that still differ, by primary key.
     const page = await db.execute<{ id: string }>(sql`
       select id from posts
-      where id > ${cursor} and ${PAIR_DIFFERS} ${scope}
+      where id > ${cursor} and ${PAIR_DIFFERS} ${scope} ${shardScope}
       order by id
       limit ${batchSize}
     `);
@@ -104,12 +122,20 @@ export async function backfillRepostColumns(
   return { batches, updated };
 }
 
+/** `--shard=k/N`: this run takes the k-th of N slices of the corpus. */
+function shardFromArgs(): { index: number; count: number } | undefined {
+  const arg = process.argv.find((value) => value.startsWith('--shard='));
+  if (!arg) return undefined;
+  const [index, count] = arg.slice('--shard='.length).split('/').map(Number);
+  return { index, count };
+}
+
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   try {
     assertAdminMutationAllowed({ scriptName: 'backfillRepostColumns', dryRun });
     await connectPostgres();
-    const result = await backfillRepostColumns({ dryRun });
+    const result = await backfillRepostColumns({ dryRun, shard: shardFromArgs() });
     logger.info(
       `[backfillRepostColumns] done${dryRun ? ' (DRY_RUN, nothing written)' : ''}: ${result.updated} rows in ${result.batches} batches`,
     );

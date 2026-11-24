@@ -94,4 +94,23 @@ describe('backfillRepostColumns', () => {
 
     expect((await backfillRepostColumns({ postIds: [old, level] })).updated).toBe(0);
   });
+
+  it('shards partition the work: every row in exactly one shard, and a bad shard is refused', async () => {
+    const original = await newPost();
+    const olds = [await newPost(), await newPost(), await newPost(), await newPost()];
+    for (const id of olds) await writeOldColumnsOnly(id, original);
+    const ids = olds;
+
+    let total = 0;
+    for (let index = 0; index < 3; index += 1) {
+      total += (
+        await backfillRepostColumns({ postIds: ids, shard: { index, count: 3 }, pauseMs: 0 })
+      ).updated;
+    }
+    expect(total).toBe(4);
+    expect((await backfillRepostColumns({ postIds: ids, pauseMs: 0 })).updated).toBe(0);
+    await expect(backfillRepostColumns({ shard: { index: 3, count: 3 } })).rejects.toThrow(
+      'Invalid shard',
+    );
+  });
 });
