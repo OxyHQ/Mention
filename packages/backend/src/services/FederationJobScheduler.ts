@@ -13,7 +13,9 @@ import {
   type OutboxBackfillCandidate,
   type OutboxBackfillPatch,
 } from '../db/federation/actorRepository';
-import { distinctRemoteActorUris } from '../db/federation/followRepository';
+import { distinctRemoteActorUris, existsFollow } from '../db/federation/followRepository';
+import { discoveryAdmission } from '../connectors/activitypub/importAdmission';
+import { config } from '../config';
 import {
   findDueDeliveries,
   findUnmigratedDeliveries,
@@ -745,11 +747,47 @@ class FederationJobScheduler {
       : Math.max(0, previousState?.existingCount ?? 0);
     const previousPageCount = outboxChanged ? 0 : Math.max(0, previousState?.pageCount ?? 0);
 
-    if (!outboxChanged && previousProcessedCount >= OUTBOX_RECENT_BACKFILL_LIMIT) {
+    // Which accounts discovery copies, and how much of them (importAdmission.ts).
+    // In `shadow` the decision is only counted; `off` is the old behaviour.
+    const mode = config.federation.discoveryAdmission;
+    const admission = discoveryAdmission({
+      followedLocally: await existsFollow({
+        remoteActorUri: actor.uri,
+        direction: 'outbound',
+        statuses: ['accepted'],
+      }),
+      actorUri: actor.uri,
+      fullLimit: OUTBOX_RECENT_BACKFILL_LIMIT,
+    });
+    if (mode !== 'off' && (admission.skip || admission.limit < OUTBOX_RECENT_BACKFILL_LIMIT)) {
+      // A log line, not a counter: Mention's Prometheus counters are not scraped.
+      logger.info('[FedSync] discovery admission', {
+        decision: admission.skip ? 'skip-actor' : 'probation-cap',
+        mode,
+      });
+    }
+    const enforced = mode === 'enforce';
+    const backfillLimit = enforced ? admission.limit : OUTBOX_RECENT_BACKFILL_LIMIT;
+
+    // A skipped account leaves the walk for good (`complete` is what the
+    // candidate query excludes), exactly like one that reached its limit.
+    if (enforced && admission.skip) {
       await updateOutboxBackfill(actor.id, {
         status: 'complete',
         outboxUrl,
-        processedCount: OUTBOX_RECENT_BACKFILL_LIMIT,
+        completedAt: new Date(),
+        cursorUrl: null,
+        lockedUntil: null,
+        lastError: null,
+      });
+      return;
+    }
+
+    if (!outboxChanged && previousProcessedCount >= backfillLimit) {
+      await updateOutboxBackfill(actor.id, {
+        status: 'complete',
+        outboxUrl,
+        processedCount: backfillLimit,
         completedAt: new Date(),
         cursorUrl: null,
         lockedUntil: null,
@@ -785,7 +823,7 @@ class FederationJobScheduler {
     const claimed = await claimOutboxBackfill(actor.id, now, claimPatch);
     if (!claimed) return;
 
-    const remaining = Math.max(0, OUTBOX_RECENT_BACKFILL_LIMIT - previousProcessedCount);
+    const remaining = Math.max(0, backfillLimit - previousProcessedCount);
     const result = await activityPubConnector.syncOutboxPostsDetailed(
       {
         uri: actor.uri,
@@ -796,6 +834,7 @@ class FederationJobScheduler {
       {
         limit: Math.min(OUTBOX_RECENT_BACKFILL_BATCH_SIZE, remaining),
         importReason: 'discovery_backfill',
+        filterContent: admission.filterContent,
         maxPages: OUTBOX_RECENT_BACKFILL_MAX_PAGES_PER_RUN,
         startPageUrl: outboxChanged ? undefined : previousState?.cursorUrl,
         startItemOffset: outboxChanged ? 0 : (previousState?.cursorItemOffset ?? 0),
@@ -803,10 +842,7 @@ class FederationJobScheduler {
     );
 
     const processedDelta = result.candidateCount ?? 0;
-    const processedCount = Math.min(
-      OUTBOX_RECENT_BACKFILL_LIMIT,
-      previousProcessedCount + processedDelta,
-    );
+    const processedCount = Math.min(backfillLimit, previousProcessedCount + processedDelta);
     const importedCount =
       previousImportedCount + (result.newPostCount ?? 0) + (result.importedBoostCount ?? 0);
     const existingCount = previousExistingCount + (result.existingCount ?? 0);
@@ -833,11 +869,7 @@ class FederationJobScheduler {
     } else if (!result.shouldStampCooldown) {
       patch.status = 'failed';
       patch.lastError = result.reason ?? 'unknown';
-    } else if (
-      processedCount >= OUTBOX_RECENT_BACKFILL_LIMIT ||
-      result.reachedEnd ||
-      !result.nextCursor
-    ) {
+    } else if (processedCount >= backfillLimit || result.reachedEnd || !result.nextCursor) {
       patch.status = 'complete';
       patch.completedAt = new Date();
       patch.cursorUrl = null;
@@ -852,7 +884,7 @@ class FederationJobScheduler {
     logger.info('[FedSync] recent backfill completed', {
       status: String(patch.status),
       processedCount,
-      processingLimit: OUTBOX_RECENT_BACKFILL_LIMIT,
+      processingLimit: backfillLimit,
       importedCount,
       existingCount,
     });

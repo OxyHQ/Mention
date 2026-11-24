@@ -351,6 +351,16 @@ const environmentSchema = z
       minimum: 1,
       maximum: 2 * 1_024 * 1_024,
     }),
+    /**
+     * How the discovery backfill treats accounts no local user follows: `off` is
+     * the old behaviour (100 posts of everyone), `shadow` only counts what the
+     * admission policy would drop or skip, `enforce` applies it
+     * (`connectors/activitypub/importAdmission.ts`).
+     */
+    FEDERATION_DISCOVERY_ADMISSION: z.preprocess(
+      emptyAsUndefined,
+      z.enum(['off', 'shadow', 'enforce']).default('shadow'),
+    ),
     FEDERATION_DELIVERY_RETRIES: integerFromEnv(5, { maximum: 20 }),
     FEDERATION_BLOCKED_DOMAINS: commaSeparatedDomains(),
     CROSSPOST_RECHECK_INTERVAL_MS: integerFromEnv(60_000, { minimum: 1_000, maximum: 86_400_000 }),
@@ -846,6 +856,7 @@ export const config = {
     oxyIdentityApex: environment.OXY_IDENTITY_APEX,
     enabled: environment.FEDERATION_ENABLED,
     maxContentLength: environment.FEDERATION_MAX_CONTENT_LENGTH,
+    discoveryAdmission: environment.FEDERATION_DISCOVERY_ADMISSION,
     deliveryRetries: environment.FEDERATION_DELIVERY_RETRIES,
     blockedDomains: environment.FEDERATION_BLOCKED_DOMAINS,
     crosspostRecheckIntervalMs: environment.CROSSPOST_RECHECK_INTERVAL_MS,
