@@ -167,7 +167,7 @@ export async function fetchXTimelinePage(
 }
 
 /** One bounded, SSRF-safe GET of a JSON document; undefined on any failure. */
-async function getJson(url: string): Promise<unknown> {
+export async function getJson(url: string): Promise<unknown> {
   try {
     const { response, status } = await safeFetch(url, {
       redirect: 'manual',

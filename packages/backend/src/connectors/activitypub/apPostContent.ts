@@ -22,6 +22,7 @@ import type { RemoteLinkPreview } from '../shared/linkPreviews';
 import { declaredApLanguage, extractApLanguage, getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { expandVariantTcoLinks } from './tcoLinks';
+import { completeBridgedBody } from './xFullText';
 import { rewriteMirrorUrls } from '../../utils/federation/mirrorTransports';
 import { metrics } from '../../utils/metrics';
 
@@ -521,6 +522,25 @@ export function hasStorableContent(
  * call it, so a `contentMap`-only / CW / all-hashtag note is extracted
  * identically whether it arrives as a Create or an Update.
  */
+/**
+ * The primary body as plain text, completed when it is a bridged X note tweet the
+ * bridge cut. The one derivation for ingest and for the mention repair, so a
+ * repair can never save the cut prefix over a completed body.
+ */
+async function extractPrimaryBody(
+  noteId: unknown,
+  primaryHtml: string,
+  customEmojiNames: readonly string[],
+): Promise<string> {
+  return completeBridgedBody(
+    noteId,
+    removeDeclaredCustomEmoji(
+      htmlToPlainText(primaryHtml, { preserveMentionLinks: true }),
+      customEmojiNames,
+    ),
+  );
+}
+
 async function assembleFederatedNoteContent(
   object: Record<string, unknown>,
   ownerOxyUserId: string | null | undefined,
@@ -543,10 +563,7 @@ async function assembleFederatedNoteContent(
   });
 
   const primaryHtml = extractApContentHtml(source);
-  const rawText = removeDeclaredCustomEmoji(
-    htmlToPlainText(primaryHtml, { preserveMentionLinks: true }),
-    customEmojiNames,
-  );
+  const rawText = await extractPrimaryBody(object.id, primaryHtml, customEmojiNames);
 
   // Run the centralized hashtag normalizer on every path so an all-hashtag post
   // is stored identically regardless of how it was ingested. `extractApHashtags`
@@ -786,16 +803,13 @@ export async function buildFederatedNoteContentForEdit(
  * Returns an EMPTY array for a note with no storable body (media-only / CW-only);
  * the caller must never blank an existing post's body on an empty result.
  */
-export function buildFederatedNoteVariants(
+export async function buildFederatedNoteVariants(
   object: Record<string, unknown>,
 ): Promise<PostContentVariant[]> {
   const source = rewriteHashtagAnchorsInObject(object);
   const customEmojiNames = extractDeclaredCustomEmojiNames(source);
   const primaryHtml = extractApContentHtml(source);
-  const rawText = removeDeclaredCustomEmoji(
-    htmlToPlainText(primaryHtml, { preserveMentionLinks: true }),
-    customEmojiNames,
-  );
+  const rawText = await extractPrimaryBody(object.id, primaryHtml, customEmojiNames);
   const { content: normalizedText } = normalizePostHashtags(rawText, extractApHashtags(object));
   const text = normalizeMultilineText(normalizedText);
   const primaryTag = resolveApPrimaryTag(source, primaryHtml);
