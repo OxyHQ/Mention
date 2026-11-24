@@ -171,12 +171,27 @@ The same stack adds every pushed screen over the last one and never removes the
 screen it covers from the view tree, so the RenderThread prepared and drew every
 screen of the stack each frame under the top one. On a Pixel 10 Pro release
 build, scrolling a profile went from 0.9% janky frames (p50 8 ms) to 27% (p50
-21 ms) after 20 pushed screens. The patch is a backport of upstream's fix,
-software-mansion/react-native-screens#4633 (5.0.0-alpha.4): the push transaction
-detaches the covered screen, and the top fragment is resolved from the stack
-model. Popping the record (Back, predictive back, a JS pop) re-attaches it.
-This hunk can go at react-native-screens 5 (5.0.0-beta.1 has #4633); the others
-cannot, and 5.x moved these files, so the rest would have to be re-made there.
+21 ms) after 20 pushed screens. The patch follows upstream's fix,
+software-mansion/react-native-screens#4633 (5.0.0-alpha.4), with one change: the
+push transaction HIDES the covered screen's fragment, where #4633 detaches it,
+and the top fragment is resolved from the stack model. Popping the record (Back,
+predictive back, a JS pop) shows it again.
+
+Hidden, not detached: detaching destroys the fragment's view, and AndroidX's exit
+transition then moved the whole covered screen into the container's overlay to
+slide it out (a detach and an attach of every view in it), removed it from the
+overlay at the end of the slide, and Back attached it again. Every attach recorded
+the whole screen again and rebuilt each glass control's shaders. Mention's Home is
+about a thousand views: on a Pixel 8a release build (simpleperf, 4 pushes and
+Backs) that was about 45 ms of main-thread work in the frames before a post first
+showed, and about as much of each Back. A hidden screen stays attached: the exit
+transition slides it out in place, and once it is `GONE` its views are neither
+prepared nor drawn. Its view lifecycle stays resumed, as it was before the
+backport, so the covered screen gets no disappear or appear events (expo-router's
+`transitionStart`/`transitionEnd` for it); nothing in Mention or Bloom reads them
+(Bloom's `StackScene` reads only the pushed screen's own). react-native-screens 5
+still detaches, so the hide has to be re-made there; the other hunks cannot go at
+5 either, and 5.x moved these files.
 
 A root replacement pops the stack's only screen. Upstream refuses that
 (`check(stackModel.size > 1)`), because the root was never added to the
