@@ -14,6 +14,9 @@
  * text is replaced only when FxTwitter says that tweet IS a note tweet and its
  * text is longer, by the same {@link completeBridgedBody} ingest uses.
  *
+ * A machine translation of the cut body is deleted with it, so readers get a fresh
+ * one of the full text.
+ *
  * Idempotent: a completed body is longer than any cut, and the write is guarded
  * on the body that was read, so a concurrent edit is never overwritten.
  *
@@ -60,6 +63,7 @@ export async function completeCutXNotes(
   const rows = await db
     .select({
       variantId: postContentVariants.id,
+      postId: postContentVariants.postId,
       body: postContentVariants.body,
       activityId: posts.federationActivityId,
     })
@@ -83,12 +87,29 @@ export async function completeCutXNotes(
     if (body === row.body) return;
     completed += 1;
     if (dryRun) return;
-    const updated = await db
-      .update(postContentVariants)
-      .set({ body })
-      .where(and(eq(postContentVariants.id, row.variantId), eq(postContentVariants.body, row.body)))
-      .returning({ id: postContentVariants.id });
-    written += updated.length;
+    // A machine translation is a translation of the body it was made from, so the
+    // cut ones go with it (as an inbound edit does), in the same transaction and
+    // only when the guarded update landed.
+    written += await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(postContentVariants)
+        .set({ body })
+        .where(
+          and(eq(postContentVariants.id, row.variantId), eq(postContentVariants.body, row.body)),
+        )
+        .returning({ id: postContentVariants.id });
+      if (updated.length > 0) {
+        await tx
+          .delete(postContentVariants)
+          .where(
+            and(
+              eq(postContentVariants.postId, row.postId),
+              eq(postContentVariants.source, 'machine'),
+            ),
+          );
+      }
+      return updated.length;
+    });
   });
 
   const failure = settled.find((slot) => slot.status === 'rejected');

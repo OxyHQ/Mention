@@ -53,19 +53,37 @@ export async function fetchNoteTweetText(tweetId: string): Promise<string | unde
   return parsed.success ? parsed.data.tweet.text : undefined;
 }
 
+/** The bridge's resolved-mention placeholder (`[mention:<oxy user id>]`) inside a stored body. */
+const MENTION_PLACEHOLDER = /\[mention:[^\]]+\]/g;
+
 /**
- * `body` with the cut prose replaced by `fullText`, keeping the bridge's
- * trailing links (the quoted tweet's) that the full text does not already carry.
- * Undefined when the full text is no longer than the prose it replaces.
+ * Characters of the cut prose that locate where it ends in the full text. Long
+ * enough to be unambiguous, short enough to fit after the last placeholder.
+ */
+const ANCHOR_LENGTH = 40;
+const MIN_ANCHOR_LENGTH = 12;
+
+/**
+ * `body` extended with the part of `fullText` it is missing. The cut prose is
+ * kept as stored, so its resolved-mention placeholders survive, and only the
+ * suffix after the point where the prose ends is taken from the full text; the
+ * bridge's trailing links (the quoted tweet's) that the full text does not carry
+ * stay. Undefined when that point cannot be found, or nothing is missing.
  */
 export function completeCutBody(body: string, fullText: string): string | undefined {
   const links = TRAILING_LINKS.exec(body)?.[0] ?? '';
-  const prose = body.slice(0, body.length - links.length);
-  if (fullText.length <= prose.length) return undefined;
+  const prose = body.slice(0, body.length - links.length).trimEnd();
+  const afterMention = prose.split(MENTION_PLACEHOLDER).at(-1) ?? '';
+  const anchor = afterMention.slice(-ANCHOR_LENGTH);
+  if (anchor.length < MIN_ANCHOR_LENGTH) return undefined;
+  const at = fullText.indexOf(anchor);
+  if (at === -1) return undefined;
+  const suffix = fullText.slice(at + anchor.length);
+  if (suffix.trim().length === 0) return undefined;
   const kept = [...links.matchAll(/https?:\/\/\S+/g)]
     .map(([link]) => link)
     .filter((link) => !fullText.includes(link));
-  return [fullText, ...kept].join('\n');
+  return [prose + suffix, ...kept].join('\n');
 }
 
 /** The tweet id of a Note a bridge republishes from X, or undefined for any other Note. */

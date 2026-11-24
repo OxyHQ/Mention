@@ -25,3 +25,17 @@ describe('xFullText', () => {
     expect(mayBeCutNote('x'.repeat(277))).toBe(true);
   });
 });
+
+describe('completeCutBody keeps what the bridge resolved', () => {
+  it('keeps a mention placeholder in the cut prose and appends only the missing end', () => {
+    const cut = 'Thanks [mention:abc123] for the long thread about shipping faster, it is going by';
+    const full = 'Thanks @alice for the long thread about shipping faster, it is going by the end.';
+    expect(completeCutBody(cut, full)).toBe(`${cut} the end.`);
+  });
+
+  it('declines when the end of the prose is not in the full text', () => {
+    expect(
+      completeCutBody('a completely different text of enough length', 'other'),
+    ).toBeUndefined();
+  });
+});
