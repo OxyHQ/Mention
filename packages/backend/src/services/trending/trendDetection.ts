@@ -13,7 +13,9 @@
 
 import { and, eq, gte, sql, type SQL } from 'drizzle-orm';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
-import { getDb } from '../../db/postgres';
+import { config } from '../../config';
+import type { Transaction } from '../../db/postgres';
+import { withStatementTimeout } from '../../utils/withStatementTimeout';
 import { posts } from '../../db/schema/posts';
 import { logger } from '../../utils/logger';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
@@ -31,6 +33,20 @@ import { sensitiveExcludeSql } from '../../mtn/feed/feedSafety';
 import { openAudienceAuthorSql } from '../../db/userProfile/profileAudience';
 import type { TrendCandidate } from './trendScoring';
 import { resolveTrendConcept } from './conceptRegistry';
+
+/**
+ * Run one window scan under the BACKGROUND statement budget.
+ *
+ * The serving pool caps every statement at 15 s so no request can hold a
+ * connection behind a runaway query. A trend batch is not a request: it reads
+ * two days of `posts`, and when the pages are cold that scan passes 15 s (31 s
+ * measured, production, 2026-11-24) and the whole batch fails — the list then
+ * serves a stale batch. Each scan gets its own transaction rather than one for
+ * the batch, so a scan that fails still fails alone and the fail-soft ones
+ * (`loadTermPairs`, the corpus count) keep their meaning.
+ */
+const scan = <T>(work: (db: Transaction) => Promise<T>): Promise<T> =>
+  withStatementTimeout(config.postgres.backgroundStatementTimeoutMs, work);
 
 /**
  * One term as the aggregation measured it: the numbers the scorer needs, plus
@@ -410,17 +426,18 @@ async function aggregateTermRows(
   // is assembled from what each author contributed, not from a flat post
   // count. `expanded` is the shared scan both levels read, so the corpus is
   // walked ONCE rather than once per level.
-  const rows = await getDb().execute<{
-    term: string;
-    volume: number;
-    recentVolume: number;
-    hashtagVolume: number;
-    topicVolume: number;
-    authorCount: number;
-    actorIds: string[] | null;
-    languages: string[] | null;
-    regions: string[] | null;
-  }>(sql`
+  const rows = await scan((db) =>
+    db.execute<{
+      term: string;
+      volume: number;
+      recentVolume: number;
+      hashtagVolume: number;
+      topicVolume: number;
+      authorCount: number;
+      actorIds: string[] | null;
+      languages: string[] | null;
+      regions: string[] | null;
+    }>(sql`
     with expanded as (
       select
         trend_term.term as term,
@@ -551,7 +568,8 @@ async function aggregateTermRows(
     -- Cheapest possible narrowing, against the CAPPED volume — the number the
     -- floor is meant to be about.
     having c.volume >= ${minVolume}
-  `);
+  `),
+  );
 
   return (
     rows
@@ -718,24 +736,26 @@ async function loadTermPairs(
       where t.term in (${floorTerms})
     ) as ${sql.raw(alias)}`;
 
-    const rows = await getDb()
-      .select({
-        a: sql<string>`pair_a.term`,
-        b: sql<string>`pair_b.term`,
-        posts: sql`count(*)`.mapWith(Number),
-      })
-      .from(posts)
-      // Self-join over the SAME per-post term set, one side renamed. `<` gives
-      // each unordered pair exactly once and can never pair a term with
-      // itself. A post carrying fewer than two of the terms produces no
-      // row at all, so there is nothing to pre-filter.
-      .innerJoin(postTerms('pair_a'), sql`true`)
-      .innerJoin(postTerms('pair_b'), sql`pair_b.term > pair_a.term`)
-      .where(windowMatch)
-      .groupBy(sql`pair_a.term, pair_b.term`)
-      // Applied here rather than in memory so the long tail of pairs that met
-      // once never leaves the database.
-      .having(sql`count(*) >= ${minPairPosts}`);
+    const rows = await scan((db) =>
+      db
+        .select({
+          a: sql<string>`pair_a.term`,
+          b: sql<string>`pair_b.term`,
+          posts: sql`count(*)`.mapWith(Number),
+        })
+        .from(posts)
+        // Self-join over the SAME per-post term set, one side renamed. `<` gives
+        // each unordered pair exactly once and can never pair a term with
+        // itself. A post carrying fewer than two of the terms produces no
+        // row at all, so there is nothing to pre-filter.
+        .innerJoin(postTerms('pair_a'), sql`true`)
+        .innerJoin(postTerms('pair_b'), sql`pair_b.term > pair_a.term`)
+        .where(windowMatch)
+        .groupBy(sql`pair_a.term, pair_b.term`)
+        // Applied here rather than in memory so the long tail of pairs that met
+        // once never leaves the database.
+        .having(sql`count(*) >= ${minPairPosts}`),
+    );
 
     return rows.map((row) => ({ a: row.a, b: row.b, posts: row.posts }));
   } catch (error) {
@@ -762,13 +782,15 @@ function binSql(windowStart: Date, binMs: number, bins: number): SQL<number> {
  */
 async function loadBinTotals(windowMatch: SQL, bin: SQL<number>, bins: number): Promise<number[]> {
   const totals = new Array<number>(bins).fill(0);
-  const rows = await getDb()
-    .select({ bin, posts: sql`count(*)`.mapWith(Number) })
-    .from(posts)
-    .where(windowMatch)
-    // By position: the bin expression carries bound parameters, and postgres
-    // does not match a repeated parameterised expression to the select list.
-    .groupBy(sql`1`);
+  const rows = await scan((db) =>
+    db
+      .select({ bin, posts: sql`count(*)`.mapWith(Number) })
+      .from(posts)
+      .where(windowMatch)
+      // By position: the bin expression carries bound parameters, and postgres
+      // does not match a repeated parameterised expression to the select list.
+      .groupBy(sql`1`),
+  );
   for (const row of rows) totals[Number(row.bin)] += row.posts;
   return totals;
 }
@@ -792,23 +814,25 @@ async function loadTermSeries(
     terms.map((term) => sql`${term}`),
     sql`, `,
   );
-  const rows = await getDb()
-    .select({
-      term: sql<string>`post_term.term`,
-      bin,
-      posts: sql`count(*)`.mapWith(Number),
-    })
-    .from(posts)
-    .innerJoin(
-      sql`lateral (
+  const rows = await scan((db) =>
+    db
+      .select({
+        term: sql<string>`post_term.term`,
+        bin,
+        posts: sql`count(*)`.mapWith(Number),
+      })
+      .from(posts)
+      .innerJoin(
+        sql`lateral (
         select distinct t.term
         from unnest(${termsSql}) as t(term)
         where t.term in (${floorTerms})
       ) as post_term`,
-      sql`true`,
-    )
-    .where(windowMatch)
-    .groupBy(sql`1`, sql`2`);
+        sql`true`,
+      )
+      .where(windowMatch)
+      .groupBy(sql`1`, sql`2`),
+  );
 
   const series = new Map<string, number[]>();
   for (const row of rows) {
@@ -933,14 +957,16 @@ async function mergeSynchronizedStories(
 async function countWindowPostsByLanguage(windowMatch: SQL): Promise<Map<string | null, number>> {
   const byLanguage = new Map<string | null, number>();
   try {
-    const rows = await getDb()
-      .select({
-        language: posts.language,
-        count: sql`count(*)`.mapWith(Number),
-      })
-      .from(posts)
-      .where(windowMatch)
-      .groupBy(posts.language);
+    const rows = await scan((db) =>
+      db
+        .select({
+          language: posts.language,
+          count: sql`count(*)`.mapWith(Number),
+        })
+        .from(posts)
+        .where(windowMatch)
+        .groupBy(posts.language),
+    );
     for (const row of rows) byLanguage.set(row.language, row.count);
   } catch (error) {
     logger.warn('[Trending] Corpus size lookup failed; vocabulary ceiling skipped', { error });

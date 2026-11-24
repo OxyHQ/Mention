@@ -845,6 +845,26 @@ export const posts = pgTable(
       .on(t.createdAt, t.oxyUserId)
       .where(sql`${t.visibility} = 'public' and ${t.status} = 'published'`),
     /**
+     * The window scan of ORIGINAL public posts — what trending reads every
+     * batch (`created_at >= now() - 48h`, public, published, not a boost).
+     *
+     * `post_public_chrono_v1` serves the first three predicates but cannot see
+     * `boost_of`, so the planner walks every boost in the window and discards it
+     * at the heap: 330k rows read to keep 60k, 169k blocks from disk, 31 s cold
+     * against the 15 s statement timeout (EXPLAIN ANALYZE, production,
+     * 2026-11-24) — the batch failed whenever the cache was cold. Boosts are
+     * dominant in a window with a bridge posting them, and nothing about a
+     * boost belongs in this read, so the predicate excludes them from the index.
+     *
+     * `created_at` and `boost_of` are not written after a post is created, so
+     * HOT updates of the engagement counters are unaffected.
+     */
+    index('posts_public_originals_recent_idx')
+      .on(t.createdAt)
+      .where(
+        sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.boostOf} is null`,
+      ),
+    /**
      * The self-thread spine — `(thread_id, author)`, oldest first.
      *
      * PARTIAL on `thread_id is not null`, and the predicate is doing real work
