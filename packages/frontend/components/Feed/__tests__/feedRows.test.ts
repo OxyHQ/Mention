@@ -395,6 +395,34 @@ describe('feedRowType', () => {
     expect(rows.map(feedRowType)).toEqual(['boost', 'quote', 'reply']);
   });
 
+  it('buckets a post by what it draws below its text, so a cell recycles into the same native tree', () => {
+    const image = { id: 'i', type: 'image' as const };
+    const video = { id: 'v', type: 'video' as const };
+    const items = [
+      { ...post('text') },
+      { ...post('img'), attachments: { media: [image] } },
+      { ...post('vid'), attachments: { media: [image, video] } },
+      { ...post('link'), documents: [{ canonicalUrl: 'https://example.com' }] },
+      { ...post('pending'), documentsPending: true },
+      {
+        ...post('boosted'),
+        boost: {
+          actor: post('booster').user,
+          originalPost: { ...post('orig'), attachments: { media: [image] } },
+        },
+      },
+    ];
+    const rows = build({ items: items as never });
+    expect(rows.map(feedRowType)).toEqual([
+      'post',
+      'post:media',
+      'post:video',
+      'post:link',
+      'post:link',
+      'boost:media',
+    ]);
+  });
+
   it('gives each interstitial kind its own recycle bucket, distinct from any post bucket', () => {
     const rows = build({
       slices: [slice('p1'), slice('p2'), slice('p3')],
