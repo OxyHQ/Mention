@@ -92,7 +92,7 @@ function seedPost(id: string, engagement: Partial<FeedItem['engagement']> = {}):
     engagement: {
       likes: 10,
       downvotes: 0,
-      boosts: 3,
+      reposts: 3,
       replies: 1,
       saves: 2,
       ...engagement,
@@ -247,9 +247,9 @@ describe('live post engagement counts, over a real socket', () => {
 
     // A second, unmistakably foreign event, so the wait cannot pass merely
     // because nothing has arrived yet.
-    broadcast(POST_ENGAGEMENT_EVENTS.BOOSTED, {
+    broadcast(POST_ENGAGEMENT_EVENTS.REPOSTED, {
       postId: WATCHED_POST,
-      boostsCount: 4,
+      repostsCount: 4,
       actorId: OTHER_ACTOR_ID,
     });
     await waitFor(
@@ -278,9 +278,9 @@ describe('live post engagement counts, over a real socket', () => {
       actorId: VIEWER_ID,
     });
 
-    broadcast(POST_ENGAGEMENT_EVENTS.BOOSTED, {
+    broadcast(POST_ENGAGEMENT_EVENTS.REPOSTED, {
       postId: WATCHED_POST,
-      boostsCount: 4,
+      repostsCount: 4,
       actorId: OTHER_ACTOR_ID,
     });
     await waitFor(
@@ -301,9 +301,9 @@ describe('live post engagement counts, over a real socket', () => {
       likesCount: 50,
       actorId: OTHER_ACTOR_ID,
     });
-    broadcast(POST_ENGAGEMENT_EVENTS.BOOSTED, {
+    broadcast(POST_ENGAGEMENT_EVENTS.REPOSTED, {
       postId: WATCHED_POST,
-      boostsCount: 9,
+      repostsCount: 9,
       actorId: OTHER_ACTOR_ID,
     });
     broadcast(POST_ENGAGEMENT_EVENTS.REPLIED, {

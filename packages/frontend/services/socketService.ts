@@ -60,8 +60,8 @@ const COUNT_FIELDS: ReadonlyArray<keyof EngagementCounts> = [
 const ENGAGEMENT_EVENT_ACTIONS: ReadonlyArray<[PostEngagementEvent, EchoAction]> = [
   [POST_ENGAGEMENT_EVENTS.LIKED, 'like'],
   [POST_ENGAGEMENT_EVENTS.UNLIKED, 'unlike'],
-  [POST_ENGAGEMENT_EVENTS.BOOSTED, 'boost'],
-  [POST_ENGAGEMENT_EVENTS.UNBOOSTED, 'unboost'],
+  [POST_ENGAGEMENT_EVENTS.REPOSTED, 'boost'],
+  [POST_ENGAGEMENT_EVENTS.UNREPOSTED, 'unboost'],
   [POST_ENGAGEMENT_EVENTS.SAVED, 'save'],
   [POST_ENGAGEMENT_EVENTS.UNSAVED, 'unsave'],
   [POST_ENGAGEMENT_EVENTS.REPLIED, 'reply'],
@@ -71,7 +71,9 @@ function readEngagementCounts(data: PostEngagementCountsPayload): EngagementCoun
   const counts: EngagementCounts = {};
   if (typeof data.likesCount === 'number') counts.likes = data.likesCount;
   if (typeof data.downvotesCount === 'number') counts.downvotes = data.downvotesCount;
-  if (typeof data.boostsCount === 'number') counts.reposts = data.boostsCount;
+  // `boostsCount` is the duplicate an older server sends alone.
+  const reposts = data.repostsCount ?? data.boostsCount;
+  if (typeof reposts === 'number') counts.reposts = reposts;
   if (typeof data.repliesCount === 'number') counts.replies = data.repliesCount;
   if (typeof data.savesCount === 'number') counts.saves = data.savesCount;
   return counts;
