@@ -1,6 +1,7 @@
 import { membershipReviewAudits } from '../../db/schema/membershipModeration';
 import { accountStorefronts } from '../../db/schema/commerce';
 import { membershipBillingReceipts } from '../../db/schema/membershipBilling';
+import { postPromotionImpressions, postPromotions } from '../../db/schema/promotions';
 import {
   membershipCommunities,
   communityMemberships,
@@ -529,6 +530,16 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: membershipBillingReceipts,
     where: accountEq(membershipBillingReceipts.payerOxyUserId),
+  },
+  'post_promotions.authorOxyUserId|channel-account': {
+    phase: 'account',
+    table: postPromotions,
+    where: accountEq(postPromotions.authorOxyUserId),
+  },
+  'post_promotion_impressions.viewerOxyUserId|channel-account': {
+    phase: 'account',
+    table: postPromotionImpressions,
+    where: accountEq(postPromotionImpressions.viewerOxyUserId),
   },
   'membership_communities.ownerOxyUserId|channel-account': {
     phase: 'account',

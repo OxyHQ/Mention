@@ -120,6 +120,7 @@ describe('schema invariants', () => {
     const calendarDays = new Set([
       'commerce_post_daily_metrics.day',
       'commerce_store_daily_metrics.day',
+      'post_promotion_impressions.day',
     ]);
     // These are UTC calendar buckets, not instants; DATE makes timezone changes
     // incapable of moving an interaction into another aggregate day.
