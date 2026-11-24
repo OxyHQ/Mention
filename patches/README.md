@@ -31,6 +31,14 @@ those two files the patched lines map to the nearest upstream line. The native
 predictive Back gates (source-built opted and default APKs, device acceptance)
 were not repeated for this forward.
 
+`fork/NavigationContainer.js` wires the hardware Back listener (`useBackButton`) in
+`InitialStateNavigationContainer`, the component that renders the container, instead of in its
+parent. The parent renders while the initial state is still resolving, so `containerRef.current`
+was null when its effect ran: the listener's native-ownership updates (`state`,
+`nativeBackOwnershipChange`) never attached, the listener stayed a JavaScript owner for the whole
+session, and React Native gave every Back to JavaScript instead of the native stack. Remove the
+hunk when upstream wires Back where the container exists.
+
 `fork/getStateFromPath.js` builds the route table once and sorts it once per
 location. Upstream rebuilt it on every call: every route's normalized config,
 its regex and the sort ("config resources depend on the current state"). Only

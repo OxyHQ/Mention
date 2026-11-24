@@ -90,6 +90,29 @@ index 278b17621df2a34d8eb3ba8ff0edadbb2f2705ea..cff9e30d7634ba6af0dd17e3ce9e8836
 \ No newline at end of file
 +{"version":3,"sources":["fork/useBackButton.native.ts"],"sourcesContent":[null],"names":["useBackButton","ref","React","useEffect","subscription","BackHandler","addEventListener","navigation","current","canGoBack","dispatchSync","CommonActions","goBack","updateOwnership","setNativeNavigationFallback","isNativeBackNavigationOwned","removeStateListener","addListener","removeOwnershipListener","remove"],"mappings":";;;;+BASgBA;;;eAAAA;;;;iEATO;;;;;;;yBACK;;;;;;wBAMrB;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;AAEA,SAASA,cAAcC,GAA2D;IACvFC,SAAMC,SAAS,CAAC;QACd,MAAMC,eAAeC,0BAAW,CAACC,gBAAgB,CAAC,qBAAqB;YACrE,MAAMC,aAAaN,IAAIO,OAAO;YAE9B,IAAID,cAAc,MAAM;gBACtB,OAAO;YACT;YAEA,IAAIA,WAAWE,SAAS,IAAI;gBAC1BF,WAAWG,YAAY,CAACC,qBAAa,CAACC,MAAM;gBAE5C,OAAO;YACT;YAEA,OAAO;QACT;QAGA,MAAMC,kBAAkB,IACtBT,aAAaU,2BAA2B,GACtCb,IAAIO,OAAO,EAAEO,kCAAkC;QAEnDF;QACA,MAAMG,sBAAsBf,IAAIO,OAAO,EAAES,YAAY,SAASJ;QAC9D,MAAMK,0BAA0BjB,IAAIO,OAAO,EAAES,YAC3C,6BACAJ;QAGF,OAAO;YACLG;YACAE;YACAd,aAAae,MAAM;QACrB;IACF,GAAG;QAAClB;KAAI;AACV"}
 \ No newline at end of file
+diff --git a/build/fork/NavigationContainer.js b/build/fork/NavigationContainer.js
+--- a/build/fork/NavigationContainer.js
++++ b/build/fork/NavigationContainer.js
+@@ -59,7 +59,6 @@
+         (0, _validatePathConfig.validatePathConfig)(linking.config);
+     }
+     const refContainer = _react().default.useRef(null);
+-    (0, _useBackButton.useBackButton)(refContainer);
+     const { getInitialState } = (0, _useLinking.useLinking)(refContainer, {
+         prefixes: [],
+         ...linking
+@@ -97,6 +96,11 @@
+     const initialState = isThenable(initialStateOrPromise) ? _react().default.use(initialStateOrPromise) : initialStateOrPromise;
+     // Set here, not in the parent, so the ref is set once the container mounts after waiting.
+     _react().default.useImperativeHandle(ref, ()=>containerRef.current);
++    // Back is wired here, where the container exists: the parent renders before the
++    // initial state resolves, while `containerRef.current` is still null, so its
++    // ownership listeners never attached and Back stayed JavaScript's for the
++    // whole session instead of passing to the native stack.
++    (0, _useBackButton.useBackButton)(containerRef);
+     // Add additional linking related info to the ref
+     // This will be used by the devtools
+     _react().default.useEffect(()=>{
 diff --git a/build/fork/getStateFromPath.js b/build/fork/getStateFromPath.js
 index 3006e9c..82fd12b 100644
 --- a/build/fork/getStateFromPath.js
