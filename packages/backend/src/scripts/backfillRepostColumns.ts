@@ -48,6 +48,54 @@ export interface BackfillRepostColumnsResult {
   updated: number;
 }
 
+/**
+ * `author_post_counts` (one row per author, hundreds of thousands) is the only other
+ * table too big to copy inside its migration. Same rule: only rows whose pair differs,
+ * a page at a time by primary key.
+ */
+export async function backfillAuthorPostCountsReposts(
+  opts: {
+    batchSize?: number;
+    dryRun?: boolean;
+    pauseMs?: number;
+    authorIds?: readonly string[];
+  } = {},
+): Promise<number> {
+  const batchSize = opts.batchSize ?? DEFAULT_BATCH_SIZE;
+  const pauseMs = opts.pauseMs ?? DEFAULT_PAUSE_MS;
+  const db = getDb();
+  const scope = opts.authorIds
+    ? sql`and oxy_user_id in (${sql.join(
+        opts.authorIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})`
+    : sql``;
+  let cursor = '';
+  let updated = 0;
+  for (;;) {
+    const page = await db.execute<{ id: string }>(sql`
+      select oxy_user_id as id from author_post_counts
+      where oxy_user_id > ${cursor} and reposts_count <> boosts_count ${scope}
+      order by oxy_user_id
+      limit ${batchSize}
+    `);
+    if (page.length === 0) break;
+    const ids = page.map((row) => row.id);
+    cursor = ids[ids.length - 1];
+    updated += ids.length;
+    if (opts.dryRun) continue;
+    await db.execute(sql`
+      update author_post_counts set reposts_count = boosts_count
+      where oxy_user_id in (${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      )})
+    `);
+    if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+  }
+  return updated;
+}
+
 /** Copy the old columns into the new ones. The caller owns the connection. */
 export async function backfillRepostColumns(
   opts: {
@@ -135,7 +183,13 @@ async function main(): Promise<void> {
   try {
     assertAdminMutationAllowed({ scriptName: 'backfillRepostColumns', dryRun });
     await connectPostgres();
-    const result = await backfillRepostColumns({ dryRun, shard: shardFromArgs() });
+    const shard = shardFromArgs();
+    const result = await backfillRepostColumns({ dryRun, shard });
+    // The small tables are not sharded: run them from the first slice only.
+    if (!shard || shard.index === 0) {
+      const counts = await backfillAuthorPostCountsReposts({ dryRun });
+      logger.info(`[backfillRepostColumns] author_post_counts: ${counts} rows`);
+    }
     logger.info(
       `[backfillRepostColumns] done${dryRun ? ' (DRY_RUN, nothing written)' : ''}: ${result.updated} rows in ${result.batches} batches`,
     );

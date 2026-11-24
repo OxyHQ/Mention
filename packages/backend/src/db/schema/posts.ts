@@ -1299,4 +1299,6 @@ export const authorPostCounts = pgTable('author_post_counts', {
   repliesCount: integer().notNull().default(0),
   /** Counted posts of `type = 'boost'`; each is also in one of the two counts above. */
   boostsCount: integer().notNull().default(0),
+  // Expand-phase twin of `boostsCount` (docs/repost-rename.md); a trigger keeps the two equal.
+  repostsCount: integer().notNull().default(0),
 });

@@ -102,6 +102,8 @@ export const customFeeds = pgTable(
     keywords: text().array(),
     includeReplies: boolean().notNull().default(true),
     includeBoosts: boolean().notNull().default(true),
+    // Expand-phase twin of `includeBoosts` (docs/repost-rename.md); a trigger keeps the two equal.
+    includeReposts: boolean().notNull().default(true),
     includeMedia: boolean().notNull().default(true),
     language: text(),
 
