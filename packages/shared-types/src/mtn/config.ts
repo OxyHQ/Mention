@@ -1381,6 +1381,31 @@ export const MtnConfig = {
       { id: 'three-days', impressions: 7_000, durationHours: 72 },
       { id: 'week', impressions: 20_000, durationHours: 168 },
     ] as readonly MtnPromotionTier[],
+    /**
+     * The most a promotion can multiply a post's rank score by, at the moment it
+     * is furthest behind its schedule. A ceiling, not a target: a promoted post
+     * still competes with everything else, and a promotion that is on pace has
+     * no lift at all.
+     */
+    maxMultiplier: 3,
+    /**
+     * How many promoted posts one feed request may add to the candidate pool.
+     * Promoted candidates also pass the discovery gate and the discovery-share
+     * cap like any discovery post, so this bounds the work, not the share.
+     */
+    maxCandidates: 20,
+    /**
+     * A promotion's schedule is `purchased * elapsed share of its window`. Below
+     * this share of the purchase the schedule is read as this much, so a
+     * promotion that has only just started is not "on pace" at zero.
+     */
+    pacingFloorShare: 0.05,
+    /**
+     * A promotion this far ahead of its schedule (as a share of the purchase)
+     * leaves the candidate pool until the schedule catches up, which is what
+     * spreads the purchase over the window instead of spending it in an hour.
+     */
+    aheadSlackShare: 0.1,
   },
 
   // --- Protocol constants ---

@@ -116,6 +116,8 @@ export interface RankablePost {
   friendEngagementCount?: number;
   activitySubscriptionMatch?: boolean;
   activitySubscriptionAuthorIds?: string[];
+  /** Rank multiplier of the post's paid promotion, set by the promotion source. */
+  promotionBoost?: number;
   id?: string;
   /** Written as a reply — the STORED discriminator (see `PostRecord`). */
   isReply?: boolean;
