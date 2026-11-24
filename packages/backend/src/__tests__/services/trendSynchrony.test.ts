@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import type { MtnTrendSynchronyConfig } from '@mention/shared-types';
 import {
   mergeSynchronizedTerms,
+  peakShare,
   pearson,
   type SynchronyPair,
   type SynchronyTerm,
@@ -12,13 +13,13 @@ const config: MtnTrendSynchronyConfig = {
   minSeriesCorrelation: 0.85,
   minSharedPosts: 6,
   minCoverage: 0.2,
-  minRecentShare: 0.2,
+  minPeakShare: 0.3,
   maxRounds: 3,
   maxStoryTerms: 4,
   binMs: 3_600_000,
 };
 
-const RECENT_BINS = 1;
+const PEAK_BINS = 1;
 const CORPUS = new Array(9).fill(100);
 const row = (term: string, series: number[], members = [term]): SynchronyTerm => ({
   term,
@@ -37,7 +38,7 @@ describe('mergeSynchronizedTerms', () => {
     const result = mergeSynchronizedTerms(
       [row('jensen huang', burst), row('huang', sameShape)],
       [pair('huang', 'jensen huang', 8)],
-      RECENT_BINS,
+      PEAK_BINS,
       CORPUS,
       config,
     );
@@ -58,7 +59,7 @@ describe('mergeSynchronizedTerms', () => {
         row('d', sameShape), // moves with it, but met on too few posts
       ],
       pairs,
-      RECENT_BINS,
+      PEAK_BINS,
       CORPUS,
       config,
     );
@@ -72,7 +73,7 @@ describe('mergeSynchronizedTerms', () => {
     const result = mergeSynchronizedTerms(
       [row('a', flatA), row('b', flatB)],
       [pair('a', 'b', 20)],
-      RECENT_BINS,
+      PEAK_BINS,
       CORPUS,
       config,
     );
@@ -96,7 +97,7 @@ describe('mergeSynchronizedTerms', () => {
         ),
       ],
       [pair('a', 'b', 20)],
-      RECENT_BINS,
+      PEAK_BINS,
       corpus,
       config,
     );
@@ -110,11 +111,43 @@ describe('mergeSynchronizedTerms', () => {
     expect(result.merges).toEqual([]);
   });
 
+  it('judges a burst by its peak wherever it fell, so a fading story still joins', () => {
+    const early = [0, 1, 2, 20, 12, 5, 2, 1, 0];
+    const alike = [0, 0, 1, 11, 7, 2, 1, 0, 0];
+    const result = mergeSynchronizedTerms(
+      [row('a', early), row('b', alike)],
+      [pair('a', 'b', 9)],
+      PEAK_BINS,
+      CORPUS,
+      config,
+    );
+
+    expect(peakShare(early, 1)).toBeGreaterThan(0.3);
+    expect(result.merges).toEqual([{ representative: 'a', absorbed: ['b'] }]);
+  });
+
+  it('ignores an hour that is still arriving instead of letting its noise decide', () => {
+    // The newest hour holds 22 posts against a typical 100: a share of 5 in 22
+    // must not outweigh nine hours that agree.
+    const corpus = [100, 100, 100, 100, 100, 100, 100, 100, 22];
+    const a = [0, 0, 1, 3, 8, 20, 12, 4, 1];
+    const b = [0, 0, 1, 2, 5, 11, 7, 2, 9];
+    const result = mergeSynchronizedTerms(
+      [row('a', a), row('b', b)],
+      [pair('a', 'b', 12)],
+      PEAK_BINS,
+      corpus,
+      { ...config, minPeakShare: 0.2 },
+    );
+
+    expect(result.merges).toEqual([{ representative: 'a', absorbed: ['b'] }]);
+  });
+
   it('keeps a row under the member ceiling, counting original terms', () => {
     const result = mergeSynchronizedTerms(
       [row('a', burst, ['a', 'a1', 'a2']), row('b', sameShape, ['b', 'b1'])],
       [pair('a', 'b', 8)],
-      RECENT_BINS,
+      PEAK_BINS,
       CORPUS,
       config,
     );
@@ -134,12 +167,11 @@ describe('mergeSynchronizedTerms', () => {
     ];
     const pairs = [pair('a', 'b', 8), pair('a', 'c', 8), pair('b', 'c', 8)];
 
-    expect(mergeSynchronizedTerms(terms, pairs, RECENT_BINS, CORPUS, config)).toEqual(
-      mergeSynchronizedTerms(terms, [...pairs].reverse(), RECENT_BINS, CORPUS, config),
+    expect(mergeSynchronizedTerms(terms, pairs, PEAK_BINS, CORPUS, config)).toEqual(
+      mergeSynchronizedTerms(terms, [...pairs].reverse(), PEAK_BINS, CORPUS, config),
     );
     expect(
-      mergeSynchronizedTerms(terms, pairs, RECENT_BINS, CORPUS, { ...config, enabled: false })
-        .merges,
+      mergeSynchronizedTerms(terms, pairs, PEAK_BINS, CORPUS, { ...config, enabled: false }).merges,
     ).toEqual([]);
   });
 });

@@ -1184,11 +1184,14 @@ export const MtnConfig = {
        */
       minCoverage: 0.2,
       /**
-       * A term must have at least this share of its window volume in the
-       * recent window to take part. Two flat all-day terms correlate through
-       * the daily cycle alone; a burst is what makes a correlation evidence.
+       * Share of a term's window volume that falls in its busiest six hours. A
+       * burst is what makes a correlation evidence: two flat all-day terms
+       * correlate through the daily cycle alone, and chronic subjects sit at
+       * 0.2-0.35 while every name of a live story sat at 0.56-0.88. Judged at
+       * the peak, not at the end of the window — a story that peaked ten hours
+       * ago is still on the list and its names still belong together.
        */
-      minRecentShare: 0.2,
+      minPeakShare: 0.4,
       /** Rounds of re-measuring merged groups (a group can pull in more). */
       maxRounds: 3,
       /** Ceiling on the terms one row may hold after this pass. */
@@ -1381,7 +1384,7 @@ export interface MtnTrendSynchronyConfig {
   minSeriesCorrelation: number;
   minSharedPosts: number;
   minCoverage: number;
-  minRecentShare: number;
+  minPeakShare: number;
   maxRounds: number;
   maxStoryTerms: number;
   binMs: number;

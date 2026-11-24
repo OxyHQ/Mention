@@ -14,8 +14,8 @@
  *
  * Neither alone is safe. Correlation alone joins anything that peaks at
  * lunchtime; overlap alone joins every niche word to the broad word it rides.
- * A third condition keeps flat terms out: both must be bursting, because two
- * all-day terms correlate through the daily cycle without sharing a story.
+ * A third condition keeps flat terms out: both must have a clear peak, because
+ * two all-day terms correlate through the daily cycle without sharing a story.
  *
  * Pure and storage-free, like `trendClustering`: it takes counts and series and
  * returns groupings. Windows and queries live in `trendDetection`.
@@ -29,6 +29,18 @@ import type { MtnTrendSynchronyConfig } from '@mention/shared-types';
  * not cover at all would make every term agree on zero.
  */
 const MIN_CORPUS_PER_BIN = 20;
+
+/**
+ * An hour must also hold this share of a typical (median) hour to count. The
+ * newest hour is still arriving and a quiet night is mostly noise, and a share
+ * of 5 posts in 22 swings a correlation as much as a real burst does.
+ */
+const MIN_BIN_SHARE_OF_MEDIAN = 0.25;
+
+const median = (values: readonly number[]): number => {
+  const sorted = values.filter((value) => value > 0).sort((a, b) => a - b);
+  return sorted.length === 0 ? 0 : sorted[Math.floor(sorted.length / 2)];
+};
 
 /** One row as the previous pass left it: a term, its members and its hourly series. */
 export interface SynchronyTerm {
@@ -104,8 +116,9 @@ export function shareCorrelation(
   const a: number[] = [];
   const b: number[] = [];
   const length = Math.min(left.length, right.length, corpus.length);
+  const floor = Math.max(MIN_CORPUS_PER_BIN, MIN_BIN_SHARE_OF_MEDIAN * median(corpus));
   for (let index = 0; index < length; index += 1) {
-    if (corpus[index] < MIN_CORPUS_PER_BIN) continue;
+    if (corpus[index] < floor) continue;
     a.push(left[index] / corpus[index]);
     b.push(right[index] / corpus[index]);
   }
@@ -113,18 +126,24 @@ export function shareCorrelation(
 }
 
 /**
- * Whether a row is in the middle of a burst: how much of its window volume
- * landed in the last `recentBins` bins, against the share a flat series would
- * have there.
+ * How much of a series' volume falls in its busiest `width` consecutive bins:
+ * the measure of a burst, wherever in the window it happened. A flat series has
+ * `width / length` of it; the names of a live story have most of it.
  */
-function recentShare(series: readonly number[], recentBins: number): number {
+export function peakShare(series: readonly number[], width: number): number {
   const total = sum(series);
   if (total === 0) return 0;
-  return sum(series.slice(series.length - recentBins)) / total;
+  let window = sum(series.slice(0, width));
+  let best = window;
+  for (let index = width; index < series.length; index += 1) {
+    window += series[index] - series[index - width];
+    best = Math.max(best, window);
+  }
+  return best / total;
 }
 
 /**
- * Merge bursting terms whose series move together and whose posts overlap.
+ * Merge terms with a clear peak whose series move together and whose posts overlap.
  *
  * `corpus` is the number of posts in each bin, the denominator of a term's share.
  *
@@ -135,7 +154,7 @@ function recentShare(series: readonly number[], recentBins: number): number {
 export function mergeSynchronizedTerms(
   terms: readonly SynchronyTerm[],
   pairs: readonly SynchronyPair[],
-  recentBins: number,
+  peakBins: number,
   corpus: readonly number[],
   config: MtnTrendSynchronyConfig,
 ): SynchronyResult {
@@ -144,16 +163,16 @@ export function mergeSynchronizedTerms(
 
   const byTerm = new Map(terms.map((row) => [row.term, row]));
   const posts = new Map(terms.map((row) => [row.term, sum(row.series)]));
-  const bursting = new Set(
+  const peaked = new Set(
     terms
-      .filter((row) => recentShare(row.series, recentBins) >= config.minRecentShare)
+      .filter((row) => peakShare(row.series, peakBins) >= config.minPeakShare)
       .map((row) => row.term),
   );
 
   const links: { a: string; b: string; correlation: number }[] = [];
   for (const pair of pairs) {
     if (pair.posts < config.minSharedPosts) continue;
-    if (!bursting.has(pair.a) || !bursting.has(pair.b)) continue;
+    if (!peaked.has(pair.a) || !peaked.has(pair.b)) continue;
     const rowA = byTerm.get(pair.a);
     const rowB = byTerm.get(pair.b);
     if (!rowA || !rowB) continue;
