@@ -61,6 +61,7 @@ type HandledPostKey =
   | 'originalPost'
   | 'quotedPost'
   | 'quotedPostUnavailable'
+  | 'quotedPostUrls'
   // `boost` is the deprecated duplicate of `repost` the server still emits for older clients; it is not carried.
   | 'boost'
   | 'repost'
@@ -151,6 +152,7 @@ export function toFeedItem(
     originalPost,
     quotedPost,
     quotedPostUnavailable: hydrated.quotedPostUnavailable,
+    quotedPostUrls: hydrated.quotedPostUrls,
     repost,
     context: hydrated.context,
     date: post.metadata.createdAt,

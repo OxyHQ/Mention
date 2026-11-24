@@ -1663,16 +1663,13 @@ export interface HydratedPost extends HydratedPostSummary {
   quotedPost?: HydratedPostSummary | null;
   /** A quote's subject cannot be shown. Reveals no target identity or reason. */
   quotedPostUnavailable?: boolean;
-<<<<<<< HEAD
-  repost?: HydratedRepostContext | null;
-  /** @deprecated Same value as `repost`, emitted for clients shipped before the rename. */
-=======
   /**
    * The URLs that name the quoted post (its federation URL, AP id, our `/p/<id>`).
    * A body link to one is the quote embed itself, so no link card is drawn for it.
    */
   quotedPostUrls?: string[];
->>>>>>> ab6fd0e92 (fix(feed): no link card for a link to the quoted post, which the quote embed already shows)
+  repost?: HydratedRepostContext | null;
+  /** @deprecated Same value as `repost`, emitted for clients shipped before the rename. */
   boost?: HydratedRepostContext | null;
   context?: PostFeedContext;
 }
