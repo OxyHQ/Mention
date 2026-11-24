@@ -1,7 +1,7 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { TouchableOpacity, type View } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,6 @@ interface VideosGridProps {
   listHeaderComponent?: React.ReactElement | null;
   listContentHeaderComponent?: React.ReactElement | null;
   listStickyHeaderComponent?: React.ReactElement | null;
-  contentContainerStyle?: React.ComponentProps<typeof View>['style'];
 }
 
 interface VideoGridEntry extends ProfileGridEntry {
@@ -52,7 +51,6 @@ const VideosGrid: React.FC<VideosGridProps> = ({
   listHeaderComponent,
   listContentHeaderComponent,
   listStickyHeaderComponent,
-  contentContainerStyle,
 }) => {
   const { oxyServices } = useAuth();
   const router = useRouter();
@@ -180,7 +178,6 @@ const VideosGrid: React.FC<VideosGridProps> = ({
       listContentHeaderComponent={listContentHeaderComponent}
       listStickyHeaderComponent={listStickyHeaderComponent}
       emptyComponent={emptyContent}
-      contentContainerStyle={contentContainerStyle}
       onEndReached={loadMore}
     />
   );

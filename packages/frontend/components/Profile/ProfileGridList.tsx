@@ -2,10 +2,9 @@ import type React from 'react';
 import { useCallback, useMemo } from 'react';
 import { Dimensions, FlatList, View, type ViewStyle } from 'react-native';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
-import { VirtualList } from '@oxy.so/bloom/list';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, VirtualList, VStack, toElement } from '@oxy.so/bloom-language';
 
 export type {
   ProfileGridEntry,
@@ -14,7 +13,7 @@ export type {
 
 const NUM_COLUMNS = 3;
 const GAP = 1; // instagram-like tight spacing
-const H_PADDING = 0;
+const H_PADDING = 0; // the list's content margin, the space token 'none'
 /** `w-full`, for a grid that spans its parent. */
 const FULL_WIDTH: ViewStyle = { width: '100%' };
 
@@ -52,7 +51,6 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   listContentHeaderComponent,
   listStickyHeaderComponent,
   emptyComponent,
-  contentContainerStyle,
   onEndReached,
 }: ProfileGridListProps<T>) {
   // `renderCell` draws a square of a given side, so the grid needs its width;
@@ -145,6 +143,21 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   }, []);
 
   if (ownsScroll) {
+    // The list is its screen's scroller: full-width rows span the columns, and the
+    // header keeps to its content so the sticky tabs start right under it.
+    let list = VirtualList(rows, renderVirtualizedRow)
+      .itemKey(virtualizedKeyExtractor)
+      .itemType(getItemType)
+      .itemLayout(overrideItemLayout)
+      .columns(NUM_COLUMNS)
+      .headerFitsContent()
+      .contentMargins('horizontal', 'none')
+      .scrollbar('never')
+      .tuning({ drawDistance: Math.max(itemSize * 2, 300), maxItemsInRecyclePool: 24 })
+      .screen();
+    if (listHeaderComponent) list = list.headerContent(Embed(listHeaderComponent));
+    if (listStickyHeaderComponent) list = list.stickyIndices([listContentHeaderComponent ? 1 : 0]);
+    if (onEndReached) list = list.onEndReached(onEndReached, 0.7);
     return (
       <View
         style={[
@@ -154,26 +167,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
         ]}
         onLayout={onLayout}
       >
-        <VirtualList
-          screen={{}}
-          data={rows}
-          keyExtractor={virtualizedKeyExtractor}
-          renderItem={renderVirtualizedRow}
-          getItemType={getItemType}
-          overrideItemLayout={overrideItemLayout}
-          numColumns={NUM_COLUMNS}
-          ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
-          contentContainerStyle={[{ paddingHorizontal: H_PADDING }, contentContainerStyle]}
-          ListHeaderComponent={listHeaderComponent}
-          stickyHeaderIndices={
-            listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined
-          }
-          scrollbar="never"
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.7}
-          drawDistance={Math.max(itemSize * 2, 300)}
-          maxItemsInRecyclePool={24}
-        />
+        {toElement(list)}
       </View>
     );
   }

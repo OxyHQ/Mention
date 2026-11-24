@@ -1,5 +1,4 @@
 import type React from 'react';
-import type { View } from 'react-native';
 
 /** Minimal shape every profile-grid entry shares, used for keying + layout. */
 export interface ProfileGridEntry {
@@ -24,6 +23,5 @@ export interface ProfileGridListProps<T extends ProfileGridEntry> {
   listContentHeaderComponent?: React.ReactElement | null;
   listStickyHeaderComponent?: React.ReactElement | null;
   emptyComponent?: React.ReactElement | null;
-  contentContainerStyle?: React.ComponentProps<typeof View>['style'];
   onEndReached?: () => void;
 }

@@ -1,5 +1,6 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList';
 
 const mockListRender = jest.fn();
@@ -34,14 +35,17 @@ describe('ProfileGridList scroll ownership', () => {
 
     act(() => {
       renderer = TestRenderer.create(
-        <ProfileGridList
-          restorationKey="viewer-1:profile-1:media"
-          data={data}
-          renderCell={(item) => <Text>{item.postId}</Text>}
-          ownsScroll
-          listContentHeaderComponent={<Text>summary</Text>}
-          listStickyHeaderComponent={<Text>tabs</Text>}
-        />,
+        // The native list is a language root, which reads the theme where it starts.
+        <BloomThemeProvider fonts={false}>
+          <ProfileGridList
+            restorationKey="viewer-1:profile-1:media"
+            data={data}
+            renderCell={(item) => <Text>{item.postId}</Text>}
+            ownsScroll
+            listContentHeaderComponent={<Text>summary</Text>}
+            listStickyHeaderComponent={<Text>tabs</Text>}
+          />
+        </BloomThemeProvider>,
       );
     });
 
@@ -50,6 +54,7 @@ describe('ProfileGridList scroll ownership', () => {
       numColumns: number;
       stickyHeaderIndices?: number[];
       overrideItemLayout: (layout: { span?: number }, item: { kind: string }) => void;
+      ListHeaderComponentStyle: unknown;
       drawDistance: number;
     };
     expect(props.data).toHaveLength(502);
@@ -57,6 +62,12 @@ describe('ProfileGridList scroll ownership', () => {
     expect(props.numColumns).toBe(3);
     expect(props.stickyHeaderIndices).toEqual([1]);
     expect(props.drawDistance).toBeGreaterThan(0);
+    // The header keeps to its content, so the sticky tabs start right under it.
+    expect(props.ListHeaderComponentStyle).toEqual({
+      flexGrow: 0,
+      flexShrink: 0,
+      alignSelf: 'stretch',
+    });
 
     const stickyLayout: { span?: number } = {};
     props.overrideItemLayout(stickyLayout, props.data[1]);

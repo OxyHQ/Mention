@@ -23,7 +23,6 @@ interface MediaGridProps {
   listHeaderComponent?: React.ReactElement | null;
   listContentHeaderComponent?: React.ReactElement | null;
   listStickyHeaderComponent?: React.ReactElement | null;
-  contentContainerStyle?: React.ComponentProps<typeof View>['style'];
 }
 
 interface MediaGridEntry extends ProfileGridEntry {
@@ -90,7 +89,6 @@ const MediaGrid: React.FC<MediaGridProps> = ({
   listHeaderComponent,
   listContentHeaderComponent,
   listStickyHeaderComponent,
-  contentContainerStyle,
 }) => {
   const router = useRouter();
   const theme = useTheme();
@@ -256,7 +254,6 @@ const MediaGrid: React.FC<MediaGridProps> = ({
       listContentHeaderComponent={listContentHeaderComponent}
       listStickyHeaderComponent={listStickyHeaderComponent}
       emptyComponent={emptyContent}
-      contentContainerStyle={contentContainerStyle}
       onEndReached={loadMore}
     />
   );

@@ -236,7 +236,6 @@ export const ProfileTabs = memo(function ProfileTabs({
         listHeaderComponent={listHeaderComponent}
         listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
-        contentContainerStyle={listContentContainerStyle}
       />
     );
   }
@@ -252,7 +251,6 @@ export const ProfileTabs = memo(function ProfileTabs({
         listHeaderComponent={listHeaderComponent}
         listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
-        contentContainerStyle={listContentContainerStyle}
       />
     );
   }
