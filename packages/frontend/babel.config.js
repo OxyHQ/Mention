@@ -9,9 +9,12 @@
 // errors leave the function as written, function outlining on, and `sources`
 // widened because the compiler skips node_modules by default. It needs a Bloom
 // with #889's opt-outs (Bloom 23.5.0) whose components are all defined at
-// module scope (Bloom 23.7.2): the compiler takes the parameters of a function
-// a component is built inside for globals, and outlining moved a lambda out of
-// Bloom's factory-built SettingsSelect (`SelectItem is not defined`). The same
+// module scope (OxyHQ/Bloom#910): the compiler takes the parameters of a
+// function a component is built inside for globals, and outlining moved a
+// lambda out of Bloom's factory-built SettingsSelect (`SelectItem is not
+// defined`). Bloom Data needs #911: compiled, its useArgs dropped the memo
+// that holds a list's arguments, so useList observed its source again on
+// every render (a feed asked its service in a loop). The same
 // options then compile Bloom whether it is a package here or a local checkout
 // (OXY_LOCAL_CHECKOUT_SOURCES, where Bloom's source is app code to the preset).
 //
