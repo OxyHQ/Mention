@@ -189,7 +189,7 @@ export interface TrendGraphEdgeDTO {
   /** Normalized 0..1 association used by the clusterer. */
   strength?: number;
   /** Auditable reason this relation exists. */
-  reason?: 'cooccurrence' | 'canonical-alias';
+  reason?: 'cooccurrence' | 'canonical-alias' | 'name-fragment';
 }
 
 export type TrendScope = 'global' | 'multilingual' | 'regional' | 'language' | 'community';

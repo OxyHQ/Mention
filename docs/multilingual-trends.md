@@ -10,7 +10,8 @@ Mention detects stories without generative AI, embeddings, translation calls or
 provider inference. Author-written terms and hashtags propose a trend; corpus
 statistics decide whether it is unusual; a reviewed alias registry joins known
 spellings across languages; co-occurrence joins event-specific terms; and
-synchrony joins the names of one story that are not written in the same posts.
+synchrony joins the names of one story that are not written in the same posts;
+and name fragments join a short form to the fuller name it belongs to.
 
 ## Identities
 
@@ -54,6 +55,28 @@ generic word (`Chinese`) sits beside no single name of the story but well
 inside the whole of it. A namesake with a different shape (`Alice Huang`) stays
 a separate row. `MtnConfig.trending.synchrony.enabled` switches it off; the next
 batch recomputes every row from the posts, so no backfill is needed.
+
+## Name fragments
+
+A small story gives co-occurrence and synchrony too little to judge: `Mason` is
+written about `Chris Mason`, `Hegseth` about `Pete Hegseth`, and the two
+spellings share a handful of posts. One name is, however, literally a run of
+words of the other, and that relation is trusted under three guards
+(`MtnConfig.trending.nameFragments`):
+
+- a fragment joins **one** fuller name, the one it shares the most posts with,
+  and only when that name holds at least twice the runner-up's shared posts. So
+  `Huang` joins `Jensen Huang` and not also `Alice Huang`, and `Carolina`, split
+  between two states, joins neither;
+- the fragment may be at most 3 times the fuller name's volume (`house` dwarfs
+  `white house`: a word with many uses, not a short form);
+- at least 20% of the fuller name's posts must also carry the fragment. Genuine
+  short forms measured 28-73%, generic words inside a name 5-9%.
+
+The relation is read with one targeted query whose self-join is limited in SQL
+to pairs where one term's words contain the other's. Known limit: a generic word
+that is a fragment of a name it really shares posts with (`open` and `us open`)
+is joined too; it is harmless but noisy, and the share guard is what bounds it.
 
 The graph exposes each edge's normalized strength and reason (`cooccurrence` or
 `canonical-alias`) so every merge is auditable.

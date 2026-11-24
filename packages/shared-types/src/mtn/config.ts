@@ -1145,6 +1145,42 @@ export const MtnConfig = {
     },
 
     /**
+     * NAME FRAGMENTS — joining a short form to the fuller name it belongs to.
+     *
+     * `Mason` is written about `Chris Mason`, `Hegseth` about `Pete Hegseth`. In
+     * a small story the two share a handful of posts, which no co-occurrence
+     * ratio or hourly series can judge — but one name is literally a run of
+     * words of the other. That relation is trusted only under three guards: the
+     * fragment joins the ONE fuller name it shares the most posts with (so
+     * `Huang` is never fused to both `Jensen Huang` and `Alice Huang`), it must
+     * not dwarf that name, and a real share of that name's posts must carry it.
+     */
+    nameFragments: {
+      /** Off switch. Off, names group by co-occurrence and synchrony alone. */
+      enabled: true,
+      /**
+       * The fragment may be at most this many times the fuller name's volume.
+       * `house` against `white house` is far past it (a word with many uses);
+       * `foxx` against `virginia foxx` is not (a short form).
+       */
+      maxVolumeRatio: 3,
+      /** Posts that must carry both. One is a thin link, which the share below backs. */
+      minSharedPosts: 1,
+      /**
+       * Share of the FULLER name's posts that must also carry the fragment.
+       * Measured on production: genuine short forms 0.28-0.73, generic words
+       * inside a name 0.05-0.09.
+       */
+      minContainerShare: 0.2,
+      /**
+       * The winning fuller name must hold at least this many times the shared
+       * posts of the runner-up, or the fragment is ambiguous (`korea` between
+       * `south korea` and `north korea`) and joins neither.
+       */
+      ambiguityRatio: 2,
+    },
+
+    /**
      * SYNCHRONY — joining the names of one story that are NOT written in the
      * same posts.
      *
@@ -1379,6 +1415,14 @@ export type MtnConfigType = typeof MtnConfig;
  * `enabled` to the literal `true`, and a test that cannot express the disabled
  * case cannot check the off switch works.
  */
+export interface MtnTrendNameFragmentConfig {
+  enabled: boolean;
+  maxVolumeRatio: number;
+  minSharedPosts: number;
+  minContainerShare: number;
+  ambiguityRatio: number;
+}
+
 export interface MtnTrendSynchronyConfig {
   enabled: boolean;
   minSeriesCorrelation: number;

@@ -28,7 +28,7 @@ export interface TrendTermPair {
   b: string;
   posts: number;
   /** Explicit identity links do not require literal cross-language co-occurrence. */
-  reason?: 'cooccurrence' | 'canonical-alias';
+  reason?: 'cooccurrence' | 'canonical-alias' | 'name-fragment';
 }
 
 /** A candidate as this module needs it: a term and how many posts carry it. */
@@ -87,7 +87,9 @@ function isLinked(
   volumeOf: ReadonlyMap<string, number>,
   config: MtnTrendClusteringConfig,
 ): boolean {
-  if (pair.reason === 'canonical-alias') return true;
+  // Identity links carry their own evidence (a reviewed alias; one name being a
+  // run of words of another, vetted by `trendNameFragments`).
+  if (pair.reason === 'canonical-alias' || pair.reason === 'name-fragment') return true;
   if (pair.posts < config.minPairPosts) return false;
 
   const volumeA = volumeOf.get(pair.a) ?? 0;
