@@ -104,6 +104,8 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         <AspectRatio ratio={GIF_ASPECT_RATIO} style={styles.gifWell}>
           <Image
             source={{ uri: proxyExternalUrl(params.playerUri) }}
+            recyclingKey={params.playerUri}
+            cachePolicy="memory-disk"
             style={StyleSheet.absoluteFill}
             contentFit="contain"
           />

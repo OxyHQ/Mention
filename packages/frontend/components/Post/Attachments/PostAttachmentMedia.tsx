@@ -466,7 +466,9 @@ const PostAttachmentImage: React.FC<{
   // relaunches, decoding off the JS thread, and `recyclingKey`, which clears the
   // previous picture the moment FlashList hands this cell to another post
   // instead of showing it until the new one loads. The box behind it carries
-  // the muted placeholder colour, so no placeholder element is needed.
+  // the muted placeholder colour, so no placeholder element is needed. No
+  // cross-fade: a recycled cell, or an image the feed prefetched, is drawn the
+  // frame it is ready instead of fading in over a blank slot.
   const lazyImage = (
     <View style={containerStyles}>
       <Image
@@ -477,7 +479,6 @@ const PostAttachmentImage: React.FC<{
         // clamp (the 4:5 floor, MIN_WIDTH, the row width) overrides it.
         contentFit="cover"
         cachePolicy="memory-disk"
-        transition={120}
         accessibilityLabel={hasAlt ? alt : undefined}
         accessibilityRole="image"
         onLoad={handleImageLoad}

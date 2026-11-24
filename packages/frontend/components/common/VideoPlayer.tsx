@@ -579,10 +579,12 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
       {poster && !hasRenderedFrame && !posterFailed && (
         <Image
           source={{ uri: poster }}
+          // A recycled row hands this player another video: clear the last
+          // poster at once, and draw the new one the frame it is ready.
+          recyclingKey={poster}
           style={styles.posterLayer}
           contentFit={contentFit}
           cachePolicy="memory-disk"
-          transition={150}
           pointerEvents="none"
           onError={handlePosterError}
         />
