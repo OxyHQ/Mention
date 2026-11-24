@@ -62,7 +62,9 @@ const logger = createLogger('Schema');
  */
 // v16 retains bounded boosted-quote graphs and the generic unavailable quote marker.
 // v17 stores a repost under `repost` (the server also still sends `boost`), so older rows are reset.
-export const SCHEMA_VERSION = 17;
+// v18 ADDS `quotedPostUrls` (the links a quote embed already shows), for the same
+// `storePost ?? post` reason as v11: a cached row would keep drawing the card.
+export const SCHEMA_VERSION = 18;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

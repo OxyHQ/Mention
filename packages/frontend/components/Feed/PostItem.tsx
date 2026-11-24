@@ -45,7 +45,7 @@ import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
 import { openPostInsights, type OpenPostPanel } from '@/components/Post/postEngagementContext';
-import { postLinkCards } from '@/utils/postLinkCards';
+import { postLinkCards, quotedLinkUrls } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
   THREAD_LINE_BORDER_RADIUS,
@@ -278,6 +278,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // memoized PostAttachmentsRow a new array identity every time and defeat its
   // React.memo (and that of the row's children).
   const documents: ClarityDocument[] = viewPost?.documents ?? EMPTY_LINK_PREVIEWS;
+  const quotedUrls = viewPost?.quotedPostUrls;
   const isSensitiveContent = metadata.isSensitive === true;
   // Content warning (federated `summary` / Mastodon CW) surfaced by the backend as
   // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
@@ -712,8 +713,12 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // The cards the attachment row draws for this post, so the body drops a
   // trailing link one of them already shows (`postLinkCards` is the row's own rule).
   const linkCards = useMemo(
-    () => postLinkCards(content.text, documents),
-    [content.text, documents],
+    () => postLinkCards(content.text, documents, quotedUrls),
+    [content.text, documents, quotedUrls],
+  );
+  const quotedBodyLinks = useMemo(
+    () => quotedLinkUrls(documents, quotedUrls ?? []),
+    [documents, quotedUrls],
   );
 
   const engagementSummary: PostEngagementSummary | undefined = viewPost?.engagement;
@@ -1050,6 +1055,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
           previewChars={isDetailMain ? Infinity : undefined}
           overrideText={languageDisplayText}
           linkCards={linkCards}
+          quotedUrls={quotedBodyLinks}
           trailingContent={
             threadPosition && !isNested ? (
               <Text>
@@ -1279,6 +1285,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
                   location={location}
                   text={content.text}
                   documents={documents}
+                  quotedUrls={quotedUrls}
                   // Only a quote card hands a width down. The card has no
                   // horizontal inset (see `nestedPostContainer`), so the row
                   // spans exactly that width, edge to edge like a feed row.

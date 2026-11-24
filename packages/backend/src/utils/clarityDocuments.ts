@@ -8,6 +8,7 @@ import { createCache } from './cache';
 import { getClarityClient } from './clarityClient';
 import { extractUrls } from './extractUrls';
 import { logger } from './logger';
+import { networkUrlOf } from './federation/mirrorTransports';
 
 /**
  * The one place Mention turns a body's links into Clarity documents. Every
@@ -66,8 +67,8 @@ export function isOwnProfileLink(url: string): boolean {
  * URL extractor about profile links, which is a worse trade for a case that needs
  * five links in one body to reach.
  */
-export function previewableUrls(text: string): string[] {
-  return extractUrls(text).filter(
+export function previewableUrls(text: string, isQuoted?: (url: string) => boolean): string[] {
+  return extractUrls(text, undefined, isQuoted).filter(
     (url) => !isOwnProfileLink(url) && parseHomiioCaseUrl(url) === null,
   );
 }
@@ -80,8 +81,55 @@ export function previewableUrls(text: string): string[] {
 export function postPreviewableUrls(
   content: { linkUrl?: string } | null | undefined,
   text: string | null | undefined,
+  isQuoted?: (url: string) => boolean,
 ): string[] {
-  return [...new Set([...previewableUrls(content?.linkUrl ?? ''), ...previewableUrls(text ?? '')])];
+  return [
+    ...new Set([
+      ...previewableUrls(content?.linkUrl ?? '', isQuoted),
+      ...previewableUrls(text ?? '', isQuoted),
+    ]),
+  ];
+}
+
+/**
+ * The URLs that name a quoted post: its federation URL and AP id, the upstream
+ * spelling of each when it is a mirror's, and our own `/p/<id>` page. A quote
+ * embed already shows that post, so a link to it in the body must not also get a
+ * card. A federated note often ends with exactly that link (X, Mastodon `RE:`).
+ */
+export function quotedPostUrls(
+  quoted:
+    | { id?: string; federation?: { url?: string; activityId?: string } | null }
+    | null
+    | undefined,
+): string[] {
+  if (!quoted) return [];
+  const urls = [quoted.federation?.url, quoted.federation?.activityId].filter(
+    (url): url is string => typeof url === 'string' && url.length > 0,
+  );
+  const out = new Set<string>();
+  for (const url of urls) {
+    out.add(url);
+    const upstream = networkUrlOf(url);
+    if (upstream) out.add(upstream);
+  }
+  if (quoted.id && config.frontendUrl) out.add(`${config.frontendUrl}/p/${quoted.id}`);
+  return [...out];
+}
+
+/** Whether a URL names the quoted post (compared as parsed hrefs, fragment and trailing slash dropped). */
+export function quotedPostUrlMatcher(quotedUrls: readonly string[]): (url: string) => boolean {
+  const key = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      parsed.hash = '';
+      return parsed.href.replace(/\/$/, '');
+    } catch {
+      return url;
+    }
+  };
+  const quoted = new Set(quotedUrls.map(key));
+  return (url) => quoted.has(key(url));
 }
 
 /**

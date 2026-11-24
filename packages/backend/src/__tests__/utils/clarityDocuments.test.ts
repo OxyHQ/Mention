@@ -30,6 +30,9 @@ import {
   previewableUrls,
   clarityHostedDocument,
   resolveClarityDocuments,
+  quotedPostUrls,
+  quotedPostUrlMatcher,
+  postPreviewableUrls,
 } from '../../utils/clarityDocuments';
 
 function document(url: string) {
@@ -233,4 +236,21 @@ it('never asks Clarity for a Homiio case or uses a snapshot fallback', async () 
   expect(resolve).not.toHaveBeenCalled();
   expect(result.documents.size).toBe(0);
   expect(result.pending.size).toBe(0);
+});
+
+describe('quoted post links', () => {
+  it('give no card and no slot of the cap, in any spelling of the quoted url', () => {
+    const quoted = quotedPostUrls({
+      id: 'q1',
+      federation: { url: 'https://x.com/chatgpt/status/1' },
+    });
+    const body =
+      'https://x.com/chatgpt/status/1/ https://a.example https://b.example https://c.example https://d.example';
+    expect(postPreviewableUrls(undefined, body, quotedPostUrlMatcher(quoted))).toEqual([
+      'https://a.example',
+      'https://b.example',
+      'https://c.example',
+      'https://d.example',
+    ]);
+  });
 });

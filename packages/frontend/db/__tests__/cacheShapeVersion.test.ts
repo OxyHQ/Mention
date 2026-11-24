@@ -48,6 +48,7 @@ const PERSISTED_POST_KEYS = [
   'permissions',
   'quotedPost',
   'quotedPostUnavailable',
+  'quotedPostUrls',
   'replyContext',
   'repost',
   'user',
@@ -55,7 +56,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 17;
+const VERSION_FOR_THESE_KEYS = 18;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -130,6 +131,7 @@ function makeFullyPopulatedPost(): HydratedPost {
     originalPost: null,
     quotedPost: null,
     quotedPostUnavailable: true,
+    quotedPostUrls: ['https://mastodon.example/@user1/2'],
     repost: null,
   };
 }

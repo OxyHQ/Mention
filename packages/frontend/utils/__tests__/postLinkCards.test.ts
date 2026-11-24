@@ -1,10 +1,70 @@
 import type { ClarityDocument } from '@mention/shared-types/post';
-import { documentByline, postLinkCards, withoutCardLinks } from '../postLinkCards';
+import { documentByline, postLinkCards, quotedLinkUrls, withoutCardLinks } from '../postLinkCards';
 
 const ARTICLE =
   'https://www.nytimes.com/2026/09/18/technology/google-gemini-ai.html?unlocked_article_code=1.CVE&smid=nytcore-ios-share';
 
 describe('postLinkCards / withoutCardLinks', () => {
+  it('draws no card for the quoted post and drops its bare link from the body', () => {
+    const quoted = 'https://x.com/chatgpt/status/1';
+    const text = `Big news\n${quoted}\n${ARTICLE}`;
+    const cards = postLinkCards(text, [], [`${quoted}/`]);
+    expect(cards.map((card) => card.url)).toEqual([ARTICLE]);
+    expect(withoutCardLinks(text, cards, [`${quoted}/`])).toBe('Big news');
+  });
+
+  it('treats a link Clarity resolved to the quoted post as the quote, and gives it no slot', () => {
+    const quoted = 'https://x.com/a/status/1';
+    const alias = `${quoted}?s=20`;
+    const document = { canonicalUrl: quoted, requestedUrl: alias } as ClarityDocument;
+    const others = ['b', 'c', 'd', 'e'].map((host) => `https://${host}.example/`);
+    const text = `${alias}\n${others.join(' ')}`;
+    const aliases = quotedLinkUrls([document], [quoted]);
+    expect(aliases).toEqual([quoted, alias]);
+    expect(postLinkCards(text, [document], [quoted]).map((card) => card.url)).toEqual(
+      others.slice(0, 4),
+    );
+    expect(withoutCardLinks(text, [], aliases).startsWith('https://b.example')).toBe(true);
+  });
+
+  it('draws no card for a document whose source link is the quoted post, even if it redirects', () => {
+    const quoted = 'https://x.com/a/status/1';
+    const document = {
+      canonicalUrl: 'https://twitter.com/a/status/1',
+      requestedUrl: quoted,
+    } as ClarityDocument;
+    expect(postLinkCards(quoted, [document], [quoted])).toEqual([]);
+  });
+
+  it('draws nothing without text or documents, and a source-less card for a document outside the text', () => {
+    expect(postLinkCards(null, null)).toEqual([]);
+    const document = { canonicalUrl: 'https://a.example/post' } as ClarityDocument;
+    expect(postLinkCards('', [document])).toEqual([
+      { url: 'https://a.example/post', sourceUrls: [], document },
+    ]);
+  });
+
+  it('drops a quoted link that ends a sentence line but keeps one inside prose', () => {
+    const quoted = 'https://x.com/a/status/1';
+    expect(withoutCardLinks(`Look at this ${quoted}`, [], [quoted])).toBe('Look at this');
+    expect(withoutCardLinks(`See ${quoted} for more`, [], [quoted])).toBe(`See ${quoted} for more`);
+  });
+
+  it('has no quote aliases without a quoted post, and ignores documents with no source link', () => {
+    expect(
+      quotedLinkUrls([{ canonicalUrl: 'https://x.com/a/status/1' } as ClarityDocument], []),
+    ).toEqual([]);
+    expect(quotedLinkUrls(null, ['https://x.com/a/status/1'])).toEqual([
+      'https://x.com/a/status/1',
+    ]);
+    expect(
+      quotedLinkUrls(
+        [{ canonicalUrl: 'https://x.com/a/status/1' } as ClarityDocument],
+        ['https://x.com/a/status/1'],
+      ),
+    ).toEqual(['https://x.com/a/status/1']);
+  });
+
   it('drops a trailing link its card shows, even before Clarity has a document', () => {
     const text = `It’s weird how these companies confess.\n\n${ARTICLE}`;
     const cards = postLinkCards(text, []);

@@ -1663,6 +1663,11 @@ export interface HydratedPost extends HydratedPostSummary {
   quotedPost?: HydratedPostSummary | null;
   /** A quote's subject cannot be shown. Reveals no target identity or reason. */
   quotedPostUnavailable?: boolean;
+  /**
+   * The URLs that name the quoted post (its federation URL, AP id, our `/p/<id>`).
+   * A body link to one is the quote embed itself, so no link card is drawn for it.
+   */
+  quotedPostUrls?: string[];
   repost?: HydratedRepostContext | null;
   /** @deprecated Same value as `repost`, emitted for clients shipped before the rename. */
   boost?: HydratedRepostContext | null;

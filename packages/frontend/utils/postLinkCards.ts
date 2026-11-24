@@ -29,6 +29,32 @@ export function normalizedLinkUrl(url: string): string {
   }
 }
 
+/** `normalizedLinkUrl` without a trailing slash, so `…/status/1` and `…/status/1/` meet. */
+function quotedLinkKey(url: string): string {
+  return normalizedLinkUrl(url).replace(/\/$/, '');
+}
+
+/**
+ * Every spelling of a link to the quoted post this post's body can carry: the
+ * URLs the backend named, plus the source link of any document Clarity resolved
+ * to one of them (`https://x.com/a/status/1?s=20` for `…/status/1`).
+ */
+export function quotedLinkUrls(
+  documents: readonly ClarityDocument[] | null | undefined,
+  quotedUrls: readonly string[],
+): string[] {
+  if (quotedUrls.length === 0) return [];
+  const quoted = new Set(quotedUrls.map(quotedLinkKey));
+  const aliases = (documents ?? []).flatMap((document) =>
+    document?.canonicalUrl &&
+    document.requestedUrl &&
+    quoted.has(quotedLinkKey(document.canonicalUrl))
+      ? [document.requestedUrl]
+      : [],
+  );
+  return [...quotedUrls, ...aliases];
+}
+
 /** A document's byline as a card shows it: its authors' names, joined. */
 export function documentByline(document: ClarityDocument | undefined): string | undefined {
   const names = (document?.authors ?? []).map((author) => author.name).filter(Boolean);
@@ -56,19 +82,28 @@ export interface PostLinkCard {
 export function postLinkCards(
   text: string | null | undefined,
   documents: readonly ClarityDocument[] | null | undefined,
+  quotedUrls: readonly string[] = [],
 ): PostLinkCard[] {
+  // A link to the quoted post is that post's embed: no card of its own.
+  const quoted = new Set(quotedLinkUrls(documents, quotedUrls).map(quotedLinkKey));
+  const isQuoted = (url: string) => quoted.has(quotedLinkKey(url));
   const resolved = (documents ?? []).filter(
     (document) =>
       Boolean(document?.canonicalUrl) &&
       parseHomiioCaseUrl(document.canonicalUrl) === null &&
-      parseEventUrl(document.canonicalUrl) === null,
+      parseEventUrl(document.canonicalUrl) === null &&
+      !isQuoted(document.canonicalUrl) &&
+      !(document.requestedUrl && isQuoted(document.requestedUrl)),
   );
   const byUrl = new Map<string, ClarityDocument>();
   for (const document of resolved) {
     byUrl.set(normalizedLinkUrl(document.canonicalUrl), document);
     if (document.requestedUrl) byUrl.set(normalizedLinkUrl(document.requestedUrl), document);
   }
+  // The quoted post's link is dropped BEFORE the cap, so it takes no slot from a
+  // link that gets a card (hydration does the same).
   const sourceUrls = extractUrls(text ?? '')
+    .filter((url) => !isQuoted(url))
     .slice(0, MAX_POST_DOCUMENTS)
     .filter(
       (url) =>
@@ -103,14 +138,20 @@ export function postLinkCards(
  * line, wherever that line is, and a bare link that ends the text. A link inside
  * a sentence, or written as `[label](url)`, is the author's own words and stays.
  */
-export function withoutCardLinks(text: string, cards: readonly PostLinkCard[]): string {
+export function withoutCardLinks(
+  text: string,
+  cards: readonly PostLinkCard[],
+  quotedUrls: readonly string[] = [],
+): string {
   const shown = new Set(cards.flatMap((card) => card.sourceUrls.map(normalizedLinkUrl)));
-  if (shown.size === 0) return text;
+  const quoted = new Set(quotedUrls.map(quotedLinkKey));
+  if (shown.size === 0 && quoted.size === 0) return text;
   const removals: Array<[number, number]> = [];
   for (const entity of scanTextEntities(text, { kinds: ['url'] })) {
     const { url } = trimUrlTrailingPunctuation(entity.value);
     if (entity.raw !== entity.value || !url || url !== entity.value) continue;
-    if (!shown.has(normalizedLinkUrl(toOpenableUrl(url)))) continue;
+    const openable = toOpenableUrl(url);
+    if (!shown.has(normalizedLinkUrl(openable)) && !quoted.has(quotedLinkKey(openable))) continue;
     const lineStart = text.lastIndexOf('\n', entity.start - 1) + 1;
     const newline = text.indexOf('\n', entity.end);
     const lineEnd = newline === -1 ? text.length : newline;

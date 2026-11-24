@@ -105,7 +105,12 @@ import {
   type ResolvedVariant,
 } from './postVariants';
 import { loadRecentReplierIds } from './PostRecentReplierService';
-import { postPreviewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
+import {
+  postPreviewableUrls,
+  quotedPostUrlMatcher,
+  quotedPostUrls,
+  resolveClarityDocuments,
+} from '../utils/clarityDocuments';
 import {
   languageLadder,
   loadViewerLanguages,
@@ -1490,6 +1495,7 @@ export class PostHydrationService {
         nested,
         collectedPostIds,
         options.publicReferencesOnly === true,
+        recordsById,
       );
     };
 
@@ -2600,12 +2606,24 @@ export class PostHydrationService {
     const postToUrls = new Map<string, string[]>(); // postId -> [url] (text order)
     const uniqueUrls = new Set<string>();
 
+    const postsById = new Map<string, RawPost>();
+    for (const { post } of nodes) {
+      const id = this.resolveId(post);
+      if (id) postsById.set(id, post);
+    }
+
     for (const { post } of nodes) {
       const postId = this.resolveId(post);
       if (!postId) continue;
 
       const text = resolvedMap.get(postId)?.text;
-      const urls = postPreviewableUrls(post.content, typeof text === 'string' ? text : undefined);
+      // A link to the quoted post is that post's embed, not a card of its own.
+      const quotedId = this.extractReferenceIds({ quoteOf: post.quoteOf })[0];
+      const urls = postPreviewableUrls(
+        post.content,
+        typeof text === 'string' ? text : undefined,
+        quotedPostUrlMatcher(quotedPostUrls(quotedId ? postsById.get(quotedId) : undefined)),
+      );
       if (urls.length === 0) continue;
 
       postToUrls.set(postId, urls);
@@ -3752,6 +3770,7 @@ export class PostHydrationService {
     summaryMap: Map<string, HydratedPostSummary>,
     collectedPostIds: Set<string>,
     publicReferencesOnly: boolean,
+    recordsById: ReadonlyMap<string, RawPost>,
   ): HydratedPost | null {
     const repostOf = this.extractRepostOriginalId(post);
     const quoteOf = this.extractReferenceIds({ quoteOf: post.quoteOf })[0];
@@ -3787,11 +3806,13 @@ export class PostHydrationService {
     }
 
     const context = this.buildContext(post);
+    const quotedUrls = quoteOf ? quotedPostUrls(recordsById.get(quoteOf)) : [];
 
     return {
       ...summary,
       originalPost,
       quotedPost,
+      ...(quotedUrls.length > 0 ? { quotedPostUrls: quotedUrls } : {}),
       ...((quoteOf || post.type === 'quote') && !quotedPost ? { quotedPostUnavailable: true } : {}),
       repost: repostContext,
       // Deprecated duplicate for clients shipped before the rename.

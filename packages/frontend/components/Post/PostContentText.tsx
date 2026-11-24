@@ -34,6 +34,8 @@ interface Props {
    * text — repeating it next to its card is noise.
    */
   linkCards?: readonly PostLinkCard[];
+  /** URLs of the quoted post the row embeds; a bare link to it is dropped like a card's link. */
+  quotedUrls?: readonly string[];
 }
 
 /** In-feed truncation thresholds (chars) per the `postTextExpand` preference. */
@@ -47,6 +49,7 @@ const PostContentText: React.FC<Props> = ({
   trailingContent,
   overrideText,
   linkCards,
+  quotedUrls,
 }) => {
   const router = useRouter();
   // Keep navigation scoped to the containing panel. The translated suffix
@@ -59,7 +62,7 @@ const PostContentText: React.FC<Props> = ({
   const resolvedText = typeof content === 'string' ? content : content?.text || '';
   const rawText = overrideText || resolvedText;
 
-  const textContent = linkCards ? withoutCardLinks(rawText, linkCards) : rawText;
+  const textContent = linkCards ? withoutCardLinks(rawText, linkCards, quotedUrls) : rawText;
 
   const parsed = useMemo(() => parsePostInlineMarkdown(textContent), [textContent]);
   const preview = useMemo(
