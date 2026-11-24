@@ -8,7 +8,7 @@ const mockCloseDrawer = jest.fn();
 
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { text: '#000' } }) }));
 jest.mock('@oxy.so/bloom/tab-pager', () => ({
-  useTabPager: () => ({ selectDestination: mockSelectDestination }),
+  useTabPagerActions: () => ({ selectDestination: mockSelectDestination }),
 }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: jest.fn() }) }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));

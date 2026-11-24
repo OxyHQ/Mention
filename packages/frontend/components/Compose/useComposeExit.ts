@@ -1,7 +1,7 @@
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { useCallback, useMemo } from 'react';
 
-import { useTabPager } from '@oxy.so/bloom/tab-pager';
+import { useTabPagerActions } from '@oxy.so/bloom/tab-pager';
 
 /**
  * How this composer was reached, which is the only thing the two routes serving
@@ -45,7 +45,7 @@ export function useComposeExit(presentation: ComposePresentation): ComposeExit {
   // The app's Back: through the history, or REPLACED by Home when nothing is
   // beneath (`BloomProvider back`), never a push over the composer.
   const back = useScreenBack();
-  const { selectTab, leaveTab } = useTabPager();
+  const { selectTab, leaveTab } = useTabPagerActions();
 
   const dismiss = useCallback(() => {
     if (presentation === 'tab') selectTab('(home)');

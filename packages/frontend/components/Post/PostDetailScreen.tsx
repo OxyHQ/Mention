@@ -60,6 +60,16 @@ const postDetailLogger = createLogger('PostDetail');
 /** Breathing room (px) below the last reply, before the pinned composer / screen edge. */
 const FEED_BOTTOM_PADDING = 16;
 
+/**
+ * `next`, or `current` when it holds the same entities in the same order, so a
+ * state update with an equal chain renders nothing.
+ */
+function sameEntities(current: PostDetailEntity[], next: PostDetailEntity[]): PostDetailEntity[] {
+  return current.length === next.length && current.every((entity, i) => entity === next[i])
+    ? current
+    : next;
+}
+
 interface PostDetailScreenProps {
   postId: string;
   onBack?: () => void;
@@ -287,17 +297,22 @@ const PostDetailScreen = screen(function PostDetailScreen({
     // Reset to THIS post's cached prefix rather than to nothing: on mount the
     // state initializer already put it there, and resetting to `[]` here would
     // blank it for a frame before the async walk put the same rows back.
-    setAncestors(
-      requiresFreshReads
-        ? []
-        : (getCachedAncestorChain(
-            postId,
-            usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
-          ) as PostDetailEntity[]),
+    // Each reset keeps the state it already holds when nothing changed, so
+    // opening a post does not re-render it three times while it slides in.
+    setAncestors((current) =>
+      sameEntities(
+        current,
+        requiresFreshReads
+          ? []
+          : (getCachedAncestorChain(
+              postId,
+              usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
+            ) as PostDetailEntity[]),
+      ),
     );
     // Likewise drop the previous post's continuation spine and numbering.
-    setContinuations([]);
-    setThreadPositions(new Map());
+    setContinuations((current) => (current.length === 0 ? current : []));
+    setThreadPositions((current) => (current.size === 0 ? current : new Map()));
 
     // Read the complete author spine even when opening one of its continuations,
     // so "2/3" does not become "1/2" when the focused post changes. Only the root
@@ -340,7 +355,7 @@ const PostDetailScreen = screen(function PostDetailScreen({
       const chain = await usePostsStore
         .getState()
         .loadPostAncestors(postId, startParentId, { fresh: requiresFreshReads });
-      if (!cancelled) setAncestors(chain as PostDetailEntity[]);
+      if (!cancelled) setAncestors((current) => sameEntities(current, chain as PostDetailEntity[]));
     };
 
     const run = async () => {

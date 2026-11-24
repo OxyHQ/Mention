@@ -78,7 +78,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/tab-pager', () => ({
-  useTabPager: () => ({ selectTab: mockSelectTab }),
+  useTabPagerActions: () => ({ selectTab: mockSelectTab }),
 }));
 
 let viewfinderProps: Record<string, unknown> = {};
