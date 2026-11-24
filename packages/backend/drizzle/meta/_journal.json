@@ -876,6 +876,13 @@
       "when": 1795512301456,
       "tag": "0124_trending_original_posts_index",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1795521521478,
+      "tag": "0125_post_promotions",
+      "breakpoints": true
     }
   ]
 }

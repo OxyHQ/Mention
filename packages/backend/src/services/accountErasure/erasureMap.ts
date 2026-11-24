@@ -113,6 +113,20 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     why: 'Private entitlement evidence is erased with its payer; Peable owns fiscal retention.',
   },
   {
+    table: 'post_promotions',
+    column: 'authorOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: 'A promotion is a purchase attached to its buyer; it goes with the account. Peable owns the fiscal record.',
+  },
+  {
+    table: 'post_promotion_impressions',
+    column: 'viewerOxyUserId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why: "A viewer's row in the impression ledger is about that person and goes with the account; the promotion keeps its rolled-up count.",
+  },
+  {
     table: 'membership_communities',
     column: 'ownerOxyUserId',
     disposition: 'delete-row',

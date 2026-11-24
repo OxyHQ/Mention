@@ -38,6 +38,7 @@ export * from './postContent';
 export * from './postEvaluations';
 export * from './postSafety';
 export * from './posts';
+export * from './promotions';
 export * from './events';
 export * from './polls';
 export * from './userProfile';

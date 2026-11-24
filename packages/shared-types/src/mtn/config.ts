@@ -1361,6 +1361,28 @@ export const MtnConfig = {
     },
   },
 
+  /**
+   * PROMOTION — the paid "Boost": a person buys views for their own post.
+   *
+   * A purchase is a tier of impressions spent over a window, delivered through
+   * the ordinary ranked feed (docs/boost.md). Prices are NOT here: they come
+   * from the payment catalogue, and a client never sends one.
+   */
+  promotion: {
+    /**
+     * Off switch for the whole feature: no purchase, no delivery, no ledger
+     * writes. Off until the payment capability, the merchant and the prices
+     * are approved.
+     */
+    enabled: false,
+    /** What can be bought. `impressions` are views spent over `durationHours` at most. */
+    tiers: [
+      { id: 'day', impressions: 2_000, durationHours: 24 },
+      { id: 'three-days', impressions: 7_000, durationHours: 72 },
+      { id: 'week', impressions: 20_000, durationHours: 168 },
+    ] as readonly MtnPromotionTier[],
+  },
+
   // --- Protocol constants ---
   protocol: {
     version: 1,
@@ -1379,6 +1401,12 @@ export type MtnConfigType = typeof MtnConfig;
  * `enabled` to the literal `true`, and a test that cannot express the disabled
  * case cannot check the off switch works.
  */
+export interface MtnPromotionTier {
+  id: string;
+  impressions: number;
+  durationHours: number;
+}
+
 export interface MtnTrendSynchronyConfig {
   enabled: boolean;
   minSeriesCorrelation: number;
