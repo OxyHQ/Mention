@@ -14,6 +14,7 @@ import { DuplicateReportError, createReport } from '../services/moderation/Repor
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 import { callerAccountAccess } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
+import { pauseRunningPromotionForPost } from '../db/promotions/promotionRepository';
 
 const router = Router();
 
@@ -198,6 +199,13 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       categories,
       details,
     });
+
+    // A report against a promoted post pauses its promotion while it is looked at.
+    if (reportedType === 'post') {
+      await pauseRunningPromotionForPost(reportedId).catch((error) => {
+        logger.warn("Failed to pause a reported post's promotion", { error });
+      });
+    }
 
     logger.info('Report created', {
       type: reportedType,

@@ -64,6 +64,15 @@ export function startSchedulers(): void {
     logger.warn('Failed to start follower snapshot job', error);
   }
 
+  // Paid promotions: the delivered count follows the impression ledger and a
+  // finished promotion is completed. Leader-gated; a no-op while the feature is off.
+  try {
+    const { promotionLifecycleJob } = require('../services/promotion/lifecycle');
+    promotionLifecycleJob.start();
+  } catch (error) {
+    logger.warn('Failed to start promotion lifecycle job', error);
+  }
+
   // Registers this deployment's local accounts with Oxy for NodeInfo's user total
   // (#1748). Bounded batches from a Redis cursor; see the job's header.
   try {
@@ -213,6 +222,13 @@ export async function stopSchedulers(): Promise<void> {
     followerSnapshotJob.stop();
   } catch (error) {
     logger.warn('Failed to stop follower snapshot job', error);
+  }
+
+  try {
+    const { promotionLifecycleJob } = require('../services/promotion/lifecycle');
+    promotionLifecycleJob.stop();
+  } catch (error) {
+    logger.warn('Failed to stop promotion lifecycle job', error);
   }
 
   try {
