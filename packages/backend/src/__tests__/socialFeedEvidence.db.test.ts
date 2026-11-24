@@ -44,7 +44,10 @@ afterEach(async () => {
   await getDb()
     .delete(userSettings)
     .where(inArray(userSettings.oxyUserId, [friend, privateFriend]));
-});
+  // `clearServiceScope` also deletes the plan fixture's 10k posts (they live in
+  // this scope), cascading into every child table: after the plan test that
+  // outlasts the 10 s default hook deadline on a loaded CI shard.
+}, 60_000);
 afterAll(async () => {
   await closePostgres();
 });
