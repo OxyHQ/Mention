@@ -17,6 +17,10 @@
  * A machine translation of the cut body is deleted with it, so readers get a fresh
  * one of the full text.
  *
+ * A candidate FxTwitter never answers (after retries) is counted as `unanswered`
+ * and never mistaken for "not a note"; the run exits 75 so it is run again.
+ * A run is resumable from the `cursor` it logs (`COMPLETE_AFTER`).
+ *
  * Idempotent: a completed body is longer than any cut, and the write is guarded
  * on the body that was read, so a concurrent edit is never overwritten.
  *
@@ -27,12 +31,13 @@
  * Env:
  *   DATABASE_URL        the Postgres database (injected by ECS from SSM)
  *   COMPLETE_DRY_RUN    defaults to `true`; only `=false` writes
- *   COMPLETE_MAX        candidate cap (default 100000)
+ *   COMPLETE_AFTER      resume after this key: the `cursor` a previous run logged
+ *   COMPLETE_MAX        candidate cap (default: none)
  *   CONFIRM_ADMIN_MUTATION=completeCutXNotes  required for a real apply
  */
 
 import { and, eq, gt, like } from 'drizzle-orm';
-import { completeBridgedBody, mayBeCutNote } from '../connectors/activitypub/xFullText';
+import { mayBeCutNote, resolveBridgedBody } from '../connectors/activitypub/xFullText';
 import { connectPostgres, getDb } from '../db/postgres';
 import { postContentVariants, postSourceKeys } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
@@ -41,14 +46,22 @@ import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
-/** FxTwitter allows 1,000 requests a minute per IP; this stays far under it. */
-const CONCURRENCY = 4;
+/**
+ * FxTwitter allows 1,000 requests a minute per IP. A request takes ~0.15 s, so two
+ * at a time is ~800 a minute, under it; a refusal is retried, never skipped.
+ */
+const CONCURRENCY = 2;
+const ATTEMPTS = 4;
 
 export interface CompleteCutXNotesResult {
   /** Primary bodies of keyed X posts long enough to be a cut note. */
   candidates: number;
   /** Of those, the ones that were cut and have a longer full text. */
   completed: number;
+  /** Candidates FxTwitter never answered (after retries): still possibly cut, run again. */
+  unanswered: number;
+  /** The last key read: pass it as `after` to continue a run from there. */
+  cursor: string;
   /** Rows Postgres reported modifying. Zero with `completed > 0` is a defect. */
   written: number;
   noOpWrites: boolean;
@@ -58,15 +71,17 @@ export interface CompleteCutXNotesResult {
 const BATCH_SIZE = 1_000;
 
 export async function completeCutXNotes(
-  opts: { dryRun?: boolean; max?: number } = {},
+  opts: { dryRun?: boolean; max?: number; after?: string } = {},
 ): Promise<CompleteCutXNotesResult> {
   const dryRun = opts.dryRun ?? true;
-  const max = opts.max ?? 100_000;
+  const max = opts.max ?? Number.POSITIVE_INFINITY;
   const db = getDb();
 
   const result: CompleteCutXNotesResult = {
     candidates: 0,
     completed: 0,
+    unanswered: 0,
+    cursor: opts.after ?? '',
     written: 0,
     noOpWrites: false,
   };
@@ -74,7 +89,7 @@ export async function completeCutXNotes(
   // Keyed by `post_source_keys.id`, which holds exactly the posts that carry an
   // X post key (about a million), so each batch is a walk over three indexes.
   // Filtering the variants table by length instead scans every body it has.
-  for (let cursor = ''; result.candidates < max; ) {
+  while (result.candidates < max) {
     const rows = await db
       .select({
         keyId: postSourceKeys.id,
@@ -93,16 +108,19 @@ export async function completeCutXNotes(
           eq(postContentVariants.source, 'author'),
         ),
       )
-      .where(and(like(postSourceKeys.sourceKey, 'x:%'), gt(postSourceKeys.id, cursor)))
+      .where(and(like(postSourceKeys.sourceKey, 'x:%'), gt(postSourceKeys.id, result.cursor)))
       .orderBy(postSourceKeys.id)
       .limit(BATCH_SIZE);
     if (rows.length === 0) break;
-    cursor = rows[rows.length - 1].keyId;
+    result.cursor = rows[rows.length - 1].keyId;
 
     const candidates = rows.filter((row) => mayBeCutNote(row.body));
     result.candidates += candidates.length;
     const settled = await mapWithConcurrency(candidates, CONCURRENCY, async (row) => {
-      const body = await completeBridgedBody(row.activityId, row.body);
+      const { body, answered } = await resolveBridgedBody(row.activityId, row.body, {
+        attempts: ATTEMPTS,
+      });
+      if (!answered) result.unanswered += 1;
       if (body === row.body) return;
       result.completed += 1;
       if (dryRun) return;
@@ -152,11 +170,15 @@ async function main(): Promise<void> {
     const result = await completeCutXNotes({
       dryRun,
       ...(Number.isFinite(max) && max > 0 ? { max } : {}),
+      ...(process.env.COMPLETE_AFTER ? { after: process.env.COMPLETE_AFTER } : {}),
     });
     logger.info('[CompleteCutX] complete', { dryRun, ...result });
     if (result.noOpWrites) {
       logger.error('[CompleteCutX] identified work but wrote nothing');
       process.exitCode = 1;
+    } else if (result.unanswered > 0) {
+      // EX_TEMPFAIL: FxTwitter left some candidates unchecked; a rerun finishes them.
+      process.exitCode = 75;
     }
   } catch (error) {
     logger.error('[CompleteCutX] failed', {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { mirrorPostKey } from '../../utils/federation/mirrorTransports';
+import { sleep } from '../../utils/sleep';
 import { getJson } from './xTimeline';
 
 /**
@@ -33,10 +34,10 @@ export const CUT_NOTE_MIN_LENGTH = 200;
 /** The trailing run of bare links the bridge puts after the prose (the quoted tweet's). */
 const TRAILING_LINKS = /(?:\s*https?:\/\/\S+)+\s*$/;
 
-const noteTweetSchema = z
+const tweetSchema = z
   .object({
     code: z.literal(200),
-    tweet: z.object({ is_note_tweet: z.literal(true), text: z.string().min(1) }).loose(),
+    tweet: z.object({ is_note_tweet: z.boolean(), text: z.string() }).loose(),
   })
   .loose();
 
@@ -46,13 +47,18 @@ export function mayBeCutNote(body: string): boolean {
 }
 
 /**
- * The text of note tweet `tweetId`, in full. Undefined when the tweet is not a
- * note (it was never cut) or FxTwitter cannot answer: the caller keeps the body
- * it has.
+ * What FxTwitter said about one tweet. `answered: false` is a failure to learn
+ * (a flaky 404, a rate limit, a timeout), which must never be read as "not a
+ * note": the body would stay cut with no trace. `text` is present only for a
+ * note tweet, and is its full text.
  */
-export async function fetchNoteTweetText(tweetId: string): Promise<string | undefined> {
-  const parsed = noteTweetSchema.safeParse(await getJson(`${FXTWITTER_STATUS_API}/${tweetId}`));
-  return parsed.success ? parsed.data.tweet.text : undefined;
+export type NoteTweetAnswer = { answered: false } | { answered: true; text?: string };
+
+export async function fetchNoteTweetText(tweetId: string): Promise<NoteTweetAnswer> {
+  const parsed = tweetSchema.safeParse(await getJson(`${FXTWITTER_STATUS_API}/${tweetId}`));
+  if (!parsed.success) return { answered: false };
+  const { is_note_tweet: isNote, text } = parsed.data.tweet;
+  return { answered: true, ...(isNote && text.length > 0 ? { text } : {}) };
 }
 
 /** The bridge's resolved-mention placeholder (`[mention:<oxy user id>]`) inside a stored body. */
@@ -94,14 +100,37 @@ export function bridgedTweetId(noteId: unknown): string | undefined {
   return key?.startsWith('x:') ? key.slice(2) : undefined;
 }
 
+export interface BridgedBody {
+  body: string;
+  /** False when a body that may be cut could not be checked: FxTwitter never answered. */
+  answered: boolean;
+}
+
 /**
  * The body a bridged tweet should be stored with: `body` itself unless it is a
- * note tweet the bridge cut, in which case the full text. One request, and only
- * for a body long enough to be cut.
+ * note tweet the bridge cut, in which case the full text. Only a body long enough
+ * to be cut is checked. Ingest asks once; a repair passes `attempts` so a flaky
+ * answer is retried (with a growing pause) instead of leaving the body cut.
  */
-export async function completeBridgedBody(noteId: unknown, body: string): Promise<string> {
+export async function resolveBridgedBody(
+  noteId: unknown,
+  body: string,
+  options: { attempts?: number; retryDelayMs?: number } = {},
+): Promise<BridgedBody> {
   const tweetId = bridgedTweetId(noteId);
-  if (!tweetId || !mayBeCutNote(body)) return body;
-  const fullText = await fetchNoteTweetText(tweetId);
-  return (fullText && completeCutBody(body, fullText)) ?? body;
+  if (!tweetId || !mayBeCutNote(body)) return { body, answered: true };
+  const attempts = options.attempts ?? 1;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const answer = await fetchNoteTweetText(tweetId);
+    if (answer.answered) {
+      return { body: (answer.text && completeCutBody(body, answer.text)) ?? body, answered: true };
+    }
+    if (attempt < attempts) await sleep((options.retryDelayMs ?? 1_000) * attempt);
+  }
+  return { body, answered: false };
+}
+
+/** {@link resolveBridgedBody} for ingest: one request, the body it should be stored with. */
+export async function completeBridgedBody(noteId: unknown, body: string): Promise<string> {
+  return (await resolveBridgedBody(noteId, body)).body;
 }

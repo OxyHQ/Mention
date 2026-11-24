@@ -3,6 +3,7 @@ import {
   bridgedTweetId,
   completeCutBody,
   mayBeCutNote,
+  resolveBridgedBody,
 } from '../../../connectors/activitypub/xFullText';
 
 describe('xFullText', () => {
@@ -37,5 +38,17 @@ describe('completeCutBody keeps what the bridge resolved', () => {
     expect(
       completeCutBody('a completely different text of enough length', 'other'),
     ).toBeUndefined();
+  });
+});
+
+describe('resolveBridgedBody asks FxTwitter only when a body can be cut', () => {
+  it('answers without a request for a short body or a Note that is not a bridged tweet', async () => {
+    const bridged = 'https://bird.makeup/users/a/statuses/123';
+    expect(await resolveBridgedBody(bridged, 'short')).toEqual({ body: 'short', answered: true });
+    const long = 'x'.repeat(300);
+    expect(await resolveBridgedBody('https://mastodon.social/users/a/statuses/1', long)).toEqual({
+      body: long,
+      answered: true,
+    });
   });
 });
