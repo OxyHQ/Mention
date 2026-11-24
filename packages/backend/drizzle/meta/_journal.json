@@ -869,6 +869,13 @@
       "when": 1795111465457,
       "tag": "0123_validate_vibbr_attachment_type",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1795512301456,
+      "tag": "0124_trending_original_posts_index",
+      "breakpoints": true
     }
   ]
 }
