@@ -106,8 +106,10 @@ jest.mock('@/lib/syraApi', () => {
 });
 
 jest.mock('@/lib/oxyServices', () => {
+  // `cloudURL` is a plain string on the real client (feed images compare URLs against it).
   const deep: unknown = new Proxy(() => {}, {
-    get: (_t, name) => (name === 'then' ? undefined : deep),
+    get: (_t, name) =>
+      name === 'then' ? undefined : name === 'cloudURL' ? 'https://cloud.oxy.so' : deep,
     apply: () => deep,
   });
   return { oxyServices: deep };

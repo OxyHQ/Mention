@@ -393,10 +393,11 @@ describe('feed row cost', () => {
       (node) =>
         node.props.url === post.documents?.[0]?.canonicalUrl &&
         node.props.siteName === 'News' &&
-        Array.isArray(node.props.image),
+        typeof node.props.image === 'string',
     );
     expect(cards.length).toBeGreaterThan(0);
-    expect(cards[0].props.image[0].uri).toContain('/images/documents/fixture-check');
+    // One cover URL at the column's width on a device (`feedLinkCover`).
+    expect(cards[0].props.image).toContain('/images/documents/fixture-check');
     const covers = harness.renderer.root.findAll(
       (node) =>
         typeof node.props.recyclingKey === 'string' &&
