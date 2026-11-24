@@ -1,16 +1,14 @@
 import { ReplyComposerFocusContext } from './ReplyComposerFocusContext';
-import { useContext, useMemo, useState, type ReactNode } from 'react';
-import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
+import { useMemo, useState, type ReactNode } from 'react';
 import { TabPagerBottomBar } from '@oxy.so/bloom/tab-pager';
 import { useScreen } from '@oxy.so/bloom/screen';
-import { PostReplyNavigationContext } from './PostReplyNavigationContext';
+import { usePostOwnsNavigation } from './PostReplyNavigationContext';
 
 /** One editor remains mounted while Bloom coordinates its navigation and scroll motion. */
 export function PostReplyFooter({ children }: { children?: ReactNode }) {
   const [focused, setFocused] = useState(false);
   const focus = useMemo(() => ({ focused, setFocused }), [focused]);
-  const ownsMainNavigation = useContext(PostReplyNavigationContext);
-  const panel = useAppShellPanel();
+  const ownsNavigation = usePostOwnsNavigation();
   const { collapseProgress } = useScreen();
   return (
     <ReplyComposerFocusContext.Provider value={focus}>
@@ -18,9 +16,7 @@ export function PostReplyFooter({ children }: { children?: ReactNode }) {
         action={children}
         actionBehavior="dock"
         horizontalInset={8}
-        navigationVisibility={
-          ownsMainNavigation && panel.id === 'main' && !focused ? 'compact' : 'never'
-        }
+        navigationVisibility={ownsNavigation && !focused ? 'compact' : 'never'}
         routeBehavior="contextual"
         minimizeProgress={collapseProgress}
         testID="post-reply-navigation"

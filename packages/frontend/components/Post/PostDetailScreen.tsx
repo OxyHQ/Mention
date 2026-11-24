@@ -20,6 +20,7 @@ import PostItem from '@/components/Feed/PostItem';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import Feed from '@/components/Feed/Feed';
 import { PostReplyFooter } from './PostReplyFooter';
+import { usePostOwnsNavigation } from './PostReplyNavigationContext';
 import { CompactReplyComposer } from './CompactReplyComposer';
 import { useScreenBack, useScreenEntered } from '@oxy.so/bloom/screen';
 import {
@@ -126,6 +127,10 @@ const PostDetailScreen = screen(function PostDetailScreen({
   const entered = useScreenEntered();
   const afterFirstFrame = useAfterFirstFrame();
   const restReady = entered && afterFirstFrame;
+  // The reply prompt (with the tabs docked beside it) replaces the app's bar.
+  // The bar steps aside from the post's first frame, before the prompt mounts,
+  // in Bloom on the UI thread: the shell does not re-render for a post.
+  const ownsNavigation = usePostOwnsNavigation();
   // Supervision, the post and its replies load at the same time; only what is
   // SHOWN waits for the access gate (see the returns below).
   const access = usePostReadAccess(id ? String(id) : '');
@@ -595,6 +600,7 @@ const PostDetailScreen = screen(function PostDetailScreen({
       .headingLevel(2)
       .onBack(handleBack)
       .backLabel(t('common.back', { defaultValue: 'Back' }))
+      .replacesBottomBar(ownsNavigation)
       .toolbar(
         post
           ? LanguageButton(Icon(RiEqualizerLine))
