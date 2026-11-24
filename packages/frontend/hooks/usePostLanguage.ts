@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { appI18n } from '@/lib/i18n';
 import { toast } from '@oxy.so/bloom/toast';
 import type { PostContent } from '@mention/shared-types';
 import { api } from '@/utils/api';
@@ -79,8 +79,6 @@ export function usePostLanguage(
   /** The viewer wrote this post (`viewerState.isOwner`): no translate icon. */
   isOwnPost?: boolean,
 ): PostLanguageState {
-  const { t } = useTranslation();
-
   /**
    * Every language this reader understands, most-preferred first — the
    * account's OWN declared locales (the same ordered list the backend already
@@ -147,16 +145,16 @@ export function usePostLanguage(
           return;
         }
         patch({ selectedTag: null, isTranslating: false });
-        toast(t('translation.failed'), { type: 'error' });
+        toast(appI18n.t('translation.failed'), { type: 'error' });
       } catch (error: unknown) {
         patch({ selectedTag: null, isTranslating: false });
         const status = (error as { response?: { status?: number } })?.response?.status;
-        toast(t(status === 429 ? 'translation.rateLimited' : 'translation.failed'), {
+        toast(appI18n.t(status === 429 ? 'translation.rateLimited' : 'translation.failed'), {
           type: 'error',
         });
       }
     },
-    [postId, t],
+    [postId],
   );
 
   const selectLanguage = useCallback(

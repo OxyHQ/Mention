@@ -424,16 +424,39 @@ export function feedRowKey(row: FeedRow): string {
  * Each interstitial kind gets its own bucket, so a recommendation card can never
  * be recycled onto a post cell (nor onto a card of a different kind).
  */
+/**
+ * What a post row draws below its text, as far as the native views it mounts go:
+ * a video (a native video surface), media (image cells), a link card, or none.
+ * A boost draws its original's.
+ */
+function attachmentShape(item: FeedItem): '' | ':video' | ':media' | ':link' {
+  const shown = (item as HydratedPost).boost?.originalPost ?? (item as HydratedPost);
+  const media = shown.attachments?.media ?? shown.content?.media;
+  if (Array.isArray(media) && media.length > 0) {
+    return media.some((m) => m.type === 'video' || m.type === 'gif') ? ':video' : ':media';
+  }
+  return shown.documents?.length || shown.documentsPending ? ':link' : '';
+}
+
+/**
+ * The recycle bucket of a row. FlashList hands a cell scrolled off screen to the
+ * next row of the SAME type, so a type is a promise about the native tree the
+ * row mounts: a text post recycled into an image post had to create the media
+ * views (and an image post into a text post remove them) on the main thread, in
+ * the frame the row scrolled in. The bucket therefore names what the row draws
+ * below its text (`attachmentShape`) as well as where it sits.
+ */
 export function feedRowType(row: FeedRow): string {
   if (row.kind === 'interstitial') return `interstitial:${row.slot.kind}`;
   if (row.nestingDepth > 0) return `nested_${row.nestingDepth}`;
-  if (row.isThreadParent) return 'threadParent';
-  if (row.isThreadChild) return 'threadChild';
   const item = row.item;
-  if (item.boost) return 'boost';
-  if (item.quotedPost) return 'quote';
-  if (item.parentPostId) return 'reply';
-  return 'post';
+  const shape = attachmentShape(item);
+  if (row.isThreadParent) return `threadParent${shape}`;
+  if (row.isThreadChild) return `threadChild${shape}`;
+  if (item.boost) return `boost${shape}`;
+  if (item.quotedPost) return `quote${shape}`;
+  if (item.parentPostId) return `reply${shape}`;
+  return `post${shape}`;
 }
 
 export interface RenderFeedRowDeps {

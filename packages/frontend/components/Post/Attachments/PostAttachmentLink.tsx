@@ -2,7 +2,7 @@ import type React from 'react';
 import { useMemo } from 'react';
 import { type ViewStyle, Platform } from 'react-native';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
-import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
+import { feedLinkCover } from '@/utils/feedImages';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface PostAttachmentLinkProps {
@@ -13,6 +13,8 @@ interface PostAttachmentLinkProps {
   siteName?: string;
   /** The byline, e.g. `documentByline(document)`. */
   author?: string;
+  /** Its preview is still on its way: the card is drawn at the size it will have. */
+  pending?: boolean;
   /**
    * The card sits in the attachments carousel, whose `className` binds it to the
    * row's height: the cover image then flexes to fill it (`coverFill`) so the
@@ -35,19 +37,21 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   image,
   siteName,
   author,
+  pending = false,
   coverFill = false,
   className = 'w-[280px]',
   style,
 }) => {
-  const imageSources = useMemo(() => linkPreviewImageSources(image), [image]);
+  const cover = useMemo(() => feedLinkCover(image), [image]);
   return (
     <LinkPreviewCard
       url={url}
       title={title}
       description={description}
-      image={imageSources}
+      image={cover}
       siteName={siteName}
       author={author}
+      pending={pending}
       onPress={() => openExternalLink(url)}
       coverFill={coverFill}
       className={className}

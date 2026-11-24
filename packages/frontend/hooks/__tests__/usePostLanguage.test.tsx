@@ -35,6 +35,7 @@ jest.mock('@/utils/api', () => ({
 
 const mockToast = jest.fn();
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@/lib/i18n', () => ({ appI18n: { t: (key: string) => key } }));
 
 /** The reader's app display language. Flipped per test. */
 let mockReaderLanguage = 'en-US';
