@@ -373,17 +373,97 @@ picks the current embedded update from disk and the update check runs in the
 background. It also heals rows already in that state. Remove it when upstream
 Android keeps embedded updates EMBEDDED and skips unloadable rows.
 
-Upstream draft (not filed), expo/expo, title "Android: an embedded update from a
-previous binary stays launchable and makes every cold start wait for the
-network":
+## Upstream issue draft (not filed)
 
-> With `EX_UPDATES_COPY_EMBEDDED_ASSETS` off, `Loader.downloadAllAssets` marks an
-> embedded update READY, unlike iOS, which keeps it `StatusEmbedded`. After a
-> binary with an older embedded update is installed, `getLaunchableUpdate` still
-> returns the previous binary's embedded update (only EMBEDDED rows are checked
-> against the current binary), `DatabaseLauncher.launch` fails to resolve its
-> launch asset ("Asset missing URL"), and `LoaderTask.start` falls into
-> `launchRemoteUpdate()`, blocking launch on the manifest request. Proposed: skip
-> rows whose launch asset is not on disk, not in the embedded manifest and has no
-> URL, and keep embedded updates EMBEDDED on Android as on iOS. Patch:
-> `patches/expo-updates@58.0.21.patch`.
+For expo/expo, with the bug-report template's sections. File it with a
+minimal repro project (a blank `create-expo-app` with expo-updates), not
+Mention.
+
+**Title:** [expo-updates][Android] The embedded update of a previously
+installed binary stays launchable, fails to launch, and makes every cold start
+wait for the update server
+
+**Summary**
+
+On Android, after a binary is installed over one built later (both with the
+same runtime version), every cold start tries to launch the update embedded in
+the binary that is no longer installed. Its launch asset can't be loaded (it was
+never copied to disk, it isn't in the current APK, and it has no URL), so the
+launch fails and `LoaderTask` falls back to a remote launch: startup waits for
+the manifest request before it falls back to the current embedded bundle.
+`EXPO_UPDATES_LAUNCH_WAIT_MS` doesn't bound the wait. The row is never cleaned
+up, so it happens on every cold start until the app's data is cleared or a
+newer update is downloaded.
+
+**Environment**
+
+- expo-updates 58.0.21, Expo SDK 58, React Native 0.88, Android release build.
+  (Check `main` before filing: the code paths below are 58.0.21's.)
+- Default `EX_UPDATES_COPY_EMBEDDED_ASSETS` (off).
+- `updates.url` set, `checkAutomatically` `ON_LOAD` (the default).
+  `launchWaitMs` 0 (the default); the result is the same with any value.
+- Seen on a Pixel 8a: React initialised 1.0 to 4.3 s after process start,
+  idle until the manifest response arrived.
+
+**Steps to reproduce**
+
+1. Configure an app with expo-updates and a fixed runtime version, for example
+   `runtimeVersion: { policy: 'appVersion' }` with an unchanged `version`.
+2. Build release APK **A** (`cd android && ./gradlew assembleRelease`) and keep
+   it. Change any JS file and build release APK **B**. B's embedded update now
+   has a later `commitTime` than A's.
+3. Install and open **B** once:
+   `adb install B.apk && adb shell monkey -p <package> 1`. The embedded loader
+   inserts B's embedded update and marks it READY.
+4. Install **A** over it, keeping the data: `adb install -r -d A.apk`.
+5. Make the update server slow so the wait is visible (for example the
+   emulator's `adb emu network delay gprs`, or a server that answers after 5 s).
+   An unreachable host (airplane mode) fails fast and hides the problem.
+6. Cold-start A and time it:
+   `adb shell am force-stop <package> && adb shell am start -W -n <package>/.MainActivity`,
+   with `adb logcat -s dev.expo.updates` open.
+
+**Expected**
+
+A launches its own embedded update from the APK at once, as it does on a clean
+install, and checks for an update in the background. B's row is skipped (and
+later reaped).
+
+**Actual**
+
+- logcat shows `Failed to download asset <B's bundle key>` with
+  `Asset missing URL`, then `Failed to launch embedded or launchable update`.
+- `TotalTime` from `am start -W` grows by the manifest request's duration on
+  every cold start. When the request finishes, the app runs A's embedded bundle.
+- iOS should not be affected: it keeps embedded updates `StatusEmbedded`, which
+  the filter below skips (read from the code; not run on iOS).
+
+**Cause**
+
+- With copying off, `EmbeddedLoader` hands back each embedded asset as
+  "finished" without copying it, and `Loader.downloadAllAssets` calls
+  `markUpdateFinished(update)`, whose `hasSkippedEmbeddedAssets` is always
+  `false`. So the embedded update is stored as `READY`. iOS stores it as
+  `StatusEmbedded` (`UpdatesDatabase.markUpdateFinished`).
+- `DatabaseLauncher.getLaunchableUpdate` only checks `EMBEDDED` rows against the
+  current binary's embedded update. B's row is `READY`, matches the runtime
+  version, and is newer than A's, so the selection policy picks it.
+- `DatabaseLauncher.launch` can't resolve its launch asset: the key isn't in A's
+  embedded manifest (so there is no `assets://` path), the file isn't in
+  `.expo-internal`, and the asset has no URL. `FileDownloader.downloadAsset`
+  throws `Asset missing URL`.
+- `LoaderTask.start` catches the failure and calls `launchRemoteUpdate()`, which
+  blocks the launch on the manifest request.
+
+**Suggested fix**
+
+1. Store embedded updates as `EMBEDDED` on Android when their assets weren't
+   copied (`markUpdateFinished(update, hasSkippedEmbeddedAssets = true)` from the
+   embedded loader), as iOS does. The existing filter then skips another
+   binary's embedded update.
+2. In `getLaunchableUpdate`, skip any update whose launch asset can't be loaded:
+   not on disk, not in the current embedded manifest, and no URL. This also
+   recovers devices that already have such a row.
+
+Mention ships (2) as `patches/expo-updates@58.0.21.patch`. It's enough on its
+own, but (1) is the root cause.
