@@ -7,7 +7,7 @@ small "Boosted" label.
 
 In code and storage this is called **promotion** (`post_promotions`,
 `services/promotion`, `MtnConfig.promotion`). "Boost" is what people read; it is
-not used as an identifier because `boost` still means *repost* in stored values
+not used as an identifier because `boost` still means _repost_ in stored values
 and in the deprecated wire names until that rename completes.
 
 **Status: built behind an off switch.** `MtnConfig.promotion.enabled` is `false`.
