@@ -86,12 +86,20 @@ The same stack adds every pushed screen over the last one and never removes the
 screen it covers from the view tree, so the RenderThread prepared and drew every
 screen of the stack each frame under the top one. On a Pixel 10 Pro release
 build, scrolling a profile went from 0.9% janky frames (p50 8 ms) to 27% (p50
-21 ms) after 20 pushed screens. The patch is a backport of upstream's fix,
-software-mansion/react-native-screens#4633 (5.0.0-alpha.4): the push transaction
-detaches the covered screen, and the top fragment is resolved from the stack
-model. Popping the record (Back, predictive back, a JS pop) re-attaches it.
-This hunk can go at react-native-screens 5 (5.0.0-beta.1 has #4633); the others
-cannot, and 5.x moved these files, so the rest would have to be re-made there.
+21 ms) after 20 pushed screens. The patch follows upstream's fix,
+software-mansion/react-native-screens#4633 (5.0.0-alpha.4), with one change: the
+push transaction HIDES the covered screen where upstream detaches it, and the
+top fragment is resolved from the stack model. Popping the record (Back,
+predictive back, a JS pop) shows it again. A hidden fragment's view stays in
+place and goes `GONE` once the push transition has ended, so nothing under the
+top screen is drawn. A detached one leaves the view tree: the transition moves
+the covered screen into the container's overlay to slide it out and removes it
+at the end, and detaching the whole feed under a post (`ViewGroupOverlay.remove`)
+was 41 to 66 ms of the transition-end frame on a Pixel 8a, with the fragment's
+view destroyed and rebuilt on every push and Back. This hunk can go at
+react-native-screens 5 only if 5's detach no longer costs that frame (5.0.0-beta.1
+has #4633); the others cannot, and 5.x moved these files, so the rest would have
+to be re-made there.
 
 A root replacement pops the stack's only screen. Upstream refuses that
 (`check(stackModel.size > 1)`), because the root was never added to the
