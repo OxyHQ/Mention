@@ -52,6 +52,83 @@ still 25 ms (Hermes sampling profiles, 2026-11-22). Results match upstream's for
 the same options, path and segments. Remove the hunk when upstream caches the
 route table.
 
+## Upstream issue draft: Back ownership listeners attach before the container exists (not filed)
+
+For expo/expo, as a review comment on the predictive Back ownership change
+([draft PR #52680](https://github.com/expo/expo/pull/52680), the source this
+patch backports), or as an issue if it has merged. Released expo-router is not
+affected: its `useBackButton` reads `ref.current` only when Back is pressed.
+Check `main` before filing.
+
+**Title:** [expo-router][Android] With an asynchronous initial state, Back's
+native ownership listeners never attach, and every Back stays JavaScript's
+
+**Summary**
+
+`useBackButton` is called in `NavigationContainerInner`, the parent of the
+`Suspense` boundary that waits for the initial state. On Android the initial
+state is always asynchronous (`getInitialURLWithTimeout` returns a
+`Promise.race` of `Linking.getInitialURL()` and a 150 ms timeout), so the
+effect runs when the parent commits, before `InitialStateNavigationContainer`
+has mounted the container. At that
+point `ref.current` is `null`, so `updateOwnership()` reports "not owned",
+and `ref.current?.addListener('state', …)` and
+`ref.current?.addListener('nativeBackOwnershipChange', …)` silently return
+`undefined`. The effect depends only on `[ref]`, so it never runs again. The
+`hardwareBackPress` subscription stays a JavaScript owner for the whole session:
+React Native gives every Back to JavaScript, which pops with
+`dispatchSync(goBack())`, instead of letting the native stack handle it with
+the predictive animation.
+
+**Environment**
+
+- expo-router 58.0.30 with PR #52680's ownership change (source `d9904291`),
+  React Native 0.88.1 with the `setNativeNavigationFallback` ownership API
+  (draft react/react-native#59712), react-native-screens 4.30.1 with the
+  native ownership adapter (draft software-mansion/react-native-screens#5118),
+  `ExperimentalStack` on Android, release build.
+- Seen on a Pixel 8a (Android 16).
+
+**Steps to reproduce**
+
+1. Build a release APK of an app with the three changes above and an
+   `ExperimentalStack`. Nothing app-specific is involved, so a blank app with
+   one pushed route should show it; only Mention has been tried, where it
+   happens on every cold start.
+2. Cold-start it, push the route and press Back (the key or the gesture).
+3. Log in the subscription's callback, or add a log to
+   `setNativeNavigationFallback` in `BackHandler`.
+
+**Expected**
+
+Once the stack mounts and reports that it owns Back, the subscription becomes a
+native fallback: Back pops natively, and the JavaScript callback runs only when
+no native navigator can go back.
+
+**Actual**
+
+`setNativeNavigationFallback(false)` is called once, with `ref.current` still
+`null`, and never again. Every Back reaches the JavaScript callback and pops
+from JavaScript (in Mention's probe, "back to JavaScript" on each Back of a
+pushed post, and a JavaScript pop 170-190 ms later).
+
+**Cause**
+
+`NavigationContainerInner` creates `refContainer` and calls
+`useBackButton(refContainer)`, then renders `<Suspense>` around
+`InitialStateNavigationContainer`, which suspends on the initial state promise
+with `React.use`. React commits the parent and runs its effects without waiting
+for the suspended child, so `useBackButton`'s effect sees no container. When the
+child later mounts the container, nothing re-runs the effect.
+
+**Suggested fix**
+
+Call `useBackButton(containerRef)` in `InitialStateNavigationContainer`, the
+component that renders the container, as this patch does (its effect then runs
+in the commit that mounts the container, so `ref.current` is set). An
+alternative is to attach the ownership listeners from the container's own
+`onReady`. A synchronous initial state (iOS, web) behaves the same either way.
+
 # expo-video 58.0.13
 
 The web player calls `video.play()` and drops the returned promise, so two
