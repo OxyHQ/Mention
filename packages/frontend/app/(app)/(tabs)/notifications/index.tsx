@@ -746,6 +746,49 @@ const NotificationsScreen = screen(function NotificationsScreen() {
     />
   );
 
+  // The tabs scroll up and away with the list (its first row) rather than
+  // staying pinned under the header; while there is no list yet (loading, an
+  // error) they sit above what is shown, at the same place.
+  const tabBar = canUsePrivateApi
+    ? LtoElement(
+        LTabs(
+          [activeTab, handleTabPress],
+          [
+            { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+            {
+              id: 'mentions',
+              label: t('notifications.tabs.mentions'),
+              count: tabUnreadCounts.mentions,
+            },
+            {
+              id: 'follows',
+              label: t('notifications.tabs.follows'),
+              count: tabUnreadCounts.follows,
+            },
+            {
+              id: 'likes',
+              label: t('notifications.tabs.likes'),
+              count: tabUnreadCounts.likes,
+            },
+            {
+              id: 'posts',
+              label: t('notifications.tabs.posts'),
+              count: tabUnreadCounts.posts,
+            },
+            {
+              id: 'pokes',
+              label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
+              count: tabUnreadCounts.pokes,
+            },
+          ].map((tab: { id: string; label: string; count?: number }) =>
+            TabItem(tab.id, tab.label).count(tab.count),
+          ),
+        )
+          .pressOpenTab('reselect')
+          .style('underline'),
+      )
+    : null;
+
   const renderContent = () => {
     // Auth cold-boot: the SSO restore can take several seconds. Show a
     // skeleton until auth is resolved, then either prompt to sign in or
@@ -769,11 +812,16 @@ const NotificationsScreen = screen(function NotificationsScreen() {
     }
 
     if (isLoading && !refreshing) {
-      return toElement(VStack(LEmbed(<NotificationSkeleton />)).flex('1'));
+      return toElement(VStack(LEmbed(tabBar), LEmbed(<NotificationSkeleton />)).flex('1'));
     }
 
     if (error && !notificationsData) {
-      return renderErrorState();
+      return (
+        <>
+          {tabBar}
+          {renderErrorState()}
+        </>
+      );
     }
 
     const pokesHeader =
@@ -826,7 +874,12 @@ const NotificationsScreen = screen(function NotificationsScreen() {
         restorationKey={JSON.stringify([...viewerQueryKeys.notifications(user?.id), activeTab])}
         items={sectionedItems}
         renderRow={renderNotification}
-        header={pokesHeader}
+        header={
+          <>
+            {tabBar}
+            {pokesHeader}
+          </>
+        }
         emptyState={renderEmptyState()}
         tabKey={activeTab}
         refreshing={refreshing}
@@ -841,44 +894,6 @@ const NotificationsScreen = screen(function NotificationsScreen() {
   return Embed(
     <>
       <SEO title={t('seo.notifications.title')} description={t('seo.notifications.description')} />
-      {canUsePrivateApi &&
-        LtoElement(
-          LTabs(
-            [activeTab, handleTabPress],
-            [
-              { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
-              {
-                id: 'mentions',
-                label: t('notifications.tabs.mentions'),
-                count: tabUnreadCounts.mentions,
-              },
-              {
-                id: 'follows',
-                label: t('notifications.tabs.follows'),
-                count: tabUnreadCounts.follows,
-              },
-              {
-                id: 'likes',
-                label: t('notifications.tabs.likes'),
-                count: tabUnreadCounts.likes,
-              },
-              {
-                id: 'posts',
-                label: t('notifications.tabs.posts'),
-                count: tabUnreadCounts.posts,
-              },
-              {
-                id: 'pokes',
-                label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }),
-                count: tabUnreadCounts.pokes,
-              },
-            ].map((tab: { id: string; label: string; count?: number }) =>
-              TabItem(tab.id, tab.label).count(tab.count),
-            ),
-          )
-            .pressOpenTab('reselect')
-            .style('underline'),
-        )}
       {renderContent()}
     </>,
   )
