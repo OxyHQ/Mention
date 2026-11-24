@@ -341,12 +341,24 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     for (let i = 0; i < 25; i++) {
       const [hydrated] = await hydrate(repost, undefined);
       expect(hydrated, `iteration ${i}: boost post missing`).toBeTruthy();
-      expect(hydrated.boost, `iteration ${i}: boost context missing`).toBeTruthy();
-      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(
+      expect(hydrated.repost, `iteration ${i}: boost context missing`).toBeTruthy();
+      expect(hydrated.repost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(
         original.id,
       );
       expect(hydrated.originalPost?.id).toBe(original.id);
     }
+  });
+
+  it('sends the repost names and, beside them, the deprecated boost ones older clients read', async () => {
+    const original = await seedOriginal();
+    const repost = await seedRepost(original.id);
+    const [hydrated] = await hydrate(repost, undefined);
+
+    expect(hydrated.repost?.originalPost?.id).toBeTruthy();
+    // Same object under both names: an older client keeps rendering the repost.
+    expect(hydrated.boost).toEqual(hydrated.repost);
+    expect(hydrated.engagement.boosts).toBe(hydrated.engagement.reposts);
+    expect(hydrated.viewerState.isBoosted).toBe(hydrated.viewerState.isReposted);
   });
 
   it('embeds the boosted original identically for anon (fetch 1) and authed (fetch 2)', async () => {
@@ -356,8 +368,8 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     const [anon] = await hydrate(repost, undefined);
     const [authed] = await hydrate(repost, VIEWER_ID);
 
-    expect(anon.boost?.originalPost?.id).toBe(original.id);
-    expect(authed.boost?.originalPost?.id).toBe(original.id);
+    expect(anon.repost?.originalPost?.id).toBe(original.id);
+    expect(authed.repost?.originalPost?.id).toBe(original.id);
   });
 
   it('embeds the boosted original on EVERY repeated authenticated fetch', async () => {
@@ -367,7 +379,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     for (let i = 0; i < 25; i++) {
       const [hydrated] = await hydrate(repost, VIEWER_ID);
       expect(
-        hydrated.boost?.originalPost?.id,
+        hydrated.repost?.originalPost?.id,
         `iteration ${i}: original not embedded (authed)`,
       ).toBe(original.id);
     }
@@ -384,7 +396,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     const [hydrated] = await hydrate(repost, undefined);
 
     expect(hydrated, 'public boost should still hydrate').toBeTruthy();
-    expect(hydrated.boost).toBeNull();
+    expect(hydrated.repost).toBeNull();
     expect(hydrated.originalPost).toBeNull();
   });
 
@@ -410,10 +422,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
         includeFullMetadata: false,
       });
       expect(hydrated, `maxDepth ${depth}: boost post missing`).toBeTruthy();
-      expect(hydrated.boost, `maxDepth ${depth}: boost context should not be null`).toBeTruthy();
-      expect(hydrated.boost?.unavailable, `maxDepth ${depth}: unavailable flag`).toBe(true);
+      expect(hydrated.repost, `maxDepth ${depth}: boost context should not be null`).toBeTruthy();
+      expect(hydrated.repost?.unavailable, `maxDepth ${depth}: unavailable flag`).toBe(true);
       expect(
-        hydrated.boost?.originalPost,
+        hydrated.repost?.originalPost,
         `maxDepth ${depth}: originalPost should be null`,
       ).toBeNull();
       expect(
@@ -437,7 +449,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     const [hydrated] = await hydrate(repost, undefined);
 
     expect(hydrated).toBeTruthy();
-    expect(hydrated.boost).toBeNull();
+    expect(hydrated.repost).toBeNull();
     expect(hydrated.originalPost).toBeNull();
   });
 
@@ -455,7 +467,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     const [hydrated] = await hydrate(repost, follower);
 
-    expect(hydrated.boost?.originalPost?.id).toBe(original.id);
+    expect(hydrated.repost?.originalPost?.id).toBe(original.id);
     expect(hydrated.originalPost?.id).toBe(original.id);
   });
 
@@ -470,7 +482,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     for (const depth of [0, 1, 2]) {
       const [hydrated] = await hydrate(repost, undefined, depth);
-      expect(hydrated.boost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(
+      expect(hydrated.repost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(
         original.id,
       );
       expect(hydrated.originalPost?.id, `maxDepth ${depth}: top-level originalPost missing`).toBe(
@@ -486,8 +498,8 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     const [quoted] = await hydrate(quote, undefined, 0);
     expect(quoted.quotedPost?.id).toBe(original.id);
     const [reposted] = await hydrate(repost, undefined, 0);
-    expect(reposted.boost?.originalPost?.id).toBe(quote.id);
-    expect((reposted.boost?.originalPost as typeof quoted).quotedPost?.id).toBe(original.id);
+    expect(reposted.repost?.originalPost?.id).toBe(quote.id);
+    expect((reposted.repost?.originalPost as typeof quoted).quotedPost?.id).toBe(original.id);
   });
 
   it('does not expose a private quote subject through forced feed context', async () => {
@@ -565,18 +577,18 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     expect(hydrated).toBeTruthy();
     // The boost original now embeds, with its real content shown.
-    expect(hydrated.boost?.originalPost?.id).toBe(original.id);
+    expect(hydrated.repost?.originalPost?.id).toBe(original.id);
     expect(hydrated.originalPost?.id).toBe(original.id);
-    expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
+    expect(hydrated.repost?.originalPost?.content?.text).toBe('the original note body');
     // The author is the neutral, un-tappable "Unknown user" (ghost-handle rule:
     // empty handle), marked federated without a public transport identity.
-    const originalUser = hydrated.boost?.originalPost?.user;
+    const originalUser = hydrated.repost?.originalPost?.user;
     expect(originalUser?.username).toBe('');
     expect(originalUser?.name?.displayName).toBe('Unknown user');
     expect(originalUser?.isFederated).toBe(true);
     expect(originalUser?.instance).toBeUndefined();
     // No collaborator byline for an orphan — the header falls back to `user`.
-    expect(hydrated.boost?.originalPost?.authors).toEqual([]);
+    expect(hydrated.repost?.originalPost?.authors).toEqual([]);
   });
 
   it('renders an orphan boost original from its cached Oxy profile through the source link', async () => {
@@ -609,8 +621,8 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     });
     const [hydrated] = await hydrate(repost, undefined);
 
-    const originalUser = hydrated.boost?.originalPost?.user;
-    expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
+    const originalUser = hydrated.repost?.originalPost?.user;
+    expect(hydrated.repost?.originalPost?.content?.text).toBe('the original note body');
     // Source-row fields cannot override the canonical cached Oxy DTO.
     expect(originalUser?.username).toBe('kaleidotrope@mastodon.online');
     expect(originalUser?.isFederated).toBe(true);
@@ -671,13 +683,13 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     const [hydrated] = await hydrate(repost, undefined);
 
-    expect(hydrated.boost?.originalPost?.id).toBe(original.id);
+    expect(hydrated.repost?.originalPost?.id).toBe(original.id);
     // The Oxy `name.displayName` — the single source of truth.
-    expect(hydrated.boost?.originalPost?.user?.name?.displayName).toBe('Terrible Maps');
-    expect(hydrated.boost?.originalPost?.user?.isFederated).toBe(true);
-    expect(hydrated.boost?.originalPost?.user?.instance).toBe('zpravobot.news');
+    expect(hydrated.repost?.originalPost?.user?.name?.displayName).toBe('Terrible Maps');
+    expect(hydrated.repost?.originalPost?.user?.isFederated).toBe(true);
+    expect(hydrated.repost?.originalPost?.user?.instance).toBe('zpravobot.news');
     // The federated avatar (a bare Oxy file id) is carried through untouched.
-    expect(hydrated.boost?.originalPost?.user?.avatar).toBe('terrible-maps-avatar-file-id');
+    expect(hydrated.repost?.originalPost?.user?.avatar).toBe('terrible-maps-avatar-file-id');
   });
 
   it('still drops a NATIVE post with no author (a genuine data error, not a federated orphan)', async () => {
@@ -710,7 +722,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     });
 
     expect(hydrated).toBeTruthy();
-    expect(hydrated.boost).toBeNull();
+    expect(hydrated.repost).toBeNull();
     expect(hydrated.originalPost).toBeNull();
   });
 
@@ -745,7 +757,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
         includeLinkMetadata: false,
         includeFullMetadata: false,
       });
-      expect(broadcast.boost).toBeNull();
+      expect(broadcast.repost).toBeNull();
       expect(broadcast.originalPost).toBeNull();
 
       // The control, so the case cannot pass because the fixture is simply
@@ -757,7 +769,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
         includeLinkMetadata: false,
         includeFullMetadata: false,
       });
-      expect(personal.boost?.originalPost?.id).toBe(original.id);
+      expect(personal.repost?.originalPost?.id).toBe(original.id);
     } finally {
       getUserFollowing.mockResolvedValue([]);
     }

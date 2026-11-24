@@ -35,7 +35,7 @@ export function formatPost(post: PostView): string {
 
   // A count the author hides arrives as `null`; it prints as 0, as before.
   const likesCount = post.engagement?.likes ?? 0;
-  const repostsCount = post.engagement?.boosts ?? 0;
+  const repostsCount = post.engagement?.reposts ?? 0;
   const commentsCount = post.engagement?.replies ?? 0;
 
   // The author's Oxy id, because the tools that act on a person (get-profile,
@@ -116,7 +116,7 @@ export function formatPost(post: PostView): string {
 
   const flags: string[] = [];
   if (post.viewerState?.isLiked) flags.push('liked');
-  if (post.viewerState?.isBoosted) flags.push('boosted');
+  if (post.viewerState?.isReposted) flags.push('boosted');
   if (post.viewerState?.isSaved) flags.push('saved');
   if (flags.length > 0) parts.push(`You: ${flags.join(', ')}`);
 

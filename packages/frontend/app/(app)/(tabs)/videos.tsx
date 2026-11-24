@@ -911,7 +911,7 @@ const VideoItem = memo<VideoItemProps>(
           />
 
           <View style={styles.bottomInfo} pointerEvents="box-none">
-            {isActive && item.viewerState.isBoosted && (
+            {isActive && item.viewerState.isReposted && (
               <VideoRepostBubble
                 visible
                 onAddThought={item.metadata.quotesDisabled ? undefined : () => onQuote(item.id)}
@@ -986,11 +986,11 @@ const VideoItem = memo<VideoItemProps>(
                 replies: cachedActivePost?.engagement.replies ?? item.engagement.replies,
               }}
               isLiked={item.viewerState.isLiked}
-              isBoosted={item.viewerState.isBoosted}
+              isBoosted={item.viewerState.isReposted}
               isSaved={item.viewerState.isSaved}
               onLike={() => onLike(item.id, item.viewerState.isLiked)}
               onReply={postAcceptsReplies(item) ? () => onComment(item.id) : undefined}
-              onRepost={() => onRepost(item.id, item.viewerState.isBoosted)}
+              onRepost={() => onRepost(item.id, item.viewerState.isReposted)}
               onSave={() => onSave(item.id, item.viewerState.isSaved)}
               onShare={() => onShare(item)}
               onSendInAllo={() => onSendInAllo(item.id)}
@@ -1508,10 +1508,10 @@ export default function VideosScreen() {
               p.id === postId
                 ? {
                     ...p,
-                    viewerState: { ...p.viewerState, isBoosted: !isReposted },
+                    viewerState: { ...p.viewerState, isReposted: !isReposted },
                     engagement: {
                       ...p.engagement,
-                      boosts: Math.max(0, (p.engagement.boosts ?? 0) + (isReposted ? -1 : 1)),
+                      reposts: Math.max(0, (p.engagement.reposts ?? 0) + (isReposted ? -1 : 1)),
                     },
                   }
                 : p,

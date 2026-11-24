@@ -33,7 +33,7 @@ jest.mock('@/db', () => ({
   getPostIdsReferencing: (ids: string[]) =>
     [...mockPosts.values()]
       .filter((post) =>
-        [post.originalPost?.id, post.quotedPost?.id, post.boost?.originalPost?.id].some(
+        [post.originalPost?.id, post.quotedPost?.id, post.repost?.originalPost?.id].some(
           (id) => id && ids.includes(id),
         ),
       )
@@ -89,13 +89,13 @@ const makePost = (id: string): FeedItem => ({
     createdAt: '2026-08-01T10:00:00.000Z',
     updatedAt: '2026-08-01T10:00:00.000Z',
   },
-  engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0 },
+  engagement: { likes: 0, downvotes: 0, reposts: 0, replies: 0 },
   viewerState: {
     isOwner: false,
     isCollaborator: false,
     isLiked: false,
     isDownvoted: false,
-    isBoosted: false,
+    isReposted: false,
     isSaved: false,
   },
   permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },

@@ -72,7 +72,7 @@ const strangerView = {
     isCollaborator: false,
     isLiked: false,
     isDownvoted: false,
-    isBoosted: false,
+    isReposted: false,
     isSaved: false,
   },
   permissions: { canReply: false, canDelete: false, canPin: false, canViewSources: false },
@@ -98,7 +98,7 @@ function original(
     engagement: {
       likes: 0,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
       saves: 0,
       views: null,
@@ -125,7 +125,7 @@ function repost(view: typeof strangerView, embedded: HydratedPostSummary): Hydra
     engagement: {
       likes: 0,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
       saves: 0,
       views: null,
@@ -139,7 +139,7 @@ function repost(view: typeof strangerView, embedded: HydratedPostSummary): Hydra
     },
     originalPost: embedded,
     quotedPost: null,
-    boost: { originalPost: embedded, actor: author },
+    repost: { originalPost: embedded, actor: author },
   } as HydratedPost;
 }
 
@@ -186,7 +186,7 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
 
     // 4. The boost's own broadcast, embedding the original.
     store().addPostsToFeed(
-      [repost(strangerView, original(strangerView, { boosts: 1 })) as FeedItem],
+      [repost(strangerView, original(strangerView, { reposts: 1 })) as FeedItem],
       'following',
     );
     expectDatesKept('feed:updated boost');
@@ -201,7 +201,7 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
     // 6. The profile feed as production served it: the boost, then the original.
     const later = original(
       strangerView,
-      { likes: 2, boosts: 1, replies: 1 },
+      { likes: 2, reposts: 1, replies: 1 },
       '2026-09-25T11:09:42.633Z',
     );
     mockFeedService.getUserFeed.mockResolvedValue({

@@ -110,7 +110,7 @@ function FeedHarness({
       {posts.map((post) => (
         <Profiler
           key={cells.get(post.id)}
-          id={post.boost?.originalPost?.id ?? post.id}
+          id={post.repost?.originalPost?.id ?? post.id}
           onRender={onRender}
         >
           {renderFeedRow(toRow(post), {

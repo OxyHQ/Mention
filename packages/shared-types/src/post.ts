@@ -1142,7 +1142,9 @@ export interface PostViewerState {
   viewerRole?: PostAuthorRole;
   isLiked: boolean;
   isDownvoted: boolean;
-  isBoosted: boolean;
+  isReposted: boolean;
+  /** @deprecated Same value as `isReposted`, emitted for clients shipped before the rename. */
+  isBoosted?: boolean;
   isSaved: boolean;
 }
 
@@ -1159,7 +1161,9 @@ export interface PostPermissions {
 export interface PostEngagementSummary {
   likes: number | null;
   downvotes: number | null;
-  boosts: number | null;
+  reposts: number | null;
+  /** @deprecated Same value as `reposts`, emitted for clients shipped before the rename. */
+  boosts?: number | null;
   replies: number | null;
   saves?: number | null;
   /**
@@ -1659,6 +1663,8 @@ export interface HydratedPost extends HydratedPostSummary {
   quotedPost?: HydratedPostSummary | null;
   /** A quote's subject cannot be shown. Reveals no target identity or reason. */
   quotedPostUnavailable?: boolean;
+  repost?: HydratedRepostContext | null;
+  /** @deprecated Same value as `repost`, emitted for clients shipped before the rename. */
   boost?: HydratedRepostContext | null;
   context?: PostFeedContext;
 }

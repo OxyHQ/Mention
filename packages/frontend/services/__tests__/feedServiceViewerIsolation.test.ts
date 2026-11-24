@@ -67,7 +67,7 @@ function viewerPost(viewerId: string, isSaved: boolean): HydratedPost {
     engagement: {
       likes: 0,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
     },
     viewerState: {
@@ -75,7 +75,7 @@ function viewerPost(viewerId: string, isSaved: boolean): HydratedPost {
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved,
     },
     permissions: {

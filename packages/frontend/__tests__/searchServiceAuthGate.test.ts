@@ -103,7 +103,7 @@ function hydratedPost(id: string): HydratedPost {
     engagement: {
       likes: 0,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
     },
     viewerState: {
@@ -111,7 +111,7 @@ function hydratedPost(id: string): HydratedPost {
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: id === 's1',
     },
     permissions: {

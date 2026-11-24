@@ -117,14 +117,14 @@ const makePost = (id: string, views: number | null): FeedItem => ({
     isCollaborator: false,
     isLiked: false,
     isDownvoted: false,
-    isBoosted: false,
+    isReposted: false,
     isSaved: false,
   },
   permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },
   engagement: {
     likes: 0,
     downvotes: 0,
-    boosts: 0,
+    reposts: 0,
     replies: 0,
     saves: 0,
     views,
@@ -262,7 +262,7 @@ describe('profile grid cells repaint from a server view count', () => {
 
     // A write to the post the cell merely LINKS to must not touch it.
     await act(async () => {
-      applyServerViewCounts({ boost: 6 });
+      applyServerViewCounts({ repost: 6 });
     });
     expect(labels(renderer)).toEqual(['777']);
 

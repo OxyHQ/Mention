@@ -95,10 +95,10 @@ type CachedRepostContext = Omit<HydratedRepostContext, 'originalPost'> & {
  * keep the public `originalPost` / `quotedPost` / `boost.originalPost` names at
  * every layer; the cache never manufactures a second alias for the same object.
  */
-export type FeedItem = Omit<HydratedPost, 'originalPost' | 'quotedPost' | 'boost'> & {
+export type FeedItem = Omit<HydratedPost, 'originalPost' | 'quotedPost' | 'repost' | 'boost'> & {
   originalPost?: FeedItem | null;
   quotedPost?: FeedItem | null;
-  boost?: CachedRepostContext | null;
+  repost?: CachedRepostContext | null;
   date?: string;
   media?: string[];
   mediaIds?: string[];
@@ -180,25 +180,25 @@ export function postToRow(post: FeedItem): PostRow {
     user_id: post.user.id,
     type: 'text',
     parent_post_id: post.parentPostId ?? null,
-    original_post_id: post.originalPost?.id ?? post.boost?.originalPost?.id ?? null,
+    original_post_id: post.originalPost?.id ?? post.repost?.originalPost?.id ?? null,
     quoted_post_id: post.quotedPost?.id ?? null,
     content_json: safeJsonStringify(post.content) || '{"text":""}',
     attachments_json: safeJsonStringify(post.attachments),
     link_previews_json: safeJsonStringify(post.documents),
     permissions_json: safeJsonStringify(post.permissions),
-    boost_json: safeJsonStringify(post.boost),
+    boost_json: safeJsonStringify(post.repost),
     context_json: safeJsonStringify(post.context),
     user_json: safeJsonStringify(post.user) || '{}',
     likes_count: post.engagement.likes ?? 0,
     downvotes_count: post.engagement.downvotes ?? 0,
-    boosts_count: post.engagement.boosts ?? 0,
+    boosts_count: post.engagement.reposts ?? 0,
     replies_count: post.engagement.replies ?? 0,
     saves_count: post.engagement.saves ?? 0,
     views_count: post.engagement.views ?? 0,
     impressions_count: post.engagement.impressions ?? 0,
     is_liked: post.viewerState.isLiked ? 1 : 0,
     is_downvoted: post.viewerState.isDownvoted ? 1 : 0,
-    is_boosted: post.viewerState.isBoosted ? 1 : 0,
+    is_boosted: post.viewerState.isReposted ? 1 : 0,
     is_saved: post.viewerState.isSaved ? 1 : 0,
     is_owner: post.viewerState.isOwner ? 1 : 0,
     visibility: post.metadata.visibility,
@@ -226,7 +226,7 @@ export function rowToFeedItem(row: PostRow): FeedItem | null {
       ...raw.engagement,
       likes: row.likes_count,
       downvotes: row.downvotes_count,
-      boosts: row.boosts_count,
+      reposts: row.boosts_count,
       replies: row.replies_count,
       saves: row.saves_count ?? null,
       views: row.views_count ?? null,
@@ -237,7 +237,7 @@ export function rowToFeedItem(row: PostRow): FeedItem | null {
       isOwner: Boolean(row.is_owner),
       isLiked: Boolean(row.is_liked),
       isDownvoted: Boolean(row.is_downvoted),
-      isBoosted: Boolean(row.is_boosted),
+      isReposted: Boolean(row.is_boosted),
       isSaved: Boolean(row.is_saved),
     },
     metadata: {

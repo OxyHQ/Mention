@@ -75,13 +75,13 @@ function base(seed: string, text = TEXT, withAvatar = false): HydratedPost {
       createdAt: CREATED_AT,
       updatedAt: CREATED_AT,
     },
-    engagement: { likes: 12, downvotes: 0, boosts: 3, replies: 4, saves: 1, views: 240 },
+    engagement: { likes: 12, downvotes: 0, reposts: 3, replies: 4, saves: 1, views: 240 },
     viewerState: {
       isOwner: false,
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: false,
     },
     permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },
@@ -137,7 +137,7 @@ export function makeRow(kind: RowKind, seed: string): HydratedPost {
     case 'repost': {
       const post = base(seed, '', true);
       const original = base(`${seed}-original`, TEXT, true);
-      post.boost = { originalPost: original, actor: user(seed, true) };
+      post.repost = { originalPost: original, actor: user(seed, true) };
       return post;
     }
     case 'poll': {

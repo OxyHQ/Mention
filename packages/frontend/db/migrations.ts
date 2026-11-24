@@ -61,7 +61,8 @@ const logger = createLogger('Schema');
  * remembered.
  */
 // v16 retains bounded boosted-quote graphs and the generic unavailable quote marker.
-export const SCHEMA_VERSION = 16;
+// v17 stores a repost under `repost` (the server also still sends `boost`), so older rows are reset.
+export const SCHEMA_VERSION = 17;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

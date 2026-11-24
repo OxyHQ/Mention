@@ -41,13 +41,13 @@ const VALID_FEED_TYPES: readonly string[] = SOCKET_FEED_TYPES;
  * zero.
  */
 type EngagementCounts = Partial<
-  Record<'likes' | 'downvotes' | 'boosts' | 'replies' | 'saves', number>
+  Record<'likes' | 'downvotes' | 'reposts' | 'replies' | 'saves', number>
 >;
 
 const COUNT_FIELDS: ReadonlyArray<keyof EngagementCounts> = [
   'likes',
   'downvotes',
-  'boosts',
+  'reposts',
   'replies',
   'saves',
 ];
@@ -71,7 +71,7 @@ function readEngagementCounts(data: PostEngagementCountsPayload): EngagementCoun
   const counts: EngagementCounts = {};
   if (typeof data.likesCount === 'number') counts.likes = data.likesCount;
   if (typeof data.downvotesCount === 'number') counts.downvotes = data.downvotesCount;
-  if (typeof data.boostsCount === 'number') counts.boosts = data.boostsCount;
+  if (typeof data.boostsCount === 'number') counts.reposts = data.boostsCount;
   if (typeof data.repliesCount === 'number') counts.replies = data.repliesCount;
   if (typeof data.savesCount === 'number') counts.saves = data.savesCount;
   return counts;

@@ -29,7 +29,6 @@ const PERSISTED_POST_KEYS = [
   'attachments',
   'authors',
   'authorship',
-  'boost',
   'community',
   'communityNote',
   'content',
@@ -50,12 +49,13 @@ const PERSISTED_POST_KEYS = [
   'quotedPost',
   'quotedPostUnavailable',
   'replyContext',
+  'repost',
   'user',
   'viewerState',
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 16;
+const VERSION_FOR_THESE_KEYS = 17;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -82,7 +82,7 @@ function makeFullyPopulatedPost(): HydratedPost {
     engagement: {
       likes: 0,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
       saves: 0,
       views: 0,
@@ -93,7 +93,7 @@ function makeFullyPopulatedPost(): HydratedPost {
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: false,
     },
     permissions: {
@@ -130,7 +130,7 @@ function makeFullyPopulatedPost(): HydratedPost {
     originalPost: null,
     quotedPost: null,
     quotedPostUnavailable: true,
-    boost: null,
+    repost: null,
   };
 }
 

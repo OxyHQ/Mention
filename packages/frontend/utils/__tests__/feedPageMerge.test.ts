@@ -92,7 +92,7 @@ describe('mergeFeedPageContent', () => {
     const original = post('original');
     const repost = {
       ...post('boost-wrapper'),
-      boost: {
+      repost: {
         actor: post('booster').user,
         originalPost: original,
       },

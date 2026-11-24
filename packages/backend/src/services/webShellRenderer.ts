@@ -589,7 +589,7 @@ export function mapPostOg(
   const engagement = post.engagement;
   const interactionStatistic = [
     ...countOf('LikeAction', engagement?.likes),
-    ...countOf('ShareAction', engagement?.boosts),
+    ...countOf('ShareAction', engagement?.reposts),
   ];
   const replies = engagement?.replies;
 

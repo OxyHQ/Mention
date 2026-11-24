@@ -167,7 +167,7 @@ export function registerPendingDocuments(): () => void {
       if (post.documentsPending === true && post.id)
         requestPendingDocuments(String(post.id), versionOf(post));
       // A boost or quote carries its embedded post, whose cards are its own.
-      const nested = [post.quotedPost, post.originalPost, post.boost?.originalPost];
+      const nested = [post.quotedPost, post.originalPost, post.repost?.originalPost];
       for (const embedded of nested) {
         if (embedded?.documentsPending === true && embedded.id) {
           requestPendingDocuments(String(embedded.id), versionOf(embedded));

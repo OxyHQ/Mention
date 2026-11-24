@@ -140,7 +140,7 @@ const FEED_HEADER_VIEWABILITY_KEY = 'feed-header';
  * reply / boost shapes and only some members carry these fields.
  */
 type NestedPostSource = {
-  boost?: { originalPost?: { id?: string } | null } | null;
+  repost?: { originalPost?: { id?: string } | null } | null;
   quotedPost?: { id?: string } | null;
   originalPost?: { id?: string } | null;
 };
@@ -157,7 +157,7 @@ function collectRowVideoKeys(item: FeedItem, into: string[]): void {
   into.push(getItemKey(item));
   const nesting = item as NestedPostSource;
   const nestedId =
-    nesting.boost?.originalPost?.id ?? nesting.quotedPost?.id ?? nesting.originalPost?.id;
+    nesting.repost?.originalPost?.id ?? nesting.quotedPost?.id ?? nesting.originalPost?.id;
   if (nestedId) into.push(String(nestedId));
 }
 

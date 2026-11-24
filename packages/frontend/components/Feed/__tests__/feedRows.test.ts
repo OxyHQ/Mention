@@ -277,7 +277,7 @@ describe('buildFeedRows — a boosted reply under its parent', () => {
     const reposter = { id: 'nate' };
     const repost = {
       ...post('boost-1', 'nate'),
-      boost: { originalPost: post('reply-1', 'nate'), actor: reposter },
+      repost: { originalPost: post('reply-1', 'nate'), actor: reposter },
     } as unknown as HydratedPost;
     const pair = {
       ...threadSlice(['parent-1', 'boost-1']),
@@ -372,7 +372,7 @@ describe('feedRowType', () => {
     const repost = {
       ...post('boost'),
       originalPost: original,
-      boost: {
+      repost: {
         actor: post('booster').user,
         originalPost: original,
       },
@@ -444,7 +444,7 @@ describe('one post, one row', () => {
   function repostOf(repostId: string, originalId: string, actorId = 'author-1'): HydratedPost {
     return {
       ...post(repostId, actorId),
-      boost: { actor: { id: actorId }, originalPost: post(originalId) },
+      repost: { actor: { id: actorId }, originalPost: post(originalId) },
     } as unknown as HydratedPost;
   }
   function repostSlice(repostId: string, originalId: string, actorId?: string): FeedPostSlice {

@@ -267,7 +267,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
     isCollaborator: false,
     isLiked: false,
     isDownvoted: false,
-    isBoosted: false,
+    isReposted: false,
     isSaved: false,
   };
 
@@ -297,7 +297,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   const isOwner = viewerState.isOwner ?? false;
   const isLiked = viewerState.isLiked ?? false;
   const isDownvoted = viewerState.isDownvoted ?? false;
-  const isReposted = viewerState.isBoosted ?? false;
+  const isReposted = viewerState.isReposted ?? false;
   const isSaved = viewerState.isSaved ?? false;
 
   const articleContent = attachmentsBundle.article ?? null;
@@ -328,7 +328,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
 
   const nestedPost = useMemo(() => {
     if (!viewPost) return null;
-    if (viewPost.boost?.originalPost) return viewPost.boost.originalPost;
+    if (viewPost.repost?.originalPost) return viewPost.repost.originalPost;
     if (viewPost.quotedPost) return viewPost.quotedPost;
     if (viewPost.originalPost) return viewPost.originalPost;
     return null;
@@ -338,7 +338,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // backend marks `boost.unavailable` with a null `originalPost`. A boost has an
   // empty body, so we render a muted "no longer available" placeholder in the
   // embedded-original slot instead of a blank card.
-  const repostUnavailable = Boolean(viewPost?.boost?.unavailable);
+  const repostUnavailable = Boolean(viewPost?.repost?.unavailable);
   const quoteUnavailable = Boolean(viewPost?.quotedPostUnavailable) && !nestedPost;
 
   const hasSourceLinkCard = extractUrls(content.text ?? '')
@@ -720,7 +720,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   const actionsEngagement = useMemo(
     () => ({
       replies: engagementSummary?.replies ?? 0,
-      boosts: engagementSummary?.boosts ?? 0,
+      boosts: engagementSummary?.reposts ?? 0,
       likes: engagementSummary?.likes ?? 0,
       downvotes: engagementSummary?.downvotes ?? 0,
       saves: engagementSummary?.saves ?? 0,
@@ -732,7 +732,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
     }),
     [
       engagementSummary?.replies,
-      engagementSummary?.boosts,
+      engagementSummary?.reposts,
       engagementSummary?.likes,
       engagementSummary?.downvotes,
       engagementSummary?.saves,
@@ -807,7 +807,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // a channel account included — so the chip always links to the author's own
   // lane tab.
   const laneSlot =
-    viewPost.lane && !viewPost.boost && !isCollab ? (
+    viewPost.lane && !viewPost.repost && !isCollab ? (
       <PostLaneChip
         lane={viewPost.lane}
         authorHandle={authorHandle || ''}
@@ -1192,7 +1192,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
             date={metadata.createdAt}
             isEdited={metadata.isEdited}
             isPrivateMention={isPrivateMention(viewPost)}
-            showBoost={Boolean(viewPost.boost) && !isNested}
+            showBoost={Boolean(viewPost.repost) && !isNested}
             showReply={false}
             laneSlot={laneSlot}
             contextTop={contextRows.length > 0 ? contextRows : undefined}
@@ -1327,7 +1327,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
                 <PostDetailStats
                   timestampLabel={fullTimestamp}
                   likes={engagementSummary?.likes}
-                  boosts={engagementSummary?.boosts}
+                  boosts={engagementSummary?.reposts}
                   quotes={metadata.quotesDisabled ? null : engagementSummary?.quotes}
                   saves={engagementSummary?.saves}
                   replyPermission={reportableReplyPermission(viewPost)}
@@ -1444,14 +1444,14 @@ const MemoPostItem = React.memo(PostItemContent, (prevProps, nextProps) => {
     prev?.quotedPost === next?.quotedPost &&
     prev?.quotedPostUnavailable === next?.quotedPostUnavailable &&
     prev?.originalPost === next?.originalPost &&
-    prev?.boost === next?.boost &&
+    prev?.repost === next?.repost &&
     prev?.viewerState?.isLiked === next?.viewerState?.isLiked &&
     prev?.viewerState?.isDownvoted === next?.viewerState?.isDownvoted &&
-    prev?.viewerState?.isBoosted === next?.viewerState?.isBoosted &&
+    prev?.viewerState?.isReposted === next?.viewerState?.isReposted &&
     prev?.viewerState?.isSaved === next?.viewerState?.isSaved &&
     prev?.engagement?.likes === next?.engagement?.likes &&
     prev?.engagement?.downvotes === next?.engagement?.downvotes &&
-    prev?.engagement?.boosts === next?.engagement?.boosts &&
+    prev?.engagement?.reposts === next?.engagement?.reposts &&
     prev?.engagement?.replies === next?.engagement?.replies &&
     prev?.metadata?.updatedAt === next?.metadata?.updatedAt &&
     // A lane move is not an edit — the server writes no `updatedAt` for it,

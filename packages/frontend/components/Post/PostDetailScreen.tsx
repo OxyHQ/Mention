@@ -83,7 +83,7 @@ function usePrefetchReplies(postId: string) {
   useEffect(() => {
     if (!postId || !viewerReady || !sortLoaded) return;
     // A boost's replies are its original's; a cached boost names it.
-    const reposted = usePostsStore.getState().getPostFromDb(postId)?.boost?.originalPost?.id;
+    const reposted = usePostsStore.getState().getPostFromDb(postId)?.repost?.originalPost?.id;
     const target = reposted ? String(reposted) : postId;
     prefetchFeed(queryClient, {
       type: 'replies' as FeedType,
@@ -173,8 +173,8 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   // with the original embedded as a nested sub-card (the same way the feed row
   // renders a boost). A boost has no replies of its own; replies attach to the
   // original, so both reply targets below resolve to the original's id.
-  const repostOriginalId = post?.boost?.originalPost?.id
-    ? String(post.boost.originalPost.id)
+  const repostOriginalId = post?.repost?.originalPost?.id
+    ? String(post.repost.originalPost.id)
     : undefined;
 
   // Target that drives the REPLIES FEED query: the focused post itself (the

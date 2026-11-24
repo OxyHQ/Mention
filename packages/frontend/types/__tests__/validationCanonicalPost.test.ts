@@ -33,7 +33,7 @@ function canonicalPost(): HydratedPost {
     engagement: {
       likes: 1,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
     },
     viewerState: {
@@ -41,7 +41,7 @@ function canonicalPost(): HydratedPost {
       isCollaborator: false,
       isLiked: true,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: true,
     },
     permissions: {

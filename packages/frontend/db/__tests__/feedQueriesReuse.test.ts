@@ -21,7 +21,7 @@ function makePost(id: string): FeedItem {
     engagement: {
       likes: 0,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
       saves: 0,
       views: 0,
@@ -32,7 +32,7 @@ function makePost(id: string): FeedItem {
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: false,
     },
     permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },

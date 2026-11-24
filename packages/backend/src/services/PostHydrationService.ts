@@ -3614,6 +3614,8 @@ export class PostHydrationService {
       viewerRole: viewerEntry?.role,
       isLiked: viewerContext.likedPosts.has(postId),
       isDownvoted: viewerContext.downvotedPosts.has(postId),
+      isReposted: viewerContext.boostedPosts.has(postId),
+      // Deprecated duplicate for clients shipped before the rename.
       isBoosted: viewerContext.boostedPosts.has(postId),
       isSaved: viewerContext.savedPosts.has(postId),
     };
@@ -3729,6 +3731,8 @@ export class PostHydrationService {
     return {
       likes: authorPrivacy.hideLikeCounts ? null : likesCount,
       downvotes: authorPrivacy.hideLikeCounts ? null : downvotesCount,
+      reposts: authorPrivacy.hideShareCounts ? null : repostsCount,
+      // Deprecated duplicate for clients shipped before the rename.
       boosts: authorPrivacy.hideShareCounts ? null : repostsCount,
       replies: authorPrivacy.hideReplyCounts ? null : repliesCount,
       saves: authorPrivacy.hideSaveCounts ? null : savesCount,
@@ -3789,6 +3793,8 @@ export class PostHydrationService {
       originalPost,
       quotedPost,
       ...((quoteOf || post.type === 'quote') && !quotedPost ? { quotedPostUnavailable: true } : {}),
+      repost: repostContext,
+      // Deprecated duplicate for clients shipped before the rename.
       boost: repostContext,
       context,
     };

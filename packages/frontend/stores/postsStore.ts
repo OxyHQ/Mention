@@ -73,8 +73,8 @@ const isValidId = (id: string): boolean => id !== '' && id !== 'undefined' && id
  * can never overwrite an already-hydrated cached boost.
  */
 const isRenderableRepost = (item: FeedItem): boolean => {
-  if (!item.boost) return true;
-  return Boolean(item.boost.originalPost?.id);
+  if (!item.repost) return true;
+  return Boolean(item.repost.originalPost?.id);
 };
 
 /**
@@ -114,7 +114,7 @@ const getRelatedPosts = (item: FeedItem): FeedItem[] => {
     }
   };
 
-  add(item.boost?.originalPost);
+  add(item.repost?.originalPost);
   add(item.quotedPost);
   add(item.originalPost);
   return [...relatedById.values()];
@@ -1056,7 +1056,7 @@ export const usePostsStore = create<PostsStoreState>()(
           ...toFeedItem(rawPost),
           engagement: {
             replies: 0,
-            boosts: 0,
+            reposts: 0,
             likes: 0,
             downvotes: 0,
             saves: 0,
@@ -1127,7 +1127,7 @@ export const usePostsStore = create<PostsStoreState>()(
           ...toFeedItem(post),
           engagement: {
             replies: 0,
-            boosts: 0,
+            reposts: 0,
             likes: 0,
             downvotes: 0,
             saves: 0,
@@ -1252,7 +1252,7 @@ export const usePostsStore = create<PostsStoreState>()(
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            engagement: { ...prev.engagement, boosts: (prev.engagement.boosts || 0) + 1 },
+            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 },
           }));
         }
 
@@ -1285,8 +1285,8 @@ export const usePostsStore = create<PostsStoreState>()(
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            viewerState: { ...prev.viewerState, isBoosted: true },
-            engagement: { ...prev.engagement, boosts: (prev.engagement.boosts ?? 0) + 1 },
+            viewerState: { ...prev.viewerState, isReposted: true },
+            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts ?? 0) + 1 },
           }));
         }
 
@@ -1323,10 +1323,10 @@ export const usePostsStore = create<PostsStoreState>()(
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            viewerState: { ...prev.viewerState, isBoosted: false },
+            viewerState: { ...prev.viewerState, isReposted: false },
             engagement: {
               ...prev.engagement,
-              boosts: Math.max(0, (prev.engagement.boosts ?? 0) - 1),
+              reposts: Math.max(0, (prev.engagement.reposts ?? 0) - 1),
             },
           }));
         }

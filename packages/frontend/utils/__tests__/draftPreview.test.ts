@@ -131,7 +131,7 @@ describe('draftToPreviewPost — what it will not pretend', () => {
 
   it('claims no engagement, because the post does not exist yet', () => {
     const { post } = build();
-    expect(post.engagement).toEqual({ likes: 0, downvotes: 0, boosts: 0, replies: 0 });
+    expect(post.engagement).toEqual({ likes: 0, downvotes: 0, reposts: 0, replies: 0 });
     expect(post.viewerState.isLiked).toBe(false);
     expect(post.viewerState.isOwner).toBe(true);
   });

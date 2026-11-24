@@ -83,8 +83,8 @@ export interface PostFeedRow {
 
 /** The reposter of a pure boost row whose original is present, else undefined. */
 function repostActorOf(post: FeedItem | undefined): PostUser | undefined {
-  const repost = (post as { boost?: { originalPost?: unknown; actor?: PostUser } } | undefined)
-    ?.boost;
+  const repost = (post as { repost?: { originalPost?: unknown; actor?: PostUser } } | undefined)
+    ?.repost;
   return repost?.originalPost ? repost.actor : undefined;
 }
 
@@ -197,7 +197,7 @@ export function ensureUniqueFeedRows(rows: FeedRow[]): FeedRow[] {
  * `renderPostRow`), every other row renders itself.
  */
 export function displayedPostId(item: FeedItem): string {
-  const original = (item as { boost?: { originalPost?: { id?: string } | null } }).boost
+  const original = (item as { repost?: { originalPost?: { id?: string } | null } }).repost
     ?.originalPost;
   return original?.id ? String(original.id) : getItemKey(item);
 }
@@ -438,7 +438,7 @@ export function feedRowType(row: FeedRow): string {
   if (row.isThreadParent) return 'threadParent';
   if (row.isThreadChild) return 'threadChild';
   const item = row.item;
-  if (item.boost) return 'boost';
+  if (item.repost) return 'boost';
   if (item.quotedPost) return 'quote';
   if (item.parentPostId) return 'reply';
   return 'post';
@@ -533,8 +533,8 @@ export function renderFeedRow(
   // posts carry `quotedPost` (not `boost`) and are untouched. If the boost's
   // original is missing (deleted), fall back to rendering the boost item as-is.
   const repostCtx = (
-    post as { boost?: { originalPost?: HydratedPostSummary | null; actor?: PostUser } }
-  ).boost;
+    post as { repost?: { originalPost?: HydratedPostSummary | null; actor?: PostUser } }
+  ).repost;
   const repostedOriginal = repostCtx?.originalPost;
   const renderedPost: FeedItem = repostedOriginal ?? post;
   const renderedPostId = renderedPost.id;
