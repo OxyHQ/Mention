@@ -66,7 +66,7 @@ import { followedAuthorsSql } from '../../../utils/postAuthorship';
 import {
   followedCommunitiesSql,
   excludeSeenSql,
-  notABoostSql,
+  notARepostSql,
   notCollapsedCrosspostSql,
 } from '../../../utils/feedQueryBuilder';
 import { engagementScoreSql } from '../engine/sources/discoverySources';
@@ -161,7 +161,7 @@ function buildBaseConditions(seenPostIds: string[], since: Date, asOf?: number):
     notCollapsedCrosspostSql(),
     gte(posts.createdAt, since),
     eq(posts.isReply, false),
-    notABoostSql(),
+    notARepostSql(),
   ];
   if (asOf !== undefined) conditions.push(lte(posts.createdAt, new Date(asOf)));
   const seen = excludeSeenSql(seenPostIds);

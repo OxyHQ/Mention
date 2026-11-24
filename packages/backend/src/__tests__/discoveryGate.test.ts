@@ -287,10 +287,10 @@ describe('nativeEngagementOrMatch predicate', () => {
     expect(passesNativeEngagementOrMatch(fedOnly, EMPTY_CTX, NATIVE_CFG)).toBe(false);
 
     // 5 boosts, 0 federated → 5 native → passes.
-    const nativeBoosts = post({
+    const nativeReposts = post({
       stats: { likesCount: 0, commentsCount: 0, boostsCount: 5, federatedBoostsCount: 0 },
     });
-    expect(passesNativeEngagementOrMatch(nativeBoosts, EMPTY_CTX, NATIVE_CFG)).toBe(true);
+    expect(passesNativeEngagementOrMatch(nativeReposts, EMPTY_CTX, NATIVE_CFG)).toBe(true);
   });
 
   it('passes a zero-engagement post that MATCHES a strong preferred topic', () => {

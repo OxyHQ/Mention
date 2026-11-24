@@ -501,7 +501,7 @@ export const getUserActivity = async (req: AuthRequest, res: Response) => {
             eq(posts.oxyUserId, userId),
             eq(posts.visibility, PostVisibility.PUBLIC),
             eq(posts.status, 'published'),
-            ne(posts.type, PostType.BOOST),
+            ne(posts.type, PostType.REPOST),
             gte(posts.createdAt, startDate),
           ),
         )
@@ -766,7 +766,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
     const totalInteractions = statistics.overview.totalInteractions;
     const totalLikes = statistics.interactions.likes;
     const totalReplies = statistics.interactions.replies;
-    const totalBoosts = statistics.interactions.boosts;
+    const totalReposts = statistics.interactions.boosts;
     const totalShares = statistics.interactions.shares;
     const totalPosts = statistics.overview.totalPosts;
 
@@ -774,7 +774,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
     const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
     const likeRate = totalViews > 0 ? (totalLikes / totalViews) * 100 : 0;
     const replyRate = totalViews > 0 ? (totalReplies / totalViews) * 100 : 0;
-    const boostRate = totalViews > 0 ? (totalBoosts / totalViews) * 100 : 0;
+    const repostRate = totalViews > 0 ? (totalReposts / totalViews) * 100 : 0;
     const shareRate = totalViews > 0 ? (totalShares / totalViews) * 100 : 0;
 
     // Calculate average per post
@@ -789,7 +789,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
         engagementRate: parseFloat(engagementRate.toFixed(2)),
         likeRate: parseFloat(likeRate.toFixed(2)),
         replyRate: parseFloat(replyRate.toFixed(2)),
-        boostRate: parseFloat(boostRate.toFixed(2)),
+        boostRate: parseFloat(repostRate.toFixed(2)),
         shareRate: parseFloat(shareRate.toFixed(2)),
       },
       averages: {
@@ -802,7 +802,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
         interactions: totalInteractions,
         likes: totalLikes,
         replies: totalReplies,
-        boosts: totalBoosts,
+        boosts: totalReposts,
         shares: totalShares,
       },
     });
@@ -920,10 +920,18 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       const totalViews = postList.reduce((sum, p) => sum + p.views, 0);
       const likes = postList.reduce((sum, p) => sum + p.likes, 0);
       const replies = postList.reduce((sum, p) => sum + p.replies, 0);
-      const boosts = postList.reduce((sum, p) => sum + p.boosts, 0);
-      const totalInteractions = likes + replies + boosts;
+      const reposts = postList.reduce((sum, p) => sum + p.boosts, 0);
+      const totalInteractions = likes + replies + reposts;
       const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
-      return { totalPosts, totalViews, totalInteractions, engagementRate, likes, replies, boosts };
+      return {
+        totalPosts,
+        totalViews,
+        totalInteractions,
+        engagementRate,
+        likes,
+        replies,
+        boosts: reposts,
+      };
     };
 
     const current = computeStats(currentWeekPosts);

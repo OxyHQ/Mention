@@ -54,7 +54,7 @@ import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import { mutualsSource } from '../mtn/feed/engine/sources/userSources';
 import {
-  boostsFromFollowsSource,
+  repostsFromFollowsSource,
   friendsEngagedSource,
   friendsOfFriendsSource,
   hashtagFollowsSource,
@@ -199,7 +199,7 @@ describe('the friendsEngaged source', () => {
     const original = await create({ createdAt: at(-1_000) });
     await create({
       oxyUserId: FRIEND_A,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original.id,
       content: { variants: [] },
       createdAt: at(-500),
@@ -275,7 +275,7 @@ describe('the quotes source', () => {
     });
     await create({ type: PostType.QUOTE, quoteOf: other.id });
     // A boost is not a quote — it has no body of its own.
-    await create({ type: PostType.BOOST, boostOf: subject.id, content: { variants: [] } });
+    await create({ type: PostType.REPOST, boostOf: subject.id, content: { variants: [] } });
 
     expect(idsOf(await quotesSource.gather({}, { postId: subject.id }, 30))).toEqual([quote.id]);
   });
@@ -365,17 +365,17 @@ describe('the repliesFromFollows source', () => {
 describe('the boostsFromFollows source', () => {
   it("selects only the follows' boost posts", async () => {
     const original = await create({ oxyUserId: STRANGER, createdAt: at(-5_000) });
-    const boost = await create({
+    const repost = await create({
       oxyUserId: FRIEND_A,
       createdAt: at(0),
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original.id,
       content: { variants: [] },
     });
     await create({ oxyUserId: FRIEND_A });
     await create({
       oxyUserId: STRANGER,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original.id,
       content: { variants: [] },
     });
@@ -385,7 +385,7 @@ describe('the boostsFromFollows source', () => {
       rankingAsOf: HORIZON,
       followingIds: [FRIEND_A],
     };
-    expect(idsOf(await boostsFromFollowsSource.gather(ctx, {}, 30))).toEqual([boost.id]);
+    expect(idsOf(await repostsFromFollowsSource.gather(ctx, {}, 30))).toEqual([repost.id]);
   });
 });
 

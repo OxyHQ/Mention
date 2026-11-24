@@ -239,15 +239,15 @@ describe('channel deletion cascade covers the real Postgres schema', () => {
     ).toBe('database');
     expect(quoteStep?.why).toMatch(/SET NULL/);
 
-    const boostStep = CHANNEL_CASCADE.find(
+    const repostStep = CHANNEL_CASCADE.find(
       (step) => step.table === 'posts' && step.column === 'boostOf',
     );
     expect(
-      boostStep?.action,
+      repostStep?.action,
       'A boost has an intentionally empty body and renders entirely from its original, so a surviving one ' +
         'is a placeholder card with nothing behind it. `posts.boost_of` is a SELF ON DELETE CASCADE.',
     ).toBe('database');
-    expect(boostStep?.why).toMatch(/CASCADE/);
+    expect(repostStep?.why).toMatch(/CASCADE/);
   });
 
   it('never reattributes a channel post to the person who wrote it', () => {

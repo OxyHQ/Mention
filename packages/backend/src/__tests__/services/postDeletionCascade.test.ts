@@ -138,7 +138,7 @@ import { logger } from '../../utils/logger';
 const scope = postScope('post-deletion-cascade');
 const AUTHOR = scope.user('author');
 const STRANGER = scope.user('stranger');
-const BOOSTER = scope.user('booster');
+const REPOSTER = scope.user('booster');
 const CHANNEL = scope.user('channel');
 const WRITER = scope.user('writer');
 const ACTOR = scope.user('actor');
@@ -453,32 +453,32 @@ describe('the subtree the transaction owns', () => {
     // post whatever this module does — but its polymorphic references have
     // nothing left to find them by unless the closure was captured FIRST.
     const post = await seedPost(scope, { oxyUserId: AUTHOR });
-    const boost = await seedPost(scope, {
-      oxyUserId: BOOSTER,
-      type: PostType.BOOST,
+    const repost = await seedPost(scope, {
+      oxyUserId: REPOSTER,
+      type: PostType.REPOST,
       boostOf: post.id,
     });
-    const onBoost = await notifyAbout(boost.id);
+    const onRepost = await notifyAbout(repost.id);
 
     await runDelete(post.id, AUTHOR);
 
-    expect(await readPostRow(boost.id)).toBeUndefined();
-    expect(await notificationExists(onBoost)).toBe(false);
+    expect(await readPostRow(repost.id)).toBeUndefined();
+    expect(await notificationExists(onRepost)).toBe(false);
   });
 
   it('follows the boost graph transitively', async () => {
     // A boost of a boost cascades from the boost, so the same argument applies
     // one level down and the capture has to be transitive.
     const post = await seedPost(scope, { oxyUserId: AUTHOR });
-    const boost = await seedPost(scope, {
-      oxyUserId: BOOSTER,
-      type: PostType.BOOST,
+    const repost = await seedPost(scope, {
+      oxyUserId: REPOSTER,
+      type: PostType.REPOST,
       boostOf: post.id,
     });
     const nested = await seedPost(scope, {
       oxyUserId: STRANGER,
-      type: PostType.BOOST,
-      boostOf: boost.id,
+      type: PostType.REPOST,
+      boostOf: repost.id,
     });
     const onNested = await notifyAbout(nested.id);
 

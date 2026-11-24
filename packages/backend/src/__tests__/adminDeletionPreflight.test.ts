@@ -485,7 +485,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
       await seed({
         oxyUserId: OTHER,
         [link]: target,
-        ...(link === 'boostOf' ? { type: PostType.BOOST, content: {} } : {}),
+        ...(link === 'boostOf' ? { type: PostType.REPOST, content: {} } : {}),
       });
 
       await expect(assertPostsSafeToDelete('preflight-test', [{ id: target }])).rejects.toThrow(
@@ -660,10 +660,10 @@ describe('assertPostsSafeToDelete — against real rows', () => {
       }),
     ).resolves.toBeUndefined();
 
-    const boosted = await seed();
-    await seed({ oxyUserId: OTHER, boostOf: boosted });
+    const reposted = await seed();
+    await seed({ oxyUserId: OTHER, boostOf: reposted });
     await expect(
-      assertPostsSafeToDelete('preflight-test', [{ id: boosted }], {
+      assertPostsSafeToDelete('preflight-test', [{ id: reposted }], {
         allowDanglingReplyReferences: true,
         removedByCascade: ['likes.post_id', 'bookmarks.post_id'],
       }),

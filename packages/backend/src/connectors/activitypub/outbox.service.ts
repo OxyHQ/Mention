@@ -40,7 +40,7 @@ import {
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
-import { createFederatedBoost } from '../shared/federatedBoost';
+import { createFederatedRepost } from '../shared/federatedBoost';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { applyDetectedPrimaryTag } from '../../services/postVariants';
 import { assertSafePublicUrl } from '@oxy.so/core/server';
@@ -116,7 +116,7 @@ const OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS = 20 * 1000; // 20 seconds
  * Each import may fetch the boosted Note from a remote instance, so this is
  * parallelized in small batches rather than run strictly sequentially.
  */
-const OUTBOX_BOOST_IMPORT_CONCURRENCY = 4;
+const OUTBOX_REPOST_IMPORT_CONCURRENCY = 4;
 
 /**
  * Bounded concurrency for the existing-post @mention SELF-HEAL writes. Each heal is
@@ -926,7 +926,7 @@ export class OutboxSyncService {
         if (held.has(uri)) continue;
         const announcedUri = bridgeStatusUri(entry.author, entry.id);
         const original = mirrorPostTime(announcedUri);
-        const boostedAt = ceiling && original && ceiling > original ? ceiling : original;
+        const repostedAt = ceiling && original && ceiling > original ? ceiling : original;
         candidates.push({
           kind: 'announce',
           activityId: uri,
@@ -935,7 +935,7 @@ export class OutboxSyncService {
             id: uri,
             type: 'Announce',
             actor: actor.uri,
-            ...(boostedAt ? { published: boostedAt.toISOString() } : {}),
+            ...(repostedAt ? { published: repostedAt.toISOString() } : {}),
             url: `https://x.com/${entry.author}/status/${entry.id}`,
           },
         });
@@ -1038,28 +1038,28 @@ export class OutboxSyncService {
     // Boosts (Announce) by the outbox owner: each ensures the boosted note exists
     // locally, then stores a boost post like a native repost. Bounded concurrency,
     // since each may fetch the boosted note from a remote instance.
-    const booster = authors.get(actor.uri);
-    const boosterOxyUserId =
-      actor.oxyUserId ?? (booster && booster !== 'pending' ? booster.oxyUserId : null);
-    let importedBoostCount = 0;
-    for (let i = 0; i < newAnnounces.length; i += OUTBOX_BOOST_IMPORT_CONCURRENCY) {
-      const batch = newAnnounces.slice(i, i + OUTBOX_BOOST_IMPORT_CONCURRENCY);
+    const reposter = authors.get(actor.uri);
+    const reposterOxyUserId =
+      actor.oxyUserId ?? (reposter && reposter !== 'pending' ? reposter.oxyUserId : null);
+    let importedRepostCount = 0;
+    for (let i = 0; i < newAnnounces.length; i += OUTBOX_REPOST_IMPORT_CONCURRENCY) {
+      const batch = newAnnounces.slice(i, i + OUTBOX_REPOST_IMPORT_CONCURRENCY);
       const results = await Promise.all(
         batch.map((announce) =>
           this.importAnnounce(
             announce.activity,
             announce.announcedUri,
-            boosterOxyUserId,
+            reposterOxyUserId,
             importReason,
           ),
         ),
       );
-      importedBoostCount += results.filter(Boolean).length;
+      importedRepostCount += results.filter(Boolean).length;
     }
 
     logger.debug('[FedSync] completed outbox sync', {
       insertedCount: built.length,
-      importedBoostCount,
+      importedBoostCount: importedRepostCount,
       existingCount: existing.size,
       healedMentionCount,
       pendingAuthorCount,
@@ -1067,7 +1067,7 @@ export class OutboxSyncService {
     return {
       newPostCount: built.length,
       existingCount: existing.size,
-      importedBoostCount,
+      importedBoostCount: importedRepostCount,
       healedMentionCount,
       pendingAuthorCount,
     };
@@ -1567,18 +1567,18 @@ export class OutboxSyncService {
    * native repost shape (`type: 'boost'`, `boostOf: <local note _id>`,
    * `oxyUserId: <booster>`). Idempotent: deduped by the Announce activity id via
    * the `federation.activityId` unique sparse index. Storing the boost and
-   * moving the counters is the network-neutral {@link createFederatedBoost}.
+   * moving the counters is the network-neutral {@link createFederatedRepost}.
    *
    * @param announceActivity the full Announce activity (for `published`).
    * @param announcedUri the URI of the announced (boosted) object.
-   * @param boosterOxyUserId the booster's resolved Oxy user id. Must be non-null:
+   * @param reposterOxyUserId the booster's resolved Oxy user id. Must be non-null:
    *   federated boosts are only ever recorded against a real, listable user.
    * @returns true when a new boost Post was created.
    */
   async importAnnounce(
     announceActivity: Record<string, unknown>,
     announcedUri: string,
-    boosterOxyUserId: string | null,
+    reposterOxyUserId: string | null,
     importReason: FederationImportReason = 'inbox_announce',
   ): Promise<boolean> {
     const announceId = typeof announceActivity.id === 'string' ? announceActivity.id : undefined;
@@ -1586,20 +1586,20 @@ export class OutboxSyncService {
 
     // A boost must be backed by a real, listable user. Without a resolved
     // booster we neither create a record nor move the counter.
-    if (!boosterOxyUserId) {
+    if (!reposterOxyUserId) {
       logger.info('[FedSync] skipped boost from unresolved actor');
       return false;
     }
 
     // Dedup the boost itself by the Announce activity id, or by the repost it
     // names upstream (a Bridgy Fed Announce of a repost already read natively).
-    const [existingBoost] = await getDb()
+    const [existingRepost] = await getDb()
       .select({ id: posts.id })
       .from(posts)
       .where(postMatchesFederatedObjectSql(announceId))
       .limit(1);
-    if (existingBoost) {
-      await observeFederationImportReason([existingBoost.id], importReason);
+    if (existingRepost) {
+      await observeFederationImportReason([existingRepost.id], importReason);
       return false;
     }
 
@@ -1619,15 +1619,15 @@ export class OutboxSyncService {
     // bridge's Announce, under an id the bridge mints at crawl time, and from the
     // account's timeline under ours (`./xTimeline`), so the ids never meet; the
     // boost the account already holds of this original is the same retweet.
-    const boosterUri = extractActorUri(announceActivity.actor);
-    if (boosterUri && mirrorTransportOf(getRemoteHost(boosterUri) ?? '')?.keyed) {
+    const reposterUri = extractActorUri(announceActivity.actor);
+    if (reposterUri && mirrorTransportOf(getRemoteHost(reposterUri) ?? '')?.keyed) {
       const [held] = await getDb()
         .select({ id: posts.id })
         .from(posts)
         .where(
           and(
             eq(posts.boostOf, originalPostId),
-            eq(posts.oxyUserId, boosterOxyUserId),
+            eq(posts.oxyUserId, reposterOxyUserId),
             eq(posts.type, 'boost'),
           ),
         )
@@ -1641,12 +1641,12 @@ export class OutboxSyncService {
     // The boost Post's date reflects when the BOOST happened (the Announce's
     // `published`), while the embedded original keeps its own date via its own
     // post — matching the native repost shape. Validated/falls back to now.
-    return createFederatedBoost({
+    return createFederatedRepost({
       activityId: announceId,
       originalPostId,
-      boosterOxyUserId,
+      boosterOxyUserId: reposterOxyUserId,
       importReason,
-      actorUri: boosterUri,
+      actorUri: reposterUri,
       url: apNoteUrl(announceActivity.url) ?? announceId,
       createdAt: parseApPublished(announceActivity.published),
     });

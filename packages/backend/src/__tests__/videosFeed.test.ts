@@ -168,8 +168,8 @@ describe('the videos content predicate', () => {
     const restricted = await create({ status: 'restricted' });
 
     const original = await create();
-    const boost = await create({
-      type: PostType.BOOST,
+    const repost = await create({
+      type: PostType.REPOST,
       boostOf: original,
       content: { variants: [], media: [PORTRAIT_VIDEO] },
     });
@@ -183,7 +183,7 @@ describe('the videos content predicate', () => {
       followersOnly,
       draft,
       restricted,
-      boost,
+      repost,
     ];
     expect((await admitted()).filter((id) => excluded.includes(id))).toEqual([]);
   });

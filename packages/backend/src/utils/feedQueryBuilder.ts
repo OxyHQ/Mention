@@ -73,7 +73,7 @@ export function followedCommunitiesSql(communityIds: readonly string[], since?: 
   ) as SQL;
 }
 
-export function notABoostSql(): SQL {
+export function notARepostSql(): SQL {
   return isNull(posts.boostOf);
 }
 
@@ -256,7 +256,7 @@ export class FeedQueryBuilder {
           .from(postMedia)
           .where(and(...mediaConditions)),
       ),
-      notABoostSql(),
+      notARepostSql(),
     ];
 
     const seen = excludeSeenSql(seenPostIds);
@@ -338,7 +338,7 @@ export class FeedQueryBuilder {
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
       notCollapsedCrosspostSql(),
-      notABoostSql(),
+      notARepostSql(),
     ) as SQL;
   }
 
@@ -380,7 +380,7 @@ export class FeedQueryBuilder {
             .where(and(eq(postAttachments.postId, posts.id), eq(postAttachments.type, 'media'))),
         ),
       ) as SQL,
-      notABoostSql(),
+      notARepostSql(),
     ];
 
     const seen = excludeSeenSql(seenPostIds);

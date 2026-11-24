@@ -55,7 +55,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose, 
         const result =
           type === 'likes'
             ? await feedService.getPostLikes(postId, cursor)
-            : await feedService.getPostBoosts(postId, cursor);
+            : await feedService.getPostReposts(postId, cursor);
 
         if (generation !== requestGeneration.current) return;
         if (cursor) {

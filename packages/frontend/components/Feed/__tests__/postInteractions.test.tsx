@@ -27,8 +27,8 @@ const mockStore = {
   downvotePost: jest.fn(async () => undefined),
   savePost: jest.fn(async () => undefined),
   unsavePost: jest.fn(async () => undefined),
-  boostPost: jest.fn(async () => undefined),
-  unboostPost: jest.fn(async () => undefined),
+  repostPost: jest.fn(async () => undefined),
+  unrepostPost: jest.fn(async () => undefined),
   removePostEverywhere: jest.fn(),
   reinsertPost: jest.fn(),
   updatePostEverywhere: jest.fn(),
@@ -171,8 +171,8 @@ describe('engagement commands', () => {
   });
 
   it('falls back to the row copy when the store has never seen the post', async () => {
-    await interactions().toggleBoost(post('web-only', { isBoosted: true }));
-    expect(mockStore.unboostPost).toHaveBeenCalledWith({ postId: 'web-only' });
+    await interactions().toggleRepost(post('web-only', { isBoosted: true }));
+    expect(mockStore.unrepostPost).toHaveBeenCalledWith({ postId: 'web-only' });
   });
 
   it('ignores a second tap while the first write is in flight', async () => {
@@ -227,10 +227,10 @@ describe('session gate', () => {
           {probe}
         </PostInteractionsProvider>
       ));
-      for (const action of ['toggleLike', 'toggleDownvote', 'toggleSave', 'toggleBoost'] as const)
+      for (const action of ['toggleLike', 'toggleDownvote', 'toggleSave', 'toggleRepost'] as const)
         await commands[action](post('anonymous'));
       expect(commands.requireSession()).toBe(false);
-      for (const action of ['likePost', 'downvotePost', 'savePost', 'boostPost'] as const)
+      for (const action of ['likePost', 'downvotePost', 'savePost', 'repostPost'] as const)
         expect(mockStore[action]).not.toHaveBeenCalled();
       expect(toast).toHaveBeenCalledTimes(5);
       expect(toast).toHaveBeenLastCalledWith(

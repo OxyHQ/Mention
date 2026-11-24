@@ -365,7 +365,7 @@ export function usePersonProfileView({
   );
 
   const handlePostsPress = useCallback(() => selectTab('posts'), [selectTab]);
-  const handleBoostsPress = useCallback(() => selectTab('boosts'), [selectTab]);
+  const handleRepostsPress = useCallback(() => selectTab('boosts'), [selectTab]);
   const handleRepliesPress = useCallback(() => selectTab('replies'), [selectTab]);
 
   const handleShare = useCallback(async () => {
@@ -604,7 +604,7 @@ export function usePersonProfileView({
           followingHref={`/@${handle}/following`}
           followersHref={`/@${handle}/followers`}
           onPostsPress={handlePostsPress}
-          onBoostsPress={handleBoostsPress}
+          onRepostsPress={handleRepostsPress}
           onRepliesPress={handleRepliesPress}
           onLayout={chrome.setContentHeight}
         />
@@ -616,7 +616,7 @@ export function usePersonProfileView({
     followerCount,
     followingCount,
     handle,
-    handleBoostsPress,
+    handleRepostsPress,
     handlePostsPress,
     handleRepliesPress,
     identity,

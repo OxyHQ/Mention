@@ -246,7 +246,7 @@ describe('likes', () => {
 describe('post self-references', () => {
   it('deletes a boost with its original', async () => {
     const original = await createPost();
-    const [boost] = await db
+    const [repost] = await db
       .insert(posts)
       .values({ oxyUserId: 'booster', type: 'boost', boostOf: original })
       .returning({ id: posts.id });
@@ -254,7 +254,7 @@ describe('post self-references', () => {
     await db.delete(posts).where(eq(posts.id, original));
     createdPostIds.pop();
 
-    const rows = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, boost.id));
+    const rows = await db.select({ id: posts.id }).from(posts).where(eq(posts.id, repost.id));
     // A `type:'boost'` row has an intentionally EMPTY body; with the original
     // gone it can only ever render blank.
     expect(rows).toEqual([]);

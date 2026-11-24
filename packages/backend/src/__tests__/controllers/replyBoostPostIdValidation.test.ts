@@ -115,7 +115,7 @@ describe('createReply / createBoost reject a post id that is not one', () => {
   it.each(NON_STRING_IDS)('createBoost refuses %s', async (_label, originalPostId) => {
     const { res, captured } = buildResponse();
 
-    await feedController.createBoost(
+    await feedController.createRepost(
       { body: { originalPostId }, user: { id: scope.user('attacker') } } as never,
       res as never,
     );

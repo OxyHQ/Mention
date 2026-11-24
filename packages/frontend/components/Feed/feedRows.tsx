@@ -8,7 +8,7 @@ import type {
   HydratedPostSummary,
   PostUser,
   Reply,
-  FeedBoost as Boost,
+  FeedRepost as Boost,
   FeedInterstitialSlot,
   FeedPostSlice,
   FeedSliceReason,
@@ -82,10 +82,10 @@ export interface PostFeedRow {
 }
 
 /** The reposter of a pure boost row whose original is present, else undefined. */
-function boostActorOf(post: FeedItem | undefined): PostUser | undefined {
-  const boost = (post as { boost?: { originalPost?: unknown; actor?: PostUser } } | undefined)
+function repostActorOf(post: FeedItem | undefined): PostUser | undefined {
+  const repost = (post as { boost?: { originalPost?: unknown; actor?: PostUser } } | undefined)
     ?.boost;
-  return boost?.originalPost ? boost.actor : undefined;
+  return repost?.originalPost ? repost.actor : undefined;
 }
 
 // A recommendation card spliced between post slices. The row carries only the
@@ -273,7 +273,7 @@ export function buildFeedRows({
         slice.items.length > 1 && subject ? displayedPostId(subject.post as FeedItem) : undefined;
       const lastIndex = uniqueSliceItems.length - 1;
       const sliceReposter =
-        lastIndex > 0 ? boostActorOf(uniqueSliceItems[lastIndex]?.post as FeedItem) : undefined;
+        lastIndex > 0 ? repostActorOf(uniqueSliceItems[lastIndex]?.post as FeedItem) : undefined;
       for (let i = 0; i < uniqueSliceItems.length; i++) {
         const sliceItem = uniqueSliceItems[i];
         const post = sliceItem.post as FeedItem;
@@ -532,11 +532,11 @@ export function renderFeedRow(
   // boundary all target the ORIGINAL so engagement and tap-to-open hit it. Quote
   // posts carry `quotedPost` (not `boost`) and are untouched. If the boost's
   // original is missing (deleted), fall back to rendering the boost item as-is.
-  const boostCtx = (
+  const repostCtx = (
     post as { boost?: { originalPost?: HydratedPostSummary | null; actor?: PostUser } }
   ).boost;
-  const boostedOriginal = boostCtx?.originalPost;
-  const renderedPost: FeedItem = boostedOriginal ?? post;
+  const repostedOriginal = repostCtx?.originalPost;
+  const renderedPost: FeedItem = repostedOriginal ?? post;
   const renderedPostId = renderedPost.id;
 
   const content = (
@@ -550,7 +550,7 @@ export function renderFeedRow(
         replyBranch={Boolean(row.replyBranch && row.nestingDepth > 0)}
         style={row.replyBranch ? styles.branchPost : undefined}
         nestingDepth={row.nestingDepth}
-        repostedBy={row.headReposter ?? (boostedOriginal ? boostCtx?.actor : undefined)}
+        repostedBy={row.headReposter ?? (repostedOriginal ? repostCtx?.actor : undefined)}
         repostPlacement={
           row.headReposter ? 'headOnly' : row.repostShownAbove ? 'shownAbove' : undefined
         }

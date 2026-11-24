@@ -39,7 +39,7 @@ import { posts } from '../../../db/schema/posts';
 import { clearServiceScope, seedPost, serviceScope } from '../../helpers/serviceFixtures';
 
 const scope = serviceScope('x-timeline-sync');
-const BOOSTER = scope.user('booster');
+const REPOSTER = scope.user('booster');
 
 const handle = `xtl${Date.now() % 1_000_000}`;
 const unique = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -133,8 +133,8 @@ describe('X timeline sync', () => {
       federation: { activityId: bridgeStatusUri('someone', originalId) },
     });
     await seedPost(scope, {
-      oxyUserId: BOOSTER,
-      type: PostType.BOOST,
+      oxyUserId: REPOSTER,
+      type: PostType.REPOST,
       boostOf: original.id,
       content: { text: '' },
       federation: { activityId: repostActivityId(handle, originalId) },
@@ -147,14 +147,14 @@ describe('X timeline sync', () => {
         actor: bridgeActorUri(handle),
       },
       bridgeStatusUri('someone', originalId),
-      BOOSTER,
+      REPOSTER,
     );
 
     expect(created).toBe(false);
-    const boosts = await getDb()
+    const reposts = await getDb()
       .select({ id: posts.id })
       .from(posts)
-      .where(and(eq(posts.boostOf, original.id), eq(posts.oxyUserId, BOOSTER)));
-    expect(boosts).toHaveLength(1);
+      .where(and(eq(posts.boostOf, original.id), eq(posts.oxyUserId, REPOSTER)));
+    expect(reposts).toHaveLength(1);
   });
 });

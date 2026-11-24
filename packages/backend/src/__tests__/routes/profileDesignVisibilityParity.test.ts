@@ -284,7 +284,7 @@ describe('GET /profile/design/:userId post counters', () => {
     const root = await seedTargetPost();
     await seedTargetPost({ parentPostId: root.id, threadId: root.id });
     await seedTargetPost({ parentPostId: root.id, threadId: root.id });
-    await seedTargetPost({ type: PostType.BOOST, boostOf: root.id });
+    await seedTargetPost({ type: PostType.REPOST, boostOf: root.id });
     // Neither of these is public+published, so neither may be counted.
     await seedTargetPost({ visibility: PostVisibility.PRIVATE });
     await seedTargetPost({ status: 'draft' });

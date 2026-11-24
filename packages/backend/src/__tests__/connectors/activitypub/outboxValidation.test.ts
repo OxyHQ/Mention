@@ -460,7 +460,7 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     // by `federation.activity_id` and no remote fetch of the Note is needed. Its
     // published+public state is what lets the boost import at all, and it is now
     // the row's state rather than a stubbed answer.
-    const boosted = await seedPost(scope, {
+    const reposted = await seedPost(scope, {
       federation: { activityId: announcedUri, actorUri: `${scope.origin}/users/bob` },
     });
 
@@ -487,7 +487,7 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     expect(mocks.postCreatorCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         oxyUserId: OWNER_OXY_ID,
-        boostOf: boosted.id,
+        boostOf: reposted.id,
         // A boost mirrors native reposts: empty content body, hydrated via boostOf.
         content: { text: '' },
         federation: expect.objectContaining({ activityId: announceId }),
@@ -501,9 +501,9 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     // row, so the increment is the stored value and not the shape of an update
     // document — `boostsCount - federatedBoostsCount` is what isolates native
     // boosts, and only the stored pair can show it holding.
-    const after = await loadPostRecord(boosted.id);
-    expect(after?.stats.boostsCount).toBe(boosted.stats.boostsCount + 1);
-    expect(after?.stats.federatedBoostsCount).toBe(boosted.stats.federatedBoostsCount + 1);
+    const after = await loadPostRecord(reposted.id);
+    expect(after?.stats.boostsCount).toBe(reposted.stats.boostsCount + 1);
+    expect(after?.stats.federatedBoostsCount).toBe(reposted.stats.federatedBoostsCount + 1);
   });
 
   it('rejects an Announce whose activity id belongs to another actor', async () => {
@@ -513,7 +513,7 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     // hostile outbox claims a boost it never made — and the boost record would
     // carry OUR synced actor as its author, since `oxyUserId` comes from the
     // outbox owner, not from the id.
-    const boosted = await seedPost(scope, {
+    const reposted = await seedPost(scope, {
       federation: {
         activityId: `${scope.origin}/users/bob/statuses/888`,
         actorUri: `${scope.origin}/users/bob`,
@@ -543,9 +543,9 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
     // The boosted post's counters never moved either — a rejected Announce must
     // leave no trace at all, not merely skip the post insert.
-    const after = await loadPostRecord(boosted.id);
-    expect(after?.stats.boostsCount).toBe(boosted.stats.boostsCount);
-    expect(after?.stats.federatedBoostsCount).toBe(boosted.stats.federatedBoostsCount);
+    const after = await loadPostRecord(reposted.id);
+    expect(after?.stats.boostsCount).toBe(reposted.stats.boostsCount);
+    expect(after?.stats.federatedBoostsCount).toBe(reposted.stats.federatedBoostsCount);
   });
 });
 

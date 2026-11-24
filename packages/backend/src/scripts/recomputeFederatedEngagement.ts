@@ -49,7 +49,7 @@ interface RealCounts {
  */
 async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCounts>> {
   const db = getDb();
-  const [likeRows, boostRows, commentRows] = await Promise.all([
+  const [likeRows, repostRows, commentRows] = await Promise.all([
     // Likes: native like rows (upvotes) for this post.
     //
     // `PostEngagementCommandService` writes `likes` to Postgres, and this read
@@ -89,7 +89,7 @@ async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCou
   for (const row of likeRows) {
     if (row.id) entry(row.id).likesCount = row.count;
   }
-  for (const row of boostRows) {
+  for (const row of repostRows) {
     if (row.id) entry(row.id).boostsCount = row.count;
   }
   for (const row of commentRows) {

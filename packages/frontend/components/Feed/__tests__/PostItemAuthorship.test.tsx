@@ -201,7 +201,7 @@ const collaborator: HydratedAuthor = {
   status: 'accepted',
 };
 
-const boosterUser: PostUser = {
+const reposterUser: PostUser = {
   id: 'acct-mar',
   username: 'mar',
   kind: 'personal',
@@ -299,9 +299,9 @@ describe('PostItem boost wiring', () => {
   });
 
   it('hands over an outside booster too — the header decides what to do with them', () => {
-    render(<PostItem post={postWith([owner])} repostedBy={boosterUser} />);
-    expect(lastHeader().boostedBy?.id).toBe(boosterUser.id);
-    expect(lastHeader().authors?.map((author) => author.id)).not.toContain(boosterUser.id);
+    render(<PostItem post={postWith([owner])} repostedBy={reposterUser} />);
+    expect(lastHeader().boostedBy?.id).toBe(reposterUser.id);
+    expect(lastHeader().authors?.map((author) => author.id)).not.toContain(reposterUser.id);
   });
 
   it('leaves it unset when no boost surfaced the row', () => {

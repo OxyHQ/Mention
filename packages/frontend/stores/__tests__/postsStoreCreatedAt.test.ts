@@ -22,14 +22,14 @@ import { usePostsStore } from '../postsStore';
 
 const mockFeedService = {
   createPost: jest.fn(),
-  createBoost: jest.fn(),
+  createRepost: jest.fn(),
   getUserFeed: jest.fn(),
 };
 
 jest.mock('@/services/feedService', () => ({
   feedService: {
     createPost: (...args: unknown[]) => mockFeedService.createPost(...args),
-    createBoost: (...args: unknown[]) => mockFeedService.createBoost(...args),
+    createRepost: (...args: unknown[]) => mockFeedService.createRepost(...args),
     getUserFeed: (...args: unknown[]) => mockFeedService.getUserFeed(...args),
   },
 }));
@@ -53,9 +53,9 @@ jest.mock('@oxy.so/core/logger', () => ({
 // The production values from the QA session (`/feed/mtn`, author|…|posts).
 const AUTHOR_ID = '01a0d834-b80a-7cbd-b416-5502d33318c9';
 const ORIGINAL_ID = '01a0d838-d23c-7783-be0b-8171e73de842';
-const BOOST_ID = '01a0d83b-8f5a-76dc-9bbc-0153d9307833';
+const REPOST_ID = '01a0d83b-8f5a-76dc-9bbc-0153d9307833';
 const ORIGINAL_CREATED_AT = '2026-09-25T10:59:57.629Z';
-const BOOST_CREATED_AT = '2026-09-25T11:02:57.114Z';
+const REPOST_CREATED_AT = '2026-09-25T11:02:57.114Z';
 
 const author = {
   id: AUTHOR_ID,
@@ -114,9 +114,9 @@ function original(
   } as HydratedPostSummary;
 }
 
-function boost(view: typeof strangerView, embedded: HydratedPostSummary): HydratedPost {
+function repost(view: typeof strangerView, embedded: HydratedPostSummary): HydratedPost {
   return {
-    id: BOOST_ID,
+    id: REPOST_ID,
     content: { text: '' },
     attachments: {},
     documents: [],
@@ -134,8 +134,8 @@ function boost(view: typeof strangerView, embedded: HydratedPostSummary): Hydrat
     ...view,
     metadata: {
       visibility: PostVisibility.PUBLIC,
-      createdAt: BOOST_CREATED_AT,
-      updatedAt: BOOST_CREATED_AT,
+      createdAt: REPOST_CREATED_AT,
+      updatedAt: REPOST_CREATED_AT,
     },
     originalPost: embedded,
     quotedPost: null,
@@ -148,7 +148,7 @@ function expectDatesKept(step: string) {
   const store = usePostsStore.getState();
   for (const [id, createdAt] of [
     [ORIGINAL_ID, ORIGINAL_CREATED_AT],
-    [BOOST_ID, BOOST_CREATED_AT],
+    [REPOST_ID, REPOST_CREATED_AT],
   ] as const) {
     const cached = store.getPostFromDb(id);
     if (!cached) continue;
@@ -180,13 +180,13 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
     expectDatesKept('feed:updated original');
 
     // 3. Boost it: the optimistic write, then the server's answer.
-    mockFeedService.createBoost.mockResolvedValue({ success: true });
-    await store().boostPost({ postId: ORIGINAL_ID });
+    mockFeedService.createRepost.mockResolvedValue({ success: true });
+    await store().repostPost({ postId: ORIGINAL_ID });
     expectDatesKept('boost');
 
     // 4. The boost's own broadcast, embedding the original.
     store().addPostsToFeed(
-      [boost(strangerView, original(strangerView, { boosts: 1 })) as FeedItem],
+      [repost(strangerView, original(strangerView, { boosts: 1 })) as FeedItem],
       'following',
     );
     expectDatesKept('feed:updated boost');
@@ -205,17 +205,17 @@ describe('postsStore keeps a post’s createdAt (#1140 item 23)', () => {
       '2026-09-25T11:09:42.633Z',
     );
     mockFeedService.getUserFeed.mockResolvedValue({
-      items: [boost(strangerView, later), later],
+      items: [repost(strangerView, later), later],
       hasMore: false,
     });
     await store().fetchUserFeed(AUTHOR_ID, { type: 'posts' } as never);
     expectDatesKept('profile feed');
 
     // 7. The memory-mode feed caching the same page.
-    store().cachePosts([boost(strangerView, later), later]);
+    store().cachePosts([repost(strangerView, later), later]);
     expectDatesKept('cachePosts');
 
     expect(store().getPostFromDb(ORIGINAL_ID)?.metadata.createdAt).toBe(ORIGINAL_CREATED_AT);
-    expect(store().getPostFromDb(BOOST_ID)?.metadata.createdAt).toBe(BOOST_CREATED_AT);
+    expect(store().getPostFromDb(REPOST_ID)?.metadata.createdAt).toBe(REPOST_CREATED_AT);
   });
 });

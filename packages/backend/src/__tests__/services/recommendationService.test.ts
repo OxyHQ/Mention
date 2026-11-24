@@ -655,14 +655,14 @@ describe('RecommendationService content-affinity boosts', () => {
     expect(opts.boosts.length).toBeGreaterThan(0);
     // Every boosted id came from the candidate list, and the highest-affinity
     // author landed in the strongest tier.
-    const allBoosted = opts.boosts.flatMap((b: { userIds: string[] }) => b.userIds);
-    expect(new Set(allBoosted)).toEqual(new Set(['top', 'mid', 'low']));
+    const allReposted = opts.boosts.flatMap((b: { userIds: string[] }) => b.userIds);
+    expect(new Set(allReposted)).toEqual(new Set(['top', 'mid', 'low']));
     const strongest = [...opts.boosts].sort(
       (a: { weight: number }, b: { weight: number }) => b.weight - a.weight,
     )[0];
     expect(strongest.userIds).toContain('top');
-    for (const boost of opts.boosts) {
-      expect(boost.reason).toBe('content-affinity');
+    for (const repost of opts.boosts) {
+      expect(repost.reason).toBe('content-affinity');
     }
   });
 
@@ -717,28 +717,28 @@ describe('buildBoostsFromCandidates', () => {
   });
 
   it('collapses a single-weight candidate set into one top-tier boost', () => {
-    const boosts = buildBoostsFromCandidates([
+    const reposts = buildBoostsFromCandidates([
       { userId: 'a', weight: 4, reasons: [] },
       { userId: 'b', weight: 4, reasons: [] },
     ]);
-    expect(boosts).toHaveLength(1);
-    expect(new Set(boosts[0].userIds)).toEqual(new Set(['a', 'b']));
-    expect(boosts[0].weight).toBe(3);
+    expect(reposts).toHaveLength(1);
+    expect(new Set(reposts[0].userIds)).toEqual(new Set(['a', 'b']));
+    expect(reposts[0].weight).toBe(3);
   });
 
   it('splits candidates into descending weight tiers (strongest first)', () => {
-    const boosts = buildBoostsFromCandidates([
+    const reposts = buildBoostsFromCandidates([
       { userId: 'hi', weight: 30, reasons: [] },
       { userId: 'mid', weight: 15, reasons: [] },
       { userId: 'lo', weight: 1, reasons: [] },
     ]);
     // Strongest tier first, weights strictly descending, all ids present once.
-    expect(boosts[0].weight).toBeGreaterThanOrEqual(boosts[boosts.length - 1].weight);
-    expect(boosts[0].userIds).toContain('hi');
-    const allIds = boosts.flatMap((b) => b.userIds);
+    expect(reposts[0].weight).toBeGreaterThanOrEqual(reposts[reposts.length - 1].weight);
+    expect(reposts[0].userIds).toContain('hi');
+    const allIds = reposts.flatMap((b) => b.userIds);
     expect(new Set(allIds)).toEqual(new Set(['hi', 'mid', 'lo']));
     // Never emits a weight above the max tier.
-    for (const b of boosts) {
+    for (const b of reposts) {
       expect(b.weight).toBeLessThanOrEqual(3);
       expect(b.weight).toBeGreaterThanOrEqual(1);
     }

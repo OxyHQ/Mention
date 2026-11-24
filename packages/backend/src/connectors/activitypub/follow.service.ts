@@ -793,7 +793,7 @@ export class FollowService {
     // a `quoteOf`, no `boostOf`, so it correctly falls through to the Create path
     // below and federates as a normal Note.)
     if (post.boostOf) {
-      await this.federateBoost(
+      await this.federateRepost(
         { _id: post.id, boostOf: String(post.boostOf), createdAt: post.createdAt },
         senderOxyUserId,
         senderUsername,
@@ -1339,18 +1339,18 @@ export class FollowService {
    * reference the same id without persisting it.
    */
   buildAnnounceActivity(
-    boosterUsername: string,
-    boostId: string,
+    reposterUsername: string,
+    repostId: string,
     objectUri: string,
     originalAuthorActorUri: string | undefined,
     published: string | Date,
   ): Record<string, unknown> {
-    const actor = actorUrl(boosterUsername);
+    const actor = actorUrl(reposterUsername);
     const cc = [`${actor}/followers`];
     if (originalAuthorActorUri) cc.push(originalAuthorActorUri);
     return {
       '@context': AP_CONTEXT,
-      id: `${actor}/boosts/${boostId}`,
+      id: `${actor}/boosts/${repostId}`,
       type: 'Announce',
       actor,
       object: objectUri,
@@ -1366,15 +1366,15 @@ export class FollowService {
    * servers can retract the exact boost.
    */
   buildUndoAnnounceActivity(
-    boosterUsername: string,
-    boostId: string,
+    reposterUsername: string,
+    repostId: string,
     objectUri: string,
     originalAuthorActorUri: string | undefined,
   ): Record<string, unknown> {
-    const actor = actorUrl(boosterUsername);
+    const actor = actorUrl(reposterUsername);
     const cc = [`${actor}/followers`];
     if (originalAuthorActorUri) cc.push(originalAuthorActorUri);
-    const announceId = `${actor}/boosts/${boostId}`;
+    const announceId = `${actor}/boosts/${repostId}`;
     return {
       '@context': AP_CONTEXT,
       id: `${announceId}/undo`,
@@ -1403,37 +1403,37 @@ export class FollowService {
    * Gated identically to {@link federateNewPost}: local booster, sharing on.
    * Best-effort — a failure never surfaces to the caller.
    */
-  async federateBoost(
-    boost: LocalBoostEventPayload,
-    boosterOxyUserId: string,
-    boosterUsername: string,
+  async federateRepost(
+    repost: LocalBoostEventPayload,
+    reposterOxyUserId: string,
+    reposterUsername: string,
     options: { throwOnError?: boolean } = {},
   ): Promise<void> {
-    if (!FEDERATION_ENABLED || !(await isFediverseSharingEnabled(boosterOxyUserId))) {
+    if (!FEDERATION_ENABLED || !(await isFediverseSharingEnabled(reposterOxyUserId))) {
       if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
       return;
     }
-    const boostOf = boost.boostOf ? String(boost.boostOf) : undefined;
-    if (!boostOf) {
+    const repostOf = repost.boostOf ? String(repost.boostOf) : undefined;
+    if (!repostOf) {
       if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
       return;
     }
 
     try {
-      const target = await this.resolveFederationTarget(boostOf);
+      const target = await this.resolveFederationTarget(repostOf);
       if (!target) {
         logger.warn('[FedDeliver] cannot federate boost with unresolved original');
         if (options.throwOnError) throw new DeliveryAuthorizationDeniedError();
         return;
       }
       const activity = this.buildAnnounceActivity(
-        boosterUsername,
-        String(boost._id),
+        reposterUsername,
+        String(repost._id),
         target.objectUri,
         target.authorActorUri,
-        boost.createdAt,
+        repost.createdAt,
       );
-      await deliveryService.deliverToFollowers(activity, boosterOxyUserId, boosterUsername, {
+      await deliveryService.deliverToFollowers(activity, reposterOxyUserId, reposterUsername, {
         extraInboxes: target.authorInbox ? [target.authorInbox] : [],
       });
     } catch (err) {
@@ -1444,33 +1444,33 @@ export class FollowService {
 
   /**
    * Federate an unboost as an `Undo(Announce)`. Same addressing as
-   * {@link federateBoost}. The caller must invoke this with the boost's data
+   * {@link federateRepost}. The caller must invoke this with the boost's data
    * still available (before or right after deleting the local boost row); the
    * ORIGINAL post is untouched by an unboost, so target resolution still works.
    */
-  async federateUndoBoost(
-    boost: LocalBoostEventPayload,
-    boosterOxyUserId: string,
-    boosterUsername: string,
+  async federateUndoRepost(
+    repost: LocalBoostEventPayload,
+    reposterOxyUserId: string,
+    reposterUsername: string,
   ): Promise<void> {
     if (!FEDERATION_ENABLED) return;
-    if (!(await isFediverseSharingEnabled(boosterOxyUserId))) return;
-    const boostOf = boost.boostOf ? String(boost.boostOf) : undefined;
-    if (!boostOf) return;
+    if (!(await isFediverseSharingEnabled(reposterOxyUserId))) return;
+    const repostOf = repost.boostOf ? String(repost.boostOf) : undefined;
+    if (!repostOf) return;
 
     try {
-      const target = await this.resolveFederationTarget(boostOf);
+      const target = await this.resolveFederationTarget(repostOf);
       if (!target) {
         logger.warn('[FedDeliver] cannot federate unboost with unresolved original');
         return;
       }
       const activity = this.buildUndoAnnounceActivity(
-        boosterUsername,
-        String(boost._id),
+        reposterUsername,
+        String(repost._id),
         target.objectUri,
         target.authorActorUri,
       );
-      await deliveryService.deliverToFollowers(activity, boosterOxyUserId, boosterUsername, {
+      await deliveryService.deliverToFollowers(activity, reposterOxyUserId, reposterUsername, {
         extraInboxes: target.authorInbox ? [target.authorInbox] : [],
       });
     } catch (err) {

@@ -265,14 +265,14 @@ describe('languagePreference filter', () => {
 });
 
 describe('noBoosts filter', () => {
-  const noBoosts = filter('noBoosts');
+  const noReposts = filter('noBoosts');
 
   it('drops posts with boostOf set and keeps every original', () => {
-    expect(noBoosts.keep(post({ boostOf: 'abc' }), {}, {})).toBe(false);
+    expect(noReposts.keep(post({ boostOf: 'abc' }), {}, {})).toBe(false);
     // `boostOf` is a NULLABLE column now, not an absent key: null is what a
     // non-boost actually carries, and it must not read as "boosted".
-    expect(noBoosts.keep(post({ boostOf: null }), {}, {})).toBe(true);
-    expect(noBoosts.keep(post(), {}, {})).toBe(true);
+    expect(noReposts.keep(post({ boostOf: null }), {}, {})).toBe(true);
+    expect(noReposts.keep(post(), {}, {})).toBe(true);
   });
 });
 

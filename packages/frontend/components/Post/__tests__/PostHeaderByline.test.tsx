@@ -138,7 +138,7 @@ const collaborator = (id: string, username: string, displayName: string): Hydrat
   status: 'accepted',
 });
 
-const booster: PostUser = {
+const reposter: PostUser = {
   id: 'acct-mar',
   username: 'mar',
   kind: 'personal',
@@ -361,14 +361,14 @@ describe('PostHeader ordinary repost', () => {
   const soloUser: HeaderProps['user'] = { displayName: 'Ana Torres', handle: 'ana' };
 
   it('pairs the author with the booster — author first, booster second', () => {
-    const renderer = render({ user: soloUser, authors: [soloAuthor], boostedBy: booster });
+    const renderer = render({ user: soloUser, authors: [soloAuthor], boostedBy: reposter });
     // Opposite end from the channel case above: the booster authored nothing, so
     // the second avatar is attribution rather than a byline entry.
-    expect(clusterIds(renderer)).toEqual([soloAuthor.id, booster.id]);
+    expect(clusterIds(renderer)).toEqual([soloAuthor.id, reposter.id]);
   });
 
   it('names ONLY the author — the pair is not a collaborative byline', () => {
-    const renderer = render({ user: soloUser, authors: [soloAuthor], boostedBy: booster });
+    const renderer = render({ user: soloUser, authors: [soloAuthor], boostedBy: reposter });
     expect(bylineText(renderer)).toBeNull();
     expect(soloNames(renderer)).toEqual(['Ana Torres']);
   });
@@ -392,13 +392,13 @@ describe('PostHeader ordinary repost', () => {
       collaborator('acct-ana', 'ana', 'Ana Torres'),
       collaborator('acct-luis', 'luis', 'Luis Prado'),
     ];
-    expect(clusterIds(render({ authors, boostedBy: booster }))).toEqual(['acct-ana', 'acct-luis']);
+    expect(clusterIds(render({ authors, boostedBy: reposter }))).toEqual(['acct-ana', 'acct-luis']);
   });
 
   it('keeps the solo avatar when there are no authors to pair the booster with', () => {
     // An orphan federated post carries no `authors[]`, so there is no
     // author-shaped record to put beside the booster.
-    const renderer = render({ user: soloUser, boostedBy: booster });
+    const renderer = render({ user: soloUser, boostedBy: reposter });
     expect(clusterIds(renderer)).toBeNull();
     expect(hasSoloAvatar(renderer)).toBe(true);
   });
@@ -428,7 +428,7 @@ describe('PostHeader cluster press target', () => {
     const renderer = render({
       user: { displayName: 'Ana Torres', handle: 'ana' },
       authors: [collaborator('acct-ana', 'ana', 'Ana Torres')],
-      boostedBy: booster,
+      boostedBy: reposter,
       onPressCollaborators,
       onPressAvatar,
     });

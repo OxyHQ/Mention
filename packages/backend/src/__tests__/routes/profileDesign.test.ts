@@ -108,7 +108,7 @@ describe('profile design public counts', () => {
   it('counts only published public posts, boosts, and replies of THIS author', async () => {
     const root = await seed();
     await seed({ parentPostId: root });
-    await seed({ type: PostType.BOOST, boostOf: root, content: {} });
+    await seed({ type: PostType.REPOST, boostOf: root, content: {} });
     // Excluded: not public, not published, or not this author.
     await seed({ visibility: PostVisibility.PRIVATE });
     await seed({ status: 'draft' });

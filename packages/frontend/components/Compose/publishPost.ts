@@ -7,13 +7,13 @@ import type { CreatePostRequest } from '@mention/shared-types';
 export async function publishPostWithRepost({
   request,
   createPost,
-  boostPost,
+  repostPost,
   shouldRepost,
   isCurrentOwner,
 }: {
   request: CreatePostRequest;
   createPost: (request: CreatePostRequest) => Promise<{ id: string }>;
-  boostPost: (request: { postId: string }) => Promise<void>;
+  repostPost: (request: { postId: string }) => Promise<void>;
   shouldRepost: boolean;
   isCurrentOwner: () => boolean;
 }): Promise<
@@ -23,7 +23,7 @@ export async function publishPostWithRepost({
   const { id: postId } = await createPost(request);
   if (shouldRepost && isCurrentOwner()) {
     try {
-      await boostPost({ postId });
+      await repostPost({ postId });
       return { postId, repost: 'confirmed' };
     } catch (error) {
       return { postId, repost: 'unconfirmed', error };

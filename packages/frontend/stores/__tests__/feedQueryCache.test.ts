@@ -123,10 +123,10 @@ describe('removeFeedPost', () => {
 
   it('removes embedded quotes and originals from pages and slices', () => {
     const quote = { ...post('quote'), quotedPost: post('revoked') };
-    const boost = { ...post('boost'), originalPost: post('revoked') };
+    const repost = { ...post('boost'), originalPost: post('revoked') };
     const before = data({
       ...feedPage([]),
-      items: [quote, boost, post('safe')],
+      items: [quote, repost, post('safe')],
       slices: [
         {
           ...slice('quote-slice'),

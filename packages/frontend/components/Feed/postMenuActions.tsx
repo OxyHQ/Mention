@@ -286,8 +286,8 @@ export function buildPostMenuActions(
     //
     // A reply or a boost cannot carry a lane at all, so the action is absent
     // rather than present-and-failing.
-    const isReplyOrBoost = Boolean(viewPost?.parentPostId) || Boolean(viewPost?.boost);
-    if (isOwner && !isReplyOrBoost) {
+    const isReplyOrRepost = Boolean(viewPost?.parentPostId) || Boolean(viewPost?.boost);
+    if (isOwner && !isReplyOrRepost) {
       saveActionGroup.push({
         icon: <RiNodeTree width={20} height={20} fill={theme.colors.textSecondary} />,
         label: t('lanes.postActions.moveToLane'),

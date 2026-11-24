@@ -1117,14 +1117,14 @@ describe('purgeBlockedDomainContent — failing closed', () => {
     // reachable, not hypothetical. With a single hop of expansion the outer boost
     // survives with nothing behind it, the graph probe then refuses the batch,
     // and the actor stalls on every future run.
-    const boostOfBoost = 'purge-test-boost-of-boost';
+    const repostOfRepost = 'purge-test-boost-of-boost';
     await getDb()
       .insert(pgPosts)
-      .values({ id: boostOfBoost, oxyUserId: 'oxy-local', type: 'boost', boostOf: P.localBoost });
+      .values({ id: repostOfRepost, oxyUserId: 'oxy-local', type: 'boost', boostOf: P.localBoost });
 
     const report = await run();
 
-    expect(await postExists(boostOfBoost)).toBe(false);
+    expect(await postExists(repostOfRepost)).toBe(false);
     expect(await postExists(P.localBoost)).toBe(false);
     expect(await postExists(P.blockedPost)).toBe(false);
     expect(report.issues.preflightBlocked).toBe(0);

@@ -41,7 +41,7 @@ export type CustomFeedSource = {
   };
 
 /** Whether the definition excludes boosts (so boost hydration depth is unneeded). */
-function excludesBoosts(def: StoredFeedDefinition): boolean {
+function excludesReposts(def: StoredFeedDefinition): boolean {
   return (def.filters ?? []).some(
     (f) => f.enabled && (f.module === 'noBoosts' || f.module === 'originalOnly'),
   );
@@ -63,7 +63,7 @@ export function buildCustomFeedDefinition(feed: CustomFeedSource): FeedDefinitio
   const execution: FeedExecution = {
     threadGrouping: true,
     replyContext: false,
-    hydrateMaxDepth: excludesBoosts(def) ? 0 : 1,
+    hydrateMaxDepth: excludesReposts(def) ? 0 : 1,
     ...(def.mode === 'ranked' ? { maxPool: MtnConfig.feed.candidateSources.maxPool } : {}),
   };
 

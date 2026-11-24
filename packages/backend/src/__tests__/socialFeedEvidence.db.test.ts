@@ -79,16 +79,16 @@ describe('public social recommendation evidence', () => {
     const target = await post();
     await like(target.id);
     await like(target.id, privateFriend);
-    await post({ oxyUserId: friend, type: PostType.BOOST, boostOf: target.id });
+    await post({ oxyUserId: friend, type: PostType.REPOST, boostOf: target.id });
     await post({
       oxyUserId: privateFriend,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: target.id,
       visibility: 'private',
     });
     await post({
       oxyUserId: scope.user('draft'),
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: target.id,
       status: 'draft',
     });
@@ -172,11 +172,11 @@ describe('public social recommendation evidence', () => {
   it('attributes public boosts separately, prefers public likes, and keeps content when actor lookup fails', async () => {
     await optIn();
     const target = await post();
-    await post({ oxyUserId: friend, type: PostType.BOOST, boostOf: target.id });
+    await post({ oxyUserId: friend, type: PostType.REPOST, boostOf: target.id });
     expect(await eligibleSocialPostIds([target.id], ctx)).toEqual(new Set([target.id]));
-    const boosted = slice(target.id);
-    await attachSocialFeedContext([boosted], ctx);
-    expect(boosted.socialContext).toMatchObject({
+    const reposted = slice(target.id);
+    await attachSocialFeedContext([reposted], ctx);
+    expect(reposted.socialContext).toMatchObject({
       type: 'boostedBy',
       postId: target.id,
       total: 1,

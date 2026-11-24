@@ -425,15 +425,15 @@ describe('what the candidate window excludes', () => {
     });
     const parent = await create();
     const reply = await create({ parentPostId: parent });
-    const boost = await create({
-      type: PostType.BOOST,
+    const repost = await create({
+      type: PostType.REPOST,
       boostOf: parent,
       content: { variants: [] },
     });
 
     const ids = await idsOfMine(context({ currentUserId: VIEWER, followingIds: [followed] }));
     expect(ids.sort()).toEqual([keep, parent].sort());
-    expect([own, fromFollowed, reply, boost].filter((id) => ids.includes(id))).toEqual([]);
+    expect([own, fromFollowed, reply, repost].filter((id) => ids.includes(id))).toEqual([]);
   });
 
   it('KEEPS an author-less post, which `NOT IN` on a nullable column silently drops', async () => {

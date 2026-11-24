@@ -3,7 +3,7 @@ export { default as PostItem } from './PostItem';
 export type {
   HydratedPost,
   Reply,
-  FeedBoost as Boost,
+  FeedRepost as Boost,
   FeedType,
   PostAction,
 } from '@mention/shared-types';

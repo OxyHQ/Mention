@@ -276,7 +276,7 @@ describe('ChannelDeletionService — what happens to real rows', () => {
 
   it("destroys the channel posts and a stranger's boost of one, and keeps their quote", async () => {
     const channelPost = await seedChannelPost();
-    const boost = await seedPost(scope, {
+    const repost = await seedPost(scope, {
       oxyUserId: STRANGER,
       type: 'boost',
       boostOf: channelPost.id,
@@ -287,7 +287,7 @@ describe('ChannelDeletionService — what happens to real rows', () => {
 
     expect(await postExists(channelPost.id), 'the channel post is destroyed').toBe(false);
     expect(
-      await postExists(boost.id),
+      await postExists(repost.id),
       'a boost renders entirely from its original, so a surviving one is a blank card',
     ).toBe(false);
 

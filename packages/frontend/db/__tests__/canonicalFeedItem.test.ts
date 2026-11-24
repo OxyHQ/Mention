@@ -63,8 +63,8 @@ describe('canonical post cache contract', () => {
   it('retains a boosted quote and its commentary through the disk round trip', () => {
     const original = makePost('original');
     const quote = makePost('quote', { quotedPost: original });
-    const boost = makePost('boost', { boost: { actor: original.user, originalPost: quote } });
-    const restored = rowToFeedItem(postToRow(toFeedItem(boost)));
+    const repost = makePost('boost', { boost: { actor: original.user, originalPost: quote } });
+    const restored = rowToFeedItem(postToRow(toFeedItem(repost)));
     const restoredQuote: HydratedPost | null | undefined = restored?.boost?.originalPost;
     expect(restoredQuote?.content.text).toBe('post quote');
     expect(restoredQuote?.quotedPost?.content.text).toBe('post original');
@@ -142,7 +142,7 @@ describe('canonical post cache contract', () => {
 
   it('keeps a boost and its original on the same canonical contract', () => {
     const original: HydratedPostSummary = makePost('original');
-    const boost = makePost('boost', {
+    const repost = makePost('boost', {
       content: { text: '' },
       boost: {
         actor: makePost('actor').user,
@@ -150,7 +150,7 @@ describe('canonical post cache contract', () => {
       },
     });
 
-    const item = toFeedItem(boost);
+    const item = toFeedItem(repost);
     const embedded = item.boost?.originalPost;
 
     expect(embedded?.id).toBe('original');

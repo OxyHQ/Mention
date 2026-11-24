@@ -35,7 +35,7 @@ import {
   CHRONO_DESC,
   countQuotesOf,
   deletePostRecord,
-  findBoostedPostIds,
+  findRepostedPostIds,
   findPostRecords,
   insertPostRecord,
   insertPostRecords,
@@ -609,20 +609,20 @@ describe('reads the rest of the port depends on', () => {
       oxyUserId: COLLABORATOR,
       authorship: [{ oxyUserId: COLLABORATOR, role: 'owner', status: 'accepted' }],
       boostOf: original.id,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       content: { variants: [] },
     });
 
-    const boosted = await findBoostedPostIds(COLLABORATOR, [original.id, untouched.id]);
-    expect([...boosted]).toEqual([original.id]);
-    expect(await findBoostedPostIds(AUTHOR, [original.id])).toEqual(new Set());
+    const reposted = await findRepostedPostIds(COLLABORATOR, [original.id, untouched.id]);
+    expect([...reposted]).toEqual([original.id]);
+    expect(await findRepostedPostIds(AUTHOR, [original.id])).toEqual(new Set());
   });
 
   it('cascades a boost away with its original and spares a quote', async () => {
     const original = await create();
-    const boost = await create({
+    const repost = await create({
       boostOf: original.id,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       content: { variants: [] },
     });
     const quote = await create({ quoteOf: original.id, type: PostType.QUOTE });
@@ -631,7 +631,7 @@ describe('reads the rest of the port depends on', () => {
 
     // A boost has an intentionally empty body — with the original gone it can
     // never render anything, so it goes too.
-    expect(await loadPostRecord(boost.id)).toBeNull();
+    expect(await loadPostRecord(repost.id)).toBeNull();
     // A quote has a body of its own and must outlive its subject.
     const survivingQuote = await loadPostRecord(quote.id);
     expect(survivingQuote?.quoteOf).toBeNull();

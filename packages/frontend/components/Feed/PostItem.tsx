@@ -297,7 +297,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   const isOwner = viewerState.isOwner ?? false;
   const isLiked = viewerState.isLiked ?? false;
   const isDownvoted = viewerState.isDownvoted ?? false;
-  const isBoosted = viewerState.isBoosted ?? false;
+  const isReposted = viewerState.isBoosted ?? false;
   const isSaved = viewerState.isSaved ?? false;
 
   const articleContent = attachmentsBundle.article ?? null;
@@ -338,7 +338,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // backend marks `boost.unavailable` with a null `originalPost`. A boost has an
   // empty body, so we render a muted "no longer available" placeholder in the
   // embedded-original slot instead of a blank card.
-  const boostUnavailable = Boolean(viewPost?.boost?.unavailable);
+  const repostUnavailable = Boolean(viewPost?.boost?.unavailable);
   const quoteUnavailable = Boolean(viewPost?.quotedPostUnavailable) && !nestedPost;
 
   const hasSourceLinkCard = extractUrls(content.text ?? '')
@@ -495,15 +495,15 @@ const PostItemContent: React.FC<PostItemProps> = ({
   const handleSave = useCallback(() => {
     if (viewPost) void interactions.toggleSave(viewPost, feedDescriptor);
   }, [interactions, viewPost, feedDescriptor]);
-  const handleBoost = useCallback(() => {
+  const handleRepost = useCallback(() => {
     if (!viewPost || !viewPostId) return;
     if (!interactions.requireSession()) return;
     showRepostMenu({
-      isBoosted,
+      isBoosted: isReposted,
       quotesDisabled: Boolean(metadata.quotesDisabled),
       t,
       onRepost: () => {
-        void interactions.toggleBoost(viewPost, feedDescriptor);
+        void interactions.toggleRepost(viewPost, feedDescriptor);
       },
       onQuote: () => {
         if (interactions.requireSession())
@@ -515,7 +515,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
     viewPost,
     viewPostId,
     feedDescriptor,
-    isBoosted,
+    isReposted,
     metadata.quotesDisabled,
     t,
     router,
@@ -611,7 +611,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // Bound once each so the memoized <PostDetailStats> is not handed a fresh
   // closure on every render of the focused post.
   const openLikesList = useCallback(() => openEngagementList('likes'), [openEngagementList]);
-  const openBoostsList = useCallback(() => openEngagementList('boosts'), [openEngagementList]);
+  const openRepostsList = useCallback(() => openEngagementList('boosts'), [openEngagementList]);
   // Quotes are posts, not actors, so they get a feed screen instead of the
   // engagement list the other two counters open.
   const openQuotesList = useCallback(() => {
@@ -760,7 +760,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   const hasBelowHeaderBlocks = Boolean(
     (hasValidLocation && location) ||
       shouldRenderMediaBlock ||
-      boostUnavailable ||
+      repostUnavailable ||
       quoteUnavailable ||
       !isNested,
   );
@@ -882,8 +882,8 @@ const PostItemContent: React.FC<PostItemProps> = ({
         );
       })
       .filter(Boolean);
-    const isBoostSocialContext = socialContext.type === 'boostedBy';
-    const label = isBoostSocialContext
+    const isRepostSocialContext = socialContext.type === 'boostedBy';
+    const label = isRepostSocialContext
       ? `${t('post.repostedBy', { defaultValue: 'Reposted by' })} ${names.join(', ')}`
       : names.length < 2 || socialContext.total === 1
         ? t('post.likedBy.one', { name1: names[0], defaultValue: 'Liked by {{name1}}' })
@@ -909,12 +909,12 @@ const PostItemContent: React.FC<PostItemProps> = ({
           accessibilityLabel={label}
           onPress={(event) => {
             event.stopPropagation();
-            if (isBoostSocialContext) openBoostsList();
+            if (isRepostSocialContext) openRepostsList();
             else openLikesList();
           }}
         >
           <View className="-ml-4 mr-[3px]">
-            {isBoostSocialContext ? (
+            {isRepostSocialContext ? (
               <RiRepeat2Line
                 width={13}
                 height={13}
@@ -1239,7 +1239,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
                 </View>
               )}
 
-              {(boostUnavailable || quoteUnavailable) && !isContentGated && (
+              {(repostUnavailable || quoteUnavailable) && !isContentGated && (
                 <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
                   <View className="border-border rounded-2xl border px-3 py-3">
                     <Text className="text-muted-foreground text-[14px]">
@@ -1300,13 +1300,13 @@ const PostItemContent: React.FC<PostItemProps> = ({
                     engagement={actionsEngagement}
                     isLiked={isLiked}
                     isDownvoted={isDownvoted}
-                    isBoosted={isBoosted}
+                    isBoosted={isReposted}
                     isSaved={isSaved}
                     // Derived from the POST — the server's own verdict —
                     // so an affordance that would be refused is absent
                     // rather than present and refused.
                     onReply={postAcceptsReplies(viewPost) ? handleReply : undefined}
-                    onBoost={handleBoost}
+                    onRepost={handleRepost}
                     onLike={handleLike}
                     onDownvote={handleDownvote}
                     onSave={handleSave}
@@ -1334,7 +1334,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
                   quotesDisabled={metadata.quotesDisabled}
                   postId={viewPostId}
                   onLikesPress={openLikesList}
-                  onBoostsPress={openBoostsList}
+                  onBoostsPress={openRepostsList}
                   onQuotesPress={openQuotesList}
                 />
               )}

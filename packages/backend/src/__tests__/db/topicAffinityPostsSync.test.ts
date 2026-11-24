@@ -110,8 +110,8 @@ describe('topic_affinity_posts', () => {
   });
 
   it('never holds a boost, a post without an author, or a post older than the window', async () => {
-    const boost = await create({
-      type: PostType.BOOST,
+    const repost = await create({
+      type: PostType.REPOST,
       postClassification: { topics: ['botany'] },
     });
     const orphan = await create({ postClassification: { topics: ['botany'] } });
@@ -125,7 +125,7 @@ describe('topic_affinity_posts', () => {
     const rows = await db
       .select({ postId: topicAffinityPosts.postId })
       .from(topicAffinityPosts)
-      .where(inArray(topicAffinityPosts.postId, [boost.id, orphan.id, old.id]));
+      .where(inArray(topicAffinityPosts.postId, [repost.id, orphan.id, old.id]));
     expect(rows).toEqual([]);
   });
 

@@ -795,7 +795,7 @@ async function purgeMediaForUrls(
  * that legitimately lags (posts predating the field) never blocks the
  * `boostsCount` decrement beside it.
  */
-async function repairBoostCounters(
+async function repairRepostCounters(
   removed: readonly PostRow[],
   removedIds: ReadonlySet<string>,
   options: PurgeOptions,
@@ -902,7 +902,7 @@ async function measureSurvivingDependents(
  * Bounded by construction: each round only queries ids discovered in the previous
  * one and already-seen ids are never re-queried, so it terminates even on a cycle.
  */
-async function collectBoostClosure(seeds: readonly PostRow[]): Promise<PostRow[]> {
+async function collectRepostClosure(seeds: readonly PostRow[]): Promise<PostRow[]> {
   const seen = new Set(seeds.map((post) => post.id));
   const found: PostRow[] = [];
   let frontier = seeds.map((post) => post.id);
@@ -911,14 +911,14 @@ async function collectBoostClosure(seeds: readonly PostRow[]): Promise<PostRow[]
     const next = await getDb()
       .select(POST_CASCADE_COLUMNS)
       .from(posts)
-      .where(and(eq(posts.type, PostType.BOOST), inArray(posts.boostOf, frontier)));
+      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.boostOf, frontier)));
 
     frontier = [];
-    for (const boost of next) {
-      if (seen.has(boost.id)) continue;
-      seen.add(boost.id);
-      found.push(boost);
-      frontier.push(boost.id);
+    for (const repost of next) {
+      if (seen.has(repost.id)) continue;
+      seen.add(repost.id);
+      found.push(repost);
+      frontier.push(repost.id);
     }
   }
 
@@ -947,8 +947,8 @@ async function purgePostBatch(
 ): Promise<number> {
   if (seeds.length === 0) return 0;
 
-  const boosts = await collectBoostClosure(seeds);
-  const removed = [...seeds, ...boosts];
+  const reposts = await collectRepostClosure(seeds);
+  const removed = [...seeds, ...reposts];
   const removedIdStrings = removed.map((post) => post.id);
   const removedIdSet = new Set(removedIdStrings);
 
@@ -980,7 +980,7 @@ async function purgePostBatch(
   }
 
   await measureSurvivingDependents(removedIdStrings, removedIdSet, report, domain);
-  await repairBoostCounters(removed, removedIdSet, options, report, domain);
+  await repairRepostCounters(removed, removedIdSet, options, report, domain);
 
   /**
    * Engagement and side tables FIRST, so nothing can be left pointing at a post
@@ -1176,13 +1176,13 @@ async function purgePostBatch(
   // is `ON DELETE CASCADE`, so the database would take them either way — but
   // then the run could not report how many, which is the same reason the side
   // tables above are deleted explicitly.)
-  const boostIds = boosts.map((post) => post.id);
-  if (boostIds.length > 0) {
+  const repostIds = reposts.map((post) => post.id);
+  if (repostIds.length > 0) {
     record(
       report,
       domain,
       'boostsByOthers',
-      await countOrDelete(posts, posts.id, inArray(posts.id, boostIds), options.dryRun),
+      await countOrDelete(posts, posts.id, inArray(posts.id, repostIds), options.dryRun),
     );
   }
   const removedSeeds = await countOrDelete(

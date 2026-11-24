@@ -35,7 +35,7 @@ export function formatPost(post: PostView): string {
 
   // A count the author hides arrives as `null`; it prints as 0, as before.
   const likesCount = post.engagement?.likes ?? 0;
-  const boostsCount = post.engagement?.boosts ?? 0;
+  const repostsCount = post.engagement?.boosts ?? 0;
   const commentsCount = post.engagement?.replies ?? 0;
 
   // The author's Oxy id, because the tools that act on a person (get-profile,
@@ -46,7 +46,7 @@ export function formatPost(post: PostView): string {
     `[${id}] ${authorLine}`,
     ...(visibility && visibility !== 'public' ? [`Visibility: ${visibility} (not public)`] : []),
     text,
-    `♥ ${likesCount}  ↻ ${boostsCount}  💬 ${commentsCount}`,
+    `♥ ${likesCount}  ↻ ${repostsCount}  💬 ${commentsCount}`,
   ];
 
   const hashtags = post.metadata?.hashtags;

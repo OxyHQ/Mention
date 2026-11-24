@@ -227,7 +227,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   bylineSlot,
   authors,
   date,
-  showBoost,
+  showBoost: showRepost,
   showReply,
   paddingHorizontal = HPAD,
   children,
@@ -253,7 +253,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   menu,
   linkAuthors,
   disableHoverCard,
-  boostedBy,
+  boostedBy: repostedBy,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -332,16 +332,16 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   // author-shaped record to pair the booster with; it keeps its solo avatar.
   const clusterMembers = useMemo<PostUser[]>(() => {
     const members: PostUser[] = [...(authors ?? [])];
-    if (!boostedBy) return members;
-    const boosterIndex = members.findIndex((member) => member.id === boostedBy.id);
-    if (boosterIndex > 0) {
-      const [lead] = members.splice(boosterIndex, 1);
+    if (!repostedBy) return members;
+    const reposterIndex = members.findIndex((member) => member.id === repostedBy.id);
+    if (reposterIndex > 0) {
+      const [lead] = members.splice(reposterIndex, 1);
       members.unshift(lead);
-    } else if (boosterIndex < 0 && members.length === 1) {
-      members.push(boostedBy);
+    } else if (reposterIndex < 0 && members.length === 1) {
+      members.push(repostedBy);
     }
     return members;
-  }, [authors, boostedBy]);
+  }, [authors, repostedBy]);
 
   // Each member's `avatar` (a bare Oxy file id OR an absolute federated URL) is
   // routed straight into Bloom's `Avatar` source via the group's `uri` — the
@@ -631,7 +631,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             </TouchableOpacity>
           ) : null}
           {laneSlot}
-          {showBoost && (
+          {showRepost && (
             <View accessibilityRole="image" accessibilityLabel="Reposted">
               <RiRepeat2Line
                 width={INDICATOR_ICON_SIZE}

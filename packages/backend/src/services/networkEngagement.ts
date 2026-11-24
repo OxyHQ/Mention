@@ -56,7 +56,7 @@ export async function getNetworkEngagerCounts(
     // No id-shape filter: `posts.id` is `text` holding ObjectId hex AND uuid v7,
     // so an ObjectId-only filter would discard every uuid-keyed post before the
     // query even ran. Ids are bound parameters here, so no shape check is owed.
-    const [likeRows, boosts] = await Promise.all([
+    const [likeRows, reposts] = await Promise.all([
       getDb()
         .select({ postId: likes.postId, userId: likes.userId })
         .from(likes)
@@ -87,9 +87,9 @@ export async function getNetworkEngagerCounts(
     for (const like of likeRows) {
       add(like.postId, like.userId);
     }
-    for (const boost of boosts) {
-      if (boost.boostOf && boost.oxyUserId) {
-        add(boost.boostOf, boost.oxyUserId);
+    for (const repost of reposts) {
+      if (repost.boostOf && repost.oxyUserId) {
+        add(repost.boostOf, repost.oxyUserId);
       }
     }
   } catch (error) {

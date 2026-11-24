@@ -88,7 +88,7 @@ export function toFeedItem(
     canIncludeRelated && hydrated.quotedPost
       ? toFeedItem(hydrated.quotedPost, { nestingDepth: nestingDepth + 1 })
       : null;
-  const boost = hydrated.boost
+  const repost = hydrated.boost
     ? {
         ...hydrated.boost,
         originalPost:
@@ -149,7 +149,7 @@ export function toFeedItem(
     originalPost,
     quotedPost,
     quotedPostUnavailable: hydrated.quotedPostUnavailable,
-    boost,
+    boost: repost,
     context: hydrated.context,
     date: post.metadata.createdAt,
     mediaIds,

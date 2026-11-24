@@ -204,10 +204,10 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       case 'post.boost':
         // A boost federates as an Announce of the original's canonical AP id,
         // delivered to the booster's followers + (federated original) its author.
-        await followService.federateBoost(event.boost, event.actorOxyUserId, event.actorUsername);
+        await followService.federateRepost(event.boost, event.actorOxyUserId, event.actorUsername);
         break;
       case 'post.unboost':
-        await followService.federateUndoBoost(
+        await followService.federateUndoRepost(
           event.boost,
           event.actorOxyUserId,
           event.actorUsername,
@@ -336,7 +336,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
         );
         return;
       case 'post.boost':
-        await followService.federateBoost(event.boost, event.actorOxyUserId, event.actorUsername, {
+        await followService.federateRepost(event.boost, event.actorOxyUserId, event.actorUsername, {
           throwOnError: true,
         });
         return;

@@ -53,12 +53,12 @@ export async function readLikedPostIds(channelOxyUserId: string): Promise<string
  * drop out on their own — an id no longer in `posts` matches nothing.
  */
 export async function repairSurvivingCounters(
-  boostedOriginalIds: readonly string[],
+  repostedOriginalIds: readonly string[],
   likedPostIds: readonly string[],
   dryRun: boolean,
 ): Promise<{ boostCounters: number; likeCounters: number }> {
   return {
-    boostCounters: await decrementStat(boostedOriginalIds, 'boosts', dryRun),
+    boostCounters: await decrementStat(repostedOriginalIds, 'boosts', dryRun),
     likeCounters: await decrementStat(likedPostIds, 'likes', dryRun),
   };
 }

@@ -114,9 +114,9 @@ describe('resolveVariant — inheritance (THE RULE)', () => {
   });
 
   it('resolves a post with no renditions to an empty body — which is what a boost has', () => {
-    const boost: StoredPostContent = {};
+    const repost: StoredPostContent = {};
 
-    const resolved = resolveVariant(boost, 'en-US');
+    const resolved = resolveVariant(repost, 'en-US');
 
     expect(resolved.text).toBe('');
     expect(resolved.tag).toBeUndefined();

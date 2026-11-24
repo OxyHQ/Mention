@@ -14,7 +14,7 @@ import { isProfileLikeHref, resolveProfileLinkIdentity } from '../../services/pr
 import { previewableUrls } from '../../utils/clarityDocuments';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
-import { createFederatedBoost } from '../shared/federatedBoost';
+import { createFederatedRepost } from '../shared/federatedBoost';
 import {
   findPostsByFederatedObjects,
   postMatchesFederatedObjectSql,
@@ -1153,14 +1153,14 @@ interface AuthorRepost {
 
 /**
  * Store an author's reposts as boosts of the (already imported) originals,
- * through the network-neutral {@link createFederatedBoost} the ActivityPub
+ * through the network-neutral {@link createFederatedRepost} the ActivityPub
  * `Announce` import uses. Deduped on the repost's AT-URI (or its Bridgy Fed
  * copy's upstream key); a repost whose
  * original could not be imported is skipped.
  */
 async function importReposts(
   reposts: readonly AuthorRepost[],
-  boosterOxyUserId: string,
+  reposterOxyUserId: string,
   did: string,
 ): Promise<void> {
   if (reposts.length === 0) return;
@@ -1173,7 +1173,7 @@ async function importReposts(
     await importAtprotoRepost({
       activityId: repost.uri,
       originalPostId,
-      boosterOxyUserId,
+      boosterOxyUserId: reposterOxyUserId,
       boosterDid: did,
       createdAt: repost.createdAt,
     });
@@ -1207,7 +1207,7 @@ export async function importAtprotoRepost(input: {
     )
     .limit(1);
   if (existing) return false;
-  return createFederatedBoost({
+  return createFederatedRepost({
     activityId: input.activityId,
     originalPostId: input.originalPostId,
     boosterOxyUserId: input.boosterOxyUserId,

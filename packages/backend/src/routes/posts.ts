@@ -45,7 +45,7 @@ import {
 } from '../controllers/posts/geo';
 import {
   getKnownPostLikers,
-  getPostBoosts,
+  getPostReposts,
   getPostLikes,
 } from '../controllers/posts/engagementLists';
 import { translateDraft, translatePost } from '../controllers/posts/translation';
@@ -202,7 +202,7 @@ router.get('/:id/edit-source', ...postViewRateLimiters, getPostEditSource);
 // they do NOT gate on the parent post's visibility, so exposing them
 // anonymously would reveal who liked/boosted a private or followers-only post.
 router.get('/:id/likes', getPostLikes);
-router.get('/:id/boosts', getPostBoosts);
+router.get('/:id/boosts', getPostReposts);
 
 // Protected routes with parameters
 router.post('/:id/collaborators/accept', acceptCollabInvite);

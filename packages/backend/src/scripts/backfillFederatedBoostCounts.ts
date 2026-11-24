@@ -42,7 +42,7 @@ import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 /** Posts scanned per page (stable ascending `id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
 
-export interface BackfillFederatedBoostCountsResult {
+export interface BackfillFederatedRepostCountsResult {
   scanned: number;
   updated: number;
   failed: number;
@@ -53,9 +53,9 @@ export interface BackfillFederatedBoostCountsResult {
  * caller owns the connection lifecycle, so this is reusable from an in-process
  * caller.
  */
-export async function backfillFederatedBoostCounts(
+export async function backfillFederatedRepostCounts(
   opts: { batchSize?: number; dryRun?: boolean; postIds?: readonly string[] } = {},
-): Promise<BackfillFederatedBoostCountsResult> {
+): Promise<BackfillFederatedRepostCountsResult> {
   const pageSize = opts.batchSize ?? DEFAULT_PAGE_SIZE;
   const dryRun = opts.dryRun ?? false;
   /**
@@ -96,7 +96,7 @@ export async function backfillFederatedBoostCounts(
     // carries a federation activity id — a native repost has `boost_of` +
     // `type = 'boost'` but NO `federation_activity_id`.
     const pageIds = page.map((row) => row.id);
-    const boostRows = await db
+    const repostRows = await db
       .select({ boostOf: posts.boostOf, count: count() })
       .from(posts)
       .where(
@@ -107,25 +107,25 @@ export async function backfillFederatedBoostCounts(
         ),
       )
       .groupBy(posts.boostOf);
-    const federatedBoostsById = new Map(
-      boostRows.flatMap((row) => (row.boostOf ? [[row.boostOf, row.count] as const] : [])),
+    const federatedRepostsById = new Map(
+      repostRows.flatMap((row) => (row.boostOf ? [[row.boostOf, row.count] as const] : [])),
     );
 
     for (const post of page) {
       scanned += 1;
       try {
-        const federatedBoosts = federatedBoostsById.get(post.id) ?? 0;
+        const federatedReposts = federatedRepostsById.get(post.id) ?? 0;
 
         // Already correct (the common zero-boost case): skip — keeps re-runs
         // write-free and idempotent.
-        if (federatedBoosts === post.federatedBoostsCount) continue;
+        if (federatedReposts === post.federatedBoostsCount) continue;
 
         updated += 1;
         if (dryRun) continue;
 
         await db
           .update(posts)
-          .set({ statsFederatedBoostsCount: federatedBoosts })
+          .set({ statsFederatedBoostsCount: federatedReposts })
           .where(eq(posts.id, post.id));
       } catch (error) {
         failed += 1;
@@ -157,7 +157,7 @@ async function main(): Promise<void> {
     await connectPostgres();
     logger.info('[backfillFederatedBoostCounts] connected to PostgreSQL', { dryRun });
 
-    const result = await backfillFederatedBoostCounts({ dryRun });
+    const result = await backfillFederatedRepostCounts({ dryRun });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(

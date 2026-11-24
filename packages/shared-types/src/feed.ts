@@ -9,7 +9,7 @@ export interface Reply extends HydratedPost {
   postId?: string;
 }
 
-export interface FeedBoost extends HydratedPost {
+export interface FeedRepost extends HydratedPost {
   originalPostId?: string;
 }
 
@@ -87,7 +87,7 @@ export interface CreateReplyRequest {
   hashtags?: string[];
 }
 
-export interface CreateBoostRequest {
+export interface CreateRepostRequest {
   originalPostId: string;
   content?: PostContentInput;
   visibility?: PostVisibility;

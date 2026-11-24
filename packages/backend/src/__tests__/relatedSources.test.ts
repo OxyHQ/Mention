@@ -168,7 +168,7 @@ describe('the moreLikeThis source', () => {
     await create({ oxyUserId: OTHER, postClassification: { topics: ['relsrcsports'] } });
     // A boost has an intentionally empty body — never a "related post".
     await create({
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: seed.id,
       content: { variants: [] },
       postClassification: { topics: ['relsrccats'] },
@@ -362,7 +362,7 @@ describe('the nearby source', () => {
     await createAt(ORIGIN, { metadata: { isSensitive: true } });
     await createAt(ORIGIN, { hashtags: ['nsfw'] });
     await createAt(ORIGIN, {
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original.id,
       content: { variants: [] },
     });

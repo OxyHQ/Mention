@@ -271,7 +271,7 @@ describe('a post row follows its author’s identity', () => {
  * one cluster.
  */
 describe('every actor on the row follows its identity', () => {
-  const BOOSTER = 'booster-1';
+  const REPOSTER = 'booster-1';
   const COLLABORATOR = 'collab-1';
 
   function renderCollabRepost() {
@@ -299,7 +299,7 @@ describe('every actor on the row follows its identity', () => {
           }
           repostedBy={
             {
-              id: BOOSTER,
+              id: REPOSTER,
               username: 'boo',
               name: { displayName: 'Boo' },
               avatar: 'booster-before',
@@ -322,7 +322,7 @@ describe('every actor on the row follows its identity', () => {
     const renderer = renderCollabRepost();
 
     act(() => {
-      noteIdentityChanged({ id: BOOSTER, avatar: 'booster-after' });
+      noteIdentityChanged({ id: REPOSTER, avatar: 'booster-after' });
     });
 
     expect(probe(renderer, 'booster-avatar')).toBe('booster-after');

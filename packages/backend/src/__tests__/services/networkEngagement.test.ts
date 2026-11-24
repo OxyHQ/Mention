@@ -79,7 +79,7 @@ describe('getNetworkEngagerCounts', () => {
     await getDb().insert(likes).values({ userId: FRIEND_A, postId: post.id, value: 1 });
     await seedPost(scope, {
       oxyUserId: FRIEND_A,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: post.id,
       content: { variants: [{ source: 'author', text: '', tag: 'en' }] },
     });

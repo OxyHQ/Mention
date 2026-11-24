@@ -81,7 +81,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       hashtags,
       mentions,
       quoted_post_id,
-      boost_of,
+      boost_of: repost_of,
       in_reply_to_status_id,
       parentPostId,
       threadId,
@@ -467,11 +467,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    if (boost_of) {
-      const boostedPost = await loadPostRecord(String(boost_of));
-      const boostValidation = validatePublicShareTarget(boostedPost, { action: 'boost' });
-      if (!boostValidation.ok) {
-        return res.status(boostValidation.status).json({ message: boostValidation.message });
+    if (repost_of) {
+      const repostedPost = await loadPostRecord(String(repost_of));
+      const repostValidation = validatePublicShareTarget(repostedPost, { action: 'boost' });
+      if (!repostValidation.ok) {
+        return res.status(repostValidation.status).json({ message: repostValidation.message });
       }
     }
 
@@ -545,7 +545,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       collaboratorIds: invitedCollaboratorIds,
       autoAcceptCollaboratorIds,
       quoteOf: quoted_post_id || null,
-      boostOf: boost_of || null,
+      boostOf: repost_of || null,
       // Validated inside `create` (see `assertLaneAssignable`): a lane the author
       // does not own is a 404, and one on a reply or a boost is a 400 — both
       // refusals, never a silent drop.

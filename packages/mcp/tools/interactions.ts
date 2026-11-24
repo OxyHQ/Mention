@@ -76,11 +76,13 @@ export function registerInteractionsTools(server: MentionToolRegistrar): void {
           mentions: [],
           hashtags: [],
         });
-        const boost = unwrapApiResponse<Record<string, unknown>>(
+        const repost = unwrapApiResponse<Record<string, unknown>>(
           (result as { boost?: unknown }).boost ?? result,
         );
         return {
-          content: [{ type: 'text' as const, text: `Post ${id} boosted.\n\n${formatPost(boost)}` }],
+          content: [
+            { type: 'text' as const, text: `Post ${id} boosted.\n\n${formatPost(repost)}` },
+          ],
         };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };

@@ -52,7 +52,7 @@ import { recomputeRecentRepliers } from '../PostRecentReplierService';
 import { invalidate as invalidatePostDetail } from '../postDetailCache';
 import { logger } from '../../utils/logger';
 import { ownedBySql } from '../../utils/postAuthorship';
-import { ERASURE_BOOST_CHUNK, ERASURE_POST_BATCH } from './erasureLimits';
+import { ERASURE_REPOST_CHUNK, ERASURE_POST_BATCH } from './erasureLimits';
 
 const LOG_PREFIX = '[AccountErasure]';
 
@@ -109,15 +109,15 @@ export function wasFederated(post: OwnPostRow): boolean {
  * The boosts that die with `seedIds`, by level: level 0 boosts a seed, level 1
  * boosts a level-0 boost, and so on. Captured while the `boost_of` links are live.
  */
-async function boostLevels(seedIds: readonly string[]): Promise<CascadedPostRow[][]> {
+async function repostLevels(seedIds: readonly string[]): Promise<CascadedPostRow[][]> {
   const db = getDb();
   const seen = new Set(seedIds);
   const levels: CascadedPostRow[][] = [];
   let frontier = [...seedIds];
   while (frontier.length > 0) {
     const next: CascadedPostRow[] = [];
-    for (let start = 0; start < frontier.length; start += ERASURE_BOOST_CHUNK) {
-      const slice = frontier.slice(start, start + ERASURE_BOOST_CHUNK);
+    for (let start = 0; start < frontier.length; start += ERASURE_REPOST_CHUNK) {
+      const slice = frontier.slice(start, start + ERASURE_REPOST_CHUNK);
       const rows = await db.select(CASCADE_ROW).from(posts).where(inArray(posts.boostOf, slice));
       for (const row of rows) {
         if (seen.has(row.id)) continue;
@@ -137,7 +137,7 @@ async function boostLevels(seedIds: readonly string[]): Promise<CascadedPostRow[
  * one transaction. Called deepest level first, so no chunk's delete cascades into
  * a boost whose references have not been swept.
  */
-async function deleteBoostChunk(rows: readonly CascadedPostRow[]): Promise<number> {
+async function deleteRepostChunk(rows: readonly CascadedPostRow[]): Promise<number> {
   const ids = rows.map((row) => row.id);
   let removed = 0;
   await getDb().transaction(async (tx) => {
@@ -247,23 +247,23 @@ export async function eraseAccountPosts(
     after = own[own.length - 1].id;
 
     const ownIds = own.map((row) => row.id);
-    const levels = await boostLevels(ownIds);
-    const boostCount = levels.reduce((sum, level) => sum + level.length, 0);
+    const levels = await repostLevels(ownIds);
+    const repostCount = levels.reduce((sum, level) => sum + level.length, 0);
 
     // A large closure is cleared first, deepest level first, in bounded chunks.
-    let boosts: CascadedPostRow[] = levels.flat();
-    if (boostCount > ERASURE_BOOST_CHUNK) {
+    let reposts: CascadedPostRow[] = levels.flat();
+    if (repostCount > ERASURE_REPOST_CHUNK) {
       for (const level of [...levels].reverse()) {
-        for (let start = 0; start < level.length; start += ERASURE_BOOST_CHUNK) {
-          result.boostsByOthers += await deleteBoostChunk(
-            level.slice(start, start + ERASURE_BOOST_CHUNK),
+        for (let start = 0; start < level.length; start += ERASURE_REPOST_CHUNK) {
+          result.boostsByOthers += await deleteRepostChunk(
+            level.slice(start, start + ERASURE_REPOST_CHUNK),
           );
         }
       }
-      boosts = [];
+      reposts = [];
     }
 
-    const rows: CascadedPostRow[] = [...own, ...boosts];
+    const rows: CascadedPostRow[] = [...own, ...reposts];
     const allIds = rows.map((row) => row.id);
     const removed = new Set(allIds);
 
@@ -283,8 +283,8 @@ export async function eraseAccountPosts(
       own.map((row) => row.parentPostId),
       removed,
     );
-    const boostedOriginals = tally(
-      own.filter((row) => row.type === PostType.BOOST).map((row) => row.boostOf),
+    const repostedOriginals = tally(
+      own.filter((row) => row.type === PostType.REPOST).map((row) => row.boostOf),
       removed,
     );
 
@@ -297,16 +297,16 @@ export async function eraseAccountPosts(
         ...new Set(rows.flatMap((row) => [row.id, ...postUris(row)])),
       ]);
       await decrement(tx, 'stats_comments_count', survivingParents);
-      await decrement(tx, 'stats_boosts_count', boostedOriginals);
+      await decrement(tx, 'stats_boosts_count', repostedOriginals);
       // Boosts first by id, then the account's posts; `boost_of` would cascade
       // them anyway, but naming them keeps the count honest.
-      if (boosts.length > 0) {
+      if (reposts.length > 0) {
         const gone = await tx
           .delete(posts)
           .where(
             inArray(
               posts.id,
-              boosts.map((row) => row.id),
+              reposts.map((row) => row.id),
             ),
           )
           .returning({ id: posts.id });

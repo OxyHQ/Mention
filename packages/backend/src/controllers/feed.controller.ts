@@ -9,7 +9,7 @@ import type { Response } from 'express';
 import { and, desc, eq, inArray, isNotNull, notInArray, sql, type SQL } from 'drizzle-orm';
 import {
   type CreateReplyRequest,
-  type CreateBoostRequest,
+  type CreateRepostRequest,
   PostType,
   PostVisibility,
   type PostContent,
@@ -84,7 +84,7 @@ import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
  * a moment apart, so a client cannot be asked to tell them apart — and two
  * literals would drift the moment one is reworded.
  */
-const ALREADY_BOOSTED_ERROR = 'You have already boosted this content';
+const ALREADY_REPOSTED_ERROR = 'You have already boosted this content';
 
 /**
  * Hard cap on how many posts of an author's self-thread continuation spine the
@@ -262,15 +262,15 @@ class FeedController {
    * `Announce` / `Undo(Announce)`. The boosted ORIGINAL post is untouched by an
    * unboost, so target resolution works from `boostOf` in both directions.
    */
-  private federateBoostChange(
+  private federateRepostChange(
     kind: 'post.boost' | 'post.unboost',
-    boost: { _id: unknown; boostOf: string; createdAt: string | Date },
-    boosterOxyUserId: string,
+    repost: { _id: unknown; boostOf: string; createdAt: string | Date },
+    reposterOxyUserId: string,
   ): void {
-    federateAsResolvedActor(boosterOxyUserId, kind, (username) => ({
+    federateAsResolvedActor(reposterOxyUserId, kind, (username) => ({
       kind,
-      boost: { _id: boost._id, boostOf: boost.boostOf, createdAt: boost.createdAt },
-      actorOxyUserId: boosterOxyUserId,
+      boost: { _id: repost._id, boostOf: repost.boostOf, createdAt: repost.createdAt },
+      actorOxyUserId: reposterOxyUserId,
       actorUsername: username,
     }));
   }
@@ -648,9 +648,9 @@ class FeedController {
   /**
    * Create a boost
    */
-  async createBoost(req: AuthRequest, res: Response) {
+  async createRepost(req: AuthRequest, res: Response) {
     try {
-      const { originalPostId, content, mentions, hashtags } = req.body as CreateBoostRequest;
+      const { originalPostId, content, mentions, hashtags } = req.body as CreateRepostRequest;
       const currentUserId = req.user?.id;
       const surface = readInteractionSurface(req.body);
 
@@ -700,42 +700,42 @@ class FeedController {
        * authority is `posts_one_boost_per_account_key`, whose violation is
        * caught at the insert and answered identically.
        */
-      const [existingBoost] = await findPostRecords(
+      const [existingRepost] = await findPostRecords(
         and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, originalPostId)),
         { orderBy: CHRONO_DESC, limit: 1 },
       );
 
-      if (existingBoost) {
-        return res.status(400).json({ error: ALREADY_BOOSTED_ERROR });
+      if (existingRepost) {
+        return res.status(400).json({ error: ALREADY_REPOSTED_ERROR });
       }
 
       // Create boost
       const mergedTags = mergeHashtags(content?.text || '', parsedHashtags);
       // The boosted original owns its own attachments; the boost carries its
       // author's commentary without adding separate podcast or job cards.
-      const boostContent: PostContent = {
+      const repostContent: PostContent = {
         ...(content ?? { text: '' }),
         podcast: undefined,
         job: undefined,
       };
       // The comment on a boost is a body the author typed, so a profile link in
       // it becomes a mention on the same terms as every other write boundary.
-      const foldedMentions = await foldProfileLinkMentions(boostContent, mentions);
+      const foldedMentions = await foldProfileLinkMentions(repostContent, mentions);
       const reconciledMentions = reconcileMentionIdsForPost(
-        mentionTextsFromContent(boostContent),
+        mentionTextsFromContent(repostContent),
         foldedMentions.mentions,
       );
 
-      let boost: PostRecord;
+      let repost: PostRecord;
       try {
-        boost = await insertPostRecord({
+        repost = await insertPostRecord({
           oxyUserId: currentUserId,
           authorship: buildAuthorship(currentUserId, []),
-          type: PostType.BOOST,
+          type: PostType.REPOST,
           // A bare boost has an empty body, so this yields no rendition at all —
           // which is the point: `boostOf` is what hydration renders. A boost with
           // commentary keeps its words as the primary rendition, as before.
-          content: toStoredContent(boostContent, undefined),
+          content: toStoredContent(repostContent, undefined),
           status: 'published',
           visibility: PostVisibility.PUBLIC,
           boostOf: originalPostId,
@@ -755,7 +755,7 @@ class FeedController {
          * had boosted that post.
          */
         if (isUniqueViolation(error, 'posts_one_boost_per_account_key')) {
-          return res.status(400).json({ error: ALREADY_BOOSTED_ERROR });
+          return res.status(400).json({ error: ALREADY_REPOSTED_ERROR });
         }
         throw error;
       }
@@ -763,29 +763,29 @@ class FeedController {
       // The original's authors hear about the boost (and anyone the boost's
       // commentary @mentions). Only reached by the boost that actually landed —
       // both "already boosted" answers returned above.
-      trackBackgroundWork(postCreationService.notifyCreatedPost(boost, currentUserId));
+      trackBackgroundWork(postCreationService.notifyCreatedPost(repost, currentUserId));
 
       // Outbound federation: announce the boost to the booster's remote
       // followers (and, if the original is federated, its author's instance).
       // Local booster only — a native boost has `federation == null`.
-      if (boost.federation == null) {
-        this.federateBoostChange(
+      if (repost.federation == null) {
+        this.federateRepostChange(
           'post.boost',
-          { _id: boost.id, boostOf: originalPostId, createdAt: boost.createdAt },
+          { _id: repost.id, boostOf: originalPostId, createdAt: repost.createdAt },
           currentUserId,
         );
       }
 
       // Affinity graph: the booster expresses affinity toward the boosted post's
       // author. Fire-and-forget — buffering must never block or fail the boost.
-      const boostedAuthorId = originalPost?.oxyUserId ?? undefined;
-      if (boostedAuthorId) {
+      const repostedAuthorId = originalPost?.oxyUserId ?? undefined;
+      if (repostedAuthorId) {
         void affinityEventService
           .record({
             fromUserId: currentUserId,
-            toUserId: boostedAuthorId,
+            toUserId: repostedAuthorId,
             type: 'boost',
-            eventId: `boost:${boost.id}`,
+            eventId: `boost:${repost.id}`,
           })
           .catch(() => undefined);
       }
@@ -806,7 +806,7 @@ class FeedController {
       // for its rendered content. Hydrate at maxDepth 1 so the response + socket
       // payload carry the embedded original, the author summary, and the engagement
       // shape — matching the feed/detail DTO instead of a raw `.toObject()`.
-      const [hydratedBoost] = await postHydrationService.hydratePosts([boost], {
+      const [hydratedRepost] = await postHydrationService.hydratePosts([repost], {
         ...hydrationOptionsFor(req),
         maxDepth: 1,
         includeLinkMetadata: true,
@@ -827,7 +827,7 @@ class FeedController {
 
       res.status(201).json({
         success: true,
-        boost: hydratedBoost,
+        boost: hydratedRepost,
       });
     } catch (error) {
       logger.error('Error creating boost', error);
@@ -838,7 +838,7 @@ class FeedController {
   /**
    * Unboost a post
    */
-  async unboostItem(req: AuthRequest, res: Response) {
+  async unrepostItem(req: AuthRequest, res: Response) {
     try {
       const postId = req.params.postId as string;
       const currentUserId = req.user?.id;
@@ -864,11 +864,11 @@ class FeedController {
         and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, postId)),
         { orderBy: CHRONO_DESC, limit: 1 },
       );
-      const boost = existing
+      const repost = existing
         ? await deletePostRecord(existing.id, eq(postsTable.oxyUserId, currentUserId))
         : null;
 
-      if (!boost) {
+      if (!repost) {
         return res.status(404).json({ error: 'Boost not found' });
       }
 
@@ -876,23 +876,23 @@ class FeedController {
       // row is already deleted, but the returned doc still carries what we need
       // and the boosted ORIGINAL is untouched, so target resolution still works.
       // Local booster only.
-      if (boost.federation == null && boost.boostOf) {
-        this.federateBoostChange(
+      if (repost.federation == null && repost.boostOf) {
+        this.federateRepostChange(
           'post.unboost',
-          { _id: boost.id, boostOf: boost.boostOf, createdAt: boost.createdAt },
+          { _id: repost.id, boostOf: repost.boostOf, createdAt: repost.createdAt },
           currentUserId,
         );
       }
 
       // Update original post boost count and get the updated count
-      const updatedStats = boost.boostOf
-        ? await bumpPostCounters(boost.boostOf, { boosts: -1 })
+      const updatedStats = repost.boostOf
+        ? await bumpPostCounters(repost.boostOf, { boosts: -1 })
         : null;
 
-      const boostOriginalId = boost.boostOf ?? '';
+      const repostOriginalId = repost.boostOf ?? '';
       emitPostEngagement({
         event: POST_ENGAGEMENT_EVENTS.UNBOOSTED,
-        postId: boostOriginalId,
+        postId: repostOriginalId,
         ...(updatedStats?.oxyUserId ? { authorOxyUserId: updatedStats.oxyUserId } : {}),
         counts: { boosts: updatedStats?.boostsCount },
         actorId: currentUserId,

@@ -264,7 +264,7 @@ export function derivePostType(params: {
   quoteOf?: string | null;
   content: Pick<PostContent, 'media'>;
 }): PostType {
-  if (params.boostOf) return PostType.BOOST;
+  if (params.boostOf) return PostType.REPOST;
   if (params.quoteOf) return PostType.QUOTE;
   const media = params.content.media;
   if (Array.isArray(media) && media.length > 0) {
@@ -991,13 +991,13 @@ class PostCreationService {
     const mentions = post.mentions;
     const parentPostId = post.parentPostId;
     const quoteOf = post.quoteOf;
-    const boostOf = post.boostOf;
+    const repostOf = post.boostOf;
 
     // The replied-to, quoted and boosted posts, read once up front: the mention
     // stage needs the parent's authors too (they hear about this post as a reply,
     // not a second time as a mention).
     const idsToFetch = oxyUserId
-      ? [parentPostId, quoteOf, boostOf].filter((id): id is string => Boolean(id))
+      ? [parentPostId, quoteOf, repostOf].filter((id): id is string => Boolean(id))
       : [];
     // A failed read costs the reply/quote/boost notices — as it did when it ran
     // inside their stage — never the mentions, and never an unhandled rejection
@@ -1055,8 +1055,8 @@ class PostCreationService {
           }
         }
 
-        if (boostOf) {
-          const original = postsMap.get(boostOf);
+        if (repostOf) {
+          const original = postsMap.get(repostOf);
           if (original) {
             await createPostAuthorNotifications(original.authorship, {
               actorId: oxyUserId,

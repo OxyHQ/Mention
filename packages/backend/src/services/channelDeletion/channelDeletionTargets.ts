@@ -41,7 +41,7 @@ export const POST_BATCH_SIZE = 200;
  * exact orphan the capture exists to prevent. An operator hears about it; a
  * silent truncation would not be a smaller version of this, it would be the bug.
  */
-export const MAX_BOOST_CLOSURE_PER_BATCH = 5_000;
+export const MAX_REPOST_CLOSURE_PER_BATCH = 5_000;
 
 /** The columns the delegate reads off a post, plus the two only this cascade needs. */
 const CASCADE_ROW_COLUMNS = {
@@ -68,15 +68,15 @@ function postUris(row: Pick<CascadedPostRow, 'federationActivityId' | 'federatio
   );
 }
 
-/** Raised when one batch's boost closure exceeds {@link MAX_BOOST_CLOSURE_PER_BATCH}. */
-export class ChannelBoostClosureTooLargeError extends Error {
+/** Raised when one batch's boost closure exceeds {@link MAX_REPOST_CLOSURE_PER_BATCH}. */
+export class ChannelRepostClosureTooLargeError extends Error {
   constructor(
     readonly channelOxyUserId: string,
     readonly found: number,
   ) {
     super(
       `${LOG_PREFIX} refused to expand the boost closure for ${channelOxyUserId}: one batch reaches ` +
-        `more than ${MAX_BOOST_CLOSURE_PER_BATCH} boosts. Capturing a prefix of it would leave boost ` +
+        `more than ${MAX_REPOST_CLOSURE_PER_BATCH} boosts. Capturing a prefix of it would leave boost ` +
         'rows the database deletes whose own references nothing could find, so this needs an operator ' +
         'rather than a retry.',
     );
@@ -145,7 +145,7 @@ export async function readPostBatch(
   if (channelPosts.length === 0) return null;
 
   const seen = new Set(channelPosts.map((row) => row.id));
-  const boosts: CascadedPostRow[] = [];
+  const reposts: CascadedPostRow[] = [];
   let frontier = [...seen];
 
   while (frontier.length > 0) {
@@ -153,24 +153,24 @@ export async function readPostBatch(
       .select(CASCADE_ROW_COLUMNS)
       .from(posts)
       .where(inArray(posts.boostOf, frontier))
-      .limit(MAX_BOOST_CLOSURE_PER_BATCH + 1);
+      .limit(MAX_REPOST_CLOSURE_PER_BATCH + 1);
 
     frontier = [];
-    for (const boost of next) {
-      if (seen.has(boost.id)) continue;
-      seen.add(boost.id);
-      boosts.push(boost);
-      frontier.push(boost.id);
+    for (const repost of next) {
+      if (seen.has(repost.id)) continue;
+      seen.add(repost.id);
+      reposts.push(repost);
+      frontier.push(repost.id);
     }
-    if (boosts.length > MAX_BOOST_CLOSURE_PER_BATCH) {
-      throw new ChannelBoostClosureTooLargeError(channelOxyUserId, boosts.length);
+    if (reposts.length > MAX_REPOST_CLOSURE_PER_BATCH) {
+      throw new ChannelRepostClosureTooLargeError(channelOxyUserId, reposts.length);
     }
   }
 
   return {
     channelPosts,
-    boosts,
-    rows: [...channelPosts, ...boosts],
+    boosts: reposts,
+    rows: [...channelPosts, ...reposts],
     lastId: channelPosts[channelPosts.length - 1].id,
   };
 }
@@ -194,7 +194,7 @@ export async function resolveDeletionTargets(channelOxyUserId: string): Promise<
   const owned = ownedBySql(channelOxyUserId);
   const channelPostIds = db.select({ id: posts.id }).from(posts).where(owned);
 
-  const [[postCount], [boostCount], [replyCount], [quoteCount], [followerCount]] =
+  const [[postCount], [repostCount], [replyCount], [quoteCount], [followerCount]] =
     await Promise.all([
       db.select({ n: count() }).from(posts).where(owned),
       // Boosts of a channel post that are NOT themselves the channel's — the rows
@@ -227,7 +227,7 @@ export async function resolveDeletionTargets(channelOxyUserId: string): Promise<
     channelOxyUserId,
     federatedFollowers: followerCount.n,
     posts: postCount.n,
-    boostsByOthers: boostCount.n,
+    boostsByOthers: repostCount.n,
     repliesByOthers: replyCount.n,
     quotesByOthersKept: quoteCount.n,
   };

@@ -510,7 +510,7 @@ export interface ProfileStatsProps {
   followingHref: Href | null;
   followersHref: Href | null;
   onPostsPress: () => void;
-  onBoostsPress: () => void;
+  onRepostsPress: () => void;
   onRepliesPress: () => void;
 }
 
@@ -617,7 +617,7 @@ export interface ProfileContentProps {
   followingHref: Href | null;
   followersHref: Href | null;
   onPostsPress: () => void;
-  onBoostsPress: () => void;
+  onRepostsPress: () => void;
   onRepliesPress: () => void;
   onLayout?: (height: number) => void;
 }

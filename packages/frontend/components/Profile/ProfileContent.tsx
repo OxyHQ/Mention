@@ -41,7 +41,7 @@ export const ProfileContent = memo(function ProfileContent({
   followingHref,
   followersHref,
   onPostsPress,
-  onBoostsPress,
+  onRepostsPress,
   onRepliesPress,
   onLayout,
 }: ProfileContentProps) {
@@ -87,7 +87,7 @@ export const ProfileContent = memo(function ProfileContent({
           followingHref={followingHref}
           followersHref={followersHref}
           onPostsPress={onPostsPress}
-          onBoostsPress={onBoostsPress}
+          onRepostsPress={onRepostsPress}
           onRepliesPress={onRepliesPress}
         />
       )}

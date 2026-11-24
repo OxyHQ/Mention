@@ -251,7 +251,7 @@ describe('POST /feed/boost', () => {
     const original = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
     const { res, captured } = buildResponse();
 
-    await feedController.createBoost(
+    await feedController.createRepost(
       {
         accessToken: 'test-viewer-session',
         body: { originalPostId: original.id },
@@ -279,7 +279,7 @@ describe('POST /feed/boost', () => {
     const original = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
 
     const first = buildResponse();
-    await feedController.createBoost(
+    await feedController.createRepost(
       {
         accessToken: 'test-viewer-session',
         body: { originalPostId: original.id },
@@ -292,7 +292,7 @@ describe('POST /feed/boost', () => {
     vi.mocked(createPostAuthorNotifications).mockClear();
 
     const second = buildResponse();
-    await feedController.createBoost(
+    await feedController.createRepost(
       {
         accessToken: 'test-viewer-session',
         body: { originalPostId: original.id },

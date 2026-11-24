@@ -449,12 +449,12 @@ export class InboxProcessingService {
     // only by id would let one remote actor retract another actor's boost.
     // Fall back to (boostOf, author, actorUri) when the Undo omits the original
     // Announce id but carries the announced object.
-    let boost: PostRecord | null = null;
+    let repost: PostRecord | null = null;
     if (announceId) {
       // At most one row: `federation_activity_id` carries a partial UNIQUE index
       // (`posts_federation_activity_id_key`), so there is nothing for an ORDER BY
       // to decide here — and a sort that decides nothing reads as though it does.
-      [boost = null] = await findPostRecords(
+      [repost = null] = await findPostRecords(
         and(
           eq(posts.federationActivityId, announceId),
           eq(posts.federationActorUri, actorUri),
@@ -463,14 +463,14 @@ export class InboxProcessingService {
         { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 },
       );
     }
-    if (!boost && announcedUri) {
+    if (!repost && announcedUri) {
       const originalPostId = await resolvePostIdFromObjectUri(announcedUri);
-      const boosterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
-      if (originalPostId && boosterOxyUserId) {
-        [boost = null] = await findPostRecords(
+      const reposterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
+      if (originalPostId && reposterOxyUserId) {
+        [repost = null] = await findPostRecords(
           and(
             eq(posts.boostOf, originalPostId),
-            eq(posts.oxyUserId, boosterOxyUserId),
+            eq(posts.oxyUserId, reposterOxyUserId),
             eq(posts.federationActorUri, actorUri),
             eq(posts.type, 'boost'),
           ),
@@ -479,18 +479,18 @@ export class InboxProcessingService {
       }
     }
 
-    if (!boost?.boostOf) return;
+    if (!repost?.boostOf) return;
 
     // Keep the ownership predicate on the destructive write as a final
     // fail-closed guard against a concurrent mutation between lookup/delete.
-    const deleted = await deletePostRecord(boost.id, eq(posts.federationActorUri, actorUri));
+    const deleted = await deletePostRecord(repost.id, eq(posts.federationActorUri, actorUri));
     if (!deleted) return;
     // Both counters move in lockstep, because the federated Announce incremented
     // both at import. `bumpPostCounters` clamps at zero, which is what the two
     // separate `$gt: 0`-filtered updates were expressing — and it does so in ONE
     // statement, so `federatedBoostsCount` lagging on a pre-field post can no
     // longer leave the two decrements half-applied.
-    await bumpPostCounters(boost.boostOf, { boosts: -1, federatedBoosts: -1 });
+    await bumpPostCounters(repost.boostOf, { boosts: -1, federatedBoosts: -1 });
     logger.debug('[Federation] processed Announce undo');
   }
 
@@ -908,8 +908,8 @@ export class InboxProcessingService {
 
     // Record every booster as a real, listable user — resolve first and skip
     // when unresolvable so we never move the counter without a backing record.
-    const boosterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
-    if (!boosterOxyUserId) {
+    const reposterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
+    if (!reposterOxyUserId) {
       logger.info('[Federation] skipped Announce from unresolved actor');
       return;
     }
@@ -921,7 +921,7 @@ export class InboxProcessingService {
     const created = await outboxSyncService.importAnnounce(
       { ...activity, actor: actorUri },
       announcedUri,
-      boosterOxyUserId,
+      reposterOxyUserId,
     );
     if (created) {
       logger.debug('[Federation] imported boost');
@@ -936,7 +936,7 @@ export class InboxProcessingService {
       if (announcedPostId) {
         await this.notifyLocalPostOwnerOfEngagement(
           announcedPostId,
-          boosterOxyUserId,
+          reposterOxyUserId,
           'boost',
           announcedPostId,
           'post',

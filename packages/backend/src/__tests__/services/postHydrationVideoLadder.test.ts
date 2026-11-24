@@ -111,7 +111,7 @@ vi.mock('../../db/postgres', () => {
 vi.mock('../../db/posts/postRepository', () => ({
   loadPostRecords: async () => [],
   findPostRecords: async () => [],
-  findBoostedPostIds: async () => new Map(),
+  findRepostedPostIds: async () => new Map(),
   countQuotesOf: async () => new Map(),
   CHRONO_DESC: [],
 }));

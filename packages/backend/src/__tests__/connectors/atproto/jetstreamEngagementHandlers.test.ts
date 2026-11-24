@@ -19,7 +19,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
     }) =>
       seedPost(scope, {
         oxyUserId: params.oxyUserId,
-        type: PostType.BOOST,
+        type: PostType.REPOST,
         boostOf: params.boostOf,
         federation: params.federation,
       }),
@@ -141,17 +141,17 @@ describe('Jetstream engagement handlers', () => {
     const repost = commit(ALICE, 'app.bsky.feed.repost', 'create', 'r1', {
       subject: { uri: POST_URI, cid: 'bafy' },
     });
-    const boosts = () =>
+    const reposts = () =>
       getDb()
         .select({ activityId: posts.federationActivityId })
         .from(posts)
         .where(and(eq(posts.boostOf, post.id), eq(posts.oxyUserId, scope.user('alice'))));
 
     await handler.handle([repost]);
-    expect(await boosts()).toEqual([{ activityId: repost.uri }]);
+    expect(await reposts()).toEqual([{ activityId: repost.uri }]);
 
     await handler.handle([commit(ALICE, 'app.bsky.feed.repost', 'delete', 'r1')]);
-    expect(await boosts()).toEqual([]);
+    expect(await reposts()).toEqual([]);
   });
 
   it('mirrors a follow from a crawled account to a known one, and unmirrors it', async () => {

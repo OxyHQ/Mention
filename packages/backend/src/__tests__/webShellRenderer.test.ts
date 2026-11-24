@@ -340,12 +340,12 @@ describe('mapPostOg', () => {
   it('falls back to the boosted original text when the boost body is empty', () => {
     // A boost carries an intentionally empty body; its text lives on the embedded
     // original (hydrated at maxDepth:1). The OG description must not be blank.
-    const boost = {
+    const repost = {
       ...base,
       content: { text: '' },
       originalPost: { id: 'orig', content: { text: 'the boosted original body' } },
     } as unknown as HydratedPost;
-    expect(mapPostOg(boost, 'b1', SAFE).description).toBe('the boosted original body');
+    expect(mapPostOg(repost, 'b1', SAFE).description).toBe('the boosted original body');
   });
 
   it('prefers media url over thumb/poster/documents/avatar', () => {
@@ -560,11 +560,11 @@ describe('mapPostOg for search', () => {
   });
 
   it('leaves a boost to its original: not indexed, its links still followed', () => {
-    const boost = post({
+    const repost = post({
       content: { text: '' },
       originalPost: { id: 'o', content: { text: 'their words' } },
     });
-    expect(mapPostOg(boost, 'b1', SAFE, { isBoost: true }).robots).toBe('noindex,follow');
+    expect(mapPostOg(repost, 'b1', SAFE, { isBoost: true }).robots).toBe('noindex,follow');
     expect(mapPostOg(post({}), 'p1', SAFE).robots).toBe('index,follow');
   });
 

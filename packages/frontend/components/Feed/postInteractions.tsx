@@ -33,7 +33,7 @@ export interface PostInteractions {
   toggleLike: (post: HydratedPost, source?: string) => Promise<void>;
   toggleDownvote: (post: HydratedPost) => Promise<void>;
   toggleSave: (post: HydratedPost, source?: string) => Promise<void>;
-  toggleBoost: (post: HydratedPost, source?: string) => Promise<void>;
+  toggleRepost: (post: HydratedPost, source?: string) => Promise<void>;
   share: (post: HydratedPost) => void;
   /** Send the post's permalink to someone in Allo (Mention has no chat of its own). */
   sendInAllo: (postId: string) => void;
@@ -135,16 +135,16 @@ function createController(): Controller {
     },
     toggleSave: (post, source) =>
       interactions.requireSession() ? toggleSave(post, source) : Promise.resolve(),
-    toggleBoost: (post, source) => {
+    toggleRepost: (post, source) => {
       if (!interactions.requireSession()) return Promise.resolve();
       const store = usePostsStore.getState();
-      const isBoosted = currentPost(post).viewerState?.isBoosted ?? false;
+      const isReposted = currentPost(post).viewerState?.isBoosted ?? false;
       return guarded(
         `${post.id}:boost`,
         () =>
-          isBoosted
-            ? store.unboostPost({ postId: post.id })
-            : store.boostPost({ postId: post.id }, source),
+          isReposted
+            ? store.unrepostPost({ postId: post.id })
+            : store.repostPost({ postId: post.id }, source),
         'boost',
       );
     },

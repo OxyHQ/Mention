@@ -152,7 +152,7 @@ const POST_TYPE_BY_COLUMN = {
   image: PostType.IMAGE,
   video: PostType.VIDEO,
   poll: PostType.POLL,
-  boost: PostType.BOOST,
+  boost: PostType.REPOST,
   quote: PostType.QUOTE,
 } as const satisfies Record<PostRow['type'], PostType>;
 
@@ -2498,13 +2498,13 @@ export async function countQuotesOf(
  * A boost is a `type:'boost'` post owned by the booster, so "did I boost this?"
  * is a query over `posts` itself rather than a join table.
  */
-export async function findBoostedPostIds(
+export async function findRepostedPostIds(
   viewerId: string,
   postIds: readonly string[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<Set<string>> {
-  const boosted = new Set<string>();
-  if (postIds.length === 0) return boosted;
+  const reposted = new Set<string>();
+  if (postIds.length === 0) return reposted;
 
   const rows = await db
     .select({ boostOf: posts.boostOf })
@@ -2512,9 +2512,9 @@ export async function findBoostedPostIds(
     .where(and(eq(posts.oxyUserId, viewerId), inArray(posts.boostOf, [...postIds])));
 
   for (const row of rows) {
-    if (row.boostOf) boosted.add(row.boostOf);
+    if (row.boostOf) reposted.add(row.boostOf);
   }
-  return boosted;
+  return reposted;
 }
 
 /**

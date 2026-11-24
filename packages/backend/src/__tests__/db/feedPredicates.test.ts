@@ -42,7 +42,7 @@ import type { PostRecordInput } from '../../db/posts/postRecord';
 import { chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
 import { encodeChronoCursor } from '../../utils/chronoCursor';
 import { discoverySafeSql, nsfwHashtagExcludeSql } from '../../mtn/feed/feedSafety';
-import { authorNotInSql, notABoostSql } from '../../utils/feedQueryBuilder';
+import { authorNotInSql, notARepostSql } from '../../utils/feedQueryBuilder';
 import { engagementScoreSql } from '../../mtn/feed/engine/sources/discoverySources';
 
 let db: Database;
@@ -365,7 +365,7 @@ describe('an orphaned reply never becomes a root-feed post', () => {
     expect(orphan.parentPostId).toBeNull();
     expect(orphan.isReply).toBe(true);
 
-    const roots = await findPostRecords(and(mine(), eq(posts.isReply, false), notABoostSql()), {
+    const roots = await findPostRecords(and(mine(), eq(posts.isReply, false), notARepostSql()), {
       orderBy: [posts.id],
     });
 

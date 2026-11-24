@@ -23,7 +23,7 @@ export enum PostType {
   IMAGE = 'image',
   VIDEO = 'video',
   POLL = 'poll',
-  BOOST = 'boost',
+  REPOST = 'boost',
   QUOTE = 'quote',
 }
 
@@ -1635,7 +1635,7 @@ export interface HydratedPostSummary {
   communityNote?: CommunityNoteSummary;
 }
 
-export interface HydratedBoostContext {
+export interface HydratedRepostContext {
   /**
    * The boosted original. `null` ONLY when the original is genuinely gone
    * (deleted or never imported) — paired with `unavailable: true`. A boost has an
@@ -1659,7 +1659,7 @@ export interface HydratedPost extends HydratedPostSummary {
   quotedPost?: HydratedPostSummary | null;
   /** A quote's subject cannot be shown. Reveals no target identity or reason. */
   quotedPostUnavailable?: boolean;
-  boost?: HydratedBoostContext | null;
+  boost?: HydratedRepostContext | null;
   context?: PostFeedContext;
 }
 

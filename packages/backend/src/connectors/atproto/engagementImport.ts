@@ -97,8 +97,8 @@ async function knownAccountsByDid(dids: readonly string[]): Promise<Map<string, 
 }
 
 /** A stable id for a repost seen on `getRepostedBy`, which does not name the record. */
-export function repostSightingId(boosterDid: string, postUri: string): string {
-  return `urn:mention:atproto-repost:${boosterDid}:${postUri}`;
+export function repostSightingId(reposterDid: string, postUri: string): string {
+  return `urn:mention:atproto-repost:${reposterDid}:${postUri}`;
 }
 
 /**
@@ -107,7 +107,7 @@ export function repostSightingId(boosterDid: string, postUri: string): string {
  * firehose), the boost takes its real AT-URI, so an unrepost can find it.
  */
 export async function adoptRepostSighting(
-  boosterDid: string,
+  reposterDid: string,
   postUri: string,
   repostUri: string,
 ): Promise<void> {
@@ -116,8 +116,8 @@ export async function adoptRepostSighting(
     .set({ federationActivityId: repostUri })
     .where(
       and(
-        eq(posts.federationActivityId, repostSightingId(boosterDid, postUri)),
-        eq(posts.federationActorUri, boosterDid),
+        eq(posts.federationActivityId, repostSightingId(reposterDid, postUri)),
+        eq(posts.federationActorUri, reposterDid),
       ),
     );
 }
@@ -127,7 +127,7 @@ export async function adoptRepostSighting(
  * Bluesky post `postUri`. Fail-soft per list; never throws on a remote failure.
  */
 export async function importAtprotoEngagement(postId: string, postUri: string): Promise<void> {
-  const [likerDids, boosterDids, quotes] = await Promise.all([
+  const [likerDids, reposterDids, quotes] = await Promise.all([
     settle(readDidList('app.bsky.feed.getLikes', postUri), [] as string[], 'likes'),
     settle(readDidList('app.bsky.feed.getRepostedBy', postUri), [] as string[], 'reposts'),
     settle(readQuotes(postUri), [] as AtprotoPostView[], 'quotes'),
@@ -135,7 +135,7 @@ export async function importAtprotoEngagement(postId: string, postUri: string): 
   const quoteAuthor = (view: AtprotoPostView) =>
     typeof view.author?.did === 'string' ? view.author.did : '';
   const known = await knownAccountsByDid([
-    ...new Set([...likerDids, ...boosterDids, ...quotes.map(quoteAuthor)].filter(Boolean)),
+    ...new Set([...likerDids, ...reposterDids, ...quotes.map(quoteAuthor)].filter(Boolean)),
   ]);
   if (known.size === 0) return;
 
@@ -143,13 +143,13 @@ export async function importAtprotoEngagement(postId: string, postUri: string): 
     const userId = known.get(did);
     if (userId) await materializeEngagementRelationship({ kind: 'like', userId, postId });
   }
-  for (const did of boosterDids) {
-    const boosterOxyUserId = known.get(did);
-    if (!boosterOxyUserId) continue;
+  for (const did of reposterDids) {
+    const reposterOxyUserId = known.get(did);
+    if (!reposterOxyUserId) continue;
     await importAtprotoRepost({
       activityId: repostSightingId(did, postUri),
       originalPostId: postId,
-      boosterOxyUserId,
+      boosterOxyUserId: reposterOxyUserId,
       boosterDid: did,
     });
   }
