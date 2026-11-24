@@ -20,7 +20,7 @@ import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import Feed from '@/components/Feed/Feed';
 import { PostReplyFooter } from './PostReplyFooter';
 import { CompactReplyComposer } from './CompactReplyComposer';
-import { useScreenBack } from '@oxy.so/bloom/screen';
+import { useScreenBack, useScreenEntered } from '@oxy.so/bloom/screen';
 import {
   useThreadPreferences,
   useThreadPreferencesStore,
@@ -119,8 +119,12 @@ const PostDetailScreen = screen(function PostDetailScreen({
   onBack,
 }: PostDetailScreenProps) {
   const openPostEngagement = useOpenPostEngagement();
-  // The post draws first; its replies and the reply prompt mount a frame later.
+  // The post draws first; its replies and the reply prompt mount once the push
+  // transition has ended (and, where nothing slides it in, a frame later), so
+  // the slide starts at once and runs without them on its frames.
+  const entered = useScreenEntered();
   const afterFirstFrame = useAfterFirstFrame();
+  const restReady = entered && afterFirstFrame;
   // Supervision, the post and its replies load at the same time; only what is
   // SHOWN waits for the access gate (see the returns below).
   const access = usePostReadAccess(id ? String(id) : '');
@@ -613,7 +617,7 @@ const PostDetailScreen = screen(function PostDetailScreen({
       : screenNode;
   };
   const replyFooter =
-    user && afterFirstFrame ? (
+    user && restReady ? (
       <PostReplyFooter>
         {post && access.allowed && postAcceptsReplies(post) ? (
           <CompactReplyComposer
@@ -700,7 +704,7 @@ const PostDetailScreen = screen(function PostDetailScreen({
           threaded={treeView}
           threadPostId={repliesQueryTargetId}
           contentContainerStyle={feedContentStyle}
-          rowsDeferred={!afterFirstFrame}
+          rowsDeferred={!restReady}
         />
       )}
     </>,

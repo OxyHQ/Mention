@@ -43,6 +43,7 @@ module.exports = {
   useScreenViewport: () => null,
   useScreenBack: () => undefined,
   useScreenVisible: () => true,
+  useScreenEntered: () => true,
   useScreenReselect: () => noop,
   useScreenReselectHandler: noop,
   useFrontScroller: () => () => null,

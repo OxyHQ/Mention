@@ -103,8 +103,9 @@ export interface FeedProps {
   /**
    * Draw the header alone for now: the rows, the loading state and the footer
    * come once this is false. The data loads meanwhile. A screen whose header is
-   * what the reader opened (a post above its replies) passes it for its first
-   * frame (`useAfterFirstFrame`), so that frame is the header's alone.
+   * what the reader opened (a post above its replies) passes it until its push
+   * transition has ended (`useScreenEntered`) and its first frame is drawn, so
+   * the slide and that frame are the header's alone.
    */
   rowsDeferred?: boolean;
 }
