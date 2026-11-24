@@ -192,7 +192,7 @@ describe('the following source', () => {
     await create({ oxyUserId: FOLLOW, visibility: PostVisibility.FOLLOWERS_ONLY });
     await create({
       oxyUserId: FOLLOW,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: own.id,
       content: { variants: [] },
     });
@@ -563,28 +563,28 @@ describe('the authored source (the profile feed)', () => {
     // A boost is a top-level post, so it belongs on both — which is why the
     // `author` definition hydrates at depth 1 (a boost's own body is empty).
     const original = await create({ oxyUserId: STRANGER });
-    const boost = await create({
+    const repost = await create({
       oxyUserId: AUTHOR,
       createdAt: at(0),
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original.id,
       content: { variants: [] },
     });
     const plain = await create({ oxyUserId: AUTHOR, createdAt: at(-1_000) });
 
-    const boostTab = await authoredSource.gather(
+    const repostTab = await authoredSource.gather(
       { currentUserId: VIEWER },
       { authorId: AUTHOR, filter: 'boosts' },
       31,
     );
-    expect(idsOf(boostTab)).toEqual([boost.id]);
+    expect(idsOf(repostTab)).toEqual([repost.id]);
 
     const mainTab = await authoredSource.gather(
       { currentUserId: VIEWER },
       { authorId: AUTHOR, filter: 'posts' },
       31,
     );
-    expect(idsOf(mainTab)).toEqual([boost.id, plain.id]);
+    expect(idsOf(mainTab)).toEqual([repost.id, plain.id]);
   });
 
   describe('the mentions tab', () => {
@@ -673,7 +673,7 @@ describe('the authored source (the profile feed)', () => {
     });
     await create({
       oxyUserId: AUTHOR,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: typedMedia.id,
       content: { variants: [] },
     });
@@ -726,7 +726,7 @@ describe('the authored source (the profile feed)', () => {
     });
     await create({
       oxyUserId: AUTHOR,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: typedVideo.id,
       content: { variants: [] },
     });

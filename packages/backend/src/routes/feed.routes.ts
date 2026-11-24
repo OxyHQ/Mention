@@ -93,7 +93,7 @@ router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 // Action routes (protected)
 // ────────────────────────────────────────────────────────────
 router.post('/reply', feedController.createReply.bind(feedController));
-router.post('/boost', feedController.createBoost.bind(feedController));
-router.delete('/:postId/boost', feedController.unboostItem.bind(feedController));
+router.post('/boost', feedController.createRepost.bind(feedController));
+router.delete('/:postId/boost', feedController.unrepostItem.bind(feedController));
 
 export default router;

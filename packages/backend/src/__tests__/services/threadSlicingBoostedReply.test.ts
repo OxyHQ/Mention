@@ -31,25 +31,25 @@ it('prepends the boosted reply’s parent, and leaves a boosted top-level post a
     isReply: true,
     parentPostId: parent.id,
   });
-  const boostOfReply = await seedPost(scope, {
+  const repostOfReply = await seedPost(scope, {
     oxyUserId: scope.user('nate'),
-    type: PostType.BOOST,
+    type: PostType.REPOST,
     boostOf: reply.id,
   });
-  const boostOfPost = await seedPost(scope, {
+  const repostOfPost = await seedPost(scope, {
     oxyUserId: scope.user('nate'),
-    type: PostType.BOOST,
+    type: PostType.REPOST,
     boostOf: parent.id,
   });
 
   const { slices, additionalPostIds } = await threadSlicingService.sliceFeed(
-    [boostOfReply, boostOfPost] as never,
+    [repostOfReply, repostOfPost] as never,
     { enableReplyContext: false },
   );
 
   expect(slices.map((slice) => ({ ids: slice._sliceKey, reason: slice.reason?.type }))).toEqual([
-    { ids: `${parent.id}+${boostOfReply.id}`, reason: 'replyContext' },
-    { ids: boostOfPost.id, reason: undefined },
+    { ids: `${parent.id}+${repostOfReply.id}`, reason: 'replyContext' },
+    { ids: repostOfPost.id, reason: undefined },
   ]);
   expect(additionalPostIds).toEqual([parent.id]);
 });

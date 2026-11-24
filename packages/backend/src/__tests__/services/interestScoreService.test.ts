@@ -181,13 +181,13 @@ describe('aggregateAuthors — the numbers come back as NUMBERS', () => {
 
   it('excludes boosts, drafts, private posts, and posts outside the 30-day window', async () => {
     const counted = authorId('counted');
-    const boostOnly = authorId('boost-only');
+    const repostOnly = authorId('boost-only');
     const draftOnly = authorId('draft-only');
     const privateOnly = authorId('private-only');
     const staleOnly = authorId('stale-only');
 
     await seedPost(counted, { likes: 7 });
-    await seedPost(boostOnly, { likes: 99, type: 'boost' });
+    await seedPost(repostOnly, { likes: 99, type: 'boost' });
     await seedPost(draftOnly, { likes: 99, status: 'draft' });
     await seedPost(privateOnly, { likes: 99, visibility: 'private' });
     await seedPost(staleOnly, {

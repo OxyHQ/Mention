@@ -395,13 +395,13 @@ export const muteBlockFilter: FilterModule = {
 };
 
 /** `noBoosts`: excludes boost posts (mirror shape surfaced via the original). */
-export const noBoostsFilter: FilterModule = {
+export const noRepostsFilter: FilterModule = {
   id: 'noBoosts',
   kind: 'filter',
   userComposable: true,
   keep: (post) => {
-    const boostOf = field(post, 'boostOf');
-    return boostOf === undefined || boostOf === null;
+    const repostOf = field(post, 'boostOf');
+    return repostOf === undefined || repostOf === null;
   },
 };
 
@@ -542,13 +542,13 @@ export const originalOnlyFilter: FilterModule = {
   kind: 'filter',
   userComposable: true,
   keep: (post) => {
-    const boostOf = field(post, 'boostOf');
+    const repostOf = field(post, 'boostOf');
     const quoteOf = field(post, 'quoteOf');
     const type = field<string>(post, 'type');
     return (
-      (boostOf === undefined || boostOf === null) &&
+      (repostOf === undefined || repostOf === null) &&
       (quoteOf === undefined || quoteOf === null) &&
-      type !== PostType.BOOST &&
+      type !== PostType.REPOST &&
       type !== PostType.QUOTE
     );
   },
@@ -1008,9 +1008,9 @@ export function passesLowEffortGate(
 function nativeEngagementCount(post: CandidatePost): number {
   const likes = statCount(post, 'likesCount');
   const comments = statCount(post, 'commentsCount');
-  const boosts = statCount(post, 'boostsCount');
-  const federatedBoosts = statCount(post, 'federatedBoostsCount');
-  return likes + comments + Math.max(0, boosts - federatedBoosts);
+  const reposts = statCount(post, 'boostsCount');
+  const federatedReposts = statCount(post, 'federatedBoostsCount');
+  return likes + comments + Math.max(0, reposts - federatedReposts);
 }
 
 /**
@@ -1271,7 +1271,7 @@ export const filterModules: FilterModule[] = [
   noBotsFilter,
   languagePreferenceFilter,
   muteBlockFilter,
-  noBoostsFilter,
+  noRepostsFilter,
   noRepliesFilter,
   mediaOnlyFilter,
   videoOnlyFilter,

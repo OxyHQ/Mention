@@ -36,7 +36,7 @@ import {
 } from '@/stores/postsStore';
 import { presentSheet } from '@/utils/sheet';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
-import type { FeedType, HydratedPost, Reply, FeedBoost as Boost } from '@mention/shared-types';
+import type { FeedType, HydratedPost, Reply, FeedRepost as Boost } from '@mention/shared-types';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -83,8 +83,8 @@ function usePrefetchReplies(postId: string) {
   useEffect(() => {
     if (!postId || !viewerReady || !sortLoaded) return;
     // A boost's replies are its original's; a cached boost names it.
-    const boosted = usePostsStore.getState().getPostFromDb(postId)?.boost?.originalPost?.id;
-    const target = boosted ? String(boosted) : postId;
+    const reposted = usePostsStore.getState().getPostFromDb(postId)?.boost?.originalPost?.id;
+    const target = reposted ? String(reposted) : postId;
     prefetchFeed(queryClient, {
       type: 'replies' as FeedType,
       filters: {
@@ -173,7 +173,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   // with the original embedded as a nested sub-card (the same way the feed row
   // renders a boost). A boost has no replies of its own; replies attach to the
   // original, so both reply targets below resolve to the original's id.
-  const boostOriginalId = post?.boost?.originalPost?.id
+  const repostOriginalId = post?.boost?.originalPost?.id
     ? String(post.boost.originalPost.id)
     : undefined;
 
@@ -182,13 +182,13 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
   // root into its whole continuation spine and returns external replies to ANY
   // spine node (root … cN), EXCLUDING the OP's own continuations — so this must be
   // the root, NOT the tail. For a non-thread post the root IS the focused post.
-  const repliesQueryTargetId = boostOriginalId ?? String(id);
+  const repliesQueryTargetId = repostOriginalId ?? String(id);
 
   // Target a NEW reply attaches to: the thread TAIL (cN) when this is a self-thread
   // (Bluesky — reply to the latest thread post), else the focused post. Because the
   // spine-aware replies feed includes the tail's children, a reply composed here
   // surfaces in the replies list.
-  const composeReplyTargetId = boostOriginalId ?? threadTailId ?? String(id);
+  const composeReplyTargetId = repostOriginalId ?? threadTailId ?? String(id);
 
   // Memoize filters for replies feed
   const feedFilters = useMemo(

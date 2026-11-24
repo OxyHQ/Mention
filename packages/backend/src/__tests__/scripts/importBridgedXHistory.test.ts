@@ -33,7 +33,7 @@ import {
 } from '../../scripts/importBridgedXHistory';
 
 const scope = serviceScope('import-bridged-x-history');
-const BOOSTER = scope.user('booster');
+const REPOSTER = scope.user('booster');
 
 let seq = 0;
 /** A handle no other test has used, so status URIs never collide across tests. */
@@ -63,7 +63,7 @@ function spyIngest() {
   return {
     note: vi.spyOn(outboxSyncService, 'ensureQuotedNote').mockResolvedValue('post-id'),
     announce: vi.spyOn(outboxSyncService, 'importAnnounce').mockResolvedValue(true),
-    booster: vi.spyOn(actorService, 'resolveActorOxyUserId').mockResolvedValue(BOOSTER),
+    reposter: vi.spyOn(actorService, 'resolveActorOxyUserId').mockResolvedValue(REPOSTER),
   };
 }
 
@@ -107,7 +107,7 @@ describe('importBridgedXHistory', () => {
 
     expect(result).toMatchObject({ posts: 1, reposts: 1, imported: 2, failed: 0 });
     expect(spies.note).toHaveBeenCalledWith(`https://bird.makeup/users/${handle}/statuses/10`);
-    expect(spies.booster).toHaveBeenCalledWith(`https://bird.makeup/users/${handle}`);
+    expect(spies.reposter).toHaveBeenCalledWith(`https://bird.makeup/users/${handle}`);
     expect(spies.announce).toHaveBeenCalledWith(
       {
         id: repostActivityId(handle, '20'),
@@ -117,7 +117,7 @@ describe('importBridgedXHistory', () => {
         url: 'https://x.com/Free_Ross/status/20',
       },
       'https://bird.makeup/users/free_ross/statuses/20',
-      BOOSTER,
+      REPOSTER,
     );
   });
 

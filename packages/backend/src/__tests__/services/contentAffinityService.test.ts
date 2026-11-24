@@ -381,13 +381,13 @@ describe('engagement affinity', () => {
   it('picks the authors of liked, replied-to and boosted posts', async () => {
     const liked = await createPost(id('author-like'));
     const repliedTo = await createPost(id('author-reply'));
-    const boosted = await createPost(id('author-boost'));
+    const reposted = await createPost(id('author-boost'));
 
     await likePost(liked.id);
     await createPost(VIEWER, { parentPostId: repliedTo.id });
     await createPost(VIEWER, {
-      type: PostType.BOOST,
-      boostOf: boosted.id,
+      type: PostType.REPOST,
+      boostOf: reposted.id,
       content: { variants: [] },
     });
 

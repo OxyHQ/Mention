@@ -122,8 +122,8 @@ describe('postsStore single-post reads', () => {
   it.each([403, 404])('evicts every embedded copy when revalidation returns %s', async (status) => {
     const privatePost = makePost('private');
     const quote = { ...makePost('quote'), quotedPost: privatePost };
-    const boost = { ...makePost('boost'), originalPost: quote };
-    for (const post of [privatePost, quote, boost]) mockPosts.set(post.id, post);
+    const repost = { ...makePost('boost'), originalPost: quote };
+    for (const post of [privatePost, quote, repost]) mockPosts.set(post.id, post);
     mockGetPostById.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { status }));
     expect(await usePostsStore.getState().revalidatePostById('private')).toBeNull();
     expect([...mockPosts.keys()]).toEqual([]);

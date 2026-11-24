@@ -28,7 +28,7 @@ import {
   FeedQueryBuilder,
   authorNotInSql,
   excludeSeenSql,
-  notABoostSql,
+  notARepostSql,
   notCollapsedCrosspostSql,
 } from '../../../../utils/feedQueryBuilder';
 import { engagementRankSql } from '../../../../db/schema/posts';
@@ -405,7 +405,7 @@ export const exploreSource: SourceModule = {
       lte(posts.createdAt, rankingCeiling),
       discoverySafeSql(),
       eq(posts.isReply, false),
-      notABoostSql(),
+      notARepostSql(),
     ];
 
     // `authorNotInSql` rather than a bare `<> all`, because the author column is
@@ -483,7 +483,7 @@ export const popularSource: SourceModule = {
       notCollapsedCrosspostSql(),
       discoverySafeSql(),
       eq(posts.isReply, false),
-      notABoostSql(),
+      notARepostSql(),
     ];
 
     // THIS source is where the language bug actually lived — it is the whole For

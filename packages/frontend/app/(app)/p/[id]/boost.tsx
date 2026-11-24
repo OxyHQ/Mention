@@ -1,5 +1,5 @@
-import BoostScreen from '@/components/BoostScreen';
+import RepostScreen from '@/components/BoostScreen';
 
-export default function BoostPage() {
-  return <BoostScreen />;
+export default function RepostPage() {
+  return <RepostScreen />;
 }

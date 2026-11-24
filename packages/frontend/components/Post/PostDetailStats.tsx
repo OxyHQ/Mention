@@ -69,14 +69,14 @@ interface Props {
 const PostDetailStats = memo<Props>(function PostDetailStats({
   timestampLabel,
   likes,
-  boosts,
+  boosts: reposts,
   quotes,
   saves,
   replyPermission,
   quotesDisabled,
   postId,
   onLikesPress,
-  onBoostsPress,
+  onBoostsPress: onRepostsPress,
   onQuotesPress,
 }) {
   const theme = useTheme();
@@ -97,7 +97,7 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
     });
   };
   pushStat('likes', likes, onLikesPress);
-  pushStat('boosts', boosts, onBoostsPress);
+  pushStat('boosts', reposts, onRepostsPress);
   pushStat('quotes', quotes, onQuotesPress);
   pushStat('saves', saves);
 

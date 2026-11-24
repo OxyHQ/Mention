@@ -65,7 +65,7 @@ let db: Database;
 const NAMESPACE = `boost-unique-${randomUUID().slice(0, 8)}`;
 const createdPostIds: string[] = [];
 
-function booster(): string {
+function reposter(): string {
   return `oxy-${NAMESPACE}-booster-${randomUUID().slice(0, 8)}`;
 }
 
@@ -118,7 +118,7 @@ function makeReq(viewer: string, originalPostId: string): AuthRequest {
 }
 
 /** Every boost row of `original`, whoever made it. */
-async function boostRows(original: string) {
+async function repostRows(original: string) {
   return db
     .select({ id: posts.id, oxyUserId: posts.oxyUserId })
     .from(posts)
@@ -138,11 +138,11 @@ afterEach(async () => {
   const originals = [...createdPostIds];
   createdPostIds.length = 0;
   if (originals.length === 0) return;
-  const boosts = await db
+  const reposts = await db
     .select({ id: posts.id })
     .from(posts)
     .where(inArray(posts.boostOf, originals));
-  const ids = [...boosts.map((row) => row.id), ...originals];
+  const ids = [...reposts.map((row) => row.id), ...originals];
   await db.delete(postAuthorships).where(inArray(postAuthorships.postId, ids));
   await db.delete(posts).where(inArray(posts.id, ids));
 });
@@ -154,7 +154,7 @@ afterAll(async () => {
 describe('boosting the same post twice at once', () => {
   it('leaves exactly one boost row, and tells the loser it already exists', async () => {
     const original = await seedOriginal();
-    const viewer = booster();
+    const viewer = reposter();
 
     /**
      * CONCURRENT, not sequential. Issued together, both requests run their
@@ -165,17 +165,17 @@ describe('boosting the same post twice at once', () => {
     const [first, second] = await Promise.all([
       (async () => {
         const res = makeRes();
-        await feedController.createBoost(makeReq(viewer, original), res);
+        await feedController.createRepost(makeReq(viewer, original), res);
         return res;
       })(),
       (async () => {
         const res = makeRes();
-        await feedController.createBoost(makeReq(viewer, original), res);
+        await feedController.createRepost(makeReq(viewer, original), res);
         return res;
       })(),
     ]);
 
-    const rows = await boostRows(original);
+    const rows = await repostRows(original);
     expect(rows).toHaveLength(1);
 
     // One winner, one refusal — and the refusal is the ordinary 400, not a 500.
@@ -192,18 +192,18 @@ describe('boosting the same post twice at once', () => {
      * the rule is one boost per ACCOUNT per post, not one boost per post.
      */
     const original = await seedOriginal();
-    const [a, b] = [booster(), booster()];
+    const [a, b] = [reposter(), reposter()];
 
     const responses = await Promise.all(
       [a, b].map(async (viewer) => {
         const res = makeRes();
-        await feedController.createBoost(makeReq(viewer, original), res);
+        await feedController.createRepost(makeReq(viewer, original), res);
         return res;
       }),
     );
 
     expect(responses.map((res) => res.statusCode)).toEqual([201, 201]);
-    const rows = await boostRows(original);
+    const rows = await repostRows(original);
     expect(rows.map((row) => row.oxyUserId).sort()).toEqual([a, b].sort());
   });
 
@@ -215,15 +215,15 @@ describe('boosting the same post twice at once', () => {
      * is gone rather than that the endpoint answered 200.
      */
     const original = await seedOriginal();
-    const viewer = booster();
+    const viewer = reposter();
 
     const created = makeRes();
-    await feedController.createBoost(makeReq(viewer, original), created);
+    await feedController.createRepost(makeReq(viewer, original), created);
     expect(created.statusCode).toBe(201);
-    expect(await boostRows(original)).toHaveLength(1);
+    expect(await repostRows(original)).toHaveLength(1);
 
     const removed = makeRes();
-    await feedController.unboostItem(
+    await feedController.unrepostItem(
       {
         accessToken: 'test-viewer-session',
         user: { id: viewer },
@@ -236,7 +236,7 @@ describe('boosting the same post twice at once', () => {
     );
 
     expect(removed.statusCode).toBe(200);
-    expect(await boostRows(original)).toHaveLength(0);
+    expect(await repostRows(original)).toHaveLength(0);
   });
 });
 

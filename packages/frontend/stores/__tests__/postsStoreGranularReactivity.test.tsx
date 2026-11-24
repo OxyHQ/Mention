@@ -270,13 +270,13 @@ describe('postsStore keyed SQLite reactivity', () => {
   });
 
   it('persists canonical related posts once without recreating local aliases', () => {
-    const boostOriginal = makePost('boost-original');
-    const boost = makePost('boost');
-    boost.content = { text: '' };
-    boost.originalPost = boostOriginal;
-    boost.boost = {
-      actor: boost.user,
-      originalPost: boostOriginal,
+    const repostOriginal = makePost('boost-original');
+    const repost = makePost('boost');
+    repost.content = { text: '' };
+    repost.originalPost = repostOriginal;
+    repost.boost = {
+      actor: repost.user,
+      originalPost: repostOriginal,
     };
 
     const quotedPost = makePost('quoted-post');
@@ -285,7 +285,7 @@ describe('postsStore keyed SQLite reactivity', () => {
     quote.quotedPost = quotedPost;
 
     act(() => {
-      usePostsStore.getState().cachePosts([boost, quote]);
+      usePostsStore.getState().cachePosts([repost, quote]);
     });
 
     expect(mockPosts.get('boost')?.boost?.originalPost?.id).toBe('boost-original');

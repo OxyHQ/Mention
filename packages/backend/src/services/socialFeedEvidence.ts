@@ -119,7 +119,7 @@ async function attachCurrentSocialFeedContext(
     )
     .groupBy(likes.postId);
   const withoutLikes = postIds.filter((id) => !rows.some((row) => row.postId === id));
-  const boostRows = withoutLikes.length
+  const repostRows = withoutLikes.length
     ? await getDb()
         .select({
           postId: posts.boostOf,
@@ -145,7 +145,7 @@ async function attachCurrentSocialFeedContext(
     : [];
   const evidenceRows = [
     ...rows.map((row) => ({ ...row, type: 'likedBy' as const })),
-    ...boostRows.map((row) => ({ ...row, type: 'boostedBy' as const })),
+    ...repostRows.map((row) => ({ ...row, type: 'boostedBy' as const })),
   ];
   const summaries = await resolveUserSummaries([
     ...new Set(evidenceRows.flatMap((row) => row.actorIds)),

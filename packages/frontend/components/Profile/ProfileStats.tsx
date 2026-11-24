@@ -15,14 +15,14 @@ export const ProfileStats = memo(function ProfileStats({
   followerCount,
   accountKind,
   postsCount,
-  boostsCount,
+  boostsCount: repostsCount,
   repliesCount,
   reputationTotal,
   showReplies = true,
   followingHref,
   followersHref,
   onPostsPress,
-  onBoostsPress,
+  onRepostsPress,
   onRepliesPress,
 }: ProfileStatsProps) {
   const router = useRouter();
@@ -79,12 +79,12 @@ export const ProfileStats = memo(function ProfileStats({
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onBoostsPress}>
+      <TouchableOpacity className="gap-1" style={styles.statItem} onPress={onRepostsPress}>
         <Text className="text-foreground" style={styles.statNumber}>
-          {formatCompactNumber(boostsCount ?? 0)}
+          {formatCompactNumber(repostsCount ?? 0)}
         </Text>
         <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.stats.boosts', { count: boostsCount ?? 0 })}
+          {t('profile.stats.boosts', { count: repostsCount ?? 0 })}
         </Text>
       </TouchableOpacity>
 

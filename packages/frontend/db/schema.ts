@@ -5,7 +5,7 @@
  * used throughout the app.
  */
 
-import type { HydratedBoostContext, HydratedPost } from '@mention/shared-types';
+import type { HydratedRepostContext, HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 import type { LinkMetadata } from '@/stores/linksStore';
 import { isRecord } from '@/utils/isRecord';
@@ -86,7 +86,7 @@ export interface ClarityDocumentRow {
 
 // ── FeedItem type (matches postsStore's FeedItem) ────────────────
 
-type CachedBoostContext = Omit<HydratedBoostContext, 'originalPost'> & {
+type CachedRepostContext = Omit<HydratedRepostContext, 'originalPost'> & {
   originalPost: FeedItem | null;
 };
 
@@ -98,7 +98,7 @@ type CachedBoostContext = Omit<HydratedBoostContext, 'originalPost'> & {
 export type FeedItem = Omit<HydratedPost, 'originalPost' | 'quotedPost' | 'boost'> & {
   originalPost?: FeedItem | null;
   quotedPost?: FeedItem | null;
-  boost?: CachedBoostContext | null;
+  boost?: CachedRepostContext | null;
   date?: string;
   media?: string[];
   mediaIds?: string[];

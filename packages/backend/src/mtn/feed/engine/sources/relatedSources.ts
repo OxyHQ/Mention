@@ -31,7 +31,7 @@ import { discoverySafeSql } from '../../feedSafety';
 import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../../../../services/followerSnapshotJob';
 import { clamp } from '@oxy.so/utils/text';
 import { logger } from '../../../../utils/logger';
-import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
+import { notARepostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -214,7 +214,7 @@ export const moreLikeThisSource: SourceModule = {
       gte(posts.createdAt, windowStart),
       discoverySafeSql(),
       or(...alternatives) as SQL,
-      notABoostSql(),
+      notARepostSql(),
     ];
     if (seed.excludeId) conditions.push(ne(posts.id, seed.excludeId));
 
@@ -319,7 +319,7 @@ export const nearbySource: SourceModule = {
             eq(posts.status, 'published'),
             notCollapsedCrosspostSql(),
             discoverySafeSql(),
-            notABoostSql(),
+            notARepostSql(),
             sql`ST_DWithin(${posts.geo}, ${point}, ${radiusKm * METRES_PER_KM})`,
           ),
         )
@@ -559,7 +559,7 @@ export const risingCreatorsSource: SourceModule = {
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, false),
-          notABoostSql(),
+          notARepostSql(),
         ),
       )
       .orderBy(...chronoOrderBy())

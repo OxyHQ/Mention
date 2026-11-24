@@ -436,7 +436,7 @@ describe('buildCandidateFilter', () => {
     // A NATIVE post — no federation activity id.
     await seedPost('2', { federation: undefined });
     // A BOOST, which carries no body of its own to repair.
-    await seedPost('3', { type: PostType.BOOST });
+    await seedPost('3', { type: PostType.REPOST });
     // Resolved: a placeholder and a qualified handle leave nothing bare.
     await seedPost('4', {
       mentions: ['oxy_bob'],

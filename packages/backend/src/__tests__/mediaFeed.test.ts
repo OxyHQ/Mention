@@ -190,8 +190,8 @@ describe('the media predicate as a whole', () => {
     const restricted = await create({ type: PostType.IMAGE, status: 'restricted' });
 
     const original = await create({ type: PostType.IMAGE });
-    const boost = await create({
-      type: PostType.BOOST,
+    const repost = await create({
+      type: PostType.REPOST,
       boostOf: original,
       content: { variants: [], media: [{ id: 'media-boosted', type: 'image' }] },
     });
@@ -199,7 +199,7 @@ describe('the media predicate as a whole', () => {
     expect(await admitted()).toEqual(
       [imageTyped, videoTyped, mediaRow, attachmentOnly, original].sort(),
     );
-    const excluded = [textOnly, followersOnly, draft, restricted, boost];
+    const excluded = [textOnly, followersOnly, draft, restricted, repost];
     expect((await admitted()).filter((id) => excluded.includes(id))).toEqual([]);
   });
 
@@ -208,15 +208,15 @@ describe('the media predicate as a whole', () => {
     // "wrong shape": the boosted ORIGINAL is what the feed surfaces, so admitting
     // the boost would double the original in the same page.
     const original = await create({ type: PostType.IMAGE });
-    const boost = await create({
-      type: PostType.BOOST,
+    const repost = await create({
+      type: PostType.REPOST,
       boostOf: original,
       content: { variants: [], media: [{ id: 'media-boost', type: 'image' }] },
     });
 
     const ids = await admitted();
     expect(ids).toEqual([original]);
-    expect(ids).not.toContain(boost);
+    expect(ids).not.toContain(repost);
   });
 
   it('admits a REPLY, so a multi-post thread can still be sliced', async () => {

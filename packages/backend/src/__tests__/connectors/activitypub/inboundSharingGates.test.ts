@@ -56,7 +56,7 @@ import type { PostRecord } from '../../../db/posts/postRecord';
 const scope = federationScope('inbound-sharing-gates');
 const ACTOR_URI = `${scope.origin}/users/bob`;
 const OWNER_OXY_ID = scope.user('alice');
-const BOOSTER_OXY_ID = scope.user('bob');
+const REPOSTER_OXY_ID = scope.user('bob');
 /**
  * The Oxy account the mocked `isChannelAccount` answers `true` for — namespaced
  * like every other id here, since a channel is an ordinary account id now.
@@ -187,10 +187,10 @@ async function seedTarget(overrides: Partial<PostRecordInput> = {}): Promise<voi
 }
 
 /** The boost row a subsequent Undo(Announce) has to find and delete. */
-async function seedBoost(announceId: string): Promise<PostRecord> {
+async function seedRepost(announceId: string): Promise<PostRecord> {
   return seedPost(scope, {
-    oxyUserId: BOOSTER_OXY_ID,
-    type: PostType.BOOST,
+    oxyUserId: REPOSTER_OXY_ID,
+    type: PostType.REPOST,
     content: {},
     boostOf: target.id,
     federation: { activityId: announceId, actorUri: ACTOR_URI },
@@ -227,7 +227,7 @@ beforeEach(async () => {
   mocks.postCreatorCreate.mockResolvedValue({ id: 'created_post_1' });
   mocks.importAnnounce.mockResolvedValue(true);
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
-  await seedRemoteActor(BOOSTER_OXY_ID);
+  await seedRemoteActor(REPOSTER_OXY_ID);
   // At least one local user follows the actor, so `handleCreate`'s follower gate
   // passes and the sharing gate is what the assertions below are measuring.
   await seedFollow(scope, {
@@ -361,7 +361,7 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith(OWNER_OXY_ID);
     expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
       kind: 'like',
-      userId: BOOSTER_OXY_ID,
+      userId: REPOSTER_OXY_ID,
       postId: target.id,
     });
   });
@@ -380,7 +380,7 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
 
     expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
       kind: 'like',
-      userId: BOOSTER_OXY_ID,
+      userId: REPOSTER_OXY_ID,
       postId: target.id,
     });
   });
@@ -392,7 +392,7 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
 
     expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
       kind: 'like',
-      userId: BOOSTER_OXY_ID,
+      userId: REPOSTER_OXY_ID,
       postId: target.id,
     });
     // The sharing flag is never even consulted for an Undo.
@@ -413,7 +413,7 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
     expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
       kind: 'like',
-      userId: BOOSTER_OXY_ID,
+      userId: REPOSTER_OXY_ID,
       postId: target.id,
     });
   });
@@ -460,12 +460,12 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
   });
 
   it('handleUndoAnnounce: removes the boost row and decrements BOTH counters when enabled', async () => {
-    const boost = await seedBoost(`${ACTOR_URI}/announces/1`);
+    const repost = await seedRepost(`${ACTOR_URI}/announces/1`);
     await bumpPostCounters(target.id, { boosts: 1, federatedBoosts: 1 });
 
     await inboxProcessingService.processInboxActivity(undoAnnounceActivity(), ACTOR_URI);
 
-    expect(await loadPostRecord(boost.id)).toBeNull();
+    expect(await loadPostRecord(repost.id)).toBeNull();
     // Both, in lockstep: the import incremented both, and a decrement that moved
     // only `boosts` would leave `federatedBoosts` permanently overstating how
     // much of the count came from the fediverse.
@@ -479,10 +479,10 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
     // of the same post. The id path cannot be tested this way: a UNIQUE index on
     // `federation_activity_id` already makes two boosts sharing an Announce id
     // unstorable, which is worth knowing before writing a test for it.
-    const mine = await seedBoost(`${ACTOR_URI}/announces/1`);
+    const mine = await seedRepost(`${ACTOR_URI}/announces/1`);
     const theirs = await seedPost(scope, {
       oxyUserId: scope.user('mallory'),
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       content: {},
       boostOf: target.id,
       federation: {
@@ -509,13 +509,13 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
   });
 
   it('handleUndoAnnounce: still converges when the owner has sharing disabled — teardown is ungated', async () => {
-    const boost = await seedBoost(`${ACTOR_URI}/announces/1`);
+    const repost = await seedRepost(`${ACTOR_URI}/announces/1`);
     await bumpPostCounters(target.id, { boosts: 1, federatedBoosts: 1 });
     mocks.isFediverseSharingEnabled.mockResolvedValue(false);
 
     await inboxProcessingService.processInboxActivity(undoAnnounceActivity(), ACTOR_URI);
 
-    expect(await loadPostRecord(boost.id)).toBeNull();
+    expect(await loadPostRecord(repost.id)).toBeNull();
     expect(await readCounters(target.id)).toEqual({ boosts: 0, federatedBoosts: 0 });
     // The sharing flag is never even consulted for an Undo.
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();

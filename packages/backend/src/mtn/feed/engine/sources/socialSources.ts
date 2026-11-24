@@ -45,7 +45,7 @@ import { engagementScoreSql } from './discoverySources';
 import { logger } from '../../../../utils/logger';
 import {
   excludeSeenSql,
-  notABoostSql,
+  notARepostSql,
   notCollapsedCrosspostSql,
 } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, SourceModule } from '../types';
@@ -107,7 +107,7 @@ export const friendsEngagedSource: SourceModule = {
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
       notCollapsedCrosspostSql(),
-      notABoostSql(),
+      notARepostSql(),
       sql`${posts.createdAt} <= ${asOf.toISOString()}`,
       gte(posts.createdAt, since),
       networkEngagementExistsSql(followingIds, since, asOf),
@@ -219,7 +219,7 @@ export const repliesFromFollowsSource: SourceModule = {
  * MUST hydrate at `maxDepth:1` (see the boost-hydration gotcha) or they render
  * blank.
  */
-export const boostsFromFollowsSource: SourceModule = {
+export const repostsFromFollowsSource: SourceModule = {
   id: 'boostsFromFollows',
   kind: 'source',
   userComposable: false,
@@ -229,7 +229,7 @@ export const boostsFromFollowsSource: SourceModule = {
 
     return fetchChrono(
       [
-        eq(posts.type, PostType.BOOST),
+        eq(posts.type, PostType.REPOST),
         inArray(posts.oxyUserId, followingIds),
         eq(posts.status, 'published'),
         notCollapsedCrosspostSql(),
@@ -579,7 +579,7 @@ export const newVoicesSource: SourceModule = {
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, false),
-          notABoostSql(),
+          notARepostSql(),
           isNotNull(posts.oxyUserId),
         ),
       )
@@ -698,7 +698,7 @@ export const socialSourceModules: SourceModule[] = [
   friendsEngagedSource,
   quotesSource,
   repliesFromFollowsSource,
-  boostsFromFollowsSource,
+  repostsFromFollowsSource,
   mentionsOfMeSource,
   hashtagFollowsSource,
   starterPackSource,

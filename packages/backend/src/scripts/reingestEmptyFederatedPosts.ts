@@ -138,7 +138,7 @@ function parseFlags(argv: string[]): Flags {
 function buildEmptyFederatedFilter(actorUri: string | undefined): SQL {
   const conditions: SQL[] = [
     isNotNull(posts.federationActivityId),
-    ne(posts.type, PostType.BOOST),
+    ne(posts.type, PostType.REPOST),
     isNull(posts.contentPollId),
     sql`not exists (
       select 1 from ${postContentVariants}

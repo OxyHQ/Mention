@@ -249,13 +249,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const communitiesPreview = useCommunitiesPreview();
   const supervision = useSupervisionState();
   const mentionSearchCache = useCreateMentionSearchCache();
-  const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore(
+  const { createPost, createThread, createReply, cachePosts, repostPost } = usePostsStore(
     useShallow((state) => ({
       createPost: state.createPost,
       createThread: state.createThread,
       createReply: state.createReply,
       cachePosts: state.cachePosts,
-      boostPost: state.boostPost,
+      repostPost: state.repostPost,
     })),
   );
   const queryClient = useQueryClient();
@@ -1797,7 +1797,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         const result = await publishPostWithRepost({
           request: allPosts[0],
           createPost,
-          boostPost,
+          repostPost,
           shouldRepost: repostRequested && !wasScheduled,
           isCurrentOwner,
         });

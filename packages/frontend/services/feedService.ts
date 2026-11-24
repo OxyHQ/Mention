@@ -6,7 +6,7 @@ import type {
   FeedResponse,
   SlicedFeedResponse,
   CreateReplyRequest,
-  CreateBoostRequest,
+  CreateRepostRequest,
   CreatePostRequest,
   CreateThreadRequest,
   FeedDescriptor,
@@ -667,8 +667,8 @@ class FeedService {
    * content, not the author. Omitted from the payload when absent so the request
    * stays byte-identical for non-feed callers.
    */
-  async createBoost(
-    request: CreateBoostRequest,
+  async createRepost(
+    request: CreateRepostRequest,
     source?: string,
   ): Promise<{ success: boolean; boost: unknown }> {
     const backendRequest = {
@@ -737,7 +737,7 @@ class FeedService {
   /**
    * Unboost a post
    */
-  async unboostItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
+  async unrepostItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
     const response = await authenticatedClient.delete(`/feed/${request.postId}/boost`);
     return { success: true, data: response.data };
   }
@@ -1044,7 +1044,7 @@ class FeedService {
   /**
    * Get users who boosted a post
    */
-  async getPostBoosts(
+  async getPostReposts(
     postId: string,
     cursor?: string,
     limit: number = 50,

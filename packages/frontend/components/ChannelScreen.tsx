@@ -247,7 +247,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   );
 
   const handlePostsPress = useCallback(() => scrollOrSwitch('posts'), [scrollOrSwitch]);
-  const handleBoostsPress = useCallback(() => scrollOrSwitch('boosts'), [scrollOrSwitch]);
+  const handleRepostsPress = useCallback(() => scrollOrSwitch('boosts'), [scrollOrSwitch]);
   // A channel has no replies tab, so the replies stat is never rendered and
   // this can never fire — `ProfileContent` still requires the handler, so it
   // jumps to `posts` rather than to a tab that is not there.
@@ -376,7 +376,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           followingHref={`/@${handle}/following`}
           followersHref={`/@${handle}/followers`}
           onPostsPress={handlePostsPress}
-          onBoostsPress={handleBoostsPress}
+          onRepostsPress={handleRepostsPress}
           onRepliesPress={handleRepliesPress}
           onLayout={chrome.setContentHeight}
         />
@@ -387,7 +387,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     chrome.setContentHeight,
     justFollowed,
     handle,
-    handleBoostsPress,
+    handleRepostsPress,
     handlePostsPress,
     handleRepliesPress,
     identity,

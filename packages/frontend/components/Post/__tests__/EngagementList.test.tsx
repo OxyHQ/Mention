@@ -62,11 +62,11 @@ const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 const mockGetPostLikes = jest.fn();
-const mockGetPostBoosts = jest.fn();
+const mockGetPostReposts = jest.fn();
 jest.mock('@/services/feedService', () => ({
   feedService: {
     getPostLikes: (...args: unknown[]) => mockGetPostLikes(...args),
-    getPostBoosts: (...args: unknown[]) => mockGetPostBoosts(...args),
+    getPostReposts: (...args: unknown[]) => mockGetPostReposts(...args),
   },
 }));
 
@@ -175,7 +175,7 @@ describe('EngagementList — canonical PostUser rendering', () => {
   });
 
   it('renders the boosts list from canonical PostUser objects — real name and federated handle, never "Unknown user"', async () => {
-    mockGetPostBoosts.mockResolvedValue({
+    mockGetPostReposts.mockResolvedValue({
       users: [federatedEngager, localEngager],
       hasMore: false,
       nextCursor: undefined,

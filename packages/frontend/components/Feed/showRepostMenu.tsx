@@ -4,7 +4,7 @@ import { RiDoubleQuotesL } from '@oxy.so/bloom/icons/RiDoubleQuotesL';
 import { showActionMenu } from '@/components/common/ActionMenu';
 
 export function showRepostMenu({
-  isBoosted,
+  isBoosted: isReposted,
   quotesDisabled,
   t,
   onRepost,
@@ -21,7 +21,7 @@ export function showRepostMenu({
     groups: [
       [
         {
-          label: isBoosted ? t('post.undoRepost', 'Undo repost') : t('post.repost', 'Repost'),
+          label: isReposted ? t('post.undoRepost', 'Undo repost') : t('post.repost', 'Repost'),
           icon: <RiRepeat2Line width={20} height={20} className="text-foreground" />,
           onPress: onRepost,
         },

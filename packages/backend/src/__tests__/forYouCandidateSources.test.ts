@@ -496,9 +496,9 @@ describe('bounds and exclusions', () => {
       createdAt: new Date(HORIZON - MtnConfig.feed.candidateSources.recencyWindowMs - 60_000),
     });
     // A boost mirrors a post that is already a candidate in its own right.
-    const boost = await create({
+    const repost = await create({
       oxyUserId: FOLLOW,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: fresh.id,
       content: { variants: [] },
     });
@@ -510,7 +510,7 @@ describe('bounds and exclusions', () => {
     });
     expect(idsOf(gathered)).toEqual([fresh.id]);
     expect(idsOf(gathered)).not.toContain(stale.id);
-    expect(idsOf(gathered)).not.toContain(boost.id);
+    expect(idsOf(gathered)).not.toContain(repost.id);
   });
 
   it('drops an affinity author the viewer already follows, so FOLLOWING owns them', async () => {

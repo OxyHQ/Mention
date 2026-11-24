@@ -32,10 +32,10 @@ import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { deletePostRecord, insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecordInput } from '../db/posts/postRecord';
-import { backfillFederatedBoostCounts } from '../scripts/backfillFederatedBoostCounts';
+import { backfillFederatedRepostCounts } from '../scripts/backfillFederatedBoostCounts';
 
 const OWNER = 'oxy-boost-backfill-owner';
-const BOOSTER = 'oxy-boost-backfill-booster';
+const REPOSTER = 'oxy-boost-backfill-booster';
 
 describe('backfillFederatedBoostCounts', () => {
   const created: string[] = [];
@@ -56,12 +56,12 @@ describe('backfillFederatedBoostCounts', () => {
   }
 
   /** A boost row. Federated when `activityId` is supplied, native otherwise. */
-  async function seedBoost(boostOf: string, activityId?: string): Promise<string> {
+  async function seedRepost(repostOf: string, activityId?: string): Promise<string> {
     return seed({
-      oxyUserId: BOOSTER,
-      type: PostType.BOOST,
+      oxyUserId: REPOSTER,
+      type: PostType.REPOST,
       content: {},
-      boostOf,
+      boostOf: repostOf,
       ...(activityId
         ? { federation: { activityId, actorUri: 'https://remote.example/users/booster' } }
         : {}),
@@ -93,20 +93,20 @@ describe('backfillFederatedBoostCounts', () => {
 
   it('counts federated Announces only, never native reposts, and is idempotent', async () => {
     const original = await seed();
-    await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
-    await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
+    await seedRepost(original, `https://remote.example/a/${randomUUID()}`);
+    await seedRepost(original, `https://remote.example/a/${randomUUID()}`);
     // A native repost: `boost_of` + `type = 'boost'` but no federation activity
     // id. It must NOT be counted — that distinction is the whole script.
-    await seedBoost(original);
+    await seedRepost(original);
 
-    const first = await backfillFederatedBoostCounts({ postIds: [original] });
+    const first = await backfillFederatedRepostCounts({ postIds: [original] });
     expect(first).toEqual({ scanned: 1, updated: 1, failed: 0 });
     expect((await readRow(original)).count).toBe(2);
 
     // Idempotency asserted on the ROW, not on a call count: a second run that
     // wrote would move `updated_at`, since the column carries `$onUpdate`.
     const before = await readRow(original);
-    const second = await backfillFederatedBoostCounts({ postIds: [original] });
+    const second = await backfillFederatedRepostCounts({ postIds: [original] });
     expect(second).toEqual({ scanned: 1, updated: 0, failed: 0 });
     expect(await readRow(original)).toEqual(before);
   });
@@ -116,24 +116,24 @@ describe('backfillFederatedBoostCounts', () => {
     // boost row, so a stale stored count is too HIGH. A backfill that only ever
     // raised the number would leave it wrong and report success.
     const original = await seed();
-    const boost = await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
-    await backfillFederatedBoostCounts({ postIds: [original] });
+    const repost = await seedRepost(original, `https://remote.example/a/${randomUUID()}`);
+    await backfillFederatedRepostCounts({ postIds: [original] });
     expect((await readRow(original)).count).toBe(1);
 
-    await deletePostRecord(boost, undefined);
-    created.splice(created.indexOf(boost), 1);
+    await deletePostRecord(repost, undefined);
+    created.splice(created.indexOf(repost), 1);
 
-    const result = await backfillFederatedBoostCounts({ postIds: [original] });
+    const result = await backfillFederatedRepostCounts({ postIds: [original] });
     expect(result).toEqual({ scanned: 1, updated: 1, failed: 0 });
     expect((await readRow(original)).count).toBe(0);
   });
 
   it('leaves an already-correct post untouched — no write at all', async () => {
     const original = await seed();
-    await seedBoost(original); // native only, so the correct count is the stored 0
+    await seedRepost(original); // native only, so the correct count is the stored 0
 
     const before = await readRow(original);
-    const result = await backfillFederatedBoostCounts({ postIds: [original] });
+    const result = await backfillFederatedRepostCounts({ postIds: [original] });
 
     expect(result).toEqual({ scanned: 1, updated: 0, failed: 0 });
     expect(await readRow(original)).toEqual(before);
@@ -141,10 +141,10 @@ describe('backfillFederatedBoostCounts', () => {
 
   it('reports what it would update under dryRun, and writes nothing', async () => {
     const original = await seed();
-    await seedBoost(original, `https://remote.example/a/${randomUUID()}`);
+    await seedRepost(original, `https://remote.example/a/${randomUUID()}`);
 
     const before = await readRow(original);
-    const result = await backfillFederatedBoostCounts({ postIds: [original], dryRun: true });
+    const result = await backfillFederatedRepostCounts({ postIds: [original], dryRun: true });
 
     expect(result).toEqual({ scanned: 1, updated: 1, failed: 0 });
     // Both halves are load-bearing: the count is still 0 AND the row was never
@@ -161,11 +161,11 @@ describe('backfillFederatedBoostCounts', () => {
     // mutating the script that way passed this test until the page size grew.
     // At two, a first-id cursor re-reads the overlap and `scanned` climbs.
     const originals = [await seed(), await seed(), await seed()];
-    await seedBoost(originals[0], `https://remote.example/a/${randomUUID()}`);
-    await seedBoost(originals[2], `https://remote.example/a/${randomUUID()}`);
-    await seedBoost(originals[2], `https://remote.example/a/${randomUUID()}`);
+    await seedRepost(originals[0], `https://remote.example/a/${randomUUID()}`);
+    await seedRepost(originals[2], `https://remote.example/a/${randomUUID()}`);
+    await seedRepost(originals[2], `https://remote.example/a/${randomUUID()}`);
 
-    const result = await backfillFederatedBoostCounts({ postIds: originals, batchSize: 2 });
+    const result = await backfillFederatedRepostCounts({ postIds: originals, batchSize: 2 });
 
     expect(result).toEqual({ scanned: 3, updated: 2, failed: 0 });
     expect(await Promise.all(originals.map(async (id) => (await readRow(id)).count))).toEqual([

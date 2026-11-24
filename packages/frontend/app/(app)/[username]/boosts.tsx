@@ -1,7 +1,7 @@
 import ProfileScreen from '@/components/ProfileScreen';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 
-export default function ProfileBoostsRoute() {
+export default function ProfileRepostsRoute() {
   const username = useRoutedProfileUsername();
   return <ProfileScreen username={username} tab="boosts" />;
 }

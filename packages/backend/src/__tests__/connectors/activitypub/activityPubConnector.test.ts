@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   syncOutboxPostsDetailed: vi.fn(),
   federateNewPost: vi.fn(),
-  federateBoost: vi.fn(),
+  federateRepost: vi.fn(),
   federateLike: vi.fn(),
   federateLikeStrict: vi.fn(),
   federateUndoLike: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 vi.mock('../../../connectors/activitypub/follow.service', () => ({
   followService: {
     federateNewPost: mocks.federateNewPost,
-    federateBoost: mocks.federateBoost,
+    federateRepost: mocks.federateRepost,
     federateLike: mocks.federateLike,
     federateLikeStrict: mocks.federateLikeStrict,
     federateUndoLike: mocks.federateUndoLike,
@@ -259,17 +259,17 @@ describe('ActivityPubConnector strict post dispatch', () => {
   });
   it('uses strict boost dispatch so a refused Announce is not accepted', async () => {
     const denied = new Error('delivery authorization denied');
-    const boost = { _id: 'boost1', boostOf: 'original' };
-    mocks.federateBoost.mockRejectedValueOnce(denied);
+    const repost = { _id: 'boost1', boostOf: 'original' };
+    mocks.federateRepost.mockRejectedValueOnce(denied);
     await expect(
       activityPubConnector.deliverDurably({
         kind: 'post.boost',
-        boost,
+        boost: repost,
         actorOxyUserId: 'owner',
         actorUsername: 'alice',
       }),
     ).rejects.toBe(denied);
-    expect(mocks.federateBoost).toHaveBeenCalledWith(boost, 'owner', 'alice', {
+    expect(mocks.federateRepost).toHaveBeenCalledWith(repost, 'owner', 'alice', {
       throwOnError: true,
     });
   });

@@ -17,7 +17,7 @@ import { Divider } from '@oxy.so/bloom/divider';
 import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import type { CreateBoostRequest } from '@mention/shared-types/feed';
+import type { CreateRepostRequest } from '@mention/shared-types/feed';
 import type { FeedItem } from '@/db';
 import PostContentText from '@/components/Post/PostContentText';
 
@@ -32,7 +32,7 @@ import { logger } from '@oxy.so/core/logger';
 
 const MAX_CHARACTERS = 280;
 
-const BoostScreen: React.FC = () => {
+const RepostScreen: React.FC = () => {
   const { user } = useAuth();
   const { id: postId } = useLocalSearchParams<{ id: string }>();
   const insets = useContentSafeAreaInsets();
@@ -47,7 +47,7 @@ const BoostScreen: React.FC = () => {
   const textInputRef = useRef<TextInputInstance>(null);
 
   const getPostById = usePostsStore((state) => state.getPostById);
-  const createBoost = usePostsStore((state) => state.createBoost);
+  const createRepost = usePostsStore((state) => state.createRepost);
 
   useEffect(() => {
     const loadOriginal = async () => {
@@ -69,16 +69,16 @@ const BoostScreen: React.FC = () => {
 
   const characterCount = content.length;
   const isOverLimit = characterCount > MAX_CHARACTERS;
-  const canBoost = !isOverLimit && !isSubmitting;
+  const canRepost = !isOverLimit && !isSubmitting;
 
-  const handleBoost = async () => {
-    if (!canBoost || !user || !originalPost || !postId) return;
+  const handleRepost = async () => {
+    if (!canRepost || !user || !originalPost || !postId) return;
 
     setIsSubmitting(true);
 
     try {
       // Create boost request
-      const boostRequest: CreateBoostRequest = {
+      const repostRequest: CreateRepostRequest = {
         originalPostId: postId,
         content: content.trim() ? { text: content.trim() } : undefined,
         mentions: [],
@@ -86,7 +86,7 @@ const BoostScreen: React.FC = () => {
       };
 
       // Add to backend and store using posts store
-      await createBoost(boostRequest);
+      await createRepost(repostRequest);
 
       // Navigate back
       back?.();
@@ -138,11 +138,11 @@ const BoostScreen: React.FC = () => {
               <View className="flex-row items-center">
                 <TouchableOpacity
                   className="rounded-full px-5 py-2"
-                  style={[!canBoost && { opacity: 0.5 }]}
-                  onPress={handleBoost}
-                  disabled={!canBoost}
+                  style={[!canRepost && { opacity: 0.5 }]}
+                  onPress={handleRepost}
+                  disabled={!canRepost}
                 >
-                  <Text className="text-base font-bold" style={[!canBoost && { opacity: 0.7 }]}>
+                  <Text className="text-base font-bold" style={[!canRepost && { opacity: 0.7 }]}>
                     {isSubmitting ? 'Boosting...' : 'Boost'}
                   </Text>
                 </TouchableOpacity>
@@ -260,4 +260,4 @@ const BoostScreen: React.FC = () => {
   );
 };
 
-export default BoostScreen;
+export default RepostScreen;

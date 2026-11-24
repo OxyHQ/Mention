@@ -9,7 +9,7 @@ export enum NotificationType {
   EVENT_UPDATED = 'event_updated',
   EVENT_CANCELLED = 'event_cancelled',
   LIKE = 'like',
-  BOOST = 'boost',
+  REPOST = 'boost',
   COMMENT = 'comment',
   REPLY = 'reply',
   FOLLOW = 'follow',
@@ -74,8 +74,8 @@ export interface LikeNotification extends Notification {
   };
 }
 
-export interface BoostNotification extends Notification {
-  type: NotificationType.BOOST;
+export interface RepostNotification extends Notification {
+  type: NotificationType.REPOST;
   data: NotificationData & {
     actorOxyUserId: string;
     targetId: string;

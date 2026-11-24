@@ -101,8 +101,8 @@ async function call(
 
 const createReply = (body: Record<string, unknown>) =>
   call((req, res) => feedController.createReply(req, res), body);
-const createBoost = (body: Record<string, unknown>) =>
-  call((req, res) => feedController.createBoost(req, res), body);
+const createRepost = (body: Record<string, unknown>) =>
+  call((req, res) => feedController.createRepost(req, res), body);
 
 /** Every post this scope owns, so "nothing was written" is a real count. */
 async function scopePostCount(): Promise<number> {
@@ -180,7 +180,7 @@ describe('createReply', () => {
 
 describe('createBoost', () => {
   it('refuses a truthy non-array with a 400 and writes nothing', async () => {
-    const captured = await createBoost({
+    const captured = await createRepost({
       originalPostId: TARGET_ID,
       content: { text: 'a boost' },
       hashtags: 'cat',
@@ -192,7 +192,7 @@ describe('createBoost', () => {
   });
 
   it('still writes a boost with tags', async () => {
-    const captured = await createBoost({
+    const captured = await createRepost({
       originalPostId: TARGET_ID,
       content: { text: 'a boost about #Cats' },
       hashtags: ['Art'],

@@ -90,7 +90,7 @@ describe('mergeFeedPageContent', () => {
 
   it('does not collapse a boost wrapper into its original post', () => {
     const original = post('original');
-    const boost = {
+    const repost = {
       ...post('boost-wrapper'),
       boost: {
         actor: post('booster').user,
@@ -99,7 +99,7 @@ describe('mergeFeedPageContent', () => {
     } as unknown as HydratedPost;
 
     const merged = mergeFeedPageContent(undefined, {
-      items: [original, boost],
+      items: [original, repost],
     });
 
     expect(merged.items.map((item) => item.id)).toEqual(['original', 'boost-wrapper']);

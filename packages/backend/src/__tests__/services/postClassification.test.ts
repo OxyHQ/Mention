@@ -1333,9 +1333,9 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     // `$ne: null` — is NULL for every row, which would empty the queue entirely.
     const original = await seedSubject('the original everyone is boosting');
     seedClock += 1;
-    const boost = await seedPost(scope, {
+    const repost = await seedPost(scope, {
       oxyUserId: scope.user('booster'),
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original.id,
       content: { variants: [{ source: 'author', text: `${OWNED_PREFIX}boost body`, tag: 'en' }] },
       createdAt: new Date(ANCIENT + seedClock * 1000),
@@ -1372,7 +1372,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     // The original WAS classified — proving the queue ran at all, so "the boost
     // was skipped" cannot be satisfied by an empty batch.
     expect((await classificationOf(original.id)).status).toBe('classified');
-    expect((await classificationOf(boost.id)).status).toBe('pending');
+    expect((await classificationOf(repost.id)).status).toBe('pending');
   });
 
   it('never queues an unpublished post', async () => {

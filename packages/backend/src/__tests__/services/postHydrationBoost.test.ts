@@ -45,7 +45,7 @@ import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
  * are decided by the database predicate rather than by the test modelling it.
  */
 
-const BOOSTER_OXY_ID = scope.user('booster');
+const REPOSTER_OXY_ID = scope.user('booster');
 const ORIGINAL_AUTHOR_OXY_ID = scope.user('original-author');
 const VIEWER_ID = scope.user('viewer');
 
@@ -159,11 +159,11 @@ async function seedOriginal(overrides: Partial<PostRecordInput> = {}): Promise<P
 }
 
 /** The boost row (depth 0): empty content, references the original via boostOf. */
-async function seedBoost(originalId: string | null): Promise<PostRecord> {
+async function seedRepost(originalId: string | null): Promise<PostRecord> {
   return seedPost(scope, {
-    oxyUserId: BOOSTER_OXY_ID,
-    authorship: [{ oxyUserId: BOOSTER_OXY_ID, role: 'owner', status: 'accepted' }],
-    type: PostType.BOOST,
+    oxyUserId: REPOSTER_OXY_ID,
+    authorship: [{ oxyUserId: REPOSTER_OXY_ID, role: 'owner', status: 'accepted' }],
+    type: PostType.REPOST,
     visibility: PostVisibility.PUBLIC,
     status: 'published',
     // A boost has no body of its own, so it carries no rendition at all.
@@ -202,7 +202,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     // Both authors resolve via the bulk Oxy fetch.
     getUsersByIds.mockResolvedValue([
-      makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster'),
+      makeOxyUser(REPOSTER_OXY_ID, 'booster', 'Booster'),
       makeOxyUser(ORIGINAL_AUTHOR_OXY_ID, 'author', 'Author'),
     ]);
     service = new PostHydrationService();
@@ -308,27 +308,27 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
   it('never applies own management to a nested original or restores a denied body', async () => {
     const original = await seedOriginal();
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
     contentAccessBatch.mockImplementation(async ({ items }: { items: ContentAccessInput[] }) => ({
       items: items.map((item) => ({
         resourceId: item.resourceId,
         decision: {
-          allowed: item.resourceId === boost.id,
-          reason: item.resourceId === boost.id ? 'owner' : 'mature_content',
+          allowed: item.resourceId === repost.id,
+          reason: item.resourceId === repost.id ? 'owner' : 'mature_content',
           policyVersion: '2',
         },
       })),
     }));
-    const result = await service.hydratePosts([boost], {
-      viewerId: BOOSTER_OXY_ID,
+    const result = await service.hydratePosts([repost], {
+      viewerId: REPOSTER_OXY_ID,
       safetyRequester: { accessToken: 'child-session' },
-      manageOwnPostIds: [boost.id, original.id],
+      manageOwnPostIds: [repost.id, original.id],
       includeLinkMetadata: false,
     });
     expect(JSON.stringify(result)).not.toContain('the original note body');
     expect(contentAccessBatch.mock.calls[0][0].items).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ resourceId: boost.id, operation: 'manage_own' }),
+        expect.objectContaining({ resourceId: repost.id, operation: 'manage_own' }),
         expect.objectContaining({ resourceId: original.id, operation: 'read' }),
       ]),
     );
@@ -336,10 +336,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
   it('embeds the boosted original on EVERY repeated anonymous fetch', async () => {
     const original = await seedOriginal();
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
     for (let i = 0; i < 25; i++) {
-      const [hydrated] = await hydrate(boost, undefined);
+      const [hydrated] = await hydrate(repost, undefined);
       expect(hydrated, `iteration ${i}: boost post missing`).toBeTruthy();
       expect(hydrated.boost, `iteration ${i}: boost context missing`).toBeTruthy();
       expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(
@@ -351,10 +351,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
   it('embeds the boosted original identically for anon (fetch 1) and authed (fetch 2)', async () => {
     const original = await seedOriginal();
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
-    const [anon] = await hydrate(boost, undefined);
-    const [authed] = await hydrate(boost, VIEWER_ID);
+    const [anon] = await hydrate(repost, undefined);
+    const [authed] = await hydrate(repost, VIEWER_ID);
 
     expect(anon.boost?.originalPost?.id).toBe(original.id);
     expect(authed.boost?.originalPost?.id).toBe(original.id);
@@ -362,10 +362,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
   it('embeds the boosted original on EVERY repeated authenticated fetch', async () => {
     const original = await seedOriginal();
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
     for (let i = 0; i < 25; i++) {
-      const [hydrated] = await hydrate(boost, VIEWER_ID);
+      const [hydrated] = await hydrate(repost, VIEWER_ID);
       expect(
         hydrated.boost?.originalPost?.id,
         `iteration ${i}: original not embedded (authed)`,
@@ -379,9 +379,9 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       status: 'draft',
       content: { variants: [{ tag: 'en', source: 'author', text: 'private draft secret' }] },
     });
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
-    const [hydrated] = await hydrate(boost, undefined);
+    const [hydrated] = await hydrate(repost, undefined);
 
     expect(hydrated, 'public boost should still hydrate').toBeTruthy();
     expect(hydrated.boost).toBeNull();
@@ -397,13 +397,13 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // cannot be stored: the boost is seeded pointing at a real original which is
     // then deleted, which is how this state arises in production.
     const original = await seedOriginal();
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
     const { deletePostRecord } = await import('../../db/posts/postRepository');
     await deletePostRecord(original.id, undefined);
-    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
+    getUsersByIds.mockResolvedValue([makeOxyUser(REPOSTER_OXY_ID, 'booster', 'Booster')]);
 
     for (const depth of [0, 1, 2]) {
-      const [hydrated] = await service.hydratePosts([{ ...boost, boostOf: original.id }], {
+      const [hydrated] = await service.hydratePosts([{ ...repost, boostOf: original.id }], {
         viewerId: undefined,
         maxDepth: depth,
         includeLinkMetadata: false,
@@ -432,9 +432,9 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       visibility: PostVisibility.PRIVATE,
       status: 'published',
     });
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
-    const [hydrated] = await hydrate(boost, undefined);
+    const [hydrated] = await hydrate(repost, undefined);
 
     expect(hydrated).toBeTruthy();
     expect(hydrated.boost).toBeNull();
@@ -446,14 +446,14 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       visibility: PostVisibility.FOLLOWERS_ONLY,
       status: 'published',
     });
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
     // A viewer id of its own: the graph read is cached per viewer, so a shared
     // id would let a sibling case's "follows nobody" answer this one.
     const follower = scope.user(`follower-${randomUUID()}`);
     getUserFollowing.mockResolvedValue([{ id: ORIGINAL_AUTHOR_OXY_ID }]);
 
-    const [hydrated] = await hydrate(boost, follower);
+    const [hydrated] = await hydrate(repost, follower);
 
     expect(hydrated.boost?.originalPost?.id).toBe(original.id);
     expect(hydrated.originalPost?.id).toBe(original.id);
@@ -466,10 +466,10 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   // blank.
   it('embeds the boosted original even at maxDepth: 0 (the bug class)', async () => {
     const original = await seedOriginal();
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
     for (const depth of [0, 1, 2]) {
-      const [hydrated] = await hydrate(boost, undefined, depth);
+      const [hydrated] = await hydrate(repost, undefined, depth);
       expect(hydrated.boost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(
         original.id,
       );
@@ -482,12 +482,12 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   it('retains a quote subject in depth-zero feeds and in a boosted quote', async () => {
     const original = await seedOriginal();
     const quote = await seedOriginal({ type: PostType.QUOTE, quoteOf: original.id });
-    const boost = await seedBoost(quote.id);
+    const repost = await seedRepost(quote.id);
     const [quoted] = await hydrate(quote, undefined, 0);
     expect(quoted.quotedPost?.id).toBe(original.id);
-    const [boosted] = await hydrate(boost, undefined, 0);
-    expect(boosted.boost?.originalPost?.id).toBe(quote.id);
-    expect((boosted.boost?.originalPost as typeof quoted).quotedPost?.id).toBe(original.id);
+    const [reposted] = await hydrate(repost, undefined, 0);
+    expect(reposted.boost?.originalPost?.id).toBe(quote.id);
+    expect((reposted.boost?.originalPost as typeof quoted).quotedPost?.id).toBe(original.id);
   });
 
   it('does not expose a private quote subject through forced feed context', async () => {
@@ -557,11 +557,11 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       authorship: [],
       federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
     });
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
     // Only the booster resolves; the original's author does not exist in Oxy.
-    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
+    getUsersByIds.mockResolvedValue([makeOxyUser(REPOSTER_OXY_ID, 'booster', 'Booster')]);
 
-    const [hydrated] = await hydrate(boost, undefined);
+    const [hydrated] = await hydrate(repost, undefined);
 
     expect(hydrated).toBeTruthy();
     // The boost original now embeds, with its real content shown.
@@ -586,8 +586,8 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       authorship: [],
       federation: { activityId: `${ACTOR_URI}/statuses/9`, actorUri: ACTOR_URI },
     });
-    const boost = await seedBoost(original.id);
-    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
+    const repost = await seedRepost(original.id);
+    getUsersByIds.mockResolvedValue([makeOxyUser(REPOSTER_OXY_ID, 'booster', 'Booster')]);
     // The orphan-author resolution looks the actor up by `uri`.
     await seedActor(scope, {
       uri: ACTOR_URI,
@@ -607,7 +607,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
         isFederated: true,
       },
     });
-    const [hydrated] = await hydrate(boost, undefined);
+    const [hydrated] = await hydrate(repost, undefined);
 
     const originalUser = hydrated.boost?.originalPost?.user;
     expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
@@ -649,13 +649,13 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       authorship: [{ oxyUserId: FEDERATED_AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
       federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
     });
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
     // The federated author is now a real, resolved Oxy user. Oxy owns the clean
     // `name.displayName`, which is the SOLE name source — Mention never reads a
     // local FederatedActor name copy.
     getUsersByIds.mockResolvedValue([
-      makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster'),
+      makeOxyUser(REPOSTER_OXY_ID, 'booster', 'Booster'),
       {
         id: FEDERATED_AUTHOR_OXY_ID,
         username: 'TerribleMaps@zpravobot.news',
@@ -669,7 +669,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       },
     ]);
 
-    const [hydrated] = await hydrate(boost, undefined);
+    const [hydrated] = await hydrate(repost, undefined);
 
     expect(hydrated.boost?.originalPost?.id).toBe(original.id);
     // The Oxy `name.displayName` — the single source of truth.
@@ -699,9 +699,9 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // asserted the query object carried `{status, visibility}` and then modelled
     // the exclusion by hand, which could not fail if the predicate were dropped.
     const original = await seedOriginal({ visibility: PostVisibility.PRIVATE, status: 'draft' });
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
-    const [hydrated] = await service.hydratePosts([boost], {
+    const [hydrated] = await service.hydratePosts([repost], {
       viewerId: undefined,
       maxDepth: 1,
       publicReferencesOnly: true,
@@ -732,12 +732,12 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       visibility: PostVisibility.FOLLOWERS_ONLY,
       status: 'published',
     });
-    const boost = await seedBoost(original.id);
+    const repost = await seedRepost(original.id);
 
     const follower = scope.user(`follower-${randomUUID()}`);
     getUserFollowing.mockResolvedValue([{ id: ORIGINAL_AUTHOR_OXY_ID }]);
     try {
-      const [broadcast] = await service.hydratePosts([boost], {
+      const [broadcast] = await service.hydratePosts([repost], {
         viewerId: follower,
         safetyRequester: { accessToken: 'follower-session' },
         maxDepth: 1,
@@ -750,7 +750,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
       // The control, so the case cannot pass because the fixture is simply
       // invisible: the SAME viewer, without `publicReferencesOnly`, does see it.
-      const [personal] = await service.hydratePosts([boost], {
+      const [personal] = await service.hydratePosts([repost], {
         viewerId: follower,
         safetyRequester: { accessToken: 'follower-session' },
         maxDepth: 1,

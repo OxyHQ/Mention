@@ -246,7 +246,7 @@ describe('createBoost — the comment on a boost is a body like any other', () =
     const original = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
     const { res, captured } = buildResponse();
 
-    await feedController.createBoost(
+    await feedController.createRepost(
       {
         accessToken: 'test-viewer-session',
         body: {

@@ -1051,17 +1051,17 @@ describe('webShell post OG sensitivity gate', () => {
       metadata: { isSensitive: true },
       content: { variants: [{ source: 'author', text: SENSITIVE_BODY, tag: 'en' }] },
     });
-    const boostId = await seedOgPost({
-      type: PostType.BOOST,
+    const repostId = await seedOgPost({
+      type: PostType.REPOST,
       boostOf: originalId,
       content: { variants: [{ source: 'author', text: '', tag: 'en' }] },
     });
-    mockHydrated(boostId, {
+    mockHydrated(repostId, {
       content: { text: '' },
       originalPost: { content: { text: SENSITIVE_BODY } },
     } as unknown as Partial<HydratedPost>);
 
-    const res = await crawl(boostId);
+    const res = await crawl(repostId);
 
     expect(res.text).not.toContain(SENSITIVE_BODY);
     expect(res.text).not.toContain('og:image');
@@ -1073,17 +1073,17 @@ describe('webShell post OG sensitivity gate', () => {
     const originalId = await seedOgPost({
       content: { variants: [{ source: 'author', text: 'an ordinary original', tag: 'en' }] },
     });
-    const boostId = await seedOgPost({
-      type: PostType.BOOST,
+    const repostId = await seedOgPost({
+      type: PostType.REPOST,
       boostOf: originalId,
       content: { variants: [{ source: 'author', text: '', tag: 'en' }] },
     });
-    mockHydrated(boostId, {
+    mockHydrated(repostId, {
       content: { text: '', media: [{ url: 'https://cdn/ordinary.jpg' }] },
       originalPost: { content: { text: 'an ordinary original' } },
     } as unknown as Partial<HydratedPost>);
 
-    const res = await crawl(boostId);
+    const res = await crawl(repostId);
 
     expect(res.text).toContain(
       '<meta data-mention-seo="true" property="og:image" content="https://cdn/ordinary.jpg">',
@@ -1097,12 +1097,12 @@ describe('webShell post OG sensitivity gate', () => {
     'withholds a boost original that became unavailable: %j',
     async (patch) => {
       const originalId = await seedOgPost();
-      const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
-      mockHydrated(boostId, {
+      const repostId = await seedOgPost({ type: PostType.REPOST, boostOf: originalId });
+      mockHydrated(repostId, {
         originalPost: { content: { text: SENSITIVE_BODY } },
       } as unknown as Partial<HydratedPost>);
       await updatePostRecord(originalId, patch);
-      const response = await crawl(boostId);
+      const response = await crawl(repostId);
       expect(response.text).not.toContain(SENSITIVE_BODY);
       expect(response.text).not.toContain('data-mention-seo-fallback');
       expect(response.text).toContain('content="noindex,nofollow"');
@@ -1168,12 +1168,12 @@ describe('webShell post OG sensitivity gate', () => {
         oxyUserId: OPTED_OUT,
         authorship: [{ oxyUserId: OPTED_OUT, role: 'owner', status: 'accepted' }],
       });
-      const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
-      mockHydrated(boostId, {
+      const repostId = await seedOgPost({ type: PostType.REPOST, boostOf: originalId });
+      mockHydrated(repostId, {
         originalPost: { content: { text: 'their words' } },
       } as unknown as Partial<HydratedPost>);
 
-      const res = await crawl(boostId);
+      const res = await crawl(repostId);
 
       expect(res.text).toContain('content="noindex,follow"');
     });
@@ -1233,12 +1233,12 @@ describe('webShell post OG sensitivity gate', () => {
 
   it('withholds a boost whose original author is no longer publicly resolvable', async () => {
     const originalId = await seedOgPost({ oxyUserId: scope.user('hidden-original') });
-    const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
+    const repostId = await seedOgPost({ type: PostType.REPOST, boostOf: originalId });
     getUsersByIds.mockImplementationOnce(async (ids) =>
       ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
     );
     getUsersByIds.mockResolvedValueOnce([]);
-    const response = await crawl(boostId);
+    const response = await crawl(repostId);
     expect(response.text).not.toContain('data-mention-seo-fallback');
     expect(response.text).toContain('content="noindex,nofollow"');
     expect(postHydrationService.hydratePosts).not.toHaveBeenCalled();

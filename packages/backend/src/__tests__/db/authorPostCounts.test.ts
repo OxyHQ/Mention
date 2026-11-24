@@ -49,7 +49,7 @@ async function countedFromPosts(author: string) {
   const [row] = await db
     .select({
       postsCount: sql<number>`count(*) filter (where ${posts.isReply} = false)::int`,
-      boostsCount: sql<number>`count(*) filter (where ${posts.type} = ${PostType.BOOST})::int`,
+      boostsCount: sql<number>`count(*) filter (where ${posts.type} = ${PostType.REPOST})::int`,
       repliesCount: sql<number>`count(*) filter (where ${posts.isReply})::int`,
     })
     .from(posts)
@@ -96,7 +96,7 @@ describe('author_post_counts', () => {
     const author = newAuthor();
     const root = await create(author);
     await create(author, { parentPostId: root.id });
-    await create(author, { type: PostType.BOOST, boostOf: root.id });
+    await create(author, { type: PostType.REPOST, boostOf: root.id });
 
     await expectCounts(author, { postsCount: 2, repliesCount: 1, boostsCount: 1 });
   });
@@ -139,7 +139,7 @@ describe('author_post_counts', () => {
     await db.update(posts).set({ isReply: true }).where(eq(posts.id, post.id));
     await expectCounts(author, { postsCount: 0, repliesCount: 1, boostsCount: 0 });
 
-    await db.update(posts).set({ type: PostType.BOOST }).where(eq(posts.id, post.id));
+    await db.update(posts).set({ type: PostType.REPOST }).where(eq(posts.id, post.id));
     await expectCounts(author, { postsCount: 0, repliesCount: 1, boostsCount: 1 });
   });
 
@@ -158,15 +158,15 @@ describe('author_post_counts', () => {
 
   it("subtracts a deleted post, including another author's boost the delete cascades to", async () => {
     const author = newAuthor();
-    const booster = newAuthor();
+    const reposter = newAuthor();
     const original = await create(author);
-    await create(booster, { type: PostType.BOOST, boostOf: original.id });
-    await expectCounts(booster, { postsCount: 1, repliesCount: 0, boostsCount: 1 });
+    await create(reposter, { type: PostType.REPOST, boostOf: original.id });
+    await expectCounts(reposter, { postsCount: 1, repliesCount: 0, boostsCount: 1 });
 
     await deletePostRecord(original.id);
 
     await expectCounts(author, { postsCount: 0, repliesCount: 0, boostsCount: 0 });
-    await expectCounts(booster, { postsCount: 0, repliesCount: 0, boostsCount: 0 });
+    await expectCounts(reposter, { postsCount: 0, repliesCount: 0, boostsCount: 0 });
   });
 
   it('leaves the counts alone when a write repeats the counted columns unchanged', async () => {

@@ -92,7 +92,7 @@ import {
   savePost,
 } from '../../controllers/posts/bookmarks';
 import { likePost } from '../../controllers/posts/likes';
-import { getPostLikes, getPostBoosts } from '../../controllers/posts/engagementLists';
+import { getPostLikes, getPostReposts } from '../../controllers/posts/engagementLists';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-likes-bookmarks');
@@ -332,7 +332,7 @@ describe('getPostLikes — the (created_at DESC, user_id DESC) keyset', () => {
       });
     resolveSummaries([scope.user('public'), scope.user('draft'), scope.user('private')]);
     const { res, captured } = buildResponse();
-    await getPostBoosts(buildRequest({ params: { id: post.id } }) as never, res as never);
+    await getPostReposts(buildRequest({ params: { id: post.id } }) as never, res as never);
     expect(captured.body).toMatchObject({ users: [{ id: scope.user('public') }], hasMore: false });
   });
 

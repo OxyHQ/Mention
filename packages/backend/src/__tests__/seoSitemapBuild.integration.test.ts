@@ -202,10 +202,10 @@ describe('SEO sitemaps', () => {
       oxyUserId: AUTHOR,
       authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
     });
-    const boost = await seedPost(scope, {
+    const repost = await seedPost(scope, {
       oxyUserId: AUTHOR,
       authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original.id,
     });
 
@@ -214,8 +214,8 @@ describe('SEO sitemaps', () => {
     const app = makeApp();
     const originalShard = await request(app).get(`/sitemaps/posts-${bucketOf(original.id)}-0.xml`);
     expect(originalShard.text).toContain(`https://mention.earth/p/${original.id}`);
-    const boostShard = await request(app).get(`/sitemaps/posts-${bucketOf(boost.id)}-0.xml`);
-    expect(boostShard.text).not.toContain(boost.id);
+    const repostShard = await request(app).get(`/sitemaps/posts-${bucketOf(repost.id)}-0.xml`);
+    expect(repostShard.text).not.toContain(repost.id);
   });
 
   it('leaves out every post and the profile of an author who opted out of search engines', async () => {

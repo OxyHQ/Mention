@@ -348,7 +348,7 @@ export async function deleteChannelContent(
     !dryRun && targets.federatedFollowers > 0
       ? await resolveChannelUsername(channelOxyUserId)
       : null;
-  const boostedOriginals = await destroyChannelPosts(
+  const repostedOriginals = await destroyChannelPosts(
     channelOxyUserId,
     schedule,
     dryRun,
@@ -383,7 +383,7 @@ export async function deleteChannelContent(
   // 7. Counters on posts that SURVIVE but lost an engagement record. Deliberately
   //    not part of `steps`: no manifest entry describes a counter, and inventing a
   //    key would break the set equality that binds this file to the manifest.
-  const counters = await repairSurvivingCounters(boostedOriginals, likedPostIds, dryRun);
+  const counters = await repairSurvivingCounters(repostedOriginals, likedPostIds, dryRun);
   logger.info(`${LOG_PREFIX} repaired counters on surviving posts`, {
     dryRun,
     boostCounters: counters.boostCounters,
@@ -416,7 +416,7 @@ async function destroyChannelPosts(
   username: string | null,
   run: CascadeRun,
 ): Promise<string[]> {
-  const boostedOriginals: string[] = [];
+  const repostedOriginals: string[] = [];
   let after: string | null = null;
 
   // Open every batch-scoped step's account at zero BEFORE the loop, so a channel
@@ -437,7 +437,7 @@ async function destroyChannelPosts(
 
     const removedIds = new Set(batch.rows.map((row) => row.id));
     for (const post of batch.channelPosts) {
-      if (post.boostOf && !removedIds.has(post.boostOf)) boostedOriginals.push(post.boostOf);
+      if (post.boostOf && !removedIds.has(post.boostOf)) repostedOriginals.push(post.boostOf);
     }
 
     // Prove the deletion cannot strand a reference nobody cleans. Read-only, and
@@ -511,5 +511,5 @@ async function destroyChannelPosts(
     }
   }
 
-  return boostedOriginals;
+  return repostedOriginals;
 }

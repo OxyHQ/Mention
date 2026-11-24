@@ -35,8 +35,8 @@ const mockFeedService = {
   removeVote: jest.fn(),
   saveItem: jest.fn(),
   unsaveItem: jest.fn(),
-  createBoost: jest.fn(),
-  unboostItem: jest.fn(),
+  createRepost: jest.fn(),
+  unrepostItem: jest.fn(),
 };
 
 jest.mock('@/services/feedService', () => ({
@@ -48,8 +48,8 @@ jest.mock('@/services/feedService', () => ({
     removeVote: (...args: unknown[]) => mockFeedService.removeVote(...args),
     saveItem: (...args: unknown[]) => mockFeedService.saveItem(...args),
     unsaveItem: (...args: unknown[]) => mockFeedService.unsaveItem(...args),
-    createBoost: (...args: unknown[]) => mockFeedService.createBoost(...args),
-    unboostItem: (...args: unknown[]) => mockFeedService.unboostItem(...args),
+    createRepost: (...args: unknown[]) => mockFeedService.createRepost(...args),
+    unrepostItem: (...args: unknown[]) => mockFeedService.unrepostItem(...args),
   },
 }));
 
@@ -139,13 +139,13 @@ describe('postsStore reports every engagement it lands', () => {
   });
 
   it('reports a boost and an unboost as the boosts list changing', async () => {
-    mockFeedService.createBoost.mockResolvedValue(accepted);
-    mockFeedService.unboostItem.mockResolvedValue(accepted);
+    mockFeedService.createRepost.mockResolvedValue(accepted);
+    mockFeedService.unrepostItem.mockResolvedValue(accepted);
 
-    await usePostsStore.getState().boostPost({ postId: POST_ID });
+    await usePostsStore.getState().repostPost({ postId: POST_ID });
     expect(mockInvalidate).toHaveBeenLastCalledWith('boost');
 
-    await usePostsStore.getState().unboostPost({ postId: POST_ID });
+    await usePostsStore.getState().unrepostPost({ postId: POST_ID });
     expect(mockInvalidate).toHaveBeenLastCalledWith('boost');
 
     expect(mockInvalidate).toHaveBeenCalledTimes(2);
@@ -166,13 +166,13 @@ describe('postsStore reports every engagement it lands', () => {
 
   it('reports nothing when the server refuses the write', async () => {
     mockFeedService.voteItem.mockResolvedValue(refused);
-    mockFeedService.createBoost.mockResolvedValue(refused);
+    mockFeedService.createRepost.mockResolvedValue(refused);
     mockFeedService.saveItem.mockRejectedValue(new Error('network'));
 
     await expect(
       usePostsStore.getState().likePost({ postId: POST_ID, type: 'post' }),
     ).rejects.toThrow();
-    await expect(usePostsStore.getState().boostPost({ postId: POST_ID })).rejects.toThrow();
+    await expect(usePostsStore.getState().repostPost({ postId: POST_ID })).rejects.toThrow();
     await expect(usePostsStore.getState().savePost({ postId: POST_ID })).rejects.toThrow();
 
     // A refused write leaves every list exactly as the caches already have it.
@@ -239,11 +239,11 @@ describe('postsStore refreshes the profile counters a write changes', () => {
   });
 
   it("a boost and an unboost refresh the viewer's counters", async () => {
-    mockFeedService.createBoost.mockResolvedValue(accepted);
-    mockFeedService.unboostItem.mockResolvedValue(accepted);
+    mockFeedService.createRepost.mockResolvedValue(accepted);
+    mockFeedService.unrepostItem.mockResolvedValue(accepted);
 
-    await usePostsStore.getState().boostPost({ postId: POST_ID });
-    await usePostsStore.getState().unboostPost({ postId: POST_ID });
+    await usePostsStore.getState().repostPost({ postId: POST_ID });
+    await usePostsStore.getState().unrepostPost({ postId: POST_ID });
     expect(mockInvalidateCounts).toHaveBeenCalledTimes(2);
   });
 });
@@ -409,14 +409,14 @@ it.each(['confirmed', 'unconfirmed'] as const)(
       post: { id: 'channel-post' },
     });
     const repostError = new Error('repost response lost');
-    const boostPost = jest.fn();
-    if (outcome === 'confirmed') boostPost.mockResolvedValueOnce(undefined);
-    else boostPost.mockRejectedValueOnce(repostError);
+    const repostPost = jest.fn();
+    if (outcome === 'confirmed') repostPost.mockResolvedValueOnce(undefined);
+    else repostPost.mockRejectedValueOnce(repostError);
 
     const result = await publishPostWithRepost({
       request: { content: { text: 'channel post' } } as never,
       createPost: usePostsStore.getState().createPost,
-      boostPost,
+      repostPost,
       shouldRepost: true,
       isCurrentOwner: () => true,
     });
@@ -427,8 +427,8 @@ it.each(['confirmed', 'unconfirmed'] as const)(
         : { postId: 'channel-post', repost: 'unconfirmed', error: repostError },
     );
     expect(mockFeedService.createPost).toHaveBeenCalledTimes(1);
-    expect(boostPost).toHaveBeenCalledTimes(1);
-    expect(boostPost).toHaveBeenCalledWith({ postId: 'channel-post' });
+    expect(repostPost).toHaveBeenCalledTimes(1);
+    expect(repostPost).toHaveBeenCalledWith({ postId: 'channel-post' });
   },
 );
 
@@ -441,12 +441,12 @@ it('does not repost or resend after the owner changes while the post is pending'
         finish = resolve;
       }),
   );
-  const boostPost = jest.fn();
+  const repostPost = jest.fn();
   let current = true;
   const result = publishPostWithRepost({
     request: { content: { text: 'channel post' } } as never,
     createPost: usePostsStore.getState().createPost,
-    boostPost,
+    repostPost,
     shouldRepost: true,
     isCurrentOwner: () => current,
   });
@@ -454,24 +454,24 @@ it('does not repost or resend after the owner changes while the post is pending'
   finish({ success: true, post: { id: 'channel-post' } });
   await expect(result).resolves.toEqual({ postId: 'channel-post', repost: 'skipped' });
   expect(mockFeedService.createPost).toHaveBeenCalledTimes(1);
-  expect(boostPost).not.toHaveBeenCalled();
+  expect(repostPost).not.toHaveBeenCalled();
 });
 
 it('does not attempt a repost or resend when the original publication is unconfirmed', async () => {
   mockFeedService.createPost.mockReset();
   mockFeedService.createPost.mockRejectedValueOnce(new Error('unknown publication outcome'));
-  const boostPost = jest.fn();
+  const repostPost = jest.fn();
   await expect(
     publishPostWithRepost({
       request: { content: { text: 'channel post' } } as never,
       createPost: usePostsStore.getState().createPost,
-      boostPost,
+      repostPost,
       shouldRepost: true,
       isCurrentOwner: () => true,
     }),
   ).rejects.toThrow('unknown publication outcome');
   expect(mockFeedService.createPost).toHaveBeenCalledTimes(1);
-  expect(boostPost).not.toHaveBeenCalled();
+  expect(repostPost).not.toHaveBeenCalled();
 });
 
 it.each(['createPost', 'createThread', 'createReply'] as const)(

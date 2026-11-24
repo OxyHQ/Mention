@@ -12,7 +12,7 @@
 export const ERASURE_POST_BATCH = 100;
 
 /** Past this many boosts in a batch's closure, boosts are deleted in chunks first. */
-export const ERASURE_BOOST_CHUNK = 1_000;
+export const ERASURE_REPOST_CHUNK = 1_000;
 
 /** Rows one DELETE statement takes. Bounds lock time and WAL per statement. */
 export const ERASURE_DELETE_BATCH = 1_000;

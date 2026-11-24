@@ -639,12 +639,12 @@ describe('durable shadow evaluation ledger', () => {
 
   it('refuses boosts, followers-only and restricted posts before claiming', async () => {
     const original = await fixture();
-    const boost = await fixture();
+    const repost = await fixture();
     await getDb()
       .update(posts)
       .set({ type: 'boost', boostOf: original.id })
-      .where(eq(posts.id, boost.id));
-    expect(await claimPostEvaluation(boost.id, release)).toBeNull();
+      .where(eq(posts.id, repost.id));
+    expect(await claimPostEvaluation(repost.id, release)).toBeNull();
     for (const patch of [
       { visibility: 'followers_only' as const },
       { status: 'restricted' as const },

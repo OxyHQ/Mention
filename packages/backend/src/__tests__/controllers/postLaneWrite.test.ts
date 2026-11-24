@@ -210,9 +210,9 @@ describe('PATCH /posts/:id/lane', () => {
     const laneId = await seedLane(scope);
     const parent = await seedPost(scope, { oxyUserId: USER_ID });
     const reply = await seedPost(scope, { oxyUserId: USER_ID, parentPostId: parent.id });
-    const boost = await seedPost(scope, {
+    const repost = await seedPost(scope, {
       oxyUserId: USER_ID,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       content: {},
       boostOf: parent.id,
     });
@@ -221,12 +221,12 @@ describe('PATCH /posts/:id/lane', () => {
     await updatePostLane(makeReq(reply.id, { laneId }), replyRes as never);
     expect(replyRes.statusCode).toBe(400);
 
-    const boostRes = makeRes();
-    await updatePostLane(makeReq(boost.id, { laneId }), boostRes as never);
-    expect(boostRes.statusCode).toBe(400);
+    const repostRes = makeRes();
+    await updatePostLane(makeReq(repost.id, { laneId }), repostRes as never);
+    expect(repostRes.statusCode).toBe(400);
 
     expect(await storedLaneId(reply.id)).toBeNull();
-    expect(await storedLaneId(boost.id)).toBeNull();
+    expect(await storedLaneId(repost.id)).toBeNull();
   });
 
   it('answers 404 for a lane the caller does not own', async () => {

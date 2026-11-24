@@ -61,7 +61,7 @@ interface Props {
    * (`postAcceptsReplies`), never from a flag threaded down through `PostItem`.
    */
   onReply?: () => void;
-  onBoost: () => void;
+  onRepost: () => void;
   /** Returning false rejects the like: no haptic and no animation follow. */
   onLike: () => boolean | undefined;
   onDownvote?: () => void;
@@ -96,10 +96,10 @@ const PostActions: React.FC<Props> = ({
   engagement,
   isLiked,
   isDownvoted,
-  isBoosted,
+  isBoosted: isReposted,
   isSaved,
   onReply,
-  onBoost,
+  onRepost,
   onLike,
   onDownvote,
   onSave,
@@ -235,9 +235,9 @@ const PostActions: React.FC<Props> = ({
         icon={RepostIcon}
         accessibilityLabel={t('post.repostOptions')}
         count={engagement?.boosts}
-        active={!!isBoosted}
+        active={!!isReposted}
         tone="success"
-        onPress={onBoost}
+        onPress={onRepost}
       />
       {onSendInAllo ? (
         <EngagementAction

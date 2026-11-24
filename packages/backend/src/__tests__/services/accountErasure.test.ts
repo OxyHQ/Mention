@@ -57,7 +57,7 @@ vi.mock('../../connectors/activitypub/follow.service', () => ({
  */
 vi.mock('../../services/accountErasure/erasureLimits', () => ({
   ERASURE_POST_BATCH: 2,
-  ERASURE_BOOST_CHUNK: 10,
+  ERASURE_REPOST_CHUNK: 10,
   ERASURE_DELETE_BATCH: 10,
 }));
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
@@ -102,7 +102,7 @@ import {
 } from '../../services/accountErasure/erasureMap';
 import { ERASURE_STEPS } from '../../services/accountErasure/erasureSteps';
 import {
-  ERASURE_BOOST_CHUNK,
+  ERASURE_REPOST_CHUNK,
   ERASURE_DELETE_BATCH,
 } from '../../services/accountErasure/erasureLimits';
 import { PostType, PostVisibility } from '@mention/shared-types';
@@ -181,9 +181,9 @@ async function seedEverything(): Promise<Seeded> {
   const erasedPublic = await seedPost(scope, { oxyUserId: ERASED });
   const erasedDraft = await seedPost(scope, { oxyUserId: ERASED, status: 'draft' });
   const erasedReply = await seedPost(scope, { oxyUserId: ERASED, parentPostId: otherPost.id });
-  const erasedBoost = await seedPost(scope, {
+  const erasedRepost = await seedPost(scope, {
     oxyUserId: ERASED,
-    type: PostType.BOOST,
+    type: PostType.REPOST,
     boostOf: otherPost2.id,
     content: { variants: [] },
   });
@@ -197,9 +197,9 @@ async function seedEverything(): Promise<Seeded> {
     oxyUserId: OTHER,
     parentPostId: erasedPublic.id,
   });
-  const otherBoostOfErased = await seedPost(scope, {
+  const otherRepostOfErased = await seedPost(scope, {
     oxyUserId: OTHER,
-    type: PostType.BOOST,
+    type: PostType.REPOST,
     boostOf: erasedPublic.id,
     content: { variants: [] },
   });
@@ -447,11 +447,11 @@ async function seedEverything(): Promise<Seeded> {
     erasedPublic: erasedPublic.id,
     erasedDraft: erasedDraft.id,
     erasedReply: erasedReply.id,
-    erasedBoost: erasedBoost.id,
+    erasedBoost: erasedRepost.id,
     otherPost: otherPost.id,
     otherPost2: otherPost2.id,
     otherReplyToErased: otherReplyToErased.id,
-    otherBoostOfErased: otherBoostOfErased.id,
+    otherBoostOfErased: otherRepostOfErased.id,
     otherQuoteOfErased: otherQuoteOfErased.id,
     otherMentioning: otherMentioning.id,
     otherListId: otherList.id,
@@ -731,25 +731,25 @@ describe('eraseOxyUser on real rows', () => {
     const original = await seedPost(scope, { oxyUserId: ERASED });
     // One past a chunk, so the closure is cleared in chunks and a DELETE batch
     // comes back full at least once.
-    const boosterCount = ERASURE_BOOST_CHUNK + 1;
+    const reposterCount = ERASURE_REPOST_CHUNK + 1;
     const interactionCount = ERASURE_DELETE_BATCH + 1;
-    const boosters = Array.from({ length: boosterCount }, (_, index) => ({
+    const reposters = Array.from({ length: reposterCount }, (_, index) => ({
       oxyUserId: `${PREFIX}booster-${index}`,
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       visibility: PostVisibility.PUBLIC,
       status: 'published' as const,
       boostOf: original.id,
     }));
-    const boosts = await getDb().insert(posts).values(boosters).returning({ id: posts.id });
+    const reposts = await getDb().insert(posts).values(reposters).returning({ id: posts.id });
     // A boost of a boost: level two of the closure.
     await getDb()
       .insert(posts)
       .values({
         oxyUserId: `${PREFIX}booster-deep`,
-        type: PostType.BOOST,
+        type: PostType.REPOST,
         visibility: PostVisibility.PUBLIC,
         status: 'published',
-        boostOf: boosts[0].id,
+        boostOf: reposts[0].id,
       });
     await getDb()
       .insert(feedInteractions)
@@ -765,7 +765,7 @@ describe('eraseOxyUser on real rows', () => {
     const report = await eraseOxyUser(ERASED, { reason: 'account.deleted', eventId: 'evt-big' });
 
     expect(report.counts['posts.oxyUserId']).toBe(1);
-    expect(report.counts['posts.boostsByOthers']).toBe(boosterCount + 1);
+    expect(report.counts['posts.boostsByOthers']).toBe(reposterCount + 1);
     expect(report.counts['feed_interactions.userId']).toBe(interactionCount);
     const [left] = await getDb()
       .select({ n: sql<number>`count(*)::int` })

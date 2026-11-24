@@ -300,7 +300,7 @@ interface VideoItemProps {
   onLike: (postId: string, isLiked: boolean) => boolean | undefined;
   onComment: (postId: string) => void;
   onQuote: (postId: string) => void;
-  onBoost: (postId: string, isBoosted: boolean) => void;
+  onRepost: (postId: string, isReposted: boolean) => void;
   onSave: (postId: string, isSaved: boolean) => void;
   onShare: (post: VideoPost) => void;
   onSendInAllo: (postId: string) => void;
@@ -749,7 +749,7 @@ const VideoItem = memo<VideoItemProps>(
     onLike,
     onComment,
     onQuote,
-    onBoost,
+    onRepost,
     onSave,
     onShare,
     onSendInAllo,
@@ -990,7 +990,7 @@ const VideoItem = memo<VideoItemProps>(
               isSaved={item.viewerState.isSaved}
               onLike={() => onLike(item.id, item.viewerState.isLiked)}
               onReply={postAcceptsReplies(item) ? () => onComment(item.id) : undefined}
-              onBoost={() => onBoost(item.id, item.viewerState.isBoosted)}
+              onRepost={() => onRepost(item.id, item.viewerState.isBoosted)}
               onSave={() => onSave(item.id, item.viewerState.isSaved)}
               onShare={() => onShare(item)}
               onSendInAllo={() => onSendInAllo(item.id)}
@@ -1073,8 +1073,8 @@ export default function VideosScreen() {
   // screen on every unrelated posts-store write.
   const likePost = usePostsStore((s) => s.likePost);
   const unlikePost = usePostsStore((s) => s.unlikePost);
-  const boostPost = usePostsStore((s) => s.boostPost);
-  const unboostPost = usePostsStore((s) => s.unboostPost);
+  const repostPost = usePostsStore((s) => s.repostPost);
+  const unrepostPost = usePostsStore((s) => s.unrepostPost);
   const savePost = usePostsStore((s) => s.savePost);
   const unsavePost = usePostsStore((s) => s.unsavePost);
   const getPostById = usePostsStore((s) => s.getPostById);
@@ -1492,26 +1492,26 @@ export default function VideosScreen() {
     [openPostPanel],
   );
 
-  const handleBoost = useCallback(
-    (postId: string, isBoosted: boolean) => {
+  const handleRepost = useCallback(
+    (postId: string, isReposted: boolean) => {
       if (!interactions.requireSession()) return false;
       void (async () => {
         try {
-          if (isBoosted) {
-            await unboostPost({ postId });
+          if (isReposted) {
+            await unrepostPost({ postId });
           } else {
             // Surface attribution (the active Reels tab) returns when the affinity hooks land.
-            await boostPost({ postId });
+            await repostPost({ postId });
           }
           setPosts((prev) =>
             prev.map((p) =>
               p.id === postId
                 ? {
                     ...p,
-                    viewerState: { ...p.viewerState, isBoosted: !isBoosted },
+                    viewerState: { ...p.viewerState, isBoosted: !isReposted },
                     engagement: {
                       ...p.engagement,
-                      boosts: Math.max(0, (p.engagement.boosts ?? 0) + (isBoosted ? -1 : 1)),
+                      boosts: Math.max(0, (p.engagement.boosts ?? 0) + (isReposted ? -1 : 1)),
                     },
                   }
                 : p,
@@ -1523,7 +1523,7 @@ export default function VideosScreen() {
       })();
       return true;
     },
-    [interactions, boostPost, unboostPost, t, setPosts],
+    [interactions, repostPost, unrepostPost, t, setPosts],
   );
 
   // Same optimistic shape as like/boost: the store's own update lands on its
@@ -1741,7 +1741,7 @@ export default function VideosScreen() {
         onLike={handleLike}
         onComment={handleComment}
         onQuote={handleQuote}
-        onBoost={handleBoost}
+        onRepost={handleRepost}
         onSave={handleSave}
         onShare={handleShare}
         onSendInAllo={interactions.sendInAllo}
@@ -1767,7 +1767,7 @@ export default function VideosScreen() {
       handleLike,
       handleComment,
       handleQuote,
-      handleBoost,
+      handleRepost,
       handleSave,
       handleShare,
       interactions.sendInAllo,
@@ -1870,7 +1870,7 @@ export default function VideosScreen() {
                         onLike={handleLike}
                         onComment={handleComment}
                         onQuote={handleQuote}
-                        onBoost={handleBoost}
+                        onRepost={handleRepost}
                         onSave={handleSave}
                         onShare={handleShare}
                         onSendInAllo={interactions.sendInAllo}

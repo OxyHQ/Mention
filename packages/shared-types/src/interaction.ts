@@ -4,7 +4,7 @@
 
 export enum InteractionType {
   LIKE = 'like',
-  BOOST = 'boost',
+  REPOST = 'boost',
   COMMENT = 'comment',
   SHARE = 'share',
   SAVE = 'save',
@@ -40,7 +40,7 @@ export interface Like {
   createdAt: string;
 }
 
-export interface Boost {
+export interface Repost {
   id: string;
   oxyUserId: string;
   originalPostId: string;

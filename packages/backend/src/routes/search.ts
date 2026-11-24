@@ -196,7 +196,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       dateFrom,
       dateTo,
       minLikes,
-      minBoosts,
+      minBoosts: minReposts,
       mediaType,
       hasMedia,
       language,
@@ -388,15 +388,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         conditions.push(gte(posts.statsLikesCount, effectiveMinLikes));
       }
 
-      const effectiveMinBoosts =
+      const effectiveMinReposts =
         operators.minBoosts ??
-        (typeof minBoosts === 'string' ? parseInt(minBoosts, 10) : undefined);
+        (typeof minReposts === 'string' ? parseInt(minReposts, 10) : undefined);
       if (
-        effectiveMinBoosts !== undefined &&
-        !isNaN(effectiveMinBoosts) &&
-        effectiveMinBoosts >= 0
+        effectiveMinReposts !== undefined &&
+        !isNaN(effectiveMinReposts) &&
+        effectiveMinReposts >= 0
       ) {
-        conditions.push(gte(posts.statsBoostsCount, effectiveMinBoosts));
+        conditions.push(gte(posts.statsBoostsCount, effectiveMinReposts));
       }
 
       // Media filters - operators take precedence

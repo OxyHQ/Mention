@@ -42,7 +42,7 @@ import {
   decodeChronoCursor,
   encodeChronoCursor,
 } from '../../../../utils/chronoCursor';
-import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
+import { notARepostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from '../../../../services/trending/termSpace';
 import { resolveTrendStory } from '../../../../services/trendStoryCache';
 import type { AuthorFeedFilter } from '@mention/shared-types';
@@ -386,7 +386,7 @@ function buildAuthoredConditions(
       conditions.push(sql`${posts.boostOf} is not null`);
       break;
     case 'media':
-      conditions.push(hasMediaSql(), eq(posts.isReply, false), notABoostSql());
+      conditions.push(hasMediaSql(), eq(posts.isReply, false), notARepostSql());
       break;
     case 'videos':
       // Deliberately NARROWER than `media`: the two video shapes
@@ -416,7 +416,7 @@ function buildAuthoredConditions(
             .where(and(eq(postMedia.postId, posts.id), eq(postMedia.type, 'video')))}`,
         ) as SQL,
         eq(posts.isReply, false),
-        notABoostSql(),
+        notARepostSql(),
       );
       break;
     case 'likes':

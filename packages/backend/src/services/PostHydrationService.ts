@@ -19,7 +19,7 @@ import {
   type FeedSliceItem,
   type HydratedPost,
   type HydratedPostSummary,
-  type HydratedBoostContext,
+  type HydratedRepostContext,
   type HydratedAuthor,
   type PostUser,
   type PostAttachmentBundle,
@@ -48,7 +48,7 @@ import {
   CHRONO_DESC,
   completeShellRecords,
   countQuotesOf,
-  findBoostedPostIds,
+  findRepostedPostIds,
   findPostRecords,
   loadPostRecords,
 } from '../db/posts/postRepository';
@@ -2057,7 +2057,7 @@ export class PostHydrationService {
         // boost. Bounded by `collectionDepthCap` so a boost-of-boost chain
         // cannot fan out indefinitely.
         if (entry.depth < collectionDepthCap) {
-          const forcedOriginalId = this.extractBoostOriginalId(entry.post);
+          const forcedOriginalId = this.extractRepostOriginalId(entry.post);
           if (forcedOriginalId) {
             enqueueRef(forcedOriginalId);
           }
@@ -2118,7 +2118,7 @@ export class PostHydrationService {
    * collection in {@link collectPostsWithDepth} pulls exactly the one post a
    * boost cannot render without.
    */
-  private extractBoostOriginalId(post: RawPost): string | undefined {
+  private extractRepostOriginalId(post: RawPost): string | undefined {
     const value = post?.boostOf;
     if (!value) return undefined;
     if (typeof value === 'string') return value || undefined;
@@ -2209,7 +2209,7 @@ export class PostHydrationService {
 
     try {
       const db = getDb();
-      const [likeRows, bookmarkRows, boosts] = await Promise.all([
+      const [likeRows, bookmarkRows, reposts] = await Promise.all([
         db
           .select({ postId: likesTable.postId, value: likesTable.value })
           .from(likesTable)
@@ -2218,7 +2218,7 @@ export class PostHydrationService {
           .select({ postId: bookmarksTable.postId })
           .from(bookmarksTable)
           .where(and(eq(bookmarksTable.userId, viewerId), inArray(bookmarksTable.postId, postIds))),
-        findBoostedPostIds(viewerId, postIds),
+        findRepostedPostIds(viewerId, postIds),
       ]);
 
       // `value` is `1` or `-1` and NOT NULL, so a downvote is the only way into
@@ -2232,8 +2232,8 @@ export class PostHydrationService {
         viewerContext.savedPosts.add(bookmark.postId);
       }
 
-      for (const boostedId of boosts) {
-        viewerContext.boostedPosts.add(boostedId);
+      for (const repostedId of reposts) {
+        viewerContext.boostedPosts.add(repostedId);
       }
     } catch (error) {
       logger.error('[PostHydration] Failed to populate viewer interactions:', error);
@@ -3720,7 +3720,7 @@ export class PostHydrationService {
     const stats = post?.stats || {};
     const likesCount = typeof stats.likesCount === 'number' ? stats.likesCount : 0;
     const downvotesCount = typeof stats.downvotesCount === 'number' ? stats.downvotesCount : 0;
-    const boostsCount = typeof stats.boostsCount === 'number' ? stats.boostsCount : 0;
+    const repostsCount = typeof stats.boostsCount === 'number' ? stats.boostsCount : 0;
     const repliesCount = typeof stats.commentsCount === 'number' ? stats.commentsCount : 0;
     const savesCount = typeof stats.savesCount === 'number' ? stats.savesCount : 0;
 
@@ -3729,7 +3729,7 @@ export class PostHydrationService {
     return {
       likes: authorPrivacy.hideLikeCounts ? null : likesCount,
       downvotes: authorPrivacy.hideLikeCounts ? null : downvotesCount,
-      boosts: authorPrivacy.hideShareCounts ? null : boostsCount,
+      boosts: authorPrivacy.hideShareCounts ? null : repostsCount,
       replies: authorPrivacy.hideReplyCounts ? null : repliesCount,
       saves: authorPrivacy.hideSaveCounts ? null : savesCount,
       // Absent unless the caller asked for quote counts. Hidden by the same
@@ -3749,24 +3749,24 @@ export class PostHydrationService {
     collectedPostIds: Set<string>,
     publicReferencesOnly: boolean,
   ): HydratedPost | null {
-    const boostOf = this.extractBoostOriginalId(post);
+    const repostOf = this.extractRepostOriginalId(post);
     const quoteOf = this.extractReferenceIds({ quoteOf: post.quoteOf })[0];
 
     const quotedPost = quoteOf ? (summaryMap.get(quoteOf) ?? null) : null;
-    const boostOriginal = boostOf ? (summaryMap.get(boostOf) ?? null) : null;
+    const repostOriginal = repostOf ? (summaryMap.get(repostOf) ?? null) : null;
 
     let originalPost: HydratedPostSummary | null = null;
-    if (boostOf) {
-      originalPost = boostOriginal;
+    if (repostOf) {
+      originalPost = repostOriginal;
     } else if (quoteOf) {
       originalPost = quotedPost;
     }
 
-    let boostContext: HydratedBoostContext | null = null;
-    if (boostOf) {
-      if (boostOriginal) {
-        boostContext = { originalPost: boostOriginal, actor: summary.user };
-      } else if (!publicReferencesOnly && !collectedPostIds.has(boostOf)) {
+    let repostContext: HydratedRepostContext | null = null;
+    if (repostOf) {
+      if (repostOriginal) {
+        repostContext = { originalPost: repostOriginal, actor: summary.user };
+      } else if (!publicReferencesOnly && !collectedPostIds.has(repostOf)) {
         // The boosted original was force-collected but no post row came back — it
         // is genuinely GONE (deleted, or a never-imported federated original).
         // A boost has an empty body, so instead of a blank card we surface an
@@ -3778,7 +3778,7 @@ export class PostHydrationService {
         // (`publicReferencesOnly`) a filtered-out original is indistinguishable
         // from a gone one at the query layer, so we stay conservative and keep
         // `boost: null` there too.
-        boostContext = { originalPost: null, actor: summary.user, unavailable: true };
+        repostContext = { originalPost: null, actor: summary.user, unavailable: true };
       }
     }
 
@@ -3789,7 +3789,7 @@ export class PostHydrationService {
       originalPost,
       quotedPost,
       ...((quoteOf || post.type === 'quote') && !quotedPost ? { quotedPostUnavailable: true } : {}),
-      boost: boostContext,
+      boost: repostContext,
       context,
     };
   }

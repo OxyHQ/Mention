@@ -769,7 +769,7 @@ describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
     // The federated subset is weighted at federatedBoostWeight (0.5) instead of
     // boostWeight (2.5), so its engagement — and thus its final score — is lower.
     // No engagementScoreCache is passed, so real engagement math runs.
-    const nativeBoosts = makePost({
+    const nativeReposts = makePost({
       id: 'native-boosts',
       stats: {
         likesCount: 0,
@@ -779,7 +779,7 @@ describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
         viewsCount: 0,
       },
     });
-    const federatedBoosts = makePost({
+    const federatedReposts = makePost({
       id: 'federated-boosts',
       stats: {
         likesCount: 0,
@@ -790,8 +790,8 @@ describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
       },
     });
 
-    const nativeScore = await service.calculatePostScore(nativeBoosts, undefined, {});
-    const federatedScore = await service.calculatePostScore(federatedBoosts, undefined, {});
+    const nativeScore = await service.calculatePostScore(nativeReposts, undefined, {});
+    const federatedScore = await service.calculatePostScore(federatedReposts, undefined, {});
 
     expect(federatedScore).toBeLessThan(nativeScore);
     expect(nativeScore).toBeGreaterThan(0);

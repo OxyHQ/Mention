@@ -618,7 +618,7 @@ export class ContentAffinityService {
             arrayOverlaps(posts.hashtags, tags),
             eq(posts.visibility, 'public'),
             eq(posts.status, 'published'),
-            ne(posts.type, PostType.BOOST),
+            ne(posts.type, PostType.REPOST),
             isNotNull(posts.oxyUserId),
             gte(posts.createdAt, since),
           ),
@@ -692,7 +692,7 @@ export class ContentAffinityService {
     // file. Shadowing it here is harmless only for as long as this method issues
     // no query of its own — the moment one is added, `select().from(likes)`
     // would silently reference this local array instead.
-    const [likedPosts, replyTargetIds, boostTargetIds] = await Promise.all([
+    const [likedPosts, replyTargetIds, repostTargetIds] = await Promise.all([
       this.collectLikes(viewerId, since),
       this.collectViewerInteractionTargets(viewerId, since, 'reply'),
       this.collectViewerInteractionTargets(viewerId, since, 'boost'),
@@ -703,7 +703,7 @@ export class ContentAffinityService {
     const allIds = new Set<string>([
       ...likedPosts.map((liked) => liked.postId),
       ...replyTargetIds,
-      ...boostTargetIds,
+      ...repostTargetIds,
     ]);
     if (allIds.size === 0) return result;
 
@@ -745,7 +745,7 @@ export class ContentAffinityService {
     }
 
     apply(replyTargetIds, ENGAGEMENT_REPLY_WEIGHT, 'engagement');
-    apply(boostTargetIds, ENGAGEMENT_BOOST_WEIGHT, 'engagement');
+    apply(repostTargetIds, ENGAGEMENT_BOOST_WEIGHT, 'engagement');
 
     return result;
   }
@@ -799,7 +799,7 @@ export class ContentAffinityService {
       ];
       const conditions =
         kind === 'boost'
-          ? [...shared, eq(posts.type, PostType.BOOST), isNotNull(posts.boostOf)]
+          ? [...shared, eq(posts.type, PostType.REPOST), isNotNull(posts.boostOf)]
           : [...shared, isNotNull(posts.parentPostId)];
 
       const rows = await getDb()

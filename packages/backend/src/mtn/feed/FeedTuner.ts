@@ -18,7 +18,7 @@ import type { MuteWordRule } from '../../services/safety/muteWordMatcher';
 // every call and EVERY controller path that produces slices answered 500. In
 // tests only, which is why it went unnoticed: the whole tuner pipeline (mute
 // words, hidden posts, dedupe) was unreachable from any end-to-end test.
-import { removeBoosts } from './tuners/removeBoosts';
+import { removeReposts } from './tuners/removeBoosts';
 import { removeReplies } from './tuners/removeReplies';
 import { deduplicateSlices } from './tuners/deduplicateSlices';
 import { filterSensitiveContent } from './tuners/filterSensitiveContent';
@@ -71,7 +71,7 @@ export class FeedTuner {
       .tune(filterHiddenPosts)
       .tune(filterMuteWords)
       .tune(filterSensitiveContent)
-      .tune(removeBoosts)
+      .tune(removeReposts)
       .tune(removeReplies)
       .tune(deduplicateSlices);
   }

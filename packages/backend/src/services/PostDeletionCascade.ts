@@ -319,7 +319,7 @@ export async function collectDeletionTargets(
   // expansion exists to prevent.
   const seeds = [post.id, ...replies.map((reply) => reply.id)];
   const seen = new Set(seeds);
-  const boosts: CascadedPostRow[] = [];
+  const reposts: CascadedPostRow[] = [];
   let frontier = seeds;
 
   while (frontier.length > 0) {
@@ -327,20 +327,20 @@ export async function collectDeletionTargets(
     const next = await tx
       .select(CASCADE_ROW_COLUMNS)
       .from(posts)
-      .where(and(eq(posts.type, PostType.BOOST), inArray(posts.boostOf, frontier)))
+      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.boostOf, frontier)))
       .limit(MAX_DELETION_TARGETS + 1);
 
     frontier = [];
-    for (const boost of next) {
-      if (seen.has(boost.id)) continue;
-      seen.add(boost.id);
-      boosts.push(boost);
-      frontier.push(boost.id);
+    for (const repost of next) {
+      if (seen.has(repost.id)) continue;
+      seen.add(repost.id);
+      reposts.push(repost);
+      frontier.push(repost.id);
     }
   }
 
   if (seen.size > MAX_DELETION_TARGETS) throw new PostDeletionTooLargeError(seen.size);
-  return { post, replies, boosts };
+  return { post, replies, boosts: reposts };
 }
 
 /** One reference deletion, named so a failure says which leg failed. */

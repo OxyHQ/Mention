@@ -258,7 +258,7 @@ describe('the minimum-duration option', () => {
     await create([video({ id: 'm-draft', durationSec: 30 })], { status: 'draft' });
     const original = await create([video({ id: 'm-original', durationSec: 30 })]);
     await create([video({ id: 'm-boost', durationSec: 30 })], {
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: original,
     });
 

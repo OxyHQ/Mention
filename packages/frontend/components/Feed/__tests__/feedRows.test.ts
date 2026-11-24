@@ -275,7 +275,7 @@ describe('buildFeedRows — no interstitials (regression guard)', () => {
 describe('buildFeedRows — a boosted reply under its parent', () => {
   it('draws "Reposted by" on the parent heading the slice, not between parent and reply', () => {
     const reposter = { id: 'nate' };
-    const boost = {
+    const repost = {
       ...post('boost-1', 'nate'),
       boost: { originalPost: post('reply-1', 'nate'), actor: reposter },
     } as unknown as HydratedPost;
@@ -283,7 +283,7 @@ describe('buildFeedRows — a boosted reply under its parent', () => {
       ...threadSlice(['parent-1', 'boost-1']),
       reason: { type: 'replyContext' as const },
     };
-    pair.items[1] = { ...pair.items[1], post: boost };
+    pair.items[1] = { ...pair.items[1], post: repost };
 
     const [head, reply] = build({ slices: [pair] }).map(asPost);
 
@@ -369,7 +369,7 @@ describe('feedRowType', () => {
   it('uses only canonical hydrated relations for boost, quote, and reply buckets', () => {
     const original = post('original');
     const quoted = post('quoted');
-    const boost = {
+    const repost = {
       ...post('boost'),
       originalPost: original,
       boost: {
@@ -389,7 +389,7 @@ describe('feedRowType', () => {
       parentPostId: 'parent',
     };
 
-    const rows = build({ items: [boost, quote, reply] });
+    const rows = build({ items: [repost, quote, reply] });
     expect(rows.map(feedRowType)).toEqual(['boost', 'quote', 'reply']);
   });
 
@@ -441,19 +441,19 @@ describe('embedded preview bound (#1103)', () => {
 // account that boosted its own post drew the post twice in a row (#1140).
 describe('one post, one row', () => {
   /** A boost wrapper of `originalId`, the shape hydration emits. */
-  function boostOf(boostId: string, originalId: string, actorId = 'author-1'): HydratedPost {
+  function repostOf(repostId: string, originalId: string, actorId = 'author-1'): HydratedPost {
     return {
-      ...post(boostId, actorId),
+      ...post(repostId, actorId),
       boost: { actor: { id: actorId }, originalPost: post(originalId) },
     } as unknown as HydratedPost;
   }
-  function boostSlice(boostId: string, originalId: string, actorId?: string): FeedPostSlice {
+  function repostSlice(repostId: string, originalId: string, actorId?: string): FeedPostSlice {
     return {
-      _sliceKey: boostId,
+      _sliceKey: repostId,
       isIncompleteThread: false,
       items: [
         {
-          post: boostOf(boostId, originalId, actorId),
+          post: repostOf(repostId, originalId, actorId),
           isThreadParent: false,
           isThreadChild: false,
           isThreadLastChild: false,
@@ -463,7 +463,7 @@ describe('one post, one row', () => {
   }
 
   it('drops the original when a boost of it was already drawn above (slices)', () => {
-    const rows = build({ slices: [boostSlice('boost-1', 'orig'), slice('orig'), slice('other')] });
+    const rows = build({ slices: [repostSlice('boost-1', 'orig'), slice('orig'), slice('other')] });
     expect(layout(rows)).toEqual(['boost-1', 'other']);
   });
 
@@ -471,15 +471,15 @@ describe('one post, one row', () => {
     const rows = build({
       slices: [
         slice('orig'),
-        boostSlice('boost-1', 'orig'),
-        boostSlice('boost-2', 'orig', 'author-2'),
+        repostSlice('boost-1', 'orig'),
+        repostSlice('boost-2', 'orig', 'author-2'),
       ],
     });
     expect(layout(rows)).toEqual(['orig']);
   });
 
   it('applies the same rule on the flat-items path', () => {
-    const rows = build({ items: [boostOf('boost-1', 'orig'), post('orig'), post('other')] });
+    const rows = build({ items: [repostOf('boost-1', 'orig'), post('orig'), post('other')] });
     expect(layout(rows)).toEqual(['boost-1', 'other']);
   });
 
@@ -503,13 +503,15 @@ describe('one post, one row', () => {
   });
 
   it('never removes a post from a thread slice', () => {
-    const rows = build({ slices: [boostSlice('boost-1', 'root'), threadSlice(['root', 'reply'])] });
+    const rows = build({
+      slices: [repostSlice('boost-1', 'root'), threadSlice(['root', 'reply'])],
+    });
     expect(layout(rows)).toEqual(['boost-1', 'root', 'reply']);
   });
 
   it('a boost by a blocked account does not hide the original', () => {
     const rows = build({
-      items: [boostOf('boost-1', 'orig', 'blocked'), post('orig')],
+      items: [repostOf('boost-1', 'orig', 'blocked'), post('orig')],
       blockedSet: new Set(['blocked']),
     });
     expect(layout(rows)).toEqual(['orig']);

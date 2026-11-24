@@ -1124,16 +1124,16 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
     // no boost row, no counter movement, nothing above WARN to say so. The
     // previous suite could not see it: it replaced the creator with a mock that
     // returned a fake document and never ran the guard at all.
-    const boost = await rowByActivityId(announceId);
-    expect(boost).toBeDefined();
-    expect(boost?.type).toBe('boost');
-    expect(boost?.oxyUserId).toBe(scope.user('bob'));
-    expect(boost?.boostOf).toBe(postId);
+    const repost = await rowByActivityId(announceId);
+    expect(repost).toBeDefined();
+    expect(repost?.type).toBe('boost');
+    expect(repost?.oxyUserId).toBe(scope.user('bob'));
+    expect(repost?.boostOf).toBe(postId);
     // The boost's date reflects when the boost happened, not the sync.
-    expect(boost?.createdAt.toISOString()).toBe('2026-06-18T09:30:00.000Z');
+    expect(repost?.createdAt.toISOString()).toBe('2026-06-18T09:30:00.000Z');
     // Empty body, stored: the boost renders entirely from `boostOf`.
-    const boostRecord = await loadPostRecord(boost?.id ?? '');
-    expect(boostRecord?.content.variants ?? []).toEqual([]);
+    const repostRecord = await loadPostRecord(repost?.id ?? '');
+    expect(repostRecord?.content.variants ?? []).toEqual([]);
 
     // A federated Announce moves the native boost counter AND the federated
     // subset counter +1 in lockstep, so `boostsCount - federatedBoostsCount`
@@ -1162,11 +1162,11 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
     await federationService.processInboxActivity(announce(), actorUri);
     await federationService.processInboxActivity(announce(), actorUri);
 
-    const boosts = await getDb()
+    const reposts = await getDb()
       .select({ id: posts.id })
       .from(posts)
       .where(eq(posts.federationActivityId, announceId));
-    expect(boosts).toHaveLength(1);
+    expect(reposts).toHaveLength(1);
     // The dedup returns BEFORE the counter bump, so a redelivery cannot inflate
     // the count of a boost that already exists.
     const counters = await countersOf(postId);
@@ -1206,7 +1206,7 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
    * something a real import produced rather than a row the test invented in the
    * shape it hoped the importer used.
    */
-  async function importBoost(): Promise<{ postId: string }> {
+  async function importRepost(): Promise<{ postId: string }> {
     await seedResolvedActor(scope.user('bob'));
     const postId = await seedResolvableTarget(announcedUri);
     await federationService.processInboxActivity(
@@ -1227,7 +1227,7 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
   }
 
   it('deletes the boost and decrements BOTH counters in lockstep', async () => {
-    const { postId } = await importBoost();
+    const { postId } = await importRepost();
 
     await federationService.processInboxActivity(
       {
@@ -1265,7 +1265,7 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
   });
 
   it('cannot retract another actor boost by replaying its public Announce id', async () => {
-    const { postId } = await importBoost();
+    const { postId } = await importRepost();
     const attackerUri = 'https://evil.example/users/mallory';
 
     await federationService.processInboxActivity(

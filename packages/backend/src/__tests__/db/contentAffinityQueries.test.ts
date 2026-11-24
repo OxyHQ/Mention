@@ -234,7 +234,7 @@ describe('the reads batch 2 left split across two stores', () => {
     await create({
       oxyUserId: VIEWER,
       authorship: [{ oxyUserId: VIEWER, role: 'owner', status: 'accepted' }],
-      type: PostType.BOOST,
+      type: PostType.REPOST,
       boostOf: parent.id,
       content: { variants: [{ source: 'author', text: '', tag: 'en' }] },
     });
@@ -244,14 +244,14 @@ describe('the reads batch 2 left split across two stores', () => {
       since(),
       'reply',
     );
-    const boosts = await internals(service).collectViewerInteractionTargets(
+    const reposts = await internals(service).collectViewerInteractionTargets(
       VIEWER,
       since(),
       'boost',
     );
 
     expect(replies).toContain(parent.id);
-    expect(boosts).toContain(parent.id);
+    expect(reposts).toContain(parent.id);
   });
 
   it('resolves post authors and skips a malformed id instead of losing the batch', async () => {

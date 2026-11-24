@@ -114,7 +114,7 @@ async function seedFederatedOriginal(): Promise<PostRecord> {
 
 const USER_AUTHOR_OXY = scope.user('author-oxy');
 
-const USER_BOOSTER_OXY = scope.user('booster-oxy');
+const USER_REPOSTER_OXY = scope.user('booster-oxy');
 
 const USER_SENDER = scope.user('sender');
 
@@ -205,14 +205,14 @@ describe('federateBoost — Announce', () => {
   it('announces a boost of a FEDERATED original to followers + the original author inbox', async () => {
     const original = await seedFederatedOriginal();
     // The booster's own remote follower.
-    const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
+    const followerInbox = await seedFollowerWithInbox(scope, USER_REPOSTER_OXY, { username: 'x' });
 
-    await followService.federateBoost(
+    await followService.federateRepost(
       // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
       // spells the id `_id` — the one shape on this path that is NOT a
       // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
       { _id: 'boost1', boostOf: original.id, createdAt: ISO },
-      USER_BOOSTER_OXY,
+      USER_REPOSTER_OXY,
       'alice',
     );
 
@@ -234,14 +234,14 @@ describe('federateBoost — Announce', () => {
     const original = await seedPost(scope, { oxyUserId: owner });
     // The local original's author username, resolved server-side.
     getUserById.mockResolvedValue({ id: owner, username: 'bob' });
-    const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
+    const followerInbox = await seedFollowerWithInbox(scope, USER_REPOSTER_OXY, { username: 'x' });
 
-    await followService.federateBoost(
+    await followService.federateRepost(
       // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
       // spells the id `_id` — the one shape on this path that is NOT a
       // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
       { _id: 'boost1', boostOf: original.id, createdAt: ISO },
-      USER_BOOSTER_OXY,
+      USER_REPOSTER_OXY,
       'alice',
     );
 
@@ -258,12 +258,12 @@ describe('federateBoost — Announce', () => {
     const original = await seedFederatedOriginal();
     isFediverseSharingEnabled.mockResolvedValue(false);
 
-    await followService.federateBoost(
+    await followService.federateRepost(
       // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
       // spells the id `_id` — the one shape on this path that is NOT a
       // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
       { _id: 'boost1', boostOf: original.id, createdAt: ISO },
-      USER_BOOSTER_OXY,
+      USER_REPOSTER_OXY,
       'alice',
     );
 
@@ -274,14 +274,14 @@ describe('federateBoost — Announce', () => {
 describe('federateUndoBoost — Undo(Announce)', () => {
   it('retracts a boost with an Undo(Announce) to followers + the original author inbox', async () => {
     const original = await seedFederatedOriginal();
-    const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
+    const followerInbox = await seedFollowerWithInbox(scope, USER_REPOSTER_OXY, { username: 'x' });
 
-    await followService.federateUndoBoost(
+    await followService.federateUndoRepost(
       // `federateBoost` takes the SDK's `LocalBoostEventPayload`, which still
       // spells the id `_id` — the one shape on this path that is NOT a
       // `NoteSourcePost`. `boostOf` is a real Mention post id either way.
       { _id: 'boost1', boostOf: original.id, createdAt: ISO },
-      USER_BOOSTER_OXY,
+      USER_REPOSTER_OXY,
       'alice',
     );
 
@@ -302,7 +302,7 @@ describe('federateNewPost — boost regression guard (POST /posts boost_of)', ()
   it('federates a bare boost as an Announce, NEVER an empty Create(Note)', async () => {
     const buildNoteSpy = vi.spyOn(followService, 'buildCreateNoteActivity');
     const original = await seedFederatedOriginal();
-    const followerInbox = await seedFollowerWithInbox(scope, USER_BOOSTER_OXY, { username: 'x' });
+    const followerInbox = await seedFollowerWithInbox(scope, USER_REPOSTER_OXY, { username: 'x' });
 
     // The shape PostCreationService passes: a boost has an EMPTY body + boostOf.
     await followService.federateNewPost(
@@ -313,7 +313,7 @@ describe('federateNewPost — boost regression guard (POST /posts boost_of)', ()
         createdAt: ISO,
         visibility: 'public',
       },
-      USER_BOOSTER_OXY,
+      USER_REPOSTER_OXY,
       'alice',
     );
 
@@ -393,25 +393,25 @@ describe('strict new-post dispatch records only accepted federation', () => {
     await expect(
       followService.federateNewPost(
         { ...post, boostOf: 'missing-original' },
-        USER_BOOSTER_OXY,
+        USER_REPOSTER_OXY,
         'alice',
         { throwOnError: true },
       ),
     ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
     const original = await seedFederatedOriginal();
-    const boost = { ...post, boostOf: original.id };
+    const repost = { ...post, boostOf: original.id };
     isFediverseSharingEnabled.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     await expect(
-      followService.federateNewPost(boost, USER_BOOSTER_OXY, 'alice', { throwOnError: true }),
+      followService.federateNewPost(repost, USER_REPOSTER_OXY, 'alice', { throwOnError: true }),
     ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
     expect(enqueueDelivery).not.toHaveBeenCalled();
     const deliver = vi.spyOn(deliveryService, 'deliverToFollowers');
     deliver.mockRejectedValueOnce(new DeliveryAuthorizationDeniedError());
     await expect(
-      followService.federateNewPost(boost, USER_BOOSTER_OXY, 'alice', { throwOnError: true }),
+      followService.federateNewPost(repost, USER_REPOSTER_OXY, 'alice', { throwOnError: true }),
     ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
     await expect(
-      followService.federateNewPost(boost, USER_BOOSTER_OXY, 'alice', { throwOnError: true }),
+      followService.federateNewPost(repost, USER_REPOSTER_OXY, 'alice', { throwOnError: true }),
     ).resolves.toBeUndefined();
     expect(deliveredActivity().type).toBe('Announce');
     deliver.mockRestore();

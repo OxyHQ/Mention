@@ -23,7 +23,7 @@ import { upstreamPostKey } from './upstreamPostKey';
  *
  * @returns true when a new boost Post was created.
  */
-export async function createFederatedBoost(input: {
+export async function createFederatedRepost(input: {
   activityId: string;
   originalPostId: string;
   boosterOxyUserId: string;

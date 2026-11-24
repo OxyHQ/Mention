@@ -4,7 +4,7 @@ import { useCallback, useSyncExternalStore } from 'react';
 import type {
   FeedRequest,
   CreateReplyRequest,
-  CreateBoostRequest,
+  CreateRepostRequest,
   CreatePostRequest,
   CreateThreadRequest,
   LikeRequest,
@@ -72,7 +72,7 @@ const isValidId = (id: string): boolean => id !== '' && id !== 'undefined' && id
  * its content). Used by `cachePosts` so an under-hydrated boost (original lost)
  * can never overwrite an already-hydrated cached boost.
  */
-const isRenderableBoost = (item: FeedItem): boolean => {
+const isRenderableRepost = (item: FeedItem): boolean => {
   if (!item.boost) return true;
   return Boolean(item.boost.originalPost?.id);
 };
@@ -289,12 +289,12 @@ interface PostsStoreState {
   createPost: (request: CreatePostRequest) => Promise<{ id: string }>;
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<FeedItem | null>;
-  createBoost: (request: CreateBoostRequest) => Promise<void>;
+  createRepost: (request: CreateRepostRequest) => Promise<void>;
   // `source` (optional) is the originating feed descriptor for surface-aware
   // engagement attribution. Threaded only through the POSITIVE actions (boost,
   // like, save) — the undo actions carry no interest signal.
-  boostPost: (request: { postId: string }, source?: string) => Promise<void>;
-  unboostPost: (request: { postId: string }) => Promise<void>;
+  repostPost: (request: { postId: string }, source?: string) => Promise<void>;
+  unrepostPost: (request: { postId: string }) => Promise<void>;
 
   // Engagement
   likePost: (request: LikeRequest, source?: string) => Promise<void>;
@@ -1239,7 +1239,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── createBoost ──────────────────────────────────────────
-    createBoost: async (request: CreateBoostRequest) => {
+    createRepost: async (request: CreateRepostRequest) => {
       const operationEpoch = captureViewerStateEpoch();
       const postId = request.originalPostId;
       let previousPost: FeedItem | null = null;
@@ -1256,7 +1256,7 @@ export const usePostsStore = create<PostsStoreState>()(
           }));
         }
 
-        const response = await feedService.createBoost(request);
+        const response = await feedService.createRepost(request);
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1273,7 +1273,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── boostPost ────────────────────────────────────────────
-    boostPost: async (request: { postId: string }, source?: string) => {
+    repostPost: async (request: { postId: string }, source?: string) => {
       const operationEpoch = captureViewerStateEpoch();
       const postId = request.postId;
       let previousPost: FeedItem | null = null;
@@ -1290,7 +1290,7 @@ export const usePostsStore = create<PostsStoreState>()(
           }));
         }
 
-        const response = await feedService.createBoost(
+        const response = await feedService.createRepost(
           { originalPostId: postId, mentions: [], hashtags: [] },
           source,
         );
@@ -1311,7 +1311,7 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── unboostPost ──────────────────────────────────────────
-    unboostPost: async (request: { postId: string }) => {
+    unrepostPost: async (request: { postId: string }) => {
       const operationEpoch = captureViewerStateEpoch();
       const postId = request.postId;
       let previousPost: FeedItem | null = null;
@@ -1331,7 +1331,7 @@ export const usePostsStore = create<PostsStoreState>()(
           }));
         }
 
-        const response = await feedService.unboostItem(request);
+        const response = await feedService.unrepostItem(request);
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1768,11 +1768,11 @@ export const usePostsStore = create<PostsStoreState>()(
         // embeds the boost original (PostHydrationService), so this is a guard
         // against future regressions, not the primary fix.
         .filter((item) => {
-          if (isRenderableBoost(item)) return true;
+          if (isRenderableRepost(item)) return true;
           const cached = dbGetPostById(item.id);
           // Drop the under-hydrated incoming copy only when the cached copy is a
           // strictly-better (renderable) boost; otherwise let it through.
-          return !(cached && isRenderableBoost(cached));
+          return !(cached && isRenderableRepost(cached));
         });
       if (transformed.length === 0) return;
 

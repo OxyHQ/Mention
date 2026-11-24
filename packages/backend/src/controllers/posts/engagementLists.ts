@@ -233,7 +233,7 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
 };
 
 // Get users who boosted a post
-export const getPostBoosts = async (req: AuthRequest, res: Response) => {
+export const getPostReposts = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const cursor = queryString(req.query.cursor);
@@ -259,7 +259,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     if (excluded.size) conditions.push(notInArray(postsTable.oxyUserId, [...excluded]));
     if (keyset) conditions.push(keyset);
 
-    const boosts = await getDb()
+    const reposts = await getDb()
       .select({
         id: postsTable.id,
         oxyUserId: postsTable.oxyUserId,
@@ -270,11 +270,11 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
       .orderBy(...chronoOrderBy())
       .limit(limit + 1);
 
-    const hasMore = boosts.length > limit;
-    const boostsToReturn = hasMore ? boosts.slice(0, limit) : boosts;
-    const boostAnchor = hasMore ? boostsToReturn[limit - 1] : undefined;
-    const nextCursor = boostAnchor
-      ? encodeChronoCursor(boostAnchor.createdAt, boostAnchor.id)
+    const hasMore = reposts.length > limit;
+    const repostsToReturn = hasMore ? reposts.slice(0, limit) : reposts;
+    const repostAnchor = hasMore ? repostsToReturn[limit - 1] : undefined;
+    const nextCursor = repostAnchor
+      ? encodeChronoCursor(repostAnchor.createdAt, repostAnchor.id)
       : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared
@@ -282,8 +282,8 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
     const userIds = [
       ...new Set(
-        boostsToReturn
-          .map((boost) => boost.oxyUserId)
+        repostsToReturn
+          .map((repost) => repost.oxyUserId)
           .filter((value): value is string => typeof value === 'string'),
       ),
     ];
@@ -294,7 +294,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
       users,
       hasMore,
       nextCursor,
-      totalCount: boostsToReturn.length,
+      totalCount: repostsToReturn.length,
     });
   } catch (error) {
     logger.error('Error fetching post boosts', error);

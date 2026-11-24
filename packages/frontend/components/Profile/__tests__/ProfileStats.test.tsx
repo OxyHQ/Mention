@@ -16,7 +16,7 @@ const BASE_PROPS: React.ComponentProps<typeof ProfileStats> = {
   followingHref: null,
   followersHref: null,
   onPostsPress: jest.fn(),
-  onBoostsPress: jest.fn(),
+  onRepostsPress: jest.fn(),
   onRepliesPress: jest.fn(),
 };
 
