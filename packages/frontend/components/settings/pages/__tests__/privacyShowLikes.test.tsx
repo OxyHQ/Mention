@@ -4,6 +4,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 
 import PrivacyScreen from '../privacy';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 /**
  * Settings → Privacy → "Show my likes on my profile".
@@ -94,9 +100,11 @@ describe('Settings → Privacy → show my likes', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <QueryClientProvider client={queryClient}>
-          <PrivacyScreen />
-        </QueryClientProvider>,
+        themed(
+          <QueryClientProvider client={queryClient}>
+            <PrivacyScreen />
+          </QueryClientProvider>,
+        ),
       );
     });
     await settle();

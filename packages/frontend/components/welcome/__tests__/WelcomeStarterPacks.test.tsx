@@ -63,11 +63,24 @@ jest.mock('@oxy.so/bloom/button', () => ({
 }));
 
 import { WelcomeStarterPacks } from '../WelcomeStarterPacks';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
+
+/** What the starter packs drew inside Bloom's theme: `null` while it draws nothing. */
+function drawn(renderer: ReactTestRenderer) {
+  const provider = renderer.toJSON();
+  if (provider === null || Array.isArray(provider)) return provider;
+  return provider.children;
+}
 
 function render(): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<WelcomeStarterPacks />);
+    renderer = TestRenderer.create(themed(<WelcomeStarterPacks />));
   });
   return renderer;
 }
@@ -115,6 +128,6 @@ describe('WelcomeStarterPacks', () => {
 
   it('draws nothing when there are no packs and no error', () => {
     mockQuery = { isPending: false, isError: false, data: { items: [] }, refetch: mockRefetch };
-    expect(render().toJSON()).toBeNull();
+    expect(drawn(render())).toBeNull();
   });
 });

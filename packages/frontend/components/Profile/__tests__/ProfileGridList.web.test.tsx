@@ -1,6 +1,12 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileGridList, type ProfileGridEntry } from '../ProfileGridList.web';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const mockVirtualList = jest.fn();
 jest.mock('@oxy.so/bloom/list', () => ({
@@ -22,11 +28,13 @@ it('windows the grid by rows of three cells', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      <ProfileGridList
-        restorationKey="viewer-1:profile-1:media"
-        data={data}
-        renderCell={renderCell}
-      />,
+      themed(
+        <ProfileGridList
+          restorationKey="viewer-1:profile-1:media"
+          data={data}
+          renderCell={renderCell}
+        />,
+      ),
     );
   });
 

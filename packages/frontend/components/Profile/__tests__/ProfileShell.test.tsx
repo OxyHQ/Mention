@@ -21,6 +21,12 @@ import { ScrollView, Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
 import { ProfileUnavailable } from '../ProfileUnavailable';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const mockHeader = jest.fn();
 const mockScreen = jest.fn();
@@ -58,10 +64,6 @@ jest.mock('@oxy.so/bloom/cover-header', () => ({
     mockCover(props);
     return props.children;
   },
-}));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ isDark: false }),
 }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -135,7 +137,7 @@ function makeProps(tab: TabsProps['tab'] = 'lists'): ProfileShellProps & { tabs:
 function renderShell(props: ProfileShellProps) {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(<ProfileShell {...props} />);
+    tree = TestRenderer.create(themed(<ProfileShell {...props} />));
   });
   return tree;
 }

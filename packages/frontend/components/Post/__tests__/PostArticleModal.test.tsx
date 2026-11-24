@@ -36,6 +36,19 @@ jest.mock('@/components/common/LinkifiedText', () => ({ LinkifiedText: 'AuditTex
 jest.mock('@/services/articleService', () => ({ articleService: { getArticle: jest.fn() } }));
 
 import PostArticleModal from '../PostArticleModal';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
+
+/** What the modal drew inside Bloom's theme: `null` while it draws nothing. */
+function drawn(renderer: TestRenderer.ReactTestRenderer) {
+  const provider = renderer.toJSON();
+  if (provider === null || Array.isArray(provider)) return provider;
+  return provider.children;
+}
 
 const originalPlatform = Object.getOwnPropertyDescriptor(Platform, 'OS');
 afterEach(() => {
@@ -51,7 +64,7 @@ describe.each(['ios', 'android'] as const)('article modal candidate on %s', (os)
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <PostArticleModal visible title="Title" body="Body" onClose={onClose} />,
+        themed(<PostArticleModal visible title="Title" body="Body" onClose={onClose} />),
       );
     });
     const root = renderer.root;
@@ -80,10 +93,10 @@ describe.each(['ios', 'android'] as const)('article modal candidate on %s', (os)
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <PostArticleModal visible={false} body="Body" onClose={() => {}} />,
+        themed(<PostArticleModal visible={false} body="Body" onClose={() => {}} />),
       );
     });
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
     act(() => renderer.unmount());
   });
 });

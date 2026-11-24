@@ -1,5 +1,11 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { RightBar } from '../RightBar';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 let mockPanel = { active: true, visibilityReady: false };
 const mockStart = jest.fn();
@@ -32,22 +38,22 @@ it('suspends hidden rail effects and preserves its state when it returns', () =>
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
   act(() => {
-    rendered.current = TestRenderer.create(<RightBar />);
+    rendered.current = TestRenderer.create(themed(<RightBar />));
   });
   const renderer = rendered.current;
   if (!renderer) throw new Error('Right bar did not render');
   expect(mockStart).not.toHaveBeenCalled();
 
   mockPanel = { active: true, visibilityReady: true };
-  act(() => renderer.update(<RightBar />));
+  act(() => renderer.update(themed(<RightBar />)));
   expect(mockStart).toHaveBeenCalledTimes(1);
   act(() => renderer.root.findByProps({ testID: 'search' }).props.onChangeText('retained'));
 
   mockPanel = { active: false, visibilityReady: true };
-  act(() => renderer.update(<RightBar />));
+  act(() => renderer.update(themed(<RightBar />)));
   expect(mockStop).toHaveBeenCalledTimes(1);
   mockPanel = { active: true, visibilityReady: true };
-  act(() => renderer.update(<RightBar />));
+  act(() => renderer.update(themed(<RightBar />)));
   expect(mockStart).toHaveBeenCalledTimes(2);
   expect(renderer.root.findByProps({ testID: 'search' }).props.value).toBe('retained');
   act(() => renderer.unmount());

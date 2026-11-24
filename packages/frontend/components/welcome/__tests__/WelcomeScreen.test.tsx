@@ -78,6 +78,12 @@ jest.mock('@oxy.so/bloom/page-footer', () => ({
 }));
 
 import { WelcomeScreen } from '../WelcomeScreen';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 function press(renderer: ReactTestRenderer, label: string) {
   const node = renderer.root.findAll(
@@ -95,7 +101,7 @@ function mount(next?: string) {
   mockNext = next;
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<WelcomeScreen />);
+    renderer = TestRenderer.create(themed(<WelcomeScreen />));
   });
   return renderer;
 }

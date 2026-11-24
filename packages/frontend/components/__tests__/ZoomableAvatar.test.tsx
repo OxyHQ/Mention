@@ -1,5 +1,11 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { ZoomableAvatar } from '../ZoomableAvatar';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const mockAvatar = jest.fn((_props: unknown) => null);
 const mockOpen = jest.fn();
@@ -93,7 +99,7 @@ it('keeps photo zoom and delegates the resting photo to Bloom', async () => {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <ZoomableAvatar source="human-file" account={{ kind: 'personal' }} size={90} />,
+      themed(<ZoomableAvatar source="human-file" account={{ kind: 'personal' }} size={90} />),
     );
   });
   expect(mockAvatar.mock.lastCall?.[0]).toMatchObject({ account: { kind: 'personal' }, size: 90 });
@@ -125,7 +131,9 @@ it('shows the stored character without clipping or opening a photo, and tolerate
   };
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(<ZoomableAvatar source="old-file-id" account={account} size={90} />);
+    tree = TestRenderer.create(
+      themed(<ZoomableAvatar source="old-file-id" account={account} size={90} />),
+    );
   });
   expect(mockAvatar.mock.lastCall?.[0]).toMatchObject({ account, motion: 'always' });
   expect(mockImageResolver).not.toHaveBeenCalled();
@@ -137,10 +145,12 @@ it('shows the stored character without clipping or opening a photo, and tolerate
   expect(mockOpen).not.toHaveBeenCalled();
   act(() => {
     tree.update(
-      <ZoomableAvatar
-        source="https://photo.test/old.jpg"
-        account={{ kind: 'bot', character: { shape: 'bad' } }}
-      />,
+      themed(
+        <ZoomableAvatar
+          source="https://photo.test/old.jpg"
+          account={{ kind: 'bot', character: { shape: 'bad' } }}
+        />,
+      ),
     );
   });
   // Enabled: the language's press host carries `disabled` only while it is disabled.
@@ -153,7 +163,7 @@ it('shows the stored character without clipping or opening a photo, and tolerate
 it('a failed photo disables zoom, while replacement and late old errors keep the new source usable', () => {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(<ZoomableAvatar source="https://photo.test/first.jpg" />);
+    tree = TestRenderer.create(themed(<ZoomableAvatar source="https://photo.test/first.jpg" />));
   });
   const props = mockAvatar.mock.lastCall?.[0] as
     | { onImageError: () => void; source: unknown; fallbackSource: unknown }
@@ -168,7 +178,7 @@ it('a failed photo disables zoom, while replacement and late old errors keep the
   expect(tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled).toBe(
     true,
   );
-  act(() => tree.update(<ZoomableAvatar source="https://photo.test/second.jpg" />));
+  act(() => tree.update(themed(<ZoomableAvatar source="https://photo.test/second.jpg" />)));
   // Enabled: the language's press host carries `disabled` only while it is disabled.
   expect(
     tree.root.findAllByProps({ accessibilityLabel: 'Profile avatar' })[0].props.disabled,
@@ -196,7 +206,9 @@ it.each([
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <ZoomableAvatar source="https://media.test/private?token=fixture" shareUrl={shareUrl} />,
+      themed(
+        <ZoomableAvatar source="https://media.test/private?token=fixture" shareUrl={shareUrl} />,
+      ),
     );
   });
   await act(async () => {

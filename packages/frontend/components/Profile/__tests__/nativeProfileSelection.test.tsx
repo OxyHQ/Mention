@@ -2,6 +2,12 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import ProfileScreen from '@/components/ProfileScreen';
 import type { ProfileTabDescriptor } from '../types';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -66,7 +72,7 @@ it.each(['media', 'replies', 'lane:lane-a'])(
   'keeps root profile %s selection inside the retained tab instead of replacing the root stack',
   (key) => {
     act(() => {
-      renderer = TestRenderer.create(<ProfileScreen username="reader" isRootTab />);
+      renderer = TestRenderer.create(themed(<ProfileScreen username="reader" isRootTab />));
     });
     const strip = renderer.root.find((node) => node.props.testID === 'profile-tab-strip');
     act(() => strip.props.onValueChange(key));
@@ -76,7 +82,7 @@ it.each(['media', 'replies', 'lane:lane-a'])(
     expect(mockReplace).not.toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
     // A parent tab focus update must not recreate this profile's local selection.
-    act(() => renderer.update(<ProfileScreen username="reader" isRootTab />));
+    act(() => renderer.update(themed(<ProfileScreen username="reader" isRootTab />)));
     expect(
       renderer.root.find((node) => node.props.testID === 'selected-profile-content').props.tabKey,
     ).toBe(key);
@@ -85,7 +91,7 @@ it.each(['media', 'replies', 'lane:lane-a'])(
 
 it('keeps canonical URL replacement for a pushed profile without adding history for each internal tab', () => {
   act(() => {
-    renderer = TestRenderer.create(<ProfileScreen username="other" />);
+    renderer = TestRenderer.create(themed(<ProfileScreen username="other" />));
   });
   act(() =>
     renderer.root

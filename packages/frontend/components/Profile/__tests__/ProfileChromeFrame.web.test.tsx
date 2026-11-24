@@ -28,9 +28,6 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: (href: string) => mockPush(href) }),
   usePathname: () => mockPathname,
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
-}));
 jest.mock('@oxy.so/bloom/tabs/expo-router', () => ({
   RouterTabs: (props: object) => {
     mockTabs(props);
@@ -65,6 +62,7 @@ jest.mock('../hooks/usePersonProfileView', () => ({
 }));
 
 import ProfileChromeFrame from '../ProfileChromeFrame.web';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 function makeView(overrides: Record<string, unknown> = {}) {
   return {
@@ -93,9 +91,11 @@ function render() {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <ProfileChromeFrame>
-        <Text testID="navigator">Slot</Text>
-      </ProfileChromeFrame>,
+      <BloomThemeProvider fonts={false}>
+        <ProfileChromeFrame>
+          <Text testID="navigator">Slot</Text>
+        </ProfileChromeFrame>
+      </BloomThemeProvider>,
     );
   });
   return tree;

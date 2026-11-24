@@ -52,6 +52,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 }));
 
 import { ZoomableAvatar } from '../ZoomableAvatar';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 it('opens the measured avatar on the first press without mounting a viewer beforehand', async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -59,7 +60,9 @@ it('opens the measured avatar on the first press without mounting a viewer befor
   const rendered: { current: TestRenderer.ReactTestRenderer | null } = { current: null };
   act(() => {
     rendered.current = TestRenderer.create(
-      <ZoomableAvatar source="https://example.test/avatar.jpg" />,
+      <BloomThemeProvider fonts={false}>
+        <ZoomableAvatar source="https://example.test/avatar.jpg" />
+      </BloomThemeProvider>,
       {
         createNodeMock: () => ({
           measureInWindow: (

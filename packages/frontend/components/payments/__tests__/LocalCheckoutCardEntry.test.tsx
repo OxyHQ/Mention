@@ -1,6 +1,12 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import type { CardFormProps } from '@oxy.so/bloom/card-form';
 import { LocalCheckoutCardEntry } from '../LocalCheckoutCardEntry';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 let mockForm: CardFormProps;
 let mockButton: { disabled: boolean; onPress(): void };
 let mockCheckbox: { checked: boolean; onCheckedChange(value: boolean): void };
@@ -45,7 +51,7 @@ it('requires well-formed fields and passes only masked metadata, clearing inputs
     onDone = jest.fn();
   act(() => {
     renderer = TestRenderer.create(
-      <LocalCheckoutCardEntry card={null} onCard={onCard} onDone={onDone} />,
+      themed(<LocalCheckoutCardEntry card={null} onCard={onCard} onDone={onDone} />),
     );
   });
   expect(mockButton.disabled).toBe(true);
@@ -79,12 +85,12 @@ it('requires well-formed fields and passes only masked metadata, clearing inputs
 it('does not restore card input values after Back or close unmounts the entry', () => {
   const props = { card: null, onCard: jest.fn(), onDone: jest.fn() };
   act(() => {
-    renderer = TestRenderer.create(<LocalCheckoutCardEntry {...props} />);
+    renderer = TestRenderer.create(themed(<LocalCheckoutCardEntry {...props} />));
   });
   act(() => mockForm.onValueChange?.(input));
   act(() => renderer.unmount());
   act(() => {
-    renderer = TestRenderer.create(<LocalCheckoutCardEntry {...props} />);
+    renderer = TestRenderer.create(themed(<LocalCheckoutCardEntry {...props} />));
   });
   expect(mockForm.value).toMatchObject({
     number: '',
@@ -100,11 +106,13 @@ it('does not restore card input values after Back or close unmounts the entry', 
 it('does not carry an earlier card saving preference into a new card', () => {
   act(() => {
     renderer = TestRenderer.create(
-      <LocalCheckoutCardEntry
-        card={{ id: 'prior', brand: 'Visa', last4: '4242', saveForLater: true }}
-        onCard={jest.fn()}
-        onDone={jest.fn()}
-      />,
+      themed(
+        <LocalCheckoutCardEntry
+          card={{ id: 'prior', brand: 'Visa', last4: '4242', saveForLater: true }}
+          onCard={jest.fn()}
+          onDone={jest.fn()}
+        />,
+      ),
     );
   });
   expect(mockCheckbox.checked).toBe(false);

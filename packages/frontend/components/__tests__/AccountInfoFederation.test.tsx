@@ -141,8 +141,8 @@ describe('AccountInfoScreen — one Fediverse section for every non-Oxy account'
 
       expect(section.props.title).toBe(catalogText('fediverse.about.title'));
       const network = row(section, catalogText('fediverse.about.network'));
-      // The language hands the row its glyph as the theme-painted host of the icon.
-      expect(network.props.icon.props.host).toBe(RiFediverseLine);
+      // The language hands the row its glyph as the icon itself, painted from the theme.
+      expect(network.props.icon.type).toBe(RiFediverseLine);
       expect(network.props.value).toBe(catalogText(`fediverse.about.${networkKey}`));
 
       // Kept: the link to the ORIGINAL profile.

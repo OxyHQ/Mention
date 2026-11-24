@@ -1,6 +1,19 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { FollowingAvatars } from '../FollowingAvatars';
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
+
+/** What the facepile drew inside Bloom's theme: `null` while it draws nothing. */
+function drawn(renderer: TestRenderer.ReactTestRenderer) {
+  const provider = renderer.toJSON();
+  if (provider === null || Array.isArray(provider)) return provider;
+  return provider.children;
+}
 
 let mockViewer: string | null = 'viewer-a';
 let mockPrivate = true;
@@ -42,7 +55,7 @@ beforeEach(() => {
 it('hydrates only three real followed identities and preserves their graph order', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<FollowingAvatars />);
+    renderer = TestRenderer.create(themed(<FollowingAvatars />));
   });
   const group = renderer.root.findByType(AccountAvatarGroup);
   expect(group.props.items.map((item: { id: string }) => item.id)).toEqual(['b', 'a']);
@@ -59,9 +72,9 @@ it.each(['anonymous', 'private-unavailable'])(
     else mockPrivate = false;
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<FollowingAvatars />);
+      renderer = TestRenderer.create(themed(<FollowingAvatars />));
     });
-    expect(renderer.toJSON()).toBeNull();
+    expect(drawn(renderer)).toBeNull();
     expect(mockQueries.every((query) => !query.enabled)).toBe(true);
     act(() => renderer.unmount());
   },
@@ -70,13 +83,13 @@ it.each(['anonymous', 'private-unavailable'])(
 it('drops the previous viewer facepile while the next viewer graph loads', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<FollowingAvatars />);
+    renderer = TestRenderer.create(themed(<FollowingAvatars />));
   });
   const firstKey = mockQueries[0].queryKey;
   mockViewer = 'viewer-b';
   mockGraph = undefined;
-  act(() => renderer.update(<FollowingAvatars />));
-  expect(renderer.toJSON()).toBeNull();
+  act(() => renderer.update(themed(<FollowingAvatars />)));
+  expect(drawn(renderer)).toBeNull();
   expect(mockQueries[2].queryKey).not.toEqual(firstKey);
   expect(mockQueries[3].enabled).toBe(false);
   act(() => renderer.unmount());
@@ -86,8 +99,8 @@ it('does not invent placeholders when followed profiles cannot be resolved', () 
   mockProfiles = [];
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<FollowingAvatars />);
+    renderer = TestRenderer.create(themed(<FollowingAvatars />));
   });
-  expect(renderer.toJSON()).toBeNull();
+  expect(drawn(renderer)).toBeNull();
   act(() => renderer.unmount());
 });

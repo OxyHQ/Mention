@@ -44,7 +44,11 @@ jest.mock('../interstitials/FeedInterstitial', () => {
     },
   };
 });
-jest.mock('@oxy.so/bloom/subtle-hover', () => ({ __esModule: true, SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({
+  __esModule: true,
+  ...jest.requireActual('@oxy.so/bloom/subtle-hover'),
+  SubtleHover: () => null,
+}));
 jest.mock('@/stores/threadHoverStore', () => ({
   __esModule: true,
   useThreadHoverStore: () => undefined,

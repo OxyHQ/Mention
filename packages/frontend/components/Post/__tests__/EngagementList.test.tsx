@@ -3,6 +3,12 @@ import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';
 import EngagementList from '../EngagementList';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 /**
  * Regression harness for the "likes/boosts list shows every engager as
@@ -185,7 +191,7 @@ describe('EngagementList — canonical PostUser rendering', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <EngagementList postId="post-1" type="boosts" onClose={jest.fn()} />,
+        themed(<EngagementList postId="post-1" type="boosts" onClose={jest.fn()} />),
       );
     });
     await flush();
@@ -224,7 +230,7 @@ describe('EngagementList — canonical PostUser rendering', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <EngagementList postId="post-1" type="likes" onClose={jest.fn()} />,
+        themed(<EngagementList postId="post-1" type="likes" onClose={jest.fn()} />),
       );
     });
     await flush();
@@ -240,7 +246,7 @@ it('retains the error and retry state instead of showing an empty list after a f
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   await act(async () => {
     renderer = TestRenderer.create(
-      <EngagementList postId="failed-post" type="likes" onClose={jest.fn()} />,
+      themed(<EngagementList postId="failed-post" type="likes" onClose={jest.fn()} />),
     );
   });
   await flush();
@@ -258,12 +264,14 @@ it('navigates through the originating panel after closing the supporting list', 
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   await act(async () => {
     renderer = TestRenderer.create(
-      <EngagementList
-        postId="navigation-post"
-        type="likes"
-        onClose={onClose}
-        onNavigate={onNavigate}
-      />,
+      themed(
+        <EngagementList
+          postId="navigation-post"
+          type="likes"
+          onClose={onClose}
+          onNavigate={onNavigate}
+        />,
+      ),
     );
   });
   await flush();

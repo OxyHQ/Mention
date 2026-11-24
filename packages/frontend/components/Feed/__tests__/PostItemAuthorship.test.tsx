@@ -116,7 +116,10 @@ jest.mock('@oxy.so/bloom/hooks', () => ({
   ...jest.requireActual('@oxy.so/bloom/hooks'),
   useImagePreload: () => undefined,
 }));
-jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({
+  ...jest.requireActual('@oxy.so/bloom/subtle-hover'),
+  SubtleHover: () => null,
+}));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));

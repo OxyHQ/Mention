@@ -18,6 +18,12 @@ jest.mock('@/components/common/EmptyState', () => ({ EmptyState: 'EmptyState' })
 
 import NotFoundScreen from '../NotFoundScreen';
 import PlusNotFound from '../../app/(app)/+not-found';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 function emptyStateOf(renderer: TestRenderer.ReactTestRenderer) {
   return renderer.root.findByType('EmptyState' as unknown as React.ElementType);
@@ -28,7 +34,7 @@ beforeEach(() => mockReplace.mockClear());
 it('draws the notFound sticker with the 404 copy, and its one action goes home', () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<NotFoundScreen />);
+    renderer = TestRenderer.create(themed(<NotFoundScreen />));
   });
   const empty = emptyStateOf(renderer);
   expect(empty.props).toMatchObject({

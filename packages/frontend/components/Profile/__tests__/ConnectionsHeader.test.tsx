@@ -1,6 +1,12 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { ConnectionsHeader } from '../ConnectionsHeader';
 import type { ProfileData } from '@/hooks/useProfileData';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 let mockPathname = '/@nate/followers';
 let mockProfile: {
@@ -41,10 +47,12 @@ function render() {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <ConnectionsHeader
-        username="nate"
-        profileData={mockProfile as unknown as ProfileData | null}
-      />,
+      themed(
+        <ConnectionsHeader
+          username="nate"
+          profileData={mockProfile as unknown as ProfileData | null}
+        />,
+      ),
     );
   });
   if (!tree) throw new Error('Connections header did not render');

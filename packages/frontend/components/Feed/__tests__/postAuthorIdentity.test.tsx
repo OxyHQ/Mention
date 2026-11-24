@@ -50,6 +50,7 @@ jest.mock('@oxy.so/bloom/hooks', () => ({
   useImagePreload: () => undefined,
 }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({
+  ...jest.requireActual('@oxy.so/bloom/subtle-hover'),
   SubtleHover: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
 jest.mock('@/components/ProfileHoverCard', () => ({

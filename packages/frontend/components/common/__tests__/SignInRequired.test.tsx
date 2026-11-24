@@ -1,6 +1,7 @@
 jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'));
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * The signed-out gate for create forms and owned directories (#1126, item 8).
@@ -37,9 +38,11 @@ function render(): TestRenderer.ReactTestRenderer {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <SignInRequired label="Sign in to create a list">
-        <Text testID="form">form</Text>
-      </SignInRequired>,
+      <BloomThemeProvider fonts={false}>
+        <SignInRequired label="Sign in to create a list">
+          <Text testID="form">form</Text>
+        </SignInRequired>
+      </BloomThemeProvider>,
     );
   });
   return tree;

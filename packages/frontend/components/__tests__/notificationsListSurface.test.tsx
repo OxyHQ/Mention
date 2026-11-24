@@ -13,6 +13,12 @@ jest.mock('@oxy.so/bloom/list', () => ({
 
 // The mocks above must be installed first.
 import { NotificationsList } from '../NotificationsList.native';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 describe('the notifications list’s surface and refresh', () => {
   function render(items: unknown[]) {
@@ -20,16 +26,18 @@ describe('the notifications list’s surface and refresh', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <NotificationsList
-          restorationKey="viewer-1:notifications:all"
-          items={items as never[]}
-          renderRow={() => <Text>row</Text>}
-          header={null}
-          emptyState={<Text>empty</Text>}
-          tabKey="all"
-          refreshing={false}
-          onRefresh={() => undefined}
-        />,
+        themed(
+          <NotificationsList
+            restorationKey="viewer-1:notifications:all"
+            items={items as never[]}
+            renderRow={() => <Text>row</Text>}
+            header={null}
+            emptyState={<Text>empty</Text>}
+            tabKey="all"
+            refreshing={false}
+            onRefresh={() => undefined}
+          />,
+        ),
       );
     });
     const props = mockListProps.at(-1)!;

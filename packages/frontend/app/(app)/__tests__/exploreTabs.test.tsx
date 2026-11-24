@@ -42,18 +42,23 @@ jest.mock('@oxy.so/bloom/tabs', () => ({
   },
   TabsTrigger: () => null,
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 
 // The mocks above must be installed first.
 import ExploreLayout from '../explore/_layout';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 function renderAt(pathname: string) {
   mockPathname = pathname;
   act(() => {
-    TestRenderer.create(<ExploreLayout />);
+    TestRenderer.create(themed(<ExploreLayout />));
   });
   if (!mockTabsProps) throw new Error('Explore rendered no tab strip');
   return mockTabsProps;

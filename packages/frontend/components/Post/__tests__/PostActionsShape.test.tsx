@@ -5,6 +5,12 @@ import es from '@/locales/es.json';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import PostActions from '../PostActions';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+/** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
+function themed(element: React.ReactElement): React.ReactElement {
+  return <BloomThemeProvider fonts={false}>{element}</BloomThemeProvider>;
+}
 
 /**
  * The action bar is Bloom's `EngagementBar`; what is Mention's is the WIRING —
@@ -48,16 +54,18 @@ function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <PostActions
-        t={translations.t}
-        engagement={{ replies: 2, likes: 3, boosts: 1, saves: 0 }}
-        onReply={noop}
-        onBoost={noop}
-        onLike={noop}
-        onSave={noop}
-        onShare={noop}
-        {...props}
-      />,
+      themed(
+        <PostActions
+          t={translations.t}
+          engagement={{ replies: 2, likes: 3, boosts: 1, saves: 0 }}
+          onReply={noop}
+          onBoost={noop}
+          onLike={noop}
+          onSave={noop}
+          onShare={noop}
+          {...props}
+        />,
+      ),
     );
   });
   if (!renderer) throw new Error('render produced no tree');

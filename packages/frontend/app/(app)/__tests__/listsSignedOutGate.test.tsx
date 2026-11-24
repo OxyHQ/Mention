@@ -4,6 +4,7 @@ jest.mock('@/hooks/useSupervisionState', () => ({
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * Lists offered a signed-out reader "+ New" and "Create list", and the form
@@ -89,9 +90,11 @@ async function render(): Promise<TestRenderer.ReactTestRenderer> {
   let tree!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     tree = mounted = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <ListsScreen />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <ListsScreen />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   return tree;

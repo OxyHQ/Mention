@@ -2,6 +2,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PostInsightsSheet from '../PostInsightsSheet';
 import { insightsService } from '@/services/insightsService';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 let mockViewer = 'viewer-a';
 let mockPrivateApi = false;
@@ -47,9 +48,11 @@ it('keeps private analytics disabled until the session is ready and partitions c
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
   const tree = () => (
-    <QueryClientProvider client={client}>
-      <PostInsightsSheet postId="post-1" onClose={jest.fn()} />
-    </QueryClientProvider>
+    <BloomThemeProvider fonts={false}>
+      <QueryClientProvider client={client}>
+        <PostInsightsSheet postId="post-1" onClose={jest.fn()} />
+      </QueryClientProvider>
+    </BloomThemeProvider>
   );
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   await act(async () => {

@@ -3,6 +3,7 @@ jest.mock('@oxy.so/bloom/skeleton', () => require('@/test-support/bloomSkeleton'
 import TestRenderer, { act } from 'react-test-renderer';
 import { StorefrontSettings } from '@/components/Commerce/StorefrontSettings';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**
  * What Mention hands Oxy's `AccountSettings` for a member-operated account.
@@ -150,9 +151,11 @@ async function renderSettings(kind: OperatedAccountKind): Promise<RecordedProps>
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   await act(async () => {
     mounted = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <OperatedAccountSettingsScreen kind={kind} handle="daily" />
-      </QueryClientProvider>,
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <OperatedAccountSettingsScreen kind={kind} handle="daily" />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
     );
   });
   for (let attempt = 0; attempt < 20 && mockAccountSettings.mock.calls.length === 0; attempt += 1) {
