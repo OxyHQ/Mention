@@ -1,5 +1,5 @@
 diff --git a/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt b/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt
-index 583e9b8..1ea750e 100644
+index 583e9b8..bf9cbc1 100644
 --- a/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt
 +++ b/android/src/main/java/com/reactnativepagerview/ComposePagerView.kt
 @@ -631,7 +631,7 @@ class ComposePagerView(context: Context) : FrameLayout(context) {
@@ -11,7 +11,7 @@ index 583e9b8..1ea750e 100644
            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
            isSaveEnabled = false
            attachChild(this, child)
-@@ -647,6 +647,19 @@ class ComposePagerView(context: Context) : FrameLayout(context) {
+@@ -647,6 +647,37 @@ class ComposePagerView(context: Context) : FrameLayout(context) {
      )
    }
  
@@ -22,7 +22,25 @@ index 583e9b8..1ea750e 100644
 +  // AndroidComposeView.focusSearch measures and lays out again: "performMeasureAndLayout
 +  // called during measure layout". Compose 1.8 goes on past itself the same way while it
 +  // measures. The pages are Android views and the pager has no focus targets of its own.
++  //
++  // The host is invisible until Compose places it. The pager composes the page past the ones
++  // it keeps ahead of a scroll (its prefetch), and Compose attaches that page's host before
++  // it lays it out or draws it: the page is attached and shown at the window's origin, where
++  // the window draws none of it. A view that draws itself from its place in the window then
++  // drew the page over the one in front (Bloom's lens draws a header's controls in a window
++  // overlay: sliding from a profile page back to its neighbour drew the home page's header
++  // over it). Compose gives the host its size where it places it, so a layout at a size shows
++  // it. A page leaving the pager's window is released with its host; a new host starts hidden.
 +  private inner class PageContainer(context: Context) : FrameLayout(context) {
++    init {
++      visibility = View.INVISIBLE
++    }
++
++    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
++      visibility = if (right > left && bottom > top) View.VISIBLE else View.INVISIBLE
++      super.onLayout(changed, left, top, right, bottom)
++    }
++
 +    override fun focusSearch(focused: View?, direction: Int): View? {
 +      return this@ComposePagerView.focusSearch(focused, direction)
 +    }

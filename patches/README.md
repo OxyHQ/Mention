@@ -342,6 +342,24 @@ focus targets of its own, so the search reaches the same views. 10.0.3 (the late
 still builds on Compose 1.7.8 with plain `FrameLayout` page hosts. Remove the patch
 once the pager builds on Compose 1.8 or later, or hosts its pages this way upstream.
 
+The same `PageContainer` is invisible until Compose places it. The first time a reader
+slid from Profile back to Notifications, Home's header controls (menu, search, "Ask
+Alia" and the bell) were drawn over Notifications' header, without Home's title or
+feed, and with no Home node in the accessibility tree (Pixel 8a, every owner build).
+Compose's pager prefetches the page past the ones it keeps ahead of a scroll (sliding
+from page 4 to 3 with one page kept either side, page 1: Home), and Compose attaches a
+prefetched page's host before it lays it out or draws it. `dumpsys activity top` at the
+ghost: Home's page in a host and holder at `0,0-0,0`, both still waiting for layout,
+attached and visible, with Home's header lens views at their own places, `32,137-147,252`
+and on. Compose draws none of it, but Bloom's lens draws each header control's glass
+and content in a window overlay at the control's place in the window, for every
+control that `isShown`, so Home's header was drawn at the window's origin. A host that
+starts invisible and shows when it is laid out at a size (Compose sizes it only where it
+places it) keeps a prefetched page out of the window until it is on screen; a page that
+leaves the pager's window is released with its host. Bloom cannot tell this page from a
+shown one: Compose's view holder turns off `clipChildren`, so the page's visible rect is
+not empty. Remove this part with the rest once the pager hides pages it has not placed.
+
 # expo-updates 58.0.21
 
 Every cold start on a device that had a newer-built binary installed before the
