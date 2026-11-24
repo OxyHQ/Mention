@@ -199,6 +199,47 @@ export function fallbackTrendLabel(term: string): TrendLabel {
 }
 
 /**
+ * A merged row's members must reach this share of the representative's volume
+ * before one of them may give the row its name.
+ */
+const MIN_NAME_MEMBER_SHARE = 0.25;
+
+/**
+ * Which member of a merged row should NAME it.
+ *
+ * A row is reported under its busiest term, which is often one bare word
+ * (`nvidia`) while the story is a person the posts write out in full (`Jensen
+ * Huang`, nearly as busy). A bare word is a worse name than a full one, so when
+ * the busiest term is a single word, a multi-word member with real volume
+ * (>= {@link MIN_NAME_MEMBER_SHARE} of it) names the row instead — the busiest
+ * such member, never a fragment of a headline.
+ *
+ * A member that merely EXTENDS the representative (`ukraine war` for `ukraine`)
+ * is not a different name, and {@link deriveTrendLabel} already expands a short
+ * form to the full name the posts use, so those are left alone.
+ *
+ * `members` is the row's terms, representative first. Pure; the retrieval key of
+ * the row never changes, only the term its label is derived from.
+ */
+export function pickLabelTerm(
+  members: readonly string[],
+  volumeOf: ReadonlyMap<string, number>,
+): string {
+  const [representative] = members;
+  if (!representative || representative.includes(' ')) return representative ?? '';
+
+  const floor = (volumeOf.get(representative) ?? 0) * MIN_NAME_MEMBER_SHARE;
+  let best: string | null = null;
+  for (const member of members) {
+    if (!member.includes(' ') || phraseContainsTerm(member, representative)) continue;
+    const volume = volumeOf.get(member) ?? 0;
+    if (volume < floor) continue;
+    if (best === null || volume > (volumeOf.get(best) ?? 0)) best = member;
+  }
+  return best ?? representative;
+}
+
+/**
  * Derive a trend's label and category from the posts behind it.
  *
  * Pure and total: always answers, never throws, never calls anything.

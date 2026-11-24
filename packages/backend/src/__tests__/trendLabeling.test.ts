@@ -3,6 +3,7 @@ import {
   deriveTrendLabel,
   fallbackTrendLabel,
   TREND_LABEL_VERSION,
+  pickLabelTerm,
 } from '../services/trending/trendLabeling';
 
 /**
@@ -461,5 +462,43 @@ describe('a link is not a spelling anybody chose', () => {
     ];
 
     expect(deriveTrendLabel({ term: 'nba', excerpts }).displayName).toBe('NBA');
+  });
+});
+
+describe('pickLabelTerm — which member names a merged row', () => {
+  const volumes = (entries: Record<string, number>) => new Map(Object.entries(entries));
+
+  it('lets the busiest full name replace a bare representative, not a fragment of a headline', () => {
+    const members = ['nvidia', 'jensen huang', 'huang', 'jensen huang reinstated', 'nvidia board'];
+    const volumeOf = volumes({
+      nvidia: 258,
+      'jensen huang': 224,
+      huang: 162,
+      'jensen huang reinstated': 10,
+      'nvidia board': 50,
+    });
+
+    expect(pickLabelTerm(members, volumeOf)).toBe('jensen huang');
+  });
+
+  it('keeps the representative when no full name has real volume, or when it already is one', () => {
+    expect(
+      pickLabelTerm(
+        ['ukraine', 'russia', 'kyiv airport'],
+        volumes({ ukraine: 100, russia: 80, 'kyiv airport': 5 }),
+      ),
+    ).toBe('ukraine');
+    expect(
+      pickLabelTerm(
+        ['manchester united', 'liverpool'],
+        volumes({ 'manchester united': 50, liverpool: 40 }),
+      ),
+    ).toBe('manchester united');
+  });
+
+  it('does not rename a row after a mere extension of its own term', () => {
+    expect(
+      pickLabelTerm(['ukraine', 'ukraine war'], volumes({ ukraine: 100, 'ukraine war': 60 })),
+    ).toBe('ukraine');
   });
 });
