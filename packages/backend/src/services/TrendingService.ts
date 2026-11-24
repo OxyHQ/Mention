@@ -14,6 +14,7 @@ import { getDb } from '../db/postgres';
 import { trendBatches, trending, type TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
+import { createRedisLock, type DistributedLock } from '../utils/redisLock';
 import { withRedisFallback } from '../utils/redisHelpers';
 import { emitTrendsUpdated } from '../utils/socket';
 import { metrics } from '../utils/metrics';
@@ -41,6 +42,16 @@ import type { PostUser, TrendCategory } from '@mention/shared-types';
  */
 const CURRENT_REC_ID_TTL_MS = 30_000;
 
+/** The cluster-wide mutex of the scheduled recalculation (see {@link TrendingService.runScheduledCalculation}). */
+const CALCULATION_LOCK_KEY = 'trending:calculation';
+
+/**
+ * Longer than a calculation takes (a handful of window scans, each capped at the
+ * background statement timeout) and shorter than the interval, so a task that
+ * dies holding it delays the next run by less than one cadence.
+ */
+const CALCULATION_LOCK_TTL_MS = 20 * 60 * 1000;
+
 /**
  * What `GET /trending/summary` answers: how to PRESENT one trend.
  *
@@ -59,7 +70,7 @@ export type TrendDetail = {
 /** What the trending list answers: the ranked terms, the batch summary and its attribution token. */
 export type TrendingAnswer = { trending: TrendWithSeries[]; summary: string; recId?: string };
 
-class TrendingService {
+export class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
   /** Memoized current-batch token; see {@link getCurrentRecId}. */
   private currentRecIdCache: { value: string | null; expiresAt: number } | null = null;
@@ -75,6 +86,11 @@ class TrendingService {
   // three in a row is the job not landing, which is what went unnoticed for a day.
   private readonly STALE_BATCH_AFTER_MS = this.CALCULATION_INTERVAL * 3;
 
+  /** The recalculation in flight on this task, so a second trigger joins it instead of scanning again. */
+  private scheduledCalculation: Promise<void> | null = null;
+
+  constructor(private readonly lock: DistributedLock = createRedisLock()) {}
+
   /**
    * Initialize the service and start periodic calculations.
    *
@@ -85,12 +101,12 @@ class TrendingService {
    * job (FeedJobScheduler, FollowerSnapshotJob, etc.).
    */
   public initialize(): void {
-    this.calculateTrending().catch((error) => {
+    this.calculateUnlessFresh().catch((error) => {
       logger.error('[Trending] Initial calculation failed:', error);
     });
 
     this.calculationInterval = setInterval(() => {
-      this.calculateTrending().catch((error) => {
+      this.runScheduledCalculation().catch((error) => {
         logger.error('[Trending] Periodic calculation failed:', error);
       });
     }, this.CALCULATION_INTERVAL);
@@ -98,6 +114,60 @@ class TrendingService {
     this.calculationInterval.unref?.();
 
     logger.info('[Trending] Service initialized with 30-minute calculation interval');
+  }
+
+  /**
+   * The first run after a start, skipped when the served batch is younger than one
+   * cadence. A task that becomes leader (every deploy, every leadership handover)
+   * would otherwise rescan the whole 48-hour window for a batch that is already
+   * fresh, and a rolling deploy does that several times in a row.
+   */
+  private async calculateUnlessFresh(): Promise<void> {
+    const [latest] = await getDb()
+      .select({ calculatedAt: trendBatches.calculatedAt })
+      .from(trendBatches)
+      .orderBy(desc(trendBatches.calculatedAt))
+      .limit(1);
+    if (latest && Date.now() - latest.calculatedAt.getTime() < this.CALCULATION_INTERVAL) {
+      logger.info('[Trending] Initial calculation skipped: the served batch is still fresh');
+      return;
+    }
+    await this.runScheduledCalculation();
+  }
+
+  /**
+   * One recalculation at a time, across the whole service.
+   *
+   * Each calculation reads the 48-hour window of `posts` several times (the
+   * corpus count alone ran 60 to 70 seconds and is disk-bound), so two at once do
+   * not merely duplicate work: they slow every other reader of the shared database.
+   * On 2026-11-24 three identical corpus counts were running together, and the
+   * explore feed answered 503 at its 15-second statement timeout.
+   *
+   * Within this task a second trigger joins the run in flight; across tasks the
+   * Redis lock decides, and the loser skips (the winner's batch serves everyone).
+   * The lock fails open: with Redis down the calculation runs unguarded, as before.
+   * Explicit callers (`calculateTrending`) are not guarded; this is the scheduled path.
+   */
+  public runScheduledCalculation(): Promise<void> {
+    this.scheduledCalculation ??= this.calculateOnceAcrossTasks().finally(() => {
+      this.scheduledCalculation = null;
+    });
+    return this.scheduledCalculation;
+  }
+
+  private async calculateOnceAcrossTasks(): Promise<void> {
+    const attempt = await this.lock.tryAcquire(CALCULATION_LOCK_KEY, CALCULATION_LOCK_TTL_MS);
+    if (attempt.status === 'held') {
+      metrics.incrementCounter('trending_calculation_total', 1, { result: 'skipped' });
+      logger.info('[Trending] Calculation skipped: another task is already running one');
+      return;
+    }
+    try {
+      await this.calculateTrending();
+    } finally {
+      if (attempt.status === 'acquired') await attempt.release();
+    }
   }
 
   /**
