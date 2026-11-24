@@ -30,7 +30,8 @@ export type PromotionIneligibility =
 
 /** The fields of a post the rules read. */
 export interface PromotablePost extends FeedSafetyPostShape {
-  oxyUserId: string;
+  /** Nullable on a raw federated insert; an absent author is nobody's own post. */
+  oxyUserId: string | null;
   type: string;
   isReply?: boolean | null;
   visibility: string;

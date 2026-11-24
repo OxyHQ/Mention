@@ -150,6 +150,38 @@ export async function countPromotionImpressions(promotionId: string): Promise<nu
   return row?.n ?? 0;
 }
 
+/** The running promotions of these posts (a post has at most one open promotion). */
+export async function listRunningPromotionsForPosts(
+  postIds: readonly string[],
+  now: Date,
+): Promise<PostPromotionRow[]> {
+  if (postIds.length === 0) return [];
+  return getDb()
+    .select()
+    .from(postPromotions)
+    .where(
+      and(
+        inArray(postPromotions.postId, [...postIds]),
+        eq(postPromotions.status, 'active'),
+        lte(postPromotions.startsAt, now),
+        gt(postPromotions.endsAt, now),
+      ),
+    );
+}
+
+/**
+ * Pause the post's running promotion, if it has one: what a report against the
+ * post does while the report is looked at. Returns whether one was paused.
+ */
+export async function pauseRunningPromotionForPost(postId: string): Promise<boolean> {
+  const rows = await getDb()
+    .update(postPromotions)
+    .set({ status: 'paused', updatedAt: new Date() })
+    .where(and(eq(postPromotions.postId, postId), eq(postPromotions.status, 'active')))
+    .returning({ id: postPromotions.id });
+  return rows.length > 0;
+}
+
 /**
  * Promotions that are running at `now` and have views left to deliver. The
  * delivered counter is rolled up by the lifecycle job, so it lags the ledger by

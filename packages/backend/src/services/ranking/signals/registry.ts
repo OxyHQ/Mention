@@ -25,6 +25,7 @@ import { engagementSignal } from './engagement';
 import { negativePenaltySignal } from './negativePenalty';
 import { optInSignal } from './optIn';
 import { personalizationSignal } from './personalization';
+import { promotionSignal } from './promotion';
 import { qualitySignal } from './quality';
 import { recencySignal } from './recency';
 import { relationshipSignal } from './relationship';
@@ -51,6 +52,7 @@ export const RANKING_SIGNALS: readonly RankingSignal[] = [
   negativePenaltySignal,
   optInSignal,
   activitySubscriptionSignal,
+  promotionSignal,
   {
     id: 'friendEngagement',
     group: 'engagement',

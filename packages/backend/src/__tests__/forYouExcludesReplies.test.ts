@@ -578,6 +578,7 @@ describe('reply policy — every registered source has a declared intent', () =>
     region: 'roots-only',
     trending: 'roots-only',
     globalDiscovery: 'roots-only',
+    promotion: 'roots-only', // paid distribution of an original post; a reply is never promoted
     // Discovery.
     explore: 'roots-only',
     popular: 'roots-only', // also backs the `trending` PRESET
