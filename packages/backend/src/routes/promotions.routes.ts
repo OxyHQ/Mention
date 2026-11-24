@@ -13,13 +13,14 @@
 
 import { protectionsFor } from '@oxy.so/contracts';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { desc, eq } from 'drizzle-orm';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { MtnConfig } from '@mention/shared-types';
-import { getDb } from '../db/postgres';
-import { transitionPromotion } from '../db/promotions/promotionRepository';
-import { postPromotions } from '../db/schema/promotions';
+import {
+  cancelPromotionPurchase,
+  listBuyerPromotions,
+  promotionView,
+} from '../services/promotion/buyerPromotions';
 import { startPromotionPurchase } from '../services/promotion/purchase';
 import { ageBandOf } from '../utils/ageBand';
 import { logger } from '../utils/logger';
@@ -29,19 +30,6 @@ const router = Router();
 const purchaseSchema = z.object({ postId: z.string().min(1), tier: z.string().min(1) });
 
 const switchedOff = (res: Response) => res.status(404).json({ message: 'Not found' });
-
-/** What a client may read of its own promotion. */
-const publicView = (row: typeof postPromotions.$inferSelect) => ({
-  id: row.id,
-  postId: row.postId,
-  tier: row.tier,
-  status: row.status,
-  purchasedImpressions: row.purchasedImpressions,
-  deliveredImpressions: row.deliveredImpressions,
-  startsAt: row.startsAt,
-  endsAt: row.endsAt,
-  createdAt: row.createdAt,
-});
 
 router.get('/tiers', (_req, res) => {
   if (!MtnConfig.promotion.enabled) return switchedOff(res);
@@ -62,7 +50,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       postId: parsed.data.postId,
       tierId: parsed.data.tier,
     });
-    if (result.ok) return res.status(201).json({ promotion: publicView(result.promotion) });
+    if (result.ok) return res.status(201).json({ promotion: promotionView(result.promotion) });
     switch (result.reason) {
       case 'unknown-tier':
         return res.status(400).json({ message: 'Unknown tier' });
@@ -87,15 +75,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   if (!buyer) return res.status(401).json({ message: 'Authentication required' });
   const postId = typeof req.query.postId === 'string' ? req.query.postId : undefined;
   try {
-    const rows = await getDb()
-      .select()
-      .from(postPromotions)
-      .where(eq(postPromotions.authorOxyUserId, buyer))
-      .orderBy(desc(postPromotions.createdAt))
-      .limit(50);
-    res.json({
-      promotions: rows.filter((row) => !postId || row.postId === postId).map(publicView),
-    });
+    res.json({ promotions: await listBuyerPromotions(buyer, postId) });
   } catch (error) {
     logger.error('Failed to list promotions', { error });
     res.status(500).json({ message: 'Could not list promotions' });
@@ -107,20 +87,9 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   const buyer = req.user?.id;
   if (!buyer) return res.status(401).json({ message: 'Authentication required' });
   try {
-    const [row] = await getDb()
-      .select()
-      .from(postPromotions)
-      .where(eq(postPromotions.id, String(req.params.id)))
-      .limit(1);
-    // Someone else's promotion reads as absent.
-    if (!row || row.authorOxyUserId !== buyer)
-      return res.status(404).json({ message: 'Not found' });
-    const canceled = await transitionPromotion({
-      id: row.id,
-      from: ['pending_payment'],
-      to: 'canceled',
-    });
-    if (!canceled)
+    const outcome = await cancelPromotionPurchase(buyer, String(req.params.id));
+    if (outcome === 'not-found') return res.status(404).json({ message: 'Not found' });
+    if (outcome === 'not-cancelable')
       return res.status(409).json({ message: 'Only an unpaid purchase can be canceled' });
     res.status(204).end();
   } catch (error) {
