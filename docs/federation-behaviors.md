@@ -433,9 +433,9 @@ database that had run out of I/O credit. So:
 - A reposted post still imports that one post and its author, never the author's other posts
   (the `boost_dependency` road is not touched). Profile views still sync in full.
 
-`FEDERATION_DISCOVERY_ADMISSION` is `off` (old behaviour), `shadow` (default: only logs
+`FEDERATION_DISCOVERY_ADMISSION` is `off` (old behaviour), `shadow` (only logs
 `[FedSync] discovery admission` lines, measured in Logs Insights; Mention's Prometheus
-counters are not scraped) or `enforce`.
+counters are not scraped) or `enforce` (default).
 
 ## Federation Blocklist & Domain Purge
 

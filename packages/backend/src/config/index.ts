@@ -353,13 +353,13 @@ const environmentSchema = z
     }),
     /**
      * How the discovery backfill treats accounts no local user follows: `off` is
-     * the old behaviour (100 posts of everyone), `shadow` only counts what the
-     * admission policy would drop or skip, `enforce` applies it
+     * the old behaviour (100 posts of everyone), `shadow` only logs what the
+     * admission policy would drop or skip, `enforce` (default) applies it
      * (`connectors/activitypub/importAdmission.ts`).
      */
     FEDERATION_DISCOVERY_ADMISSION: z.preprocess(
       emptyAsUndefined,
-      z.enum(['off', 'shadow', 'enforce']).default('shadow'),
+      z.enum(['off', 'shadow', 'enforce']).default('enforce'),
     ),
     FEDERATION_DELIVERY_RETRIES: integerFromEnv(5, { maximum: 20 }),
     FEDERATION_BLOCKED_DOMAINS: commaSeparatedDomains(),

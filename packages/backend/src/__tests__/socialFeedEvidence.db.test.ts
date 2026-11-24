@@ -44,7 +44,10 @@ afterEach(async () => {
   await getDb()
     .delete(userSettings)
     .where(inArray(userSettings.oxyUserId, [friend, privateFriend]));
-});
+  // `clearServiceScope` also deletes the plan fixture's 10k posts (they live in
+  // this scope), cascading into every child table: after the plan test that
+  // outlasts the 10 s default hook deadline on a loaded CI shard.
+}, 60_000);
 afterAll(async () => {
   await closePostgres();
 });
@@ -228,7 +231,9 @@ describe('social evidence query plan', () => {
   afterAll(async () => {
     const { posts } = await import('../db/schema');
     await getDb().delete(posts).where(eq(posts.oxyUserId, planAuthor));
-  });
+    // Deleting the 10k fixture rows cascades into every child table; on a loaded
+    // shard that outlasts the 10 s default hook deadline, like the insert above.
+  }, 60_000);
 
   it('does not walk unrelated post inventory when the indexed activity cohort is empty', async () => {
     const { sql } = await import('drizzle-orm');
