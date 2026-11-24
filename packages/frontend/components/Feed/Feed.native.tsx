@@ -25,6 +25,8 @@ import { useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { getItemKey } from '@/utils/feedUtils';
 import type { FlashListProps, FlashListRef, ViewToken } from '@shopify/flash-list';
 import { getFeedScrollOffset, setFeedScrollOffset } from '@/stores/feedScrollStore';
+import { prefetchFeedImages } from '@/utils/feedImagePrefetch';
+import type { FeedImagePost } from '@/utils/feedImages';
 import {
   createViewableKeysStore,
   VideoViewabilityProvider,
@@ -173,6 +175,25 @@ function collectRowVideoKeys(item: FeedItem, into: string[]): void {
  */
 const PRELOAD_ROWS_AHEAD = 2;
 const PRELOAD_ROWS_BEHIND = 1;
+
+/**
+ * The rows around the reader whose images are fetched before they are drawn:
+ * past FlashList's `drawDistance`, which mounts a row (and starts its images)
+ * only about a screen ahead, too late for a fling. Rows behind were on screen,
+ * so their images are already cached; one is kept for a fling that starts back.
+ */
+const PREFETCH_ROWS_AHEAD = 8;
+const PREFETCH_ROWS_BEHIND = 2;
+
+/** The posts of `rows[from..to]`, for the image prefetch. */
+function rowPosts(rows: readonly NativeFeedRow[], from: number, to: number): FeedImagePost[] {
+  const posts: FeedImagePost[] = [];
+  for (let index = Math.max(0, from); index <= Math.min(rows.length - 1, to); index++) {
+    const row = rows[index];
+    if (row?.kind === 'post' && row.item) posts.push(row.item as FeedImagePost);
+  }
+  return posts;
+}
 
 /** Every key a row can render a video under, row keys for auxiliary rows. */
 function collectNativeRowVideoKeys(row: NativeFeedRow, into: string[]): void {
@@ -504,6 +525,9 @@ const Feed = (props: FeedProps) => {
             collectNativeRowVideoKeys(rows[index], nearKeys);
         }
         rowNearKeysRef.current = nearKeys;
+        prefetchFeedImages(
+          rowPosts(rows, firstIndex - PREFETCH_ROWS_BEHIND, lastIndex + PREFETCH_ROWS_AHEAD),
+        );
       }
       publishViewableKeys();
       impressionTracker.current.syncVisible(visibleUris);
