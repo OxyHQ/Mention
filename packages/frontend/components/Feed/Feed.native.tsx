@@ -623,9 +623,17 @@ const Feed = (props: FeedProps) => {
         onRefresh={handleRefresh}
         colors={[theme.colors.primary]}
         tintColor={theme.colors.primary}
+        // The list runs under the header: the spinner starts below it.
+        progressViewOffset={screenScroll.contentInsets.top}
       />
     );
-  }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary]);
+  }, [
+    hideRefreshControl,
+    refreshing,
+    handleRefresh,
+    theme.colors.primary,
+    screenScroll.contentInsets.top,
+  ]);
 
   const containerStyle = feedRowStyles.container;
 
