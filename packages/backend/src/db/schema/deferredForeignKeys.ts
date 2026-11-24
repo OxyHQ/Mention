@@ -174,6 +174,9 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   // The employer-account operator an application is assigned to for review
   // (`mention_job_applications`).
   'assigned_to_oxy_user_id',
+  // Who was shown a promoted post (`post_promotion_impressions`): the viewer
+  // half of the impression ledger. An Oxy account id like every other name here.
+  'viewer_oxy_user_id',
 ]);
 
 /**

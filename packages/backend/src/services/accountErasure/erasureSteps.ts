@@ -1,5 +1,6 @@
 import { membershipReviewAudits } from '../../db/schema/membershipModeration';
 import { membershipBillingReceipts } from '../../db/schema/membershipBilling';
+import { postPromotionImpressions, postPromotions } from '../../db/schema/promotions';
 import {
   membershipCommunities,
   communityMemberships,
@@ -534,6 +535,18 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
     membershipBillingReceipts,
     membershipBillingReceipts.id,
     accountIs(membershipBillingReceipts.payerOxyUserId),
+  ),
+  'post_promotions.authorOxyUserId': deleteRows(
+    'account',
+    postPromotions,
+    postPromotions.id,
+    accountIs(postPromotions.authorOxyUserId),
+  ),
+  'post_promotion_impressions.viewerOxyUserId': deleteRows(
+    'account',
+    postPromotionImpressions,
+    postPromotionImpressions.promotionId,
+    accountIs(postPromotionImpressions.viewerOxyUserId),
   ),
   'membership_communities.ownerOxyUserId': deleteRows(
     'account',
