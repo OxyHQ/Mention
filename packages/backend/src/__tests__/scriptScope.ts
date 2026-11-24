@@ -240,6 +240,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'where(scope ? and(cursor, inArray(posts.id, scope)) : cursor), and the suite always ' +
       'passes { postIds: [...] }. The counter-example that shows the class is not "backfills".',
   },
+  backfillRepostColumns: {
+    scope: 'caller-scoped',
+    reason:
+      'where id in (postIds) when given, and the suite always passes { postIds: [...] }; ' +
+      "it only ever copies a row's own old columns into its own new ones.",
+  },
   purgeBlockedDomainContent: {
     scope: 'caller-scoped',
     reason:

@@ -363,6 +363,16 @@ export const posts = pgTable(
     boostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
 
     /**
+     * EXPAND phase of the boost -> repost rename: `repostOf`, `statsRepostsCount`,
+     * `statsFederatedRepostsCount` and `metadataIsReposted` are the new names of
+     * `boostOf` and the three columns below. `posts_sync_repost_columns` (0126)
+     * keeps each pair equal whichever name a writer used, so a pod running the
+     * old code and one running the new code see the same data; the old columns
+     * are dropped once nothing reads them.
+     */
+    repostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
+
+    /**
      * The quoted post. SET NULL: a quote has a body of its own and must survive
      * its subject. NULL is exactly "the quoted post is gone", which the client
      * already renders as an unavailable card.
@@ -451,6 +461,9 @@ export const posts = pgTable(
      * discovery ranking expression weights the two differently.
      */
     statsFederatedBoostsCount: integer().notNull().default(0),
+    // Expand-phase twins of the two counters above; see `repostOf`.
+    statsRepostsCount: integer().notNull().default(0),
+    statsFederatedRepostsCount: integer().notNull().default(0),
     statsCommentsCount: integer().notNull().default(0),
     statsViewsCount: integer().notNull().default(0),
     statsSharesCount: integer().notNull().default(0),
@@ -460,6 +473,7 @@ export const posts = pgTable(
     metadataIsSensitive: boolean().notNull().default(false),
     metadataIsPinned: boolean().notNull().default(false),
     metadataIsBoosted: boolean().notNull().default(false),
+    metadataIsReposted: boolean().notNull().default(false), // twin of `metadataIsBoosted`
     metadataIsCommented: boolean().notNull().default(false),
     metadataIsFollowingAuthor: boolean().notNull().default(false),
     metadataAuthorBlocked: boolean().notNull().default(false),
