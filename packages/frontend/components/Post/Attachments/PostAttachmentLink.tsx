@@ -2,7 +2,7 @@ import type React from 'react';
 import { useMemo } from 'react';
 import { Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
-import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
+import { feedLinkCover } from '@/utils/feedImages';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface PostAttachmentLinkProps {
@@ -44,13 +44,13 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   coverFill = false,
   style = styles.card,
 }) => {
-  const imageSources = useMemo(() => linkPreviewImageSources(image), [image]);
+  const cover = useMemo(() => feedLinkCover(image), [image]);
   return (
     <LinkPreviewCard
       url={url}
       title={title}
       description={description}
-      image={imageSources}
+      image={cover}
       siteName={siteName}
       author={author}
       pending={pending}

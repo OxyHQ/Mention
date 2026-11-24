@@ -15,7 +15,6 @@ import {
   type ScrollViewInstance,
   type ViewInstance,
 } from 'react-native';
-import { oxyServices } from '@/lib/oxyServices';
 import type {
   HydratedPostSummary,
   PollData,
@@ -25,14 +24,13 @@ import type {
   PostJobContent,
 } from '@mention/shared-types/post';
 import type { GeoJSONPoint } from '@mention/shared-types/common';
-import { MEDIA_VARIANT_THUMB, MEDIA_VARIANT_FULL } from '@mention/shared-types/post';
 import { useRouter } from '@/lib/navigation/router';
 import JobCard from '@/components/Post/JobCard';
 import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { LazyZoomableGallery } from '@/components/common/LazyZoomableGallery';
 import { galleryPostPermalink } from '@/utils/gallerySharePermalink';
-import { videoPosterUrl } from '@/utils/mediaUrls';
+import { feedImageSrc, feedMediaSrc, feedVideoPoster } from '@/utils/feedImages';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import type {
   ZoomableMediaGalleryHandle,
@@ -262,10 +260,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     style,
   }) => {
     const router = useRouter();
-    // The legacy media-URL fallback (old cached DTOs without server-resolved
-    // URLs) needs only the app's one OxyServices instance — the same object
-    // OxyProvider holds — not a subscription to the whole auth context, which
-    // re-rendered every mounted attachment row on any session change (#1103).
+    // Media URLs come from `feedImages` (the server's URLs, sized; the legacy
+    // fallback for old cached DTOs needs only the app's one OxyServices
+    // instance, never a subscription to the auth context, which re-rendered
+    // every mounted attachment row on any session change, #1103).
     const mediaArray = useMemo(() => (Array.isArray(media) ? media : []), [media]);
     const attachmentDescriptors = useMemo(
       () => (Array.isArray(attachments) ? attachments : []),
@@ -301,51 +299,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       [text, documents, documentsPending],
     );
 
-    // Resolve a media reference to a final render URL for a given context:
-    //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).
-    //  - `large`: the fullscreen lightbox image (server `fullUrl`, falling back to
-    //    `url`) — a larger variant than the thumb, NOT the raw original.
-    //  - `playable`: the video source (server `url`).
-    // Prefers the server-resolved final URLs; the legacy client resolver is only a
-    // fallback for old in-memory/cached responses missing the new fields, and it
-    // requests the SAME variant the server now uses for that context so the two
-    // paths agree (the `MEDIA_VARIANT_*` taxonomy in `@mention/shared-types`).
-    const resolveMediaSrc = useCallback(
-      (mediaItem: MediaObj, context: 'thumb' | 'large' | 'playable') => {
-        const isGif = mediaItem.type === 'gif';
-        if (context === 'playable') {
-          const serverUrl = mediaItem.url || mediaItem.thumbUrl;
-          if (serverUrl) return serverUrl;
-        } else if (isGif) {
-          // GIFs animate only at the no-variant original; the thumb/full image
-          // variants are static first-frame webp. Prefer the original for every
-          // display context (card + lightbox).
-          const serverUrl = mediaItem.url || mediaItem.fullUrl || mediaItem.thumbUrl;
-          if (serverUrl) return serverUrl;
-        } else if (context === 'large') {
-          const serverUrl = mediaItem.fullUrl || mediaItem.url || mediaItem.thumbUrl;
-          if (serverUrl) return serverUrl;
-        } else {
-          const serverUrl = mediaItem.thumbUrl || mediaItem.url;
-          if (serverUrl) return serverUrl;
-        }
-        const id = String(mediaItem.id || '');
-        if (!id) return '';
-        const fallbackVariant =
-          context === 'playable' || isGif
-            ? undefined
-            : context === 'large'
-              ? MEDIA_VARIANT_FULL
-              : MEDIA_VARIANT_THUMB;
-        try {
-          return oxyServices.assets.renderUrl(id, fallbackVariant);
-        } catch {
-          return id;
-        }
-      },
-      [],
-    );
-
     const attachmentItems = useMemo(() => {
       const results: AttachmentItem[] = [];
       const mediaById = new Map<string, MediaObj>();
@@ -372,7 +325,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           ...(mediaItem.durationSec !== undefined ? { durationSec: mediaItem.durationSec } : {}),
         };
         if (resolvedType === 'video') {
-          const original = resolveMediaSrc(mediaItem, 'playable');
+          const original = feedMediaSrc(mediaItem, 'playable');
           if (!original) return;
           // The adaptive stream when the server has one — the same preference as
           // the reel, so a flight into it carries the same source — falling back
@@ -383,9 +336,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           const hls = mediaItem.hlsUrl;
           const src = hls || original;
           const fallbackSrc = hls ? original : undefined;
-          // Poster: prefer the server-resolved final `posterUrl`; fall back to the
-          // legacy client resolver from the RAW media id when absent (old data).
-          const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
+          // The server's `posterUrl` (the client resolver for old data), at the
+          // size the card draws it (`feedImages`).
+          const poster = feedVideoPoster(mediaItem);
           results.push({ type: 'video', mediaId: id, src, fallbackSrc, poster, ...persistedDims });
         } else if (resolvedType === 'gif') {
           // Federated gifs carry an absolute http URL as their media id — a <video>
@@ -393,9 +346,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           // the proxy). Native gifs are an Oxy fileId pointing at an mp4: render an
           // inline looping muted video (≈10–20× smaller, hardware-decoded).
           if (/^https?:\/\//i.test(id)) {
-            const src = resolveMediaSrc(mediaItem, 'thumb');
+            const src = feedMediaSrc(mediaItem, 'thumb');
             if (!src) return;
-            const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
+            const fullSrc = feedMediaSrc(mediaItem, 'large') || src;
             results.push({
               type: 'image',
               mediaId: id,
@@ -405,16 +358,17 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
               ...persistedDims,
             });
           } else {
-            const src = resolveMediaSrc(mediaItem, 'playable');
+            const src = feedMediaSrc(mediaItem, 'playable');
             if (!src) return;
             results.push({ type: 'gif', mediaId: id, src, ...persistedDims });
           }
         } else {
-          // Thumbnail for the in-feed card; a larger variant for the lightbox so
-          // opening fullscreen upgrades the image instead of reusing the thumb.
-          const src = resolveMediaSrc(mediaItem, 'thumb');
+          // The card's image at the size the card draws it (`feedImages`); a
+          // larger variant for the lightbox, so opening fullscreen upgrades the
+          // image instead of reusing the card's.
+          const src = feedImageSrc(mediaItem);
           if (!src) return;
-          const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
+          const fullSrc = feedMediaSrc(mediaItem, 'large') || src;
           const alt =
             typeof mediaItem.alt === 'string' && mediaItem.alt.trim() ? mediaItem.alt : undefined;
           results.push({
@@ -529,7 +483,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       hasVibbrEvent,
       hasJob,
       linkItems,
-      resolveMediaSrc,
     ]);
 
     type Item = AttachmentItem;
@@ -1033,7 +986,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         }
         return (
           <PostAttachmentLink
-            key={`link-${postId ?? ''}-${idx}`}
+            // By place, as an image: the card holds nothing of the post's own.
+            key={`link-${idx}`}
             url={item.url}
             title={item.title}
             description={item.description}
@@ -1102,7 +1056,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         const imageIndex = item.type === 'image' ? imageIndexByMediaId.get(mediaId) : undefined;
         return (
           <PostAttachmentMedia
-            key={`${item.type}-${postId ?? ''}-${mediaId ?? idx}`}
+            // An image is keyed by its place in the row, so a recycled row hands
+            // the same cell (and its native image view) the next post's image;
+            // `recyclingKey` clears the old picture. A video keeps its identity:
+            // its player lease and flight anchor are the media's own.
+            key={item.type === 'image' ? `image-${idx}` : `video-${postId ?? ''}-${mediaId ?? idx}`}
             type={item.type}
             src={item.src}
             fallbackSrc={item.type === 'video' ? item.fallbackSrc : undefined}

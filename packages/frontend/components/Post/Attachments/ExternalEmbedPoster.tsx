@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/mediaUrls';
-import { linkPreviewImageSources } from '@/utils/linkPreviewImage';
+import { feedLinkCover } from '@/utils/feedImages';
 
 import {
   Icon,
@@ -54,16 +54,13 @@ export function ExternalEmbedPoster({
     setThumbErrored(false);
   }
 
-  // Every rendition goes through the proxy, so expo-image still picks the one
-  // the poster's size needs.
-  const thumbSources = useMemo(
-    () =>
-      linkPreviewImageSources(thumb)?.map((source) => ({
-        ...source,
-        uri: proxyExternalUrl(source.uri),
-      })),
-    [thumb],
-  );
+  // The link card's cover (`feedLinkCover`: one sized URL on a device, every
+  // rendition on the web), through the proxy.
+  const thumbSources = useMemo(() => {
+    const cover = feedLinkCover(thumb);
+    if (typeof cover === 'string') return proxyExternalUrl(cover);
+    return cover?.map((source) => ({ ...source, uri: proxyExternalUrl(source.uri) }));
+  }, [thumb]);
 
   if (active && !loading) return null;
 
@@ -75,6 +72,8 @@ export function ExternalEmbedPoster({
         thumb && !thumbErrored ? (
           <Image
             source={thumbSources}
+            recyclingKey={thumb}
+            cachePolicy="memory-disk"
             style={StyleSheet.absoluteFill}
             contentFit="cover"
             onError={() => setThumbErrored(true)}
