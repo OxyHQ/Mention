@@ -53,6 +53,7 @@ describe('lane feed descriptor', () => {
       'media',
       'videos',
       'likes',
+      'reposts',
       'boosts',
       'mentions',
     ]);

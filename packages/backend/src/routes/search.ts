@@ -88,7 +88,7 @@ const MAX_SEARCH_LIMIT = 100;
  *   has:media        - posts with media attachments
  *   has:links        - posts with links
  *   min_likes:N      - minimum likes count
- *   min_boosts:N     - minimum boosts count
+ *   min_reposts:N    - minimum reposts count (`min_boosts` is a deprecated alias)
  *
  * Returns the remaining text query and the extracted operators. This function is
  * PURE and viewer-less: the `me` alias is a property of the request, so it is
@@ -103,14 +103,15 @@ interface ParsedOperators {
   hasMedia?: boolean;
   hasLinks?: boolean;
   minLikes?: number;
-  minBoosts?: number;
+  minReposts?: number;
 }
 
 function parseSearchOperators(raw: string): ParsedOperators {
   const result: ParsedOperators = { textQuery: '' };
 
   // Match operator:value patterns (value can be quoted or unquoted)
-  const operatorRegex = /\b(from|to|since|until|has|min_likes|min_boosts):("[^"]*"|[^\s]+)/gi;
+  const operatorRegex =
+    /\b(from|to|since|until|has|min_likes|min_reposts|min_boosts):("[^"]*"|[^\s]+)/gi;
   let remaining = raw;
 
   let match: RegExpExecArray | null;
@@ -145,9 +146,10 @@ function parseSearchOperators(raw: string): ParsedOperators {
         if (!isNaN(n) && n >= 0) result.minLikes = n;
         break;
       }
+      case 'min_reposts':
       case 'min_boosts': {
         const n = parseInt(value, 10);
-        if (!isNaN(n) && n >= 0) result.minBoosts = n;
+        if (!isNaN(n) && n >= 0) result.minReposts = n;
         break;
       }
     }
@@ -196,7 +198,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       dateFrom,
       dateTo,
       minLikes,
-      minBoosts: minReposts,
+      minBoosts: legacyMinReposts,
+      minReposts: minRepostsParam,
       mediaType,
       hasMedia,
       language,
@@ -389,8 +392,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
 
       const effectiveMinReposts =
-        operators.minBoosts ??
-        (typeof minReposts === 'string' ? parseInt(minReposts, 10) : undefined);
+        operators.minReposts ??
+        (typeof (minRepostsParam ?? legacyMinReposts) === 'string'
+          ? parseInt((minRepostsParam ?? legacyMinReposts) as string, 10)
+          : undefined);
       if (
         effectiveMinReposts !== undefined &&
         !isNaN(effectiveMinReposts) &&

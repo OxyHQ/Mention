@@ -88,6 +88,14 @@ const WRITE_CASES: Array<{
   response?: unknown;
 }> = [
   {
+    tool: 'unrepost',
+    scope: 'social.interact',
+    args: { id: 'post-1' },
+    method: 'DELETE',
+    path: '/feed/post-1/repost',
+  },
+  // Deprecated alias of `unrepost`, kept for connectors configured before the rename.
+  {
     tool: 'unboost',
     scope: 'social.interact',
     args: { id: 'post-1' },

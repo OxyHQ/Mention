@@ -50,7 +50,7 @@ To publish the same post in several languages, do NOT post once per language and
 - \`update-post\` with \`variants\` replaces the author's language versions; editing the primary body drops machine translations. \`get-post\` prints \`Languages:\` so you can verify the result.
 
 ## Undoing actions
-Every reversible action has its inverse: \`unlike-post\`, \`unsave-post\`, \`unboost\` (the original post's id), \`delete-post\` for posts, quotes and drafts or scheduled posts, \`unpin-post\`, \`unfollow-user\`, \`unfollow-entity\`, \`unmute-user\`, \`unmute-word\`, \`unmute-lane\`, \`unsubscribe-from-user\`, \`unpoke-user\`, \`remove-list-members\`. A poll vote is final.
+Every reversible action has its inverse: \`unlike-post\`, \`unsave-post\`, \`unrepost\` (the original post's id; \`unboost\` is a deprecated alias), \`delete-post\` for posts, quotes and drafts or scheduled posts, \`unpin-post\`, \`unfollow-user\`, \`unfollow-entity\`, \`unmute-user\`, \`unmute-word\`, \`unmute-lane\`, \`unsubscribe-from-user\`, \`unpoke-user\`, \`remove-list-members\`. A poll vote is final.
 
 Tools that act on a person (\`mute-user\`, \`subscribe-to-user\`, \`poke-user\`, \`get-profile\`) take the Oxy user id every post prints on its author line (\`· user id: …\`).
 

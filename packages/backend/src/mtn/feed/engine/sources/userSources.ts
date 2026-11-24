@@ -382,6 +382,7 @@ function buildAuthoredConditions(
     case 'replies':
       conditions.push(eq(posts.isReply, true));
       break;
+    case 'reposts':
     case 'boosts':
       conditions.push(sql`${posts.boostOf} is not null`);
       break;

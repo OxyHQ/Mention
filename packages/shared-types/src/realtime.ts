@@ -81,6 +81,9 @@ export const postEngagementRoom = (postId: string): string =>
 export const POST_ENGAGEMENT_EVENTS = {
   LIKED: 'post:liked',
   UNLIKED: 'post:unliked',
+  REPOSTED: 'post:reposted',
+  UNREPOSTED: 'post:unreposted',
+  // Emitted alongside the two above for clients shipped before the rename.
   BOOSTED: 'post:boosted',
   UNBOOSTED: 'post:unboosted',
   SAVED: 'post:saved',
@@ -123,6 +126,8 @@ export interface PostEngagementCountsPayload {
   postId: string;
   likesCount?: number;
   downvotesCount?: number;
+  repostsCount?: number;
+  /** Deprecated duplicate of `repostsCount` for clients shipped before the rename. */
   boostsCount?: number;
   repliesCount?: number;
   savesCount?: number;

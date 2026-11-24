@@ -94,6 +94,9 @@ function buildApp() {
   app.delete('/feed/:postId/boost', (req, res) =>
     res.json({ userId: (req as OxyAuthRequest).userId }),
   );
+  app.delete('/feed/:postId/repost', (req, res) =>
+    res.json({ userId: (req as OxyAuthRequest).userId }),
+  );
   app.post('/mute', (req, res) => res.status(201).json({ userId: (req as OxyAuthRequest).userId }));
   return app;
 }
@@ -164,6 +167,14 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
       error: 'insufficient_scope',
       required_scope: ['social.posts.publish'],
     });
+  });
+
+  it('lets the repost capability undo its own repost, and still the deprecated boost route', async () => {
+    const repost = await request(app)
+      .delete('/feed/post-1/repost')
+      .set('Authorization', `Bearer ${centralToken(['social.interact'])}`);
+    expect(repost.status).toBe(200);
+    expect(repost.body).toEqual({ userId: 'account-1' });
   });
 
   it('lets the boost capability undo its own boost', async () => {

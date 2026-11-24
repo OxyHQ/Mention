@@ -708,13 +708,14 @@ describe('GET /search — operators', () => {
     expect(await idsFor({ query: `${TERM} has:links` })).toEqual([unlinked.id]);
   });
 
-  it('applies min_likes and min_boosts against the stored counters', async () => {
+  it('applies min_likes and min_reposts (and the deprecated min_boosts) against the stored counters', async () => {
     const popular = await seedPost(scope, { content: body('popular') });
     const quiet = await seedPost(scope, { content: body('quiet') });
     await setCounters(popular.id, { likes: 9, boosts: 4 });
     await setCounters(quiet.id, { likes: 1, boosts: 0 });
 
     expect(await idsFor({ query: `${TERM} min_likes:5` })).toEqual([popular.id]);
+    expect(await idsFor({ query: `${TERM} min_reposts:3` })).toEqual([popular.id]);
     expect(await idsFor({ query: `${TERM} min_boosts:3` })).toEqual([popular.id]);
     expect((await idsFor({ query: `${TERM} min_likes:0`, limit: 50 })).sort()).toEqual(
       [popular.id, quiet.id].sort(),
