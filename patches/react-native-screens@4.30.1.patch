@@ -52,7 +52,7 @@ index 929c41ed8b97b98c0bd95004b12572ed99f54bb4..809425cc5681c1e4e0323d1f5d9648ee
                  tx.addToBackStack(op.fragment.stackScreen.screenKey)
              }
              tx.add(op.containerViewId, op.fragment)
-+            op.coveredFragment?.let { tx.detach(it) }
++            op.coveredFragment?.let { tx.hide(it) }
              tx.setPrimaryNavigationFragment(op.fragment)
              commitTransaction(tx, op.allowStateLoss)
          }
@@ -108,8 +108,8 @@ index 483ce36125459be81eaa536b153bd2a5803db5af..6fd34bbd0474909c381507a7fedbd81f
 -        check(fragments.isNotEmpty()) { "[RNScreens] Empty fragment manager while attempting to update top fragment" }
 -        fragments.forEach { it.onResignTopFragment() }
 -        fragments.last().onBecomeTopFragment()
-+        // Covered fragments are detached, so FragmentManager's added list holds only the top
-+        // fragment - the model is the only place all of them can be resigned from.
++        // The stack model holds every screen in order, the top one last. A covered screen is a
++        // hidden fragment; a replaced root is removed in place.
 +        check(stackModel.isNotEmpty()) { "[RNScreens] Empty stack model while attempting to update top fragment" }
 +        stackModel.forEach { it.onResignTopFragment() }
 +        stackModel.last().onBecomeTopFragment()
