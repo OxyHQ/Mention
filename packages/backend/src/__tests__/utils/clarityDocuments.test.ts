@@ -247,10 +247,10 @@ describe('quoted post links', () => {
     const body =
       'https://x.com/chatgpt/status/1/ https://a.example https://b.example https://c.example https://d.example';
     expect(postPreviewableUrls(undefined, body, quotedPostUrlMatcher(quoted))).toEqual([
-      'https://a.example/',
-      'https://b.example/',
-      'https://c.example/',
-      'https://d.example/',
+      'https://a.example',
+      'https://b.example',
+      'https://c.example',
+      'https://d.example',
     ]);
   });
 });
