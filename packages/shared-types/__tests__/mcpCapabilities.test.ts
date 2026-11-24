@@ -84,7 +84,7 @@ describe('Mention MCP capability routes', () => {
     expect(mentionCapabilityRequirementsForRequest('GET', '/admin')).toEqual([]);
   });
 
-  test('keeps all 97 tool policies in the one shared registry', () => {
-    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(97);
+  test('keeps all 99 tool policies in the one shared registry', () => {
+    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(99);
   });
 });
