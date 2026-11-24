@@ -216,6 +216,18 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       "USING btree (created_at, oxy_user_id) WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
   },
   {
+    name: 'posts_public_originals_recent_idx',
+    table: 'posts',
+    serves:
+      'the window scan of ORIGINAL public posts the trending batch reads every run. ' +
+      '`post_public_chrono_v1` cannot see `boost_of`, so it walks every boost in the window and ' +
+      'discards it at the heap (330k rows read to keep 60k, 31 s cold against a 15 s timeout). ' +
+      'Neither key column is written after insert, so it costs the engagement counters no HOT update',
+    definition:
+      'CREATE INDEX posts_public_originals_recent_idx ON public.posts ' +
+      "USING btree (created_at) WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (boost_of IS NULL))",
+  },
+  {
     name: 'posts_thread_idx',
     table: 'posts',
     serves:
