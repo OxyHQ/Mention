@@ -13,6 +13,8 @@ interface PostAttachmentLinkProps {
   siteName?: string;
   /** The byline, e.g. `documentByline(document)`. */
   author?: string;
+  /** Its preview is still on its way: the card is drawn at the size it will have. */
+  pending?: boolean;
   /**
    * The card sits in the attachments carousel, whose `className` binds it to the
    * row's height: the cover image then flexes to fill it (`coverFill`) so the
@@ -35,6 +37,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   image,
   siteName,
   author,
+  pending = false,
   coverFill = false,
   className = 'w-[280px]',
   style,
@@ -48,6 +51,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       image={imageSources}
       siteName={siteName}
       author={author}
+      pending={pending}
       onPress={() => openExternalLink(url)}
       coverFill={coverFill}
       className={className}

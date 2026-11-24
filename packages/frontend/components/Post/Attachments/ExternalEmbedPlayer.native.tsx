@@ -28,6 +28,11 @@ export interface ExternalEmbedPlayerProps {
   params: EmbedPlayerParams;
   /** Link-preview thumbnail shown before the player is mounted. */
   thumb?: string;
+  /**
+   * The link's preview, and with it the thumbnail, is still on its way: the
+   * surface takes the shape it will have once the thumbnail arrives.
+   */
+  expectsThumb?: boolean;
   /** Whether the player surface should be mounted (set by the wrapper on play). */
   active: boolean;
   /** Fired when the play button is pressed (the wrapper gates consent). */
@@ -45,6 +50,7 @@ export interface ExternalEmbedPlayerProps {
 export function ExternalEmbedPlayer({
   params,
   thumb,
+  expectsThumb = false,
   active,
   onPressPlay,
   onDeactivate,
@@ -54,8 +60,8 @@ export function ExternalEmbedPlayer({
   const [loading, setLoading] = useState(true);
 
   const aspect = useMemo(
-    () => getPlayerAspect({ type: params.type, hasThumb: !!thumb }),
-    [params.type, thumb],
+    () => getPlayerAspect({ type: params.type, hasThumb: Boolean(thumb) || expectsThumb }),
+    [params.type, thumb, expectsThumb],
   );
 
   // Stable source object so the WebView isn't handed a new `{ uri }` each render.

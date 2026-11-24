@@ -1204,6 +1204,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
                   location={location}
                   text={content.text}
                   documents={documents}
+                  documentsPending={viewPost.documentsPending === true}
                   // Only a quote card hands a width down. The card has no
                   // horizontal inset (see `nestedPostContainer`), so the row
                   // spans exactly that width, edge to edge like a feed row.

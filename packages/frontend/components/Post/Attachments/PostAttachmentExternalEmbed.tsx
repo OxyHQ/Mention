@@ -18,8 +18,17 @@ interface PostAttachmentExternalEmbedProps {
   image?: string;
   siteName?: string;
   author?: string;
+  /** The link's preview is still on its way: hold the space its thumbnail and title will take. */
+  pending?: boolean;
   style?: ViewStyle;
 }
+
+/**
+ * The details block holds two lines of title (15px, `leading-snug`) whether the
+ * title is one line, two, or still on its way, so the card does not change
+ * height when the preview lands.
+ */
+const TITLE_RESERVE = { minHeight: 2 * 15 * 1.375 } as const;
 
 const GIF_ASPECT_RATIO = 16 / 9;
 
@@ -38,6 +47,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   image,
   siteName,
   author,
+  pending = false,
   style,
 }) => {
   const params = useMemo(() => parseEmbedPlayerFromUrl(url), [url]);
@@ -76,6 +86,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         image={image}
         siteName={siteName}
         author={author}
+        pending={pending}
         className="w-full"
         style={style}
       />
@@ -108,6 +119,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
       <ExternalEmbedPlayer
         params={params}
         thumb={image}
+        expectsThumb={pending}
         active={active}
         onPressPlay={onPressPlay}
         onDeactivate={onDeactivate}
@@ -115,10 +127,11 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
 
       {!params.hideDetails ? (
         <View className="gap-1 px-3 py-2">
-          {title ? (
+          {title || pending ? (
             <Text
               numberOfLines={2}
               className="text-[15px] font-semibold leading-snug text-foreground"
+              style={TITLE_RESERVE}
             >
               {title}
             </Text>
