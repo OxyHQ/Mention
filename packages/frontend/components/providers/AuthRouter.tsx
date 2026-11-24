@@ -1,5 +1,5 @@
 import { Redirect, Slot, usePathname, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -21,8 +21,6 @@ import { recordWebNavigation } from '@/lib/webTelemetry';
 export function AuthRouter() {
   const { isAuthenticated, isAuthResolved } = useAuth();
   const router = useRouter();
-  const segments = useSegments();
-  const pathname = usePathname();
 
   useServerAppearanceSync();
   // Drives Bloom from the viewer's portable Oxy account theme when the local
@@ -39,10 +37,6 @@ export function AuthRouter() {
   // (handled by the manifest Share Target).
   useShareIntentRouter({ router, enabled: isAuthResolved && isAuthenticated });
 
-  useEffect(() => {
-    recordWebNavigation(pathname);
-  }, [pathname]);
-
   // Routing must not run on unresolved auth — acting early lands the viewer on a
   // blank or wrong route, and this component is the sole authority for the
   // (auth)↔(app) swap. The guard stays; what changes is that WAITING renders the
@@ -50,7 +44,12 @@ export function AuthRouter() {
   // (In the assembled tree `AccountSwitchReset` above normally holds the same
   // window; this keeps the guarantee local rather than inherited.)
   if (!isAuthResolved) {
-    return <AppSplashScreen />;
+    return (
+      <>
+        <NavigationRecorder />
+        <AppSplashScreen />
+      </>
+    );
   }
 
   // Render <Slot/> at the root so there is only one native stack: the predictive-
@@ -61,20 +60,47 @@ export function AuthRouter() {
   // On web this also keeps the matched route in normal document flow (the BODY is
   // the scroller). A native-stack-style scene would clamp it to the viewport and
   // break document scroll + sticky rails.
-  //
-  // <Slot> is the SOLE authority for the (auth)↔(app) swap: reproduce the old root
-  // `redirect={isAuthenticated}` declaratively with <Redirect> — authenticated AND
-  // inside the (auth) group → bounce to "/". Anonymous users are never redirected
-  // away, so public browse keeps working; no competing child redirect on the same
-  // signal, so no cold-load race.
-  const inAuthGroup = segments[0] === '(auth)';
-  if (isAuthenticated && inAuthGroup) {
-    return <Redirect href="/" />;
-  }
   return (
     <>
-      <BootMilestone name="auth-resolved" />
-      <Slot />
+      <NavigationRecorder />
+      <AuthGroupGate authenticated={isAuthenticated}>
+        <BootMilestone name="auth-resolved" />
+        <Slot />
+      </AuthGroupGate>
     </>
   );
+}
+
+/**
+ * The (auth)↔(app) swap. It reads the route, so a navigation re-renders this
+ * gate alone, not the root and its hooks above it: what it passes through are
+ * the root's own elements, which React keeps as they are. (Reading the
+ * segments in `AuthRouter` re-rendered the root on every push, Back and tab
+ * switch.)
+ *
+ * <Slot> is the SOLE authority for the (auth)↔(app) swap: reproduce the old root
+ * `redirect={isAuthenticated}` declaratively with <Redirect> — authenticated AND
+ * inside the (auth) group → bounce to "/". Anonymous users are never redirected
+ * away, so public browse keeps working; no competing child redirect on the same
+ * signal, so no cold-load race.
+ */
+function AuthGroupGate({
+  authenticated,
+  children,
+}: {
+  authenticated: boolean;
+  children: ReactNode;
+}) {
+  const inAuthGroup = useSegments()[0] === '(auth)';
+  if (authenticated && inAuthGroup) return <Redirect href="/" />;
+  return children;
+}
+
+/** Web navigation telemetry, from a leaf that alone re-renders on a navigation. */
+function NavigationRecorder() {
+  const pathname = usePathname();
+  useEffect(() => {
+    recordWebNavigation(pathname);
+  }, [pathname]);
+  return null;
 }
