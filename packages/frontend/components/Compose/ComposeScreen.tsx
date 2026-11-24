@@ -86,7 +86,6 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
-import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
@@ -225,6 +224,7 @@ import {
 
 import {
   Button as LButton,
+  ButtonGroup,
   Dialog as LDialog,
   Embed,
   HStack,
@@ -3226,176 +3226,155 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.composeArea}>
               {toElement(
                 VStack(
-                  /* Header */ HStack(
-                    presentation === 'tab'
-                      ? // The tab has nothing to pop to, so it CLOSES — back to Home, the
-                        // way "done" leaves every tabbed composer. Nothing is discarded:
-                        // the tab stays mounted and the draft autosaves, so swiping back
-                        // returns to the sentence. A back arrow would be a lie on a root
-                        // tab.
-                        LButton(Icon(RiCloseLine))
-                          .shape('circle')
-                          .style('subtle')
-                          .tint('neutral')
-                          .onPress(dismiss)
-                          .margin('right', '6')
-                          .zIndex('raised')
-                          .label(t('compose.close.a11y', { defaultValue: 'Close composer' }))
-                          .testID('compose-close')
-                      : LButton(Icon(RiArrowLeftLine))
-                          .shape('circle')
-                          .style('subtle')
-                          .tint('neutral')
-                          .onPress(() => {
+                  /* Header: Bloom's floating header, so its controls are the floating glass (44) and
+                    its title has the room the header gives it. At the start, after the close
+                    control: centred between it and the actions group, the 44pt controls left
+                    too little room ("Nueva pu…" on a Pixel 8a). */ Header(
+                    isEditMode
+                      ? t('compose.edit.title')
+                      : replyToPostId
+                        ? t('common.reply')
+                        : t('compose.newPost'),
+                  )
+                    .titleReveal('always')
+                    .safeArea(false)
+                    .backLabel(t('compose.close.a11y', { defaultValue: 'Close composer' }))
+                    .onBack(
+                      presentation === 'tab'
+                        ? // The tab has nothing to pop to, so it CLOSES (the leading X) — back to
+                          // Home, the way "done" leaves every tabbed composer. Nothing is
+                          // discarded: the tab stays mounted and the draft autosaves.
+                          null
+                        : () => {
                             if (hasDraftContent(draftSnapshot) && !isEditMode) {
                               setDiscardOpen(true);
                             } else {
                               dismiss();
                             }
-                          })
-                          .margin('right', '6')
-                          .zIndex('raised')
-                          .label(t('compose.close.a11y', { defaultValue: 'Close composer' })),
-                    // Centred against the header itself, never against whatever uneven
-                    // number of actions happens to be visible on either side.
-                    RawText(
-                      isEditMode
-                        ? t('compose.edit.title')
-                        : replyToPostId
-                          ? t('common.reply')
-                          : t('compose.newPost'),
+                          },
                     )
-                      .foreground('foreground')
-                      .position({ left: 'none', right: 'none' })
-                      .textAlign('center')
-                      .font('18')
-                      .weight('bold')
-                      .allowsHitTesting(false),
-                    HStack(
-                      LButton(Icon(RiMoreFill))
-                        .shape('circle')
-                        .style('subtle')
-                        .tint('neutral')
-                        .margin('left', 'sm')
-                        .onPress(() => setShowModeToggle(!showModeToggle))
-                        .label(
-                          showModeToggle
-                            ? t('compose.hideModeOptions.a11y', {
-                                defaultValue: 'Hide posting mode options',
-                              })
-                            : t('compose.showModeOptions.a11y', {
-                                defaultValue: 'Show posting mode options',
-                              }),
-                        ),
-                      LButton(Icon(RiDraftLine).size('md').foreground('foreground'))
-                        .shape('circle')
-                        .style('subtle')
-                        .tint('neutral')
-                        .margin('left', 'sm')
-                        .disabled(switchingDraft || isPosting)
-                        .onPress(() => {
-                          let active = true;
-                          const opened = presentSheet((surface) => (
-                            <Suspense fallback={null}>
-                              <UnpublishedSheet
-                                onClose={() => surface.dismiss()}
-                                onLoadDraft={async (draft: Draft) => {
-                                  // A sheet opened before a publish began cannot
-                                  // switch away from the draft being published.
-                                  if (switchingDraftRef.current || isPublishing()) return;
-                                  switchingDraftRef.current = true;
-                                  setSwitchingDraft(true);
-                                  let saved = false;
-                                  try {
-                                    const result = await prepareDraftSwitch(
-                                      draft.id,
-                                      () => latestDraftSnapshot.current,
-                                      getDraftSession,
-                                      async (snapshot) => {
-                                        await saveDraftNow(snapshot);
-                                        saved = true;
-                                      },
-                                      readDraft,
-                                      () => active && composerMountedRef.current,
-                                    );
-                                    if (result.status === 'cancelled') return;
-                                    if (result.status === 'changed') {
-                                      surface.dismiss();
-                                      toast(
-                                        t('compose.draftChangedRetry', {
-                                          defaultValue:
-                                            'Your draft changed while saving. Try again.',
-                                        }),
-                                        { type: 'error' },
+                    .toolbarLeading(
+                      presentation === 'tab'
+                        ? LButton(Icon(RiCloseLine))
+                            .style('outline')
+                            .tint('neutral')
+                            .shape('circle')
+                            .onPress(dismiss)
+                            .label(t('compose.close.a11y', { defaultValue: 'Close composer' }))
+                            .testID('compose-close')
+                        : undefined,
+                    )
+                    .toolbar(
+                      ButtonGroup(
+                        LButton(Icon(RiMoreFill))
+                          .shape('circle')
+                          .onPress(() => setShowModeToggle(!showModeToggle))
+                          .label(
+                            showModeToggle
+                              ? t('compose.hideModeOptions.a11y', {
+                                  defaultValue: 'Hide posting mode options',
+                                })
+                              : t('compose.showModeOptions.a11y', {
+                                  defaultValue: 'Show posting mode options',
+                                }),
+                          ),
+                        LButton(Icon(RiDraftLine).size('md').foreground('foreground'))
+                          .shape('circle')
+                          .disabled(switchingDraft || isPosting)
+                          .onPress(() => {
+                            let active = true;
+                            const opened = presentSheet((surface) => (
+                              <Suspense fallback={null}>
+                                <UnpublishedSheet
+                                  onClose={() => surface.dismiss()}
+                                  onLoadDraft={async (draft: Draft) => {
+                                    // A sheet opened before a publish began cannot
+                                    // switch away from the draft being published.
+                                    if (switchingDraftRef.current || isPublishing()) return;
+                                    switchingDraftRef.current = true;
+                                    setSwitchingDraft(true);
+                                    let saved = false;
+                                    try {
+                                      const result = await prepareDraftSwitch(
+                                        draft.id,
+                                        () => latestDraftSnapshot.current,
+                                        getDraftSession,
+                                        async (snapshot) => {
+                                          await saveDraftNow(snapshot);
+                                          saved = true;
+                                        },
+                                        readDraft,
+                                        () => active && composerMountedRef.current,
                                       );
-                                      return;
-                                    }
-                                    if (result.status === 'missing') {
-                                      surface.dismiss();
-                                      toast(
-                                        t('compose.draftMissing', {
-                                          defaultValue: 'This draft is no longer available.',
-                                        }),
-                                        { type: 'error' },
-                                      );
-                                      return;
-                                    }
-                                    surface.dismiss();
-                                    if (result.status === 'ready') handleResumeDraft(result.draft);
-                                  } catch (error) {
-                                    logger.error('Failed to switch draft', error);
-                                    if (active && composerMountedRef.current) {
-                                      surface.dismiss();
-                                      if (error instanceof DraftReadError || saved) {
+                                      if (result.status === 'cancelled') return;
+                                      if (result.status === 'changed') {
+                                        surface.dismiss();
                                         toast(
-                                          t('compose.deviceDrafts.loadError', {
+                                          t('compose.draftChangedRetry', {
                                             defaultValue:
-                                              "We couldn't load the drafts saved on this device",
+                                              'Your draft changed while saving. Try again.',
                                           }),
                                           { type: 'error' },
                                         );
+                                        return;
                                       }
+                                      if (result.status === 'missing') {
+                                        surface.dismiss();
+                                        toast(
+                                          t('compose.draftMissing', {
+                                            defaultValue: 'This draft is no longer available.',
+                                          }),
+                                          { type: 'error' },
+                                        );
+                                        return;
+                                      }
+                                      surface.dismiss();
+                                      if (result.status === 'ready')
+                                        handleResumeDraft(result.draft);
+                                    } catch (error) {
+                                      logger.error('Failed to switch draft', error);
+                                      if (active && composerMountedRef.current) {
+                                        surface.dismiss();
+                                        if (error instanceof DraftReadError || saved) {
+                                          toast(
+                                            t('compose.deviceDrafts.loadError', {
+                                              defaultValue:
+                                                "We couldn't load the drafts saved on this device",
+                                            }),
+                                            { type: 'error' },
+                                          );
+                                        }
+                                      }
+                                    } finally {
+                                      switchingDraftRef.current = false;
+                                      if (composerMountedRef.current) setSwitchingDraft(false);
                                     }
-                                  } finally {
-                                    switchingDraftRef.current = false;
-                                    if (composerMountedRef.current) setSwitchingDraft(false);
-                                  }
-                                }}
-                                currentDraftId={currentDraftId}
-                              />
-                            </Suspense>
-                          ));
-                          void opened.then(
-                            () => {
-                              active = false;
-                            },
-                            () => {
-                              active = false;
-                            },
-                          );
-                        })
-                        .label(
-                          t('compose.openDrafts.a11y', {
-                            defaultValue: 'Open drafts and scheduled posts',
-                          }),
-                        ),
-                      LButton(Icon(RiDeleteBinLine))
-                        .shape('circle')
-                        .style('subtle')
-                        .tint('neutral')
-                        .margin('left', 'sm')
-                        .onPress(() => setClearAllOpen(true))
-                        .label(t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })),
+                                  }}
+                                  currentDraftId={currentDraftId}
+                                />
+                              </Suspense>
+                            ));
+                            void opened.then(
+                              () => {
+                                active = false;
+                              },
+                              () => {
+                                active = false;
+                              },
+                            );
+                          })
+                          .label(
+                            t('compose.openDrafts.a11y', {
+                              defaultValue: 'Open drafts and scheduled posts',
+                            }),
+                          ),
+                        LButton(Icon(RiDeleteBinLine))
+                          .shape('circle')
+                          .onPress(() => setClearAllOpen(true))
+                          .label(t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })),
+                      ).label(t('compose.actions.a11y', { defaultValue: 'Composer actions' })),
                     )
-                      .align('center')
-                      .margin('left', 'auto')
-                      .zIndex('raised'),
-                  )
-                    .align('center')
-                    .padding('horizontal', 'lg')
-                    .padding('vertical', 'sm')
-                    .frame({ minHeight: '48' })
-                    .background('card'),
+                    .inPage(),
                   /* Editing indicator */ Embed(
                     isEditMode &&
                       toElement(
@@ -4570,6 +4549,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           )
                             .style('outline')
                             .tint('neutral')
+                            .glass()
                             .onPress(() => handlePost({ publishNow: true }))
                             .disabled(
                               !isPostButtonEnabled ||
@@ -4579,6 +4559,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             )
                             .testID('compose-publish-now')
                         : null,
+                      // The submit is glass, as the header's controls are: Bloom's floating size (44).
                       LButton(
                         LText(
                           isEditMode
@@ -4593,6 +4574,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         ),
                       )
                         .tint('action')
+                        .glass()
                         .onPress(() => handlePost())
                         .disabled(!isPostButtonEnabled || !supervision.ready || replyHandoffSaving)
                         .loading(isPosting)

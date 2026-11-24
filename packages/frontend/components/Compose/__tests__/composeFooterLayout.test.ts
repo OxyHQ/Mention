@@ -85,17 +85,20 @@ describe('the composer footer', () => {
 });
 
 describe('the composer header', () => {
-  it('gives the composer TAB a close control, not just the pushed composer', () => {
-    // "New post" (the tab) had no way out; "Reply" (pushed) had a back arrow.
-    // The header is the first child of the screen's language stack (`/* Header */`).
+  it('is Bloom’s header: the tab closes with an X, the pushed composer goes back', () => {
+    // "New post" (the tab) had no way out; "Reply" (pushed) had a back arrow. The header is
+    // Bloom's floating header (the language's `Header`), so its controls are the floating glass
+    // and its title has the room the header gives it, at the start (centred, it was cut off).
     const header = screen.slice(
-      screen.indexOf('/* Header */'),
-      screen.indexOf('RawText(', screen.indexOf('/* Header */')),
+      screen.indexOf('/* Header'),
+      screen.indexOf('.inPage()', screen.indexOf('/* Header')),
     );
+    expect(header).toContain('Header(');
     expect(header).toMatch(/presentation === 'tab'\s*\?/);
     expect(header).toContain('LButton(Icon(RiCloseLine))');
     expect(header).toContain(".testID('compose-close')");
-    expect(header).toContain('LButton(Icon(RiArrowLeftLine))');
-    expect(header).not.toMatch(/:\s*null,\s*$/);
+    expect(header).toContain('.onBack(');
+    expect(header).toContain('ButtonGroup(');
+    expect(header).not.toContain(".titleAlign('center')");
   });
 });
