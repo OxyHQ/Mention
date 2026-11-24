@@ -23,10 +23,12 @@ const FXTWITTER_STATUS_API = 'https://api.fxtwitter.com/i/status';
 
 /**
  * No body shorter than this can be a cut note: X cuts a note at its classic
- * limit (277 to 280 characters seen). The bound keeps the extra request to the
- * few posts that can need it, the way a body of 120 characters never does.
+ * limit (277 to 280 characters seen), and a cut body stored shorter than that
+ * (229 seen) had links or mentions that the stored text spells shorter. The bound
+ * keeps the extra request to the posts that can need it, the way a body of 120
+ * characters never does.
  */
-export const CUT_NOTE_MIN_LENGTH = 250;
+export const CUT_NOTE_MIN_LENGTH = 200;
 
 /** The trailing run of bare links the bridge puts after the prose (the quoted tweet's). */
 const TRAILING_LINKS = /(?:\s*https?:\/\/\S+)+\s*$/;
