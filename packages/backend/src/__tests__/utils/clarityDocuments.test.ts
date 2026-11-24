@@ -30,6 +30,8 @@ import {
   previewableUrls,
   clarityHostedDocument,
   resolveClarityDocuments,
+  quotedPostUrls,
+  withoutQuotedPostUrls,
 } from '../../utils/clarityDocuments';
 
 function document(url: string) {
@@ -233,4 +235,19 @@ it('never asks Clarity for a Homiio case or uses a snapshot fallback', async () 
   expect(resolve).not.toHaveBeenCalled();
   expect(result.documents.size).toBe(0);
   expect(result.pending.size).toBe(0);
+});
+
+describe('quotedPostUrls / withoutQuotedPostUrls', () => {
+  it('drops a link naming the quoted post, in any spelling of its url, and keeps the rest', () => {
+    const quoted = quotedPostUrls({
+      id: 'q1',
+      federation: {
+        url: 'https://x.com/chatgpt/status/1',
+        activityId: 'https://x.com/chatgpt/status/1',
+      },
+    });
+    expect(
+      withoutQuotedPostUrls(['https://x.com/chatgpt/status/1/', 'https://example.com/a'], quoted),
+    ).toEqual(['https://example.com/a']);
+  });
 });

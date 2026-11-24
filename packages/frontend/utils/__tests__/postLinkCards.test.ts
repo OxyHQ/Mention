@@ -5,6 +5,14 @@ const ARTICLE =
   'https://www.nytimes.com/2026/09/18/technology/google-gemini-ai.html?unlocked_article_code=1.CVE&smid=nytcore-ios-share';
 
 describe('postLinkCards / withoutCardLinks', () => {
+  it('draws no card for the quoted post and drops its bare link from the body', () => {
+    const quoted = 'https://x.com/chatgpt/status/1';
+    const text = `Big news\n${quoted}\n${ARTICLE}`;
+    const cards = postLinkCards(text, [], [`${quoted}/`]);
+    expect(cards.map((card) => card.url)).toEqual([ARTICLE]);
+    expect(withoutCardLinks(text, cards, [`${quoted}/`])).toBe('Big news');
+  });
+
   it('drops a trailing link its card shows, even before Clarity has a document', () => {
     const text = `It’s weird how these companies confess.\n\n${ARTICLE}`;
     const cards = postLinkCards(text, []);

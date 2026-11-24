@@ -128,6 +128,8 @@ interface Props {
    * the FIRST embeddable link becomes an inline player — see `primaryEmbedIndex`.
    */
   documents?: ClarityDocument[];
+  /** URLs of the quoted post the row embeds; a link to it gets no card. */
+  quotedUrls?: readonly string[];
   /**
    * Per-post sensitivity flag. When true, every image/video/gif cell renders
    * behind its own blurred "Tap to reveal" cover that the viewer uncovers
@@ -249,6 +251,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     job,
     text,
     documents,
+    quotedUrls,
     sensitive,
     style,
   }) => {
@@ -276,7 +279,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
     const linkItems = useMemo<AttachmentItem[]>(
       () =>
-        postLinkCards(text, documents).map(({ url, document }) => ({
+        postLinkCards(text, documents, quotedUrls).map(({ url, document }) => ({
           // A source link is actionable even when indexing has not produced any
           // metadata. Only Clarity documents supply article titles and cover images.
           type: 'link',
@@ -288,7 +291,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           author: documentByline(document),
           embedParams: parseEmbedPlayerFromUrl(url),
         })),
-      [text, documents],
+      [text, documents, quotedUrls],
     );
 
     // Resolve a media reference to a final render URL for a given context:
@@ -1167,6 +1170,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
   },
   (prevProps, nextProps) => {
     if (!areClarityDocumentsEqual(prevProps.documents, nextProps.documents)) return false;
+    if (prevProps.quotedUrls !== nextProps.quotedUrls) return false;
     return (
       prevProps.media === nextProps.media &&
       prevProps.attachments === nextProps.attachments &&

@@ -8,6 +8,7 @@ import { createCache } from './cache';
 import { getClarityClient } from './clarityClient';
 import { extractUrls } from './extractUrls';
 import { logger } from './logger';
+import { networkUrlOf } from './federation/mirrorTransports';
 
 /**
  * The one place Mention turns a body's links into Clarity documents. Every
@@ -82,6 +83,48 @@ export function postPreviewableUrls(
   text: string | null | undefined,
 ): string[] {
   return [...new Set([...previewableUrls(content?.linkUrl ?? ''), ...previewableUrls(text ?? '')])];
+}
+
+/**
+ * The URLs that name a quoted post: its federation URL and AP id, the upstream
+ * spelling of each when it is a mirror's, and our own `/p/<id>` page. A quote
+ * embed already shows that post, so a link to it in the body must not also get a
+ * card. A federated note often ends with exactly that link (X, Mastodon `RE:`).
+ */
+export function quotedPostUrls(
+  quoted:
+    | { id?: string; federation?: { url?: string; activityId?: string } | null }
+    | null
+    | undefined,
+): string[] {
+  if (!quoted) return [];
+  const urls = [quoted.federation?.url, quoted.federation?.activityId].filter(
+    (url): url is string => typeof url === 'string' && url.length > 0,
+  );
+  const out = new Set<string>();
+  for (const url of urls) {
+    out.add(url);
+    const upstream = networkUrlOf(url);
+    if (upstream) out.add(upstream);
+  }
+  if (quoted.id && config.frontendUrl) out.add(`${config.frontendUrl}/p/${quoted.id}`);
+  return [...out];
+}
+
+/** `urls` without those that name the quoted post (compared as parsed hrefs, fragment dropped). */
+export function withoutQuotedPostUrls(urls: string[], quotedUrls: readonly string[]): string[] {
+  if (quotedUrls.length === 0) return urls;
+  const key = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      parsed.hash = '';
+      return parsed.href.replace(/\/$/, '');
+    } catch {
+      return url;
+    }
+  };
+  const quoted = new Set(quotedUrls.map(key));
+  return urls.filter((url) => !quoted.has(key(url)));
 }
 
 /**
