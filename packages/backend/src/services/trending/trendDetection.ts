@@ -25,6 +25,11 @@ import { isTrendStopWord } from './termExtraction';
 import { pickLabelTerm } from './trendLabeling';
 import { trendCandidateUnionSql } from './termSpace';
 import { buildClusterMap, clusterTrendTerms, type TrendTermPair } from './trendClustering';
+import {
+  buildNameFragmentPairs,
+  findNameFragmentRelations,
+  relationKey,
+} from './trendNameFragments';
 import { mergeSynchronizedTerms, peakShare } from './trendSynchrony';
 import { buildTrendGraph, type TrendGraphNodeInput, type TrendGraphSnapshot } from './trendGraph';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
@@ -287,7 +292,10 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     windowMatch,
     solo.map((candidate) => candidate.measurement.term),
   );
-  const conceptPairs = buildConceptPairs(solo);
+  const conceptPairs = [
+    ...buildConceptPairs(solo),
+    ...(await loadNameFragmentPairs(windowMatch, solo)),
+  ];
   const { clusters, linkedPairs, refusedForSize, refusedForCoherence } = clusterTrendTerms(
     solo.map((candidate) => ({
       term: candidate.measurement.term,
@@ -713,6 +721,7 @@ async function loadTermPairs(
   terms: readonly string[],
   termsSql: SQL = trendCandidateUnionSql(),
   minPairPosts: number = MtnConfig.trending.clustering.minPairPosts,
+  pairPredicate: SQL = sql`true`,
 ): Promise<TrendTermPair[]> {
   if (terms.length < 2) return [];
 
@@ -749,7 +758,7 @@ async function loadTermPairs(
         // itself. A post carrying fewer than two of the terms produces no
         // row at all, so there is nothing to pre-filter.
         .innerJoin(postTerms('pair_a'), sql`true`)
-        .innerJoin(postTerms('pair_b'), sql`pair_b.term > pair_a.term`)
+        .innerJoin(postTerms('pair_b'), sql`pair_b.term > pair_a.term and ${pairPredicate}`)
         .where(windowMatch)
         .groupBy(sql`pair_a.term, pair_b.term`)
         // Applied here rather than in memory so the long tail of pairs that met
@@ -760,6 +769,59 @@ async function loadTermPairs(
     return rows.map((row) => ({ a: row.a, b: row.b, posts: row.posts }));
   } catch (error) {
     logger.warn('[Trending] Co-occurrence lookup failed; terms report individually', { error });
+    return [];
+  }
+}
+
+/**
+ * Links that join a short form to the fuller name it belongs to (see
+ * {@link ./trendNameFragments}). Fail-soft, like every other pass: without them
+ * names simply group by co-occurrence and synchrony alone.
+ *
+ * The shared-post counts come from ONE targeted query: the pair self-join is
+ * restricted, in SQL, to pairs where one term's words are held by the other's,
+ * so its output follows the number of related pairs and not the vocabulary.
+ */
+async function loadNameFragmentPairs(
+  windowMatch: SQL,
+  solo: readonly TermCandidate[],
+): Promise<TrendTermPair[]> {
+  const config = MtnConfig.trending.nameFragments;
+  const candidates = solo.map(({ measurement }) => ({
+    term: measurement.term,
+    volume: measurement.volume,
+  }));
+  const relations = findNameFragmentRelations(candidates, config);
+  if (relations.length === 0) return [];
+
+  try {
+    const involved = [...new Set(relations.flatMap((r) => [r.fragment, r.container]))];
+    // Word containment is a necessary condition, so it is a cheap pre-filter;
+    // the exact contiguous-run test already happened in `relations`.
+    const rows = await loadTermPairs(
+      windowMatch,
+      involved,
+      trendCandidateUnionSql(),
+      config.minSharedPosts,
+      sql`(string_to_array(pair_b.term, ' ') @> string_to_array(pair_a.term, ' ')
+        or string_to_array(pair_a.term, ' ') @> string_to_array(pair_b.term, ' '))`,
+    );
+    const shared = new Map(
+      rows.flatMap((row) => [
+        [relationKey(row.a, row.b), row.posts] as const,
+        [relationKey(row.b, row.a), row.posts] as const,
+      ]),
+    );
+    return buildNameFragmentPairs(
+      relations,
+      shared,
+      new Map(candidates.map((candidate) => [candidate.term, candidate.volume])),
+      config,
+    );
+  } catch (error) {
+    logger.warn('[Trending] Name-fragment lookup failed; fragments group by co-occurrence only', {
+      error,
+    });
     return [];
   }
 }

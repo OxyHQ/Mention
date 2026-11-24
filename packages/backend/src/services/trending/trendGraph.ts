@@ -97,7 +97,7 @@ export function buildTrendGraph(
     const volumeA = candidates.find((candidate) => candidate.term === pair.a)?.volume ?? 0;
     const volumeB = candidates.find((candidate) => candidate.term === pair.b)?.volume ?? 0;
     const strength =
-      pair.reason === 'canonical-alias'
+      pair.reason === 'canonical-alias' || pair.reason === 'name-fragment'
         ? 1
         : pair.posts / Math.sqrt(Math.max(1, volumeA * volumeB));
     return {

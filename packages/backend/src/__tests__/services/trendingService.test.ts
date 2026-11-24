@@ -553,3 +553,28 @@ describe('aggregateTermCandidates — one story written in different words', () 
     expect(byName.get(bystander)?.members).toEqual([bystander]);
   });
 });
+
+describe('aggregateTermCandidates — a short form joins the fuller name it belongs to', () => {
+  it('joins `mason` to `chris mason` on one shared post, and leaves a dwarfing word alone', async () => {
+    const fragment = term('mason');
+    const container = `chris ${fragment}`;
+    const generic = term('house');
+    const genericContainer = `white ${generic}`;
+
+    await seedMany(1, { trendTerms: [fragment, container] });
+    await seedMany(5, { trendTerms: [fragment] });
+    await seedMany(3, { trendTerms: [container] });
+    // A word with many uses beside a name that holds it: far past the size guard.
+    await seedMany(1, { trendTerms: [generic, genericContainer] });
+    await seedMany(19, { trendTerms: [generic] });
+    await seedMany(4, { trendTerms: [genericContainer] });
+
+    const rows = await candidatesFor([fragment, container, generic, genericContainer]);
+    const byName = new Map(rows.map((row) => [row.measurement.term, row]));
+
+    const merged = [...byName.values()].find((row) => row.members.includes(fragment));
+    expect(merged?.members.sort()).toEqual([fragment, container].sort());
+    expect(byName.get(generic)?.members).toEqual([generic]);
+    expect(byName.get(genericContainer)?.members).toEqual([genericContainer]);
+  });
+});
