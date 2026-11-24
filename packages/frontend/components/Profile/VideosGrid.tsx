@@ -1,7 +1,6 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { TouchableOpacity } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +12,8 @@ import LiveVideoPosterCell from './LiveVideoPosterCell';
 import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
+
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface VideosGridProps {
   userId?: string;
@@ -128,26 +129,25 @@ const VideosGrid: React.FC<VideosGridProps> = ({
         router.push(`/videos?postId=${item.postId}`);
       };
 
-      return (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={{ width: itemSize, height: itemSize }}
-          onPress={handlePress}
-        >
-          {/*
-                  Every entry here is built from the post it navigates to, so the
-                  post to subscribe to and the post to open are the same one —
-                  unlike the media grid, where an embedded original splits them.
-                */}
-          <LiveVideoPosterCell
-            posterUri={item.posterUri}
-            size={itemSize}
-            placeholderColor={theme.colors.textSecondary}
-            viewsPostId={item.postId}
-            fallbackViews={item.views}
-            durationSec={item.durationSec}
-          />
-        </TouchableOpacity>
+      // Every entry here is built from the post it navigates to, so the post to
+      // subscribe to and the post to open are the same one — unlike the media
+      // grid, where an embedded original splits them.
+      return toElement(
+        VStack(
+          Embed(
+            <LiveVideoPosterCell
+              posterUri={item.posterUri}
+              size={itemSize}
+              placeholderColor={theme.colors.textSecondary}
+              viewsPostId={item.postId}
+              fallbackViews={item.views}
+              durationSec={item.durationSec}
+            />,
+          ),
+        )
+          .frame({ width: itemSize, height: itemSize })
+          .onPress(handlePress)
+          .pressFade('80'),
       );
     },
     [router, theme.colors.textSecondary],
