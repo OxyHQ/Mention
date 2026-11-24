@@ -256,3 +256,39 @@ pager itself, past the Compose view. The pages are Android views and the pager h
 focus targets of its own, so the search reaches the same views. 10.0.3 (the latest)
 still builds on Compose 1.7.8 with plain `FrameLayout` page hosts. Remove the patch
 once the pager builds on Compose 1.8 or later, or hosts its pages this way upstream.
+
+# expo-updates 58.0.21
+
+Every cold start on a device that had a newer-built binary installed before the
+current one waited for the update server before React started (Pixel 8a: React
+initialised 1.0-4.3 s after the process started, idle until the manifest
+request returned). With embedded-asset copying off, Android marks the embedded
+update READY once it is in the database (`Loader.downloadAllAssets` calls
+`markUpdateFinished(update)`, so `hasSkippedEmbeddedAssets` is never true); iOS
+keeps it `StatusEmbedded` (`UpdatesDatabase.markUpdateFinished`). After the
+binary changes, `DatabaseLauncher.getLaunchableUpdate` skips stale EMBEDDED rows
+but not that READY one, so when it is newer than the new binary's embedded update
+it is selected. Its launch asset is `index.android.bundle` of the old binary: not
+on disk, not in this binary and without a URL, so the launch throws ("Asset
+missing URL"), and `LoaderTask` then launches remotely, holding the start for the
+network check whatever `EXPO_UPDATES_LAUNCH_WAIT_MS` says, before it falls back
+to the embedded bundle. The patch skips a launchable update whose launch asset
+`launch` cannot load from disk, from this binary or from its URL, so the start
+picks the current embedded update from disk and the update check runs in the
+background. It also heals rows already in that state. Remove it when upstream
+Android keeps embedded updates EMBEDDED and skips unloadable rows.
+
+Upstream draft (not filed), expo/expo, title "Android: an embedded update from a
+previous binary stays launchable and makes every cold start wait for the
+network":
+
+> With `EX_UPDATES_COPY_EMBEDDED_ASSETS` off, `Loader.downloadAllAssets` marks an
+> embedded update READY, unlike iOS, which keeps it `StatusEmbedded`. After a
+> binary with an older embedded update is installed, `getLaunchableUpdate` still
+> returns the previous binary's embedded update (only EMBEDDED rows are checked
+> against the current binary), `DatabaseLauncher.launch` fails to resolve its
+> launch asset ("Asset missing URL"), and `LoaderTask.start` falls into
+> `launchRemoteUpdate()`, blocking launch on the manifest request. Proposed: skip
+> rows whose launch asset is not on disk, not in the embedded manifest and has no
+> URL, and keep embedded updates EMBEDDED on Android as on iOS. Patch:
+> `patches/expo-updates@58.0.21.patch`.
