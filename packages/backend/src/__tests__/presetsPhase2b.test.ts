@@ -83,10 +83,12 @@ describe('preset definitions include Phase 2b signals', () => {
     const forYouIds = forYouDefinition.signals.map((ref) => ref.module);
     const videoIds = videosDefinition.signals.map((ref) => ref.module);
     expect(videoIds).toEqual([
-      ...forYouIds.filter((id) => id !== 'activitySubscriptionBoost'),
+      // The For You-only signals: the bell priority and the paid-promotion lift.
+      ...forYouIds.filter((id) => id !== 'activitySubscriptionBoost' && id !== 'promotion'),
       'portraitBoost',
     ]);
     expect(forYouIds).toContain('activitySubscriptionBoost');
     expect(videoIds).not.toContain('activitySubscriptionBoost');
+    expect(videoIds).not.toContain('promotion');
   });
 });

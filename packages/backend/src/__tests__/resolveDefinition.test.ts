@@ -32,6 +32,7 @@ describe('resolveDefinition', () => {
       'region',
       'trending',
       'globalDiscovery',
+      'promotion',
     ]);
     expect(def!.execution?.neverBlank).toBe(true);
   });

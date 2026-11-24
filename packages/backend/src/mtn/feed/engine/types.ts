@@ -52,6 +52,8 @@ export type CandidatePost = PostRecord & {
   _discovery?: boolean;
   /** Candidate currently supplied only by public followed-actor activity. */
   _socialOnly?: boolean;
+  /** Rank multiplier of the post's paid promotion (`services/promotion/pacing`); the `promotion` signal reads it. */
+  promotionBoost?: number;
   /**
    * SHELL marker. Stamped `true` by a source (today, only For You's lanes —
    * see `assembleShellRecords` / `forYouCandidateSources.ts`) whose `posts` row

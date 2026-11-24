@@ -263,8 +263,15 @@ export const forYouDefinition: FeedDefinition = {
     enabled('region'),
     enabled('trending'),
     enabled('globalDiscovery'),
+    // Paid promotions of the viewer's reach (docs/boost.md): empty unless the
+    // feature is switched on, so the feed is unchanged while it is off.
+    enabled('promotion'),
   ],
-  signals: [...buildPresetRankingSignals(), enabled('activitySubscriptionBoost')],
+  signals: [
+    ...buildPresetRankingSignals(),
+    enabled('activitySubscriptionBoost'),
+    enabled('promotion'),
+  ],
   filters: [enabled('safety')],
   // Phase 4: the discovery gate applies ONLY to non-trusted lanes. `filters` stays
   // `[safety]` (always-on, every lane); the gate goes here so following/affinity/

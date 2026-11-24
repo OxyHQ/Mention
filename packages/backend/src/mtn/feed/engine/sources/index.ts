@@ -9,6 +9,7 @@ import { discoverySourceModules } from './discoverySources';
 import { userSourceModules } from './userSources';
 import { socialSourceModules } from './socialSources';
 import { relatedSourceModules } from './relatedSources';
+import { promotionSource } from './promotionSource';
 
 export function registerSourceModules(registry: FeedModuleRegistry = feedModuleRegistry): void {
   for (const module of [
@@ -17,6 +18,7 @@ export function registerSourceModules(registry: FeedModuleRegistry = feedModuleR
     ...userSourceModules,
     ...socialSourceModules,
     ...relatedSourceModules,
+    promotionSource,
   ]) {
     registry.register(module);
   }
@@ -27,3 +29,4 @@ export { discoverySourceModules } from './discoverySources';
 export { userSourceModules } from './userSources';
 export { socialSourceModules } from './socialSources';
 export { relatedSourceModules } from './relatedSources';
+export { promotionSource } from './promotionSource';

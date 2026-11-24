@@ -31,6 +31,7 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   engagement: 'engagement',
   friendEngagement: 'friendEngagement',
   activitySubscriptionBoost: 'activitySubscriptionBoost',
+  promotion: 'promotion',
   recency: 'recency',
   authorRelationship: 'relationship',
   authorAuthority: 'authority',
@@ -68,7 +69,7 @@ export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).
     id,
     kind: 'signal',
     weightKey,
-    ...(id === 'activitySubscriptionBoost' ? { userComposable: false } : {}),
+    ...(id === 'activitySubscriptionBoost' || id === 'promotion' ? { userComposable: false } : {}),
   }),
 );
 
