@@ -172,6 +172,24 @@ describe('a quoted post renders below the row', () => {
 });
 
 describe('source link cards before and after metadata arrives', () => {
+  it('draws a card whose preview is on its way at the size it will have', () => {
+    const text = 'Read https://www.forbes.com/story';
+    const pending = of(render({ text, documents: [], documentsPending: true }), 'link');
+    expect(pending.pending).toBe(true);
+    // Arrived: the card is the document's, and nothing is pending any more.
+    const arrived = of(
+      render({
+        text,
+        documents: [{ canonicalUrl: 'https://www.forbes.com/story', title: 'Story' }],
+        documentsPending: true,
+      }),
+      'link',
+    );
+    expect(arrived).toMatchObject({ title: 'Story', pending: false });
+    // Clarity gave up on it: a source card, compact.
+    expect(of(render({ text, documents: [] }), 'link').pending).toBe(false);
+  });
+
   it('shows real source URLs without invented article metadata, even after failed indexing', () => {
     const cards = render({ text: 'Read https://www.forbes.com/story', documents: [] }).filter(
       (item) => item.kind === 'link',

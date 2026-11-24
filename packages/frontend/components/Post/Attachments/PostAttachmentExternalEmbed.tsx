@@ -11,7 +11,14 @@ import { ExternalEmbedPlayer } from './ExternalEmbedPlayer';
 import { EmbedConsentDialog } from './EmbedConsentDialog';
 import PostAttachmentLink from './PostAttachmentLink';
 
-import { type Child, Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  type Child,
+  Embed,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface PostAttachmentExternalEmbedProps {
   url: string;
@@ -20,6 +27,8 @@ interface PostAttachmentExternalEmbedProps {
   image?: string;
   siteName?: string;
   author?: string;
+  /** The link's preview is still on its way: hold the space its thumbnail and title will take. */
+  pending?: boolean;
 }
 
 /** The embed's card: the row's full width, the card fill and its outline. */
@@ -33,6 +42,13 @@ function embedCard(...children: Child[]) {
 }
 
 const linkCardStyle = StyleSheet.create({ fill: { width: '100%' } }).fill;
+
+/**
+ * The details block holds two lines of title (`md` at `easy` leading) whether
+ * the title is one line, two, or still on its way, so the card does not change
+ * height when the preview lands.
+ */
+const embedTokens = defineTokens({ space: { titleReserve: 2 * 15 * 1.375 } });
 
 const GIF_ASPECT_RATIO = 16 / 9;
 
@@ -51,6 +67,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   image,
   siteName,
   author,
+  pending = false,
 }) => {
   const params = useMemo(() => parseEmbedPlayerFromUrl(url), [url]);
   const pref = useExternalEmbedsStore((state) => (params ? state.prefs[params.source] : undefined));
@@ -88,6 +105,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         image={image}
         siteName={siteName}
         author={author}
+        pending={pending}
         style={linkCardStyle}
       />
     );
@@ -120,6 +138,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         <ExternalEmbedPlayer
           params={params}
           thumb={image}
+          expectsThumb={pending}
           active={active}
           onPressPlay={onPressPlay}
           onDeactivate={onDeactivate}
@@ -128,13 +147,14 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
       params.hideDetails
         ? null
         : VStack(
-            title
-              ? RawText(title)
+            title || pending
+              ? RawText(title ?? '')
                   .font('md')
                   .weight('semibold')
                   .leading('easy')
                   .foreground('foreground')
                   .lines(2)
+                  .frame({ minHeight: embedTokens.space.titleReserve })
               : null,
             RawText(domain).font('xs').leading('16px').foreground('muted').lines(1),
           )

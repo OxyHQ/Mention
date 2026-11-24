@@ -1742,6 +1742,7 @@ function PostRow(props: PostItemProps): Child {
                   location={location}
                   text={content.text}
                   documents={documents}
+                  documentsPending={viewPost.documentsPending === true}
                 />,
               )
             : null,

@@ -129,6 +129,12 @@ interface Props {
    */
   documents?: ClarityDocument[];
   /**
+   * The post's read came back before Clarity finished a link's preview
+   * (`HydratedPost.documentsPending`): a link without a document still has one
+   * on its way, so its card is drawn at the size it will have.
+   */
+  documentsPending?: boolean;
+  /**
    * Per-post sensitivity flag. When true, every image/video/gif cell renders
    * behind its own blurred "Tap to reveal" cover that the viewer uncovers
    * independently. Non-media attachments (polls, links, articles…) are unaffected.
@@ -155,6 +161,8 @@ type AttachmentItem =
       image?: string;
       siteName?: string;
       author?: string;
+      /** Its preview is still on its way: the card holds the space it will take. */
+      pending: boolean;
       embedParams?: EmbedPlayerParams;
     }
   | {
@@ -249,6 +257,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     job,
     text,
     documents,
+    documentsPending,
     sensitive,
     style,
   }) => {
@@ -286,9 +295,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
           image: document?.imageUrl,
           siteName: document?.publisher,
           author: documentByline(document),
+          pending: !document && documentsPending === true,
           embedParams: parseEmbedPlayerFromUrl(url),
         })),
-      [text, documents],
+      [text, documents, documentsPending],
     );
 
     // Resolve a media reference to a final render URL for a given context:
@@ -1017,6 +1027,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
               image={item.image}
               siteName={item.siteName}
               author={item.author}
+              pending={item.pending}
             />
           );
         }
@@ -1029,6 +1040,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             image={item.image}
             siteName={item.siteName}
             author={item.author}
+            pending={item.pending}
             coverFill={!isSingleItem}
             style={isSingleItem ? FULL_CELL : cells.card}
           />
@@ -1189,6 +1201,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       prevProps.podcast === nextProps.podcast &&
       prevProps.job === nextProps.job &&
       prevProps.text === nextProps.text &&
+      prevProps.documentsPending === nextProps.documentsPending &&
       prevProps.location === nextProps.location &&
       prevProps.sensitive === nextProps.sensitive
     );
