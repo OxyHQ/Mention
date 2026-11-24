@@ -4,12 +4,16 @@
 // export condition to `src/`, and babel-preset-expo runs the React Compiler on
 // app code only (it skips node_modules), so none of Bloom's components were
 // memoized. This override compiles Bloom's and Bloom Data's source with the
-// compiler Expo already runs, with the options Bloom's own build uses
-// (Bloom's babel.build.cjs): target 19, errors leave the function as written,
-// function outlining off (it hoisted a factory-built component's lambda out of
-// its factory), and `sources` widened because the compiler skips node_modules
-// by default. It needs a Bloom with #889's opt-outs (Bloom 23.5.0, or the owner
-// line after its cherry-pick).
+// compiler Expo already runs, with the options it gives app code, which are
+// also the ones Bloom's own build uses (Bloom's babel.build.cjs): target 19,
+// errors leave the function as written, function outlining on, and `sources`
+// widened because the compiler skips node_modules by default. It needs a Bloom
+// with #889's opt-outs (Bloom 23.5.0) whose components are all defined at
+// module scope (Bloom 23.7.2): the compiler takes the parameters of a function
+// a component is built inside for globals, and outlining moved a lambda out of
+// Bloom's factory-built SettingsSelect (`SelectItem is not defined`). The same
+// options then compile Bloom whether it is a package here or a local checkout
+// (OXY_LOCAL_CHECKOUT_SOURCES, where Bloom's source is app code to the preset).
 //
 // The Bloom language is left out: its hosts call app bodies that call hooks,
 // and a memoized call skipped them. Bloom Lens ships source the compiler has
@@ -38,7 +42,6 @@ module.exports = (api) => {
               target: '19',
               panicThreshold: 'none',
               sources: () => true,
-              environment: { enableFunctionOutlining: false },
             },
           ],
         ],
