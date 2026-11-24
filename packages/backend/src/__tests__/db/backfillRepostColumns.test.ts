@@ -77,7 +77,7 @@ describe('backfillRepostColumns', () => {
     expect(dry.updated).toBe(1);
     expect(await read(old)).toMatchObject({ repostOf: null }); // dry run wrote nothing
 
-    const first = await backfillRepostColumns({ postIds: [old, level], batchSize: 1 });
+    const first = await backfillRepostColumns({ postIds: [old, level], batchSize: 1, pauseMs: 0 });
     expect(first.updated).toBe(1);
     expect(await read(old)).toEqual({
       repostOf: original,

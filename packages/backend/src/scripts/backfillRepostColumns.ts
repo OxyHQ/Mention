@@ -26,6 +26,14 @@ import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 /** Rows copied per transaction. */
 const DEFAULT_BATCH_SIZE = 2000;
 
+/**
+ * Rest between batches. The corpus is millions of rows on a database every app
+ * shares, and each update writes a new row version plus an entry in every index of
+ * `posts`; resting keeps the load a trickle that autovacuum and the replicas keep
+ * up with, at the price of a longer run (the script is resumable, so that is cheap).
+ */
+const DEFAULT_PAUSE_MS = 250;
+
 /** A pair that differs: the row still needs the copy. */
 const PAIR_DIFFERS = sql`(
   repost_of is distinct from boost_of
@@ -41,10 +49,16 @@ export interface BackfillRepostColumnsResult {
 
 /** Copy the old columns into the new ones. The caller owns the connection. */
 export async function backfillRepostColumns(
-  opts: { batchSize?: number; dryRun?: boolean; postIds?: readonly string[] } = {},
+  opts: {
+    batchSize?: number;
+    dryRun?: boolean;
+    postIds?: readonly string[];
+    pauseMs?: number;
+  } = {},
 ): Promise<BackfillRepostColumnsResult> {
   const batchSize = opts.batchSize ?? DEFAULT_BATCH_SIZE;
   const dryRun = opts.dryRun ?? false;
+  const pauseMs = opts.pauseMs ?? DEFAULT_PAUSE_MS;
   const db = getDb();
   const scope = opts.postIds
     ? sql`and id in (${sql.join(
@@ -82,6 +96,7 @@ export async function backfillRepostColumns(
         sql`, `,
       )})
     `);
+    if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
     if (batches % 25 === 0) {
       logger.info(`[backfillRepostColumns] progress: ${batches} batches, ${updated} rows`);
     }
