@@ -149,7 +149,7 @@ async function readPost(id: string) {
       downvotes: posts.statsDownvotesCount,
       saves: posts.statsSavesCount,
       comments: posts.statsCommentsCount,
-      boosts: posts.statsBoostsCount,
+      boosts: posts.statsRepostsCount,
     })
     .from(posts)
     .where(eq(posts.id, id));

@@ -210,7 +210,7 @@ async function rowByActivityId(activityId: string) {
       id: posts.id,
       oxyUserId: posts.oxyUserId,
       type: posts.type,
-      boostOf: posts.boostOf,
+      boostOf: posts.repostOf,
       createdAt: posts.createdAt,
       updatedAt: posts.updatedAt,
       language: posts.language,
@@ -225,8 +225,8 @@ async function countersOf(postId: string) {
   const [row] = await getDb()
     .select({
       likes: posts.statsLikesCount,
-      boosts: posts.statsBoostsCount,
-      federatedBoosts: posts.statsFederatedBoostsCount,
+      boosts: posts.statsRepostsCount,
+      federatedBoosts: posts.statsFederatedRepostsCount,
     })
     .from(posts)
     .where(eq(posts.id, postId));

@@ -57,7 +57,7 @@ const CHANNEL_ROW_COLUMNS = {
   ...CASCADE_ROW_COLUMNS,
   visibility: posts.visibility,
   status: posts.status,
-  boostOf: posts.boostOf,
+  boostOf: posts.repostOf,
   writtenByOxyUserId: posts.writtenByOxyUserId,
 } as const;
 
@@ -152,7 +152,7 @@ export async function readPostBatch(
     const next = await db
       .select(CASCADE_ROW_COLUMNS)
       .from(posts)
-      .where(inArray(posts.boostOf, frontier))
+      .where(inArray(posts.repostOf, frontier))
       .limit(MAX_REPOST_CLOSURE_PER_BATCH + 1);
 
     frontier = [];
@@ -202,7 +202,7 @@ export async function resolveDeletionTargets(channelOxyUserId: string): Promise<
       db
         .select({ n: count() })
         .from(posts)
-        .where(and(inArray(posts.boostOf, channelPostIds), sql`not (${owned})`)),
+        .where(and(inArray(posts.repostOf, channelPostIds), sql`not (${owned})`)),
       db
         .select({ n: count() })
         .from(posts)

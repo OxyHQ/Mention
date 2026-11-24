@@ -327,7 +327,7 @@ export async function collectDeletionTargets(
     const next = await tx
       .select(CASCADE_ROW_COLUMNS)
       .from(posts)
-      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.boostOf, frontier)))
+      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.repostOf, frontier)))
       .limit(MAX_DELETION_TARGETS + 1);
 
     frontier = [];

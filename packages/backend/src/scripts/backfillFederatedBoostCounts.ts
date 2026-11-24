@@ -80,7 +80,7 @@ export async function backfillFederatedRepostCounts(
   for (;;) {
     const cursor: SQL | undefined = lastId ? gt(posts.id, lastId) : undefined;
     const page = await db
-      .select({ id: posts.id, federatedBoostsCount: posts.statsFederatedBoostsCount })
+      .select({ id: posts.id, federatedBoostsCount: posts.statsFederatedRepostsCount })
       .from(posts)
       .where(scope ? and(cursor, inArray(posts.id, scope)) : cursor)
       .orderBy(asc(posts.id))
@@ -97,16 +97,16 @@ export async function backfillFederatedRepostCounts(
     // `type = 'boost'` but NO `federation_activity_id`.
     const pageIds = page.map((row) => row.id);
     const repostRows = await db
-      .select({ boostOf: posts.boostOf, count: count() })
+      .select({ boostOf: posts.repostOf, count: count() })
       .from(posts)
       .where(
         and(
-          inArray(posts.boostOf, pageIds),
+          inArray(posts.repostOf, pageIds),
           eq(posts.type, 'boost'),
           isNotNull(posts.federationActivityId),
         ),
       )
-      .groupBy(posts.boostOf);
+      .groupBy(posts.repostOf);
     const federatedRepostsById = new Map(
       repostRows.flatMap((row) => (row.boostOf ? [[row.boostOf, row.count] as const] : [])),
     );

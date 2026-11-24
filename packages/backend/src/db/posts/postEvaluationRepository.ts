@@ -109,7 +109,7 @@ async function loadSnapshot(tx: Transaction, postId: string): Promise<ShadowSnap
         eq(posts.id, postId),
         eq(posts.visibility, 'public'),
         eq(posts.status, 'published'),
-        isNull(posts.boostOf),
+        isNull(posts.repostOf),
         eligibleSource(tx),
       ),
     )
@@ -155,7 +155,7 @@ export async function listShadowCandidates(
       and(
         eq(posts.visibility, 'public'),
         eq(posts.status, 'published'),
-        isNull(posts.boostOf),
+        isNull(posts.repostOf),
         gte(posts.createdAt, new Date(Date.now() - SHADOW_CANDIDATE_WINDOW_MS)),
         eligibleSource(db),
         openAudienceAuthorSql(),

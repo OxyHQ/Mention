@@ -101,7 +101,7 @@ async function loadTopAuthors(term: string, now: Date): Promise<PostUser[]> {
           eq(posts.status, 'published'),
           eq(posts.visibility, PostVisibility.PUBLIC),
           openAudienceAuthorSql(),
-          sql`${posts.boostOf} is null`,
+          sql`${posts.repostOf} is null`,
           sensitiveExcludeSql(),
           isNotNull(posts.oxyUserId),
         ),

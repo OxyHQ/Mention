@@ -335,9 +335,9 @@ export async function assertPostsSafeToDelete(
   const referenceProbes = buildPostReferenceProbes(targets);
 
   const danglingReferences = options.allowDanglingReplyReferences
-    ? [inArray(posts.boostOf, idStrings)]
+    ? [inArray(posts.repostOf, idStrings)]
     : [
-        inArray(posts.boostOf, idStrings),
+        inArray(posts.repostOf, idStrings),
         inArray(posts.quoteOf, idStrings),
         inArray(posts.parentPostId, idStrings),
         inArray(posts.threadId, idStrings),

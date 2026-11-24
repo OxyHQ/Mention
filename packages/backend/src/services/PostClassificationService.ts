@@ -352,7 +352,7 @@ export class PostClassificationService {
       eq(posts.status, 'published'),
       // `is null`, never `<> null`: a boost is a row whose `boost_of` is NULL,
       // and SQL's `<>` against NULL matches nothing at all.
-      isNull(posts.boostOf),
+      isNull(posts.repostOf),
     );
     const order = { orderBy: [asc(posts.createdAt), asc(posts.id)] };
 

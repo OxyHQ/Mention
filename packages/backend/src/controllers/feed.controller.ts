@@ -114,7 +114,7 @@ const REPLY_COMMENT_WEIGHT = 1.5;
 
 const REPLY_ENGAGEMENT_SCORE = sql<number>`(
   ${postsTable.statsLikesCount}
-  + ${postsTable.statsBoostsCount} * ${rankingWeight(REPLY_BOOST_WEIGHT)}
+  + ${postsTable.statsRepostsCount} * ${rankingWeight(REPLY_BOOST_WEIGHT)}
   + ${postsTable.statsCommentsCount} * ${rankingWeight(REPLY_COMMENT_WEIGHT)}
 )`;
 
@@ -701,7 +701,7 @@ class FeedController {
        * caught at the insert and answered identically.
        */
       const [existingRepost] = await findPostRecords(
-        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, originalPostId)),
+        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.repostOf, originalPostId)),
         { orderBy: CHRONO_DESC, limit: 1 },
       );
 
@@ -861,7 +861,7 @@ class FeedController {
       // that reason. The delete is still conditioned on the owner, so a concurrent
       // unboost loses the race and 404s rather than deleting twice.
       const [existing] = await findPostRecords(
-        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, postId)),
+        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.repostOf, postId)),
         { orderBy: CHRONO_DESC, limit: 1 },
       );
       const repost = existing

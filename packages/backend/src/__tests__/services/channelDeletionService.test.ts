@@ -485,7 +485,7 @@ describe('ChannelDeletionService — what happens to real rows', () => {
     await deleteChannelContent(CHANNEL, { dryRun: false });
 
     const [survivor] = await getDb()
-      .select({ n: posts.statsBoostsCount })
+      .select({ n: posts.statsRepostsCount })
       .from(posts)
       .where(eq(posts.id, strangersPost.id));
     expect(survivor.n).toBe(1);

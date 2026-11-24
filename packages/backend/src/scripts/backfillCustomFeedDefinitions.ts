@@ -77,7 +77,7 @@ export async function backfillCustomFeedDefinitions(
         keywords: customFeeds.keywords,
         language: customFeeds.language,
         includeReplies: customFeeds.includeReplies,
-        includeBoosts: customFeeds.includeBoosts,
+        includeBoosts: customFeeds.includeReposts,
         includeMedia: customFeeds.includeMedia,
       })
       .from(customFeeds)

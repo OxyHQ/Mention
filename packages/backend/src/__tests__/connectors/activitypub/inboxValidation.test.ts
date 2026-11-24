@@ -380,8 +380,8 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
     // import performs itself.
     const [counters] = await getDb()
       .select({
-        boosts: posts.statsBoostsCount,
-        federatedBoosts: posts.statsFederatedBoostsCount,
+        boosts: posts.statsRepostsCount,
+        federatedBoosts: posts.statsFederatedRepostsCount,
       })
       .from(posts)
       .where(eq(posts.id, postId));

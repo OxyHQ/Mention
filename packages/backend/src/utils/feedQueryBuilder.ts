@@ -74,7 +74,7 @@ export function followedCommunitiesSql(communityIds: readonly string[], since?: 
 }
 
 export function notARepostSql(): SQL {
-  return isNull(posts.boostOf);
+  return isNull(posts.repostOf);
 }
 
 /**

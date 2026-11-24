@@ -66,10 +66,10 @@ async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCou
       .groupBy(likes.postId),
     // Boosts: native boost posts referencing this post.
     db
-      .select({ id: posts.boostOf, count: count() })
+      .select({ id: posts.repostOf, count: count() })
       .from(posts)
-      .where(and(inArray(posts.boostOf, postIds), eq(posts.type, 'boost')))
-      .groupBy(posts.boostOf),
+      .where(and(inArray(posts.repostOf, postIds), eq(posts.type, 'boost')))
+      .groupBy(posts.repostOf),
     // Comments: reply posts whose parent is this post.
     db
       .select({ id: posts.parentPostId, count: count() })
@@ -138,7 +138,7 @@ async function recomputeFederatedEngagement(): Promise<void> {
         .select({
           id: posts.id,
           likesCount: posts.statsLikesCount,
-          boostsCount: posts.statsBoostsCount,
+          boostsCount: posts.statsRepostsCount,
           commentsCount: posts.statsCommentsCount,
         })
         .from(posts)

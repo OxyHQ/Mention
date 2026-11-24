@@ -122,7 +122,7 @@ async function attachCurrentSocialFeedContext(
   const repostRows = withoutLikes.length
     ? await getDb()
         .select({
-          postId: posts.boostOf,
+          postId: posts.repostOf,
           total: sql<number>`count(distinct ${posts.oxyUserId})::int`,
           actorIds: sql<
             string[]
@@ -131,17 +131,17 @@ async function attachCurrentSocialFeedContext(
         .from(posts)
         .where(
           and(
-            inArray(posts.boostOf, withoutLikes),
+            inArray(posts.repostOf, withoutLikes),
             inArray(posts.oxyUserId, actorIds),
             eq(posts.type, 'boost'),
             eq(posts.status, 'published'),
             eq(posts.visibility, 'public'),
             gte(posts.createdAt, since),
             lte(posts.createdAt, asOf),
-            sql`exists (select 1 from posts social_original where social_original.id = ${posts.boostOf} and social_original.status = 'published' and social_original.visibility = 'public')`,
+            sql`exists (select 1 from posts social_original where social_original.id = ${posts.repostOf} and social_original.status = 'published' and social_original.visibility = 'public')`,
           ),
         )
-        .groupBy(posts.boostOf)
+        .groupBy(posts.repostOf)
     : [];
   const evidenceRows = [
     ...rows.map((row) => ({ ...row, type: 'likedBy' as const })),

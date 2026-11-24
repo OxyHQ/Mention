@@ -70,7 +70,7 @@ describe('backfillFederatedBoostCounts', () => {
 
   async function readRow(id: string): Promise<{ count: number; updatedAt: Date }> {
     const [row] = await getDb()
-      .select({ count: posts.statsFederatedBoostsCount, updatedAt: posts.updatedAt })
+      .select({ count: posts.statsFederatedRepostsCount, updatedAt: posts.updatedAt })
       .from(posts)
       .where(eq(posts.id, id));
     return row;

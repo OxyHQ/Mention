@@ -799,11 +799,11 @@ export class ContentAffinityService {
       ];
       const conditions =
         kind === 'boost'
-          ? [...shared, eq(posts.type, PostType.REPOST), isNotNull(posts.boostOf)]
+          ? [...shared, eq(posts.type, PostType.REPOST), isNotNull(posts.repostOf)]
           : [...shared, isNotNull(posts.parentPostId)];
 
       const rows = await getDb()
-        .select({ boostOf: posts.boostOf, parentPostId: posts.parentPostId })
+        .select({ boostOf: posts.repostOf, parentPostId: posts.parentPostId })
         .from(posts)
         .where(and(...conditions))
         .orderBy(desc(posts.createdAt), desc(posts.id))

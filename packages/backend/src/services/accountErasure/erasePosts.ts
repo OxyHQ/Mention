@@ -69,7 +69,7 @@ const OWN_ROW = {
   type: posts.type,
   visibility: posts.visibility,
   status: posts.status,
-  boostOf: posts.boostOf,
+  boostOf: posts.repostOf,
   federationActorUri: posts.federationActorUri,
 } as const;
 
@@ -118,7 +118,7 @@ async function repostLevels(seedIds: readonly string[]): Promise<CascadedPostRow
     const next: CascadedPostRow[] = [];
     for (let start = 0; start < frontier.length; start += ERASURE_REPOST_CHUNK) {
       const slice = frontier.slice(start, start + ERASURE_REPOST_CHUNK);
-      const rows = await db.select(CASCADE_ROW).from(posts).where(inArray(posts.boostOf, slice));
+      const rows = await db.select(CASCADE_ROW).from(posts).where(inArray(posts.repostOf, slice));
       for (const row of rows) {
         if (seen.has(row.id)) continue;
         seen.add(row.id);

@@ -211,7 +211,7 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
   // `likes + replies + boosts + shares`, the `$add` both the daily and the
   // top-post branches computed. Integer arithmetic on integer columns, so it
   // needs no numeric mapping.
-  const engagementExpr = sql<number>`(${posts.statsLikesCount} + ${posts.statsCommentsCount} + ${posts.statsBoostsCount} + ${posts.statsSharesCount})`;
+  const engagementExpr = sql<number>`(${posts.statsLikesCount} + ${posts.statsCommentsCount} + ${posts.statsRepostsCount} + ${posts.statsSharesCount})`;
 
   // `$ifNull: ['$type', 'text']` — a coalesced GROUP KEY, not a plain
   // `group by type`. `posts.type` is NOT NULL DEFAULT 'text' in this schema, so
@@ -233,7 +233,7 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
         views: sumOf(posts.statsViewsCount),
         likes: sumOf(posts.statsLikesCount),
         replies: sumOf(posts.statsCommentsCount),
-        boosts: sumOf(posts.statsBoostsCount),
+        boosts: sumOf(posts.statsRepostsCount),
         shares: sumOf(posts.statsSharesCount),
       })
       .from(posts)
@@ -251,7 +251,7 @@ async function queryUserStatistics(userId: string, days: number): Promise<UserSt
         views: posts.statsViewsCount,
         likes: posts.statsLikesCount,
         replies: posts.statsCommentsCount,
-        boosts: posts.statsBoostsCount,
+        boosts: posts.statsRepostsCount,
         engagement: engagementExpr,
         createdAt: posts.createdAt,
       })
@@ -549,7 +549,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
           oxyUserId: posts.oxyUserId,
           createdAt: posts.createdAt,
           likesCount: posts.statsLikesCount,
-          boostsCount: posts.statsBoostsCount,
+          boostsCount: posts.statsRepostsCount,
           commentsCount: posts.statsCommentsCount,
           viewsCount: posts.statsViewsCount,
           sharesCount: posts.statsSharesCount,
@@ -605,7 +605,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
           replies: sql<number>`count(*) filter (where ${posts.parentPostId} = ${post.id})`.mapWith(
             Number,
           ),
-          boosts: sql<number>`count(*) filter (where ${posts.boostOf} = ${post.id})`.mapWith(
+          boosts: sql<number>`count(*) filter (where ${posts.repostOf} = ${post.id})`.mapWith(
             Number,
           ),
           quotes: sql<number>`count(*) filter (where ${posts.quoteOf} = ${post.id})`.mapWith(
@@ -616,7 +616,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
         .where(
           or(
             eq(posts.parentPostId, post.id),
-            eq(posts.boostOf, post.id),
+            eq(posts.repostOf, post.id),
             eq(posts.quoteOf, post.id),
           ),
         );
@@ -900,7 +900,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
           views: posts.statsViewsCount,
           likes: posts.statsLikesCount,
           replies: posts.statsCommentsCount,
-          boosts: posts.statsBoostsCount,
+          boosts: posts.statsRepostsCount,
           primaryBody,
         })
         .from(posts)

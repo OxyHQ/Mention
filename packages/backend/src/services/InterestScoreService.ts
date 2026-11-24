@@ -108,7 +108,7 @@ export class InterestScoreService {
         .select({
           oxyUserId: posts.oxyUserId,
           raw: sql`sum(
-          ${posts.statsLikesCount} + ${posts.statsBoostsCount} + ${posts.statsCommentsCount}
+          ${posts.statsLikesCount} + ${posts.statsRepostsCount} + ${posts.statsCommentsCount}
           + ${posts.statsViewsCount}
         )`.mapWith(Number),
           postCount: sql`count(*)`.mapWith(Number),

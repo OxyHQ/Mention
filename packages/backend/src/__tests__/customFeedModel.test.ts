@@ -172,7 +172,7 @@ describe('the legacy filter fields, which are STILL READ', () => {
     const [feed] = await db.select().from(customFeeds).where(eq(customFeeds.id, feedId));
     expect(feed.keywords).toEqual(['art']);
     expect(feed.includeReplies).toBe(false);
-    expect(feed.includeBoosts).toBe(false);
+    expect(feed.includeReposts).toBe(false);
     expect(feed.includeMedia).toBe(false);
     expect(feed.language).toBe('es');
     expect(feed.category).toBe('culture');
@@ -188,7 +188,7 @@ describe('the legacy filter fields, which are STILL READ', () => {
     const feedId = await seedFeed();
     const [feed] = await db.select().from(customFeeds).where(eq(customFeeds.id, feedId));
     expect(feed.includeReplies).toBe(true);
-    expect(feed.includeBoosts).toBe(true);
+    expect(feed.includeReposts).toBe(true);
     expect(feed.includeMedia).toBe(true);
     expect(feed.isPublic).toBe(false);
     expect(feed.subscriberCount).toBe(0);

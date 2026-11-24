@@ -173,7 +173,7 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
         .where(inArray(postMentions.postId, postIds)),
       getDb()
         .select({
-          boostOf: posts.boostOf,
+          boostOf: posts.repostOf,
           quoteOf: posts.quoteOf,
           parentPostId: posts.parentPostId,
         })
@@ -186,7 +186,7 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
             openAudienceAuthorSql(),
             notCollapsedCrosspostSql(),
             or(
-              inArray(posts.boostOf, postIds),
+              inArray(posts.repostOf, postIds),
               inArray(posts.quoteOf, postIds),
               inArray(posts.parentPostId, postIds),
             ),

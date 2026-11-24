@@ -1200,7 +1200,7 @@ export async function importAtprotoRepost(input: {
     .from(posts)
     .where(
       and(
-        eq(posts.boostOf, input.originalPostId),
+        eq(posts.repostOf, input.originalPostId),
         eq(posts.oxyUserId, input.boosterOxyUserId),
         eq(posts.type, 'boost'),
       ),

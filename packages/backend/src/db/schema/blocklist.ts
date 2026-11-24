@@ -305,9 +305,9 @@ export const blockedDomainPurges = pgTable(
     // ── what the DRY RUN predicted; NULL when never measured ──
     measuredPosts: integer(),
     measuredActors: integer(),
-    measuredBoosts: integer(),
-    // Expand-phase twin of `measuredBoosts` (docs/repost-rename.md); a trigger keeps the two equal.
     measuredReposts: integer(),
+    /** @deprecated Old name of `measuredReposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
+    measuredBoosts: integer(),
     measuredLikes: integer(),
     measuredNotifications: integer(),
     measuredMediaCacheRows: integer(),
@@ -329,7 +329,7 @@ export const blockedDomainPurges = pgTable(
       'blocked_domain_purges_measured_check',
       sql`(${t.measuredPosts} is null
           and ${t.measuredActors} is null
-          and ${t.measuredBoosts} is null
+          and ${t.measuredReposts} is null
           and ${t.measuredLikes} is null
           and ${t.measuredNotifications} is null
           and ${t.measuredMediaCacheRows} is null
@@ -337,7 +337,7 @@ export const blockedDomainPurges = pgTable(
           and ${t.measuredLocalFollowsRemoved} is null)
         or (${t.measuredPosts} >= 0
           and ${t.measuredActors} >= 0
-          and ${t.measuredBoosts} >= 0
+          and ${t.measuredReposts} >= 0
           and ${t.measuredLikes} >= 0
           and ${t.measuredNotifications} >= 0
           and ${t.measuredMediaCacheRows} >= 0
@@ -369,9 +369,9 @@ export const blockedDomainPurgeRuns = pgTable(
     // ── what this run REMOVED ──
     removedPosts: integer().notNull(),
     removedActors: integer().notNull(),
-    removedBoosts: integer().notNull(),
-    // Expand-phase twin of `removedBoosts` (docs/repost-rename.md); a trigger keeps the two equal. Defaults to 0 only so the column can be added.
     removedReposts: integer().notNull().default(0),
+    /** @deprecated Old name of `removedReposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
+    removedBoosts: integer().notNull(),
     removedLikes: integer().notNull(),
     removedNotifications: integer().notNull(),
     removedMediaCacheRows: integer().notNull(),
@@ -401,7 +401,7 @@ export const blockedDomainPurgeRuns = pgTable(
       'blocked_domain_purge_runs_removed_check',
       sql`${t.removedPosts} >= 0
         and ${t.removedActors} >= 0
-        and ${t.removedBoosts} >= 0
+        and ${t.removedReposts} >= 0
         and ${t.removedLikes} >= 0
         and ${t.removedNotifications} >= 0
         and ${t.removedMediaCacheRows} >= 0

@@ -122,7 +122,7 @@ async function repostRows(original: string) {
   return db
     .select({ id: posts.id, oxyUserId: posts.oxyUserId })
     .from(posts)
-    .where(and(eq(posts.boostOf, original), eq(posts.type, 'boost')));
+    .where(and(eq(posts.repostOf, original), eq(posts.type, 'boost')));
 }
 
 beforeAll(async () => {
@@ -141,7 +141,7 @@ afterEach(async () => {
   const reposts = await db
     .select({ id: posts.id })
     .from(posts)
-    .where(inArray(posts.boostOf, originals));
+    .where(inArray(posts.repostOf, originals));
   const ids = [...reposts.map((row) => row.id), ...originals];
   await db.delete(postAuthorships).where(inArray(postAuthorships.postId, ids));
   await db.delete(posts).where(inArray(posts.id, ids));

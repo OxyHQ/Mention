@@ -150,8 +150,8 @@ const scoreColumn = () => doublePrecision().notNull().default(0);
 /** The four counters {@link engagementRankSql} weighs, as an index sees them. */
 interface EngagementRankColumns {
   statsLikesCount: AnyPgColumn;
-  statsBoostsCount: AnyPgColumn;
-  statsFederatedBoostsCount: AnyPgColumn;
+  statsRepostsCount: AnyPgColumn;
+  statsFederatedRepostsCount: AnyPgColumn;
   statsCommentsCount: AnyPgColumn;
 }
 
@@ -185,8 +185,8 @@ export function engagementRankSql(t: EngagementRankColumns): SQL<number> {
   const cfg = MtnConfig.ranking.engagement;
   return sql<number>`(
     ${t.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
-    + greatest(0, ${t.statsBoostsCount} - ${t.statsFederatedBoostsCount}) * ${rankingWeight(cfg.boostWeight)}
-    + ${t.statsFederatedBoostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
+    + greatest(0, ${t.statsRepostsCount} - ${t.statsFederatedRepostsCount}) * ${rankingWeight(cfg.boostWeight)}
+    + ${t.statsFederatedRepostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
     + ${t.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
   )::double precision`;
 }
@@ -360,17 +360,9 @@ export const posts = pgTable(
      * original gone it can never render anything. Without CASCADE these would be left behind as
      * permanently blank cards.
      */
-    boostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
-
-    /**
-     * EXPAND phase of the boost -> repost rename: `repostOf`, `statsRepostsCount`,
-     * `statsFederatedRepostsCount` and `metadataIsReposted` are the new names of
-     * `boostOf` and the three columns below. `posts_sync_repost_columns` (0126)
-     * keeps each pair equal whichever name a writer used, so a pod running the
-     * old code and one running the new code see the same data; the old columns
-     * are dropped once nothing reads them.
-     */
     repostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
+    /** @deprecated Old name of `repostOf`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
+    boostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
 
     /**
      * The quoted post. SET NULL: a quote has a body of its own and must survive
@@ -454,16 +446,17 @@ export const posts = pgTable(
     // ── `stats` subdocument (see the module docblock for why it is kept) ──
     statsLikesCount: integer().notNull().default(0),
     statsDownvotesCount: integer().notNull().default(0),
+    statsRepostsCount: integer().notNull().default(0),
+    /** @deprecated Old name of `statsRepostsCount`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
     statsBoostsCount: integer().notNull().default(0),
     /**
      * Of `statsBoostsCount`, the subset that arrived as inbound ActivityPub
      * Announces. `boosts - federatedBoosts` is the native count, and the
      * discovery ranking expression weights the two differently.
      */
-    statsFederatedBoostsCount: integer().notNull().default(0),
-    // Expand-phase twins of the two counters above; see `repostOf`.
-    statsRepostsCount: integer().notNull().default(0),
     statsFederatedRepostsCount: integer().notNull().default(0),
+    /** @deprecated Old name of `statsFederatedRepostsCount`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
+    statsFederatedBoostsCount: integer().notNull().default(0),
     statsCommentsCount: integer().notNull().default(0),
     statsViewsCount: integer().notNull().default(0),
     statsSharesCount: integer().notNull().default(0),
@@ -472,8 +465,9 @@ export const posts = pgTable(
     // ── `metadata` subdocument ──
     metadataIsSensitive: boolean().notNull().default(false),
     metadataIsPinned: boolean().notNull().default(false),
+    metadataIsReposted: boolean().notNull().default(false),
+    /** @deprecated Old name of `metadataIsReposted`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
     metadataIsBoosted: boolean().notNull().default(false),
-    metadataIsReposted: boolean().notNull().default(false), // twin of `metadataIsBoosted`
     metadataIsCommented: boolean().notNull().default(false),
     metadataIsFollowingAuthor: boolean().notNull().default(false),
     metadataAuthorBlocked: boolean().notNull().default(false),
@@ -876,7 +870,7 @@ export const posts = pgTable(
     index('posts_public_originals_recent_idx')
       .on(t.createdAt)
       .where(
-        sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.boostOf} is null`,
+        sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.repostOf} is null`,
       ),
     /**
      * The self-thread spine — `(thread_id, author)`, oldest first.
@@ -915,7 +909,7 @@ export const posts = pgTable(
      * spells `isNull(posts.quoteOf)`. Both were measured and kept: the rule that
      * decides is "does anything ask for the NULL side", not the NULL fraction.
      */
-    index('posts_boost_of_idx').on(t.boostOf, t.createdAt.desc()),
+    index('posts_boost_of_idx').on(t.repostOf, t.createdAt.desc()),
     /**
      * One NATIVE boost per account per post — the constraint that makes "have
      * you already boosted this?" answerable.
@@ -949,9 +943,9 @@ export const posts = pgTable(
      * the rule IS and keeps the index the size of the native-boost set.
      */
     uniqueIndex('posts_one_boost_per_account_key')
-      .on(t.oxyUserId, t.boostOf)
+      .on(t.oxyUserId, t.repostOf)
       .where(
-        sql`${t.type} = 'boost' and ${t.boostOf} is not null and ${t.federationActivityId} is null`,
+        sql`${t.type} = 'boost' and ${t.repostOf} is not null and ${t.federationActivityId} is null`,
       ),
     index('posts_quote_of_idx').on(t.quoteOf, t.createdAt.desc()),
     index('posts_scheduled_idx').on(t.scheduledFor).where(sql`${t.status} = 'scheduled'`),
@@ -1298,7 +1292,7 @@ export const authorPostCounts = pgTable('author_post_counts', {
   /** Counted posts that are replies (`is_reply = true`). */
   repliesCount: integer().notNull().default(0),
   /** Counted posts of `type = 'boost'`; each is also in one of the two counts above. */
-  boostsCount: integer().notNull().default(0),
-  // Expand-phase twin of `boostsCount` (docs/repost-rename.md); a trigger keeps the two equal.
   repostsCount: integer().notNull().default(0),
+  /** @deprecated Old name of `repostsCount`; see docs/repost-rename.md. */
+  boostsCount: integer().notNull().default(0),
 });
