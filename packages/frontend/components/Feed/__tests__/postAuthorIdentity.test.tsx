@@ -41,7 +41,7 @@ jest.mock('@oxy.so/bloom/icons', () => ({
 }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({
   SubtleHover: ({ children }: { children?: React.ReactNode }) => children ?? null,
-  usePressHighlight: () => ({ hostProps: {}, pressed: undefined }),
+  pressHighlight: jest.requireActual('@oxy.so/bloom/subtle-hover').pressHighlight,
 }));
 jest.mock('@/components/ProfileHoverCard', () => ({
   ProfileHoverCard: ({ children }: { children?: React.ReactNode }) => children ?? null,

@@ -49,7 +49,8 @@ import {
   THREAD_LINE_Z_INDEX,
 } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
-import { SubtleHover, usePressHighlight } from '@oxy.so/bloom/subtle-hover';
+import { pressHighlight, SubtleHover } from '@oxy.so/bloom/subtle-hover';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
 import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
 import { ThreadHoverOverlay } from './ThreadHoverOverlay';
@@ -366,9 +367,10 @@ const PostItemContent: React.FC<PostItemProps> = ({
     [router, openPostHref, isNested, recordOpen],
   );
   // The row's pressed state on native (Android's ripple, iOS's wash), shown the
-  // frame the finger lands, before the navigation. A child control that takes
+  // frame the finger lands, before the navigation, on the row's own Pressable
+  // (`pressHighlight`: no hook or state of its own). A child control that takes
   // the press (like, avatar, a link) keeps it from the row; a scroll cancels it.
-  const pressHighlight = usePressHighlight();
+  const { colors: themeColors } = useTheme();
 
   // Canonical profile handle for the author. Built from the full actor so a
   // federated actor resolves to `username@domain` (via isFederated + instance)
@@ -1031,7 +1033,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
         // `Pressable` `tabIndex=0`, and the focused detail post would
         // otherwise become a second `[aria-label][tabindex="0"]` match.
         focusable={isTappable}
-        {...(isTappable ? { onPress: goToPost, ...pressHighlight.hostProps } : {})}
+        {...(isTappable ? { onPress: goToPost } : {})}
         {...(isThreadUnit
           ? {
               onHoverIn: () => {
@@ -1042,241 +1044,244 @@ const PostItemContent: React.FC<PostItemProps> = ({
               },
             }
           : {})}
-      >
-        {isThreadUnit && sliceKey ? (
-          <ThreadHoverOverlay
-            sliceKey={sliceKey}
-            owner={hoverOwner}
-            visible={isTappable}
-            pressed={pressHighlight.pressed}
-          />
-        ) : isTappable ? (
-          <SubtleHover pressed={pressHighlight.pressed} />
-        ) : null}
-        {/* Thread line above avatar — connects from previous post's bottom.
+        {...pressHighlight(
+          themeColors,
+          <>
+            {isThreadUnit && sliceKey ? (
+              <ThreadHoverOverlay sliceKey={sliceKey} owner={hoverOwner} visible={isTappable} />
+            ) : isTappable ? (
+              <SubtleHover />
+            ) : null}
+            {/* Thread line above avatar — connects from previous post's bottom.
                     Ends `headerTopOffset` below the top, leaving the same small gap
                     before the avatar as the below-avatar line has (tracking the
                     context-row offset that pushes the avatar down). */}
-        {isThreadChild && !isNested && (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: THREAD_LINE_LEFT,
-              width: THREAD_LINE_W,
-              height: headerTopOffset + 4,
-              borderRadius: THREAD_LINE_BORDER_RADIUS,
-              zIndex: THREAD_LINE_Z_INDEX,
-            }}
-            className="bg-border"
-          />
-        )}
-        {/* Thread line below avatar — connects to next post's top. Shifted
+            {isThreadChild && !isNested && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: THREAD_LINE_LEFT,
+                  width: THREAD_LINE_W,
+                  height: headerTopOffset + 4,
+                  borderRadius: THREAD_LINE_BORDER_RADIUS,
+                  zIndex: THREAD_LINE_Z_INDEX,
+                }}
+                className="bg-border"
+              />
+            )}
+            {/* Thread line below avatar — connects to next post's top. Shifted
                     down by headerTopOffset so it starts at the offset avatar's bottom. */}
-        {isThreadParent && !isNested && !isDetailMain && (
-          <View
-            style={{
-              position: 'absolute',
-              top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
-              left: THREAD_LINE_LEFT,
-              width: THREAD_LINE_W,
-              bottom: 0,
-              borderRadius: THREAD_LINE_BORDER_RADIUS,
-              zIndex: THREAD_LINE_Z_INDEX,
-            }}
-            className="bg-border"
-          />
-        )}
-        {replyBranch && !isNested && (
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
-              top: 0,
-              width: REPLY_BRANCH_INDENT - POST_AVATAR_SIZE / 2 - 3,
-              height: VPAD + headerTopOffset + POST_AVATAR_SIZE / 2,
-              borderLeftWidth: THREAD_LINE_W,
-              borderBottomWidth: THREAD_LINE_W,
-              borderBottomLeftRadius: 8,
-            }}
-            className="border-border"
-          />
-        )}
-        <View style={{ gap: headerToBlocksGap }}>
-          <PostHeader
-            user={{
-              displayName: author.name?.displayName,
-              handle: authorHandle || '',
-              verified: author.verified,
-              isFederated: author.isFederated,
-              kind: author.kind,
-              character: author.character,
-              color: author.color,
-              instance: author.instance,
-            }}
-            authors={bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined}
-            // `repostedBy` is the only boost that put THIS post in
-            // front of the reader. `viewPost.boost` is the other
-            // boost shape — the row IS the boost, so its author and
-            // its actor are the same account and there is nothing to
-            // pair or reorder; passing it would be a no-op wearing
-            // the clothes of a rule.
-            boostedBy={repostPlacement === 'headOnly' ? undefined : reposter}
-            date={metadata.createdAt}
-            isEdited={metadata.isEdited}
-            isPrivateMention={isPrivateMention(viewPost)}
-            showBoost={Boolean(viewPost.boost) && !isNested}
-            showReply={false}
-            laneSlot={laneSlot}
-            contextTop={contextRows.length > 0 ? contextRows : undefined}
-            detail={isDetailMain}
-            compact={isNested}
-            avatarSize={isNested ? 20 : undefined}
-            avatarSource={avatarSource}
-            avatarVariant={avatarVariant}
-            authorUserId={author.id || undefined}
-            userHref={authorHref}
-            postHref={openPostHref}
-            onPressTime={recordOpen}
-            nameAsHeading={isDetailMain}
-            onPressAvatar={goToAuthorProfile}
-            onPressName={prefetchAuthorProfile}
-            onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
-            linkAuthors
-            menu={
-              viewPost ? (
-                <Suspense fallback={null}>
-                  <PostMenuContent
-                    post={viewPost}
-                    isPostDetail={isDetailMain}
-                    source={feedDescriptor}
-                    onOpenArticle={openArticleSheet}
-                    onInsights={handleInsightsPress}
-                  />
-                </Suspense>
-              ) : undefined
-            }
-            paddingHorizontal={HPAD}
-          >
-            {isDetailMain ? null : postBody}
-          </PostHeader>
-          {isDetailMain && hasPostBody && (
-            <View style={{ paddingHorizontal: HPAD, gap: HEADER_CONTENT_GAP }}>{postBody}</View>
-          )}
+            {isThreadParent && !isNested && !isDetailMain && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
+                  left: THREAD_LINE_LEFT,
+                  width: THREAD_LINE_W,
+                  bottom: 0,
+                  borderRadius: THREAD_LINE_BORDER_RADIUS,
+                  zIndex: THREAD_LINE_Z_INDEX,
+                }}
+                className="bg-border"
+              />
+            )}
+            {replyBranch && !isNested && (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
+                  top: 0,
+                  width: REPLY_BRANCH_INDENT - POST_AVATAR_SIZE / 2 - 3,
+                  height: VPAD + headerTopOffset + POST_AVATAR_SIZE / 2,
+                  borderLeftWidth: THREAD_LINE_W,
+                  borderBottomWidth: THREAD_LINE_W,
+                  borderBottomLeftRadius: 8,
+                }}
+                className="border-border"
+              />
+            )}
+            <View style={{ gap: headerToBlocksGap }}>
+              <PostHeader
+                user={{
+                  displayName: author.name?.displayName,
+                  handle: authorHandle || '',
+                  verified: author.verified,
+                  isFederated: author.isFederated,
+                  kind: author.kind,
+                  character: author.character,
+                  color: author.color,
+                  instance: author.instance,
+                }}
+                authors={bylineAuthors && bylineAuthors.length > 0 ? bylineAuthors : undefined}
+                // `repostedBy` is the only boost that put THIS post in
+                // front of the reader. `viewPost.boost` is the other
+                // boost shape — the row IS the boost, so its author and
+                // its actor are the same account and there is nothing to
+                // pair or reorder; passing it would be a no-op wearing
+                // the clothes of a rule.
+                boostedBy={repostPlacement === 'headOnly' ? undefined : reposter}
+                date={metadata.createdAt}
+                isEdited={metadata.isEdited}
+                isPrivateMention={isPrivateMention(viewPost)}
+                showBoost={Boolean(viewPost.boost) && !isNested}
+                showReply={false}
+                laneSlot={laneSlot}
+                contextTop={contextRows.length > 0 ? contextRows : undefined}
+                detail={isDetailMain}
+                compact={isNested}
+                avatarSize={isNested ? 20 : undefined}
+                avatarSource={avatarSource}
+                avatarVariant={avatarVariant}
+                authorUserId={author.id || undefined}
+                userHref={authorHref}
+                postHref={openPostHref}
+                onPressTime={recordOpen}
+                nameAsHeading={isDetailMain}
+                onPressAvatar={goToAuthorProfile}
+                onPressName={prefetchAuthorProfile}
+                onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
+                linkAuthors
+                menu={
+                  viewPost ? (
+                    <Suspense fallback={null}>
+                      <PostMenuContent
+                        post={viewPost}
+                        isPostDetail={isDetailMain}
+                        source={feedDescriptor}
+                        onOpenArticle={openArticleSheet}
+                        onInsights={handleInsightsPress}
+                      />
+                    </Suspense>
+                  ) : undefined
+                }
+                paddingHorizontal={HPAD}
+              >
+                {isDetailMain ? null : postBody}
+              </PostHeader>
+              {isDetailMain && hasPostBody && (
+                <View style={{ paddingHorizontal: HPAD, gap: HEADER_CONTENT_GAP }}>{postBody}</View>
+              )}
 
-          {hasBelowHeaderBlocks && !isContentGated && (
-            <View style={{ gap: SECTION_GAP }}>
-              {hasValidLocation && location && (
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <PostLocation location={location} paddingHorizontal={0} />
+              {hasBelowHeaderBlocks && !isContentGated && (
+                <View style={{ gap: SECTION_GAP }}>
+                  {hasValidLocation && location && (
+                    <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
+                      <PostLocation location={location} paddingHorizontal={0} />
+                    </View>
+                  )}
+
+                  {(boostUnavailable || quoteUnavailable) && !isContentGated && (
+                    <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
+                      <View className="border-border rounded-2xl border px-3 py-3">
+                        <Text className="text-muted-foreground text-[14px]">
+                          {quoteUnavailable
+                            ? t('post.quoteUnavailable', {
+                                defaultValue: 'This quoted post is unavailable',
+                              })
+                            : t('post.boostUnavailable', {
+                                defaultValue: 'This post is no longer available',
+                              })}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {shouldRenderMediaBlock && !isContentGated && (
+                    <PostAttachmentsRow
+                      sensitive={isSensitiveContent && !spoilerText}
+                      media={mediaItems}
+                      attachments={attachmentDescriptors}
+                      nestedPost={nestedPost ?? null}
+                      renderNestedPost={renderNestedPost}
+                      leftOffset={contentLeftOffset}
+                      pollData={pollData}
+                      pollId={pollId ? String(pollId) : undefined}
+                      nestingDepth={nestingDepth}
+                      postId={viewPostId}
+                      article={articleProp}
+                      onArticlePress={hasArticle ? openArticleSheet : undefined}
+                      event={eventProp}
+                      room={roomProp}
+                      onRoomPress={roomId ? handleRoomPress : undefined}
+                      homiioCase={homiioCase}
+                      vibbrEvent={vibbrEvent}
+                      podcast={podcastContent}
+                      job={jobContent}
+                      location={location}
+                      text={content.text}
+                      documents={documents}
+                      documentsPending={viewPost.documentsPending === true}
+                      // Only a quote card hands a width down. The card has no
+                      // horizontal inset (see `nestedPostContainer`), so the row
+                      // spans exactly that width, edge to edge like a feed row.
+                    />
+                  )}
+
+                  {communityNote?.status === 'shown' && !isNested && !isContentGated && (
+                    // Below everything the author posted, above the actions: the
+                    // note is context ABOUT the post, never part of it.
+                    <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
+                      <CommunityNoteCard
+                        note={communityNote}
+                        onPressAbout={openCommunityNoteAbout}
+                      />
+                    </View>
+                  )}
+
+                  {!isNested && (
+                    <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
+                      <PostActions
+                        t={t}
+                        engagement={actionsEngagement}
+                        isLiked={isLiked}
+                        isDownvoted={isDownvoted}
+                        isBoosted={isBoosted}
+                        isSaved={isSaved}
+                        // Derived from the POST — the server's own verdict —
+                        // so an affordance that would be refused is absent
+                        // rather than present and refused.
+                        onReply={postAcceptsReplies(viewPost) ? handleReply : undefined}
+                        onBoost={handleBoost}
+                        onLike={handleLike}
+                        onDownvote={handleDownvote}
+                        onSave={handleSave}
+                        onShare={handleShare}
+                        onSendInAllo={handleSendInAllo}
+                        postId={viewPostId}
+                        onTranslate={canTranslate ? toggleReaderTranslation : undefined}
+                        onTranslateLongPress={openLanguagePicker}
+                        isTranslated={isTranslated}
+                        isTranslating={isTranslating}
+                        onInsightsPress={isOwner && isDetailMain ? handleInsightsPress : undefined}
+                      />
+                    </View>
+                  )}
+
+                  {/* Detail metadata stays below the unchanged action bar. */}
+                  {isDetailMain && (
+                    <PostDetailStats
+                      timestampLabel={fullTimestamp}
+                      likes={engagementSummary?.likes}
+                      boosts={engagementSummary?.boosts}
+                      quotes={metadata.quotesDisabled ? null : engagementSummary?.quotes}
+                      saves={engagementSummary?.saves}
+                      replyPermission={reportableReplyPermission(viewPost)}
+                      quotesDisabled={metadata.quotesDisabled}
+                      postId={viewPostId}
+                      onLikesPress={openLikesList}
+                      onBoostsPress={openBoostsList}
+                      onQuotesPress={openQuotesList}
+                    />
+                  )}
                 </View>
-              )}
-
-              {(boostUnavailable || quoteUnavailable) && !isContentGated && (
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <View className="border-border rounded-2xl border px-3 py-3">
-                    <Text className="text-muted-foreground text-[14px]">
-                      {quoteUnavailable
-                        ? t('post.quoteUnavailable', {
-                            defaultValue: 'This quoted post is unavailable',
-                          })
-                        : t('post.boostUnavailable', {
-                            defaultValue: 'This post is no longer available',
-                          })}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {shouldRenderMediaBlock && !isContentGated && (
-                <PostAttachmentsRow
-                  sensitive={isSensitiveContent && !spoilerText}
-                  media={mediaItems}
-                  attachments={attachmentDescriptors}
-                  nestedPost={nestedPost ?? null}
-                  renderNestedPost={renderNestedPost}
-                  leftOffset={contentLeftOffset}
-                  pollData={pollData}
-                  pollId={pollId ? String(pollId) : undefined}
-                  nestingDepth={nestingDepth}
-                  postId={viewPostId}
-                  article={articleProp}
-                  onArticlePress={hasArticle ? openArticleSheet : undefined}
-                  event={eventProp}
-                  room={roomProp}
-                  onRoomPress={roomId ? handleRoomPress : undefined}
-                  homiioCase={homiioCase}
-                  vibbrEvent={vibbrEvent}
-                  podcast={podcastContent}
-                  job={jobContent}
-                  location={location}
-                  text={content.text}
-                  documents={documents}
-                  documentsPending={viewPost.documentsPending === true}
-                  // Only a quote card hands a width down. The card has no
-                  // horizontal inset (see `nestedPostContainer`), so the row
-                  // spans exactly that width, edge to edge like a feed row.
-                />
-              )}
-
-              {communityNote?.status === 'shown' && !isNested && !isContentGated && (
-                // Below everything the author posted, above the actions: the
-                // note is context ABOUT the post, never part of it.
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <CommunityNoteCard note={communityNote} onPressAbout={openCommunityNoteAbout} />
-                </View>
-              )}
-
-              {!isNested && (
-                <View style={{ paddingLeft: contentLeftOffset, paddingRight: HPAD }}>
-                  <PostActions
-                    t={t}
-                    engagement={actionsEngagement}
-                    isLiked={isLiked}
-                    isDownvoted={isDownvoted}
-                    isBoosted={isBoosted}
-                    isSaved={isSaved}
-                    // Derived from the POST — the server's own verdict —
-                    // so an affordance that would be refused is absent
-                    // rather than present and refused.
-                    onReply={postAcceptsReplies(viewPost) ? handleReply : undefined}
-                    onBoost={handleBoost}
-                    onLike={handleLike}
-                    onDownvote={handleDownvote}
-                    onSave={handleSave}
-                    onShare={handleShare}
-                    onSendInAllo={handleSendInAllo}
-                    postId={viewPostId}
-                    onTranslate={canTranslate ? toggleReaderTranslation : undefined}
-                    onTranslateLongPress={openLanguagePicker}
-                    isTranslated={isTranslated}
-                    isTranslating={isTranslating}
-                    onInsightsPress={isOwner && isDetailMain ? handleInsightsPress : undefined}
-                  />
-                </View>
-              )}
-
-              {/* Detail metadata stays below the unchanged action bar. */}
-              {isDetailMain && (
-                <PostDetailStats
-                  timestampLabel={fullTimestamp}
-                  likes={engagementSummary?.likes}
-                  boosts={engagementSummary?.boosts}
-                  quotes={metadata.quotesDisabled ? null : engagementSummary?.quotes}
-                  saves={engagementSummary?.saves}
-                  replyPermission={reportableReplyPermission(viewPost)}
-                  quotesDisabled={metadata.quotesDisabled}
-                  postId={viewPostId}
-                  onLikesPress={openLikesList}
-                  onBoostsPress={openBoostsList}
-                  onQuotesPress={openQuotesList}
-                />
               )}
             </View>
-          )}
-        </View>
-      </Pressable>
+          </>,
+          isTappable,
+        )}
+      />
 
       {articleContent ? (
         <Suspense fallback={null}>

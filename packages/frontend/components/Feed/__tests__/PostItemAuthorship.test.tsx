@@ -91,7 +91,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({
   SubtleHover: () => null,
-  usePressHighlight: () => ({ hostProps: {}, pressed: undefined }),
+  pressHighlight: jest.requireActual('@oxy.so/bloom/subtle-hover').pressHighlight,
 }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));

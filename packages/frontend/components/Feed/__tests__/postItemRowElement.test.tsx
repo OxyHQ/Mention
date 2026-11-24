@@ -44,13 +44,14 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-// The press highlight as iOS hands it: a press signal for the host and the
-// value the row's wash reads (Android's is a ripple prop on the same host).
-const mockPressed = { value: 0 };
-const mockOnPressIn = jest.fn();
+// The press highlight as Android hands it: a ripple prop on the row's own
+// Pressable when the row is lit, the children as they were (iOS's is the same
+// children as a function of the Pressable's press).
+const mockRipple = { color: 'wash', borderless: false };
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({
   SubtleHover: () => null,
-  usePressHighlight: () => ({ hostProps: { onPressIn: mockOnPressIn }, pressed: mockPressed }),
+  pressHighlight: (_colors: unknown, children: unknown, lit = true) =>
+    lit ? { android_ripple: mockRipple, children } : { children },
 }));
 jest.mock('@oxy.so/bloom/icons', () => ({
   RiCornerDownRightLine: () => null,
@@ -183,12 +184,12 @@ describe('PostItem row element', () => {
 
   it('shows the press highlight on a row that opens a post, and not on the focused detail post', () => {
     const feedRow = renderRowRoot(false);
-    expect(feedRow.props.onPressIn).toBe(mockOnPressIn);
-    expect(feedRow.findByType(SubtleHover).props.pressed).toBe(mockPressed);
+    expect(feedRow.props.android_ripple).toBe(mockRipple);
+    expect(feedRow.findAllByType(SubtleHover)).toHaveLength(1);
 
     // The focused post takes no press, so nothing lights under the finger.
     const detailRow = renderRowRoot(true);
-    expect(detailRow.props.onPressIn).toBeUndefined();
+    expect(detailRow.props.android_ripple).toBeUndefined();
     expect(detailRow.findAllByType(SubtleHover)).toHaveLength(0);
   });
 });
