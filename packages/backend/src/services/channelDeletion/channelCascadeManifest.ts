@@ -449,6 +449,16 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
   },
   {
     table: 'posts',
+    column: 'repostOf',
+    scope: 'channel-posts',
+    action: 'database',
+    why:
+      'The new name of `posts.boost_of` during the boost -> repost rename (expand phase). ' +
+      '`posts_sync_repost_columns` keeps the two equal, and both are the same self `ON DELETE CASCADE`, ' +
+      'so what the `boostOf` entry below says holds for this column unchanged.',
+  },
+  {
+    table: 'posts',
     column: 'boostOf',
     scope: 'channel-posts',
     action: 'database',
