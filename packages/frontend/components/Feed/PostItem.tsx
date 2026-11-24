@@ -45,7 +45,7 @@ import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
 import { openPostInsights, type OpenPostPanel } from '@/components/Post/postEngagementContext';
-import { postLinkCards } from '@/utils/postLinkCards';
+import { postLinkCards, quotedLinkUrls } from '@/utils/postLinkCards';
 import {
   THREAD_LINE_WIDTH,
   THREAD_LINE_BORDER_RADIUS,
@@ -716,6 +716,10 @@ const PostItemContent: React.FC<PostItemProps> = ({
     () => postLinkCards(content.text, documents, quotedUrls),
     [content.text, documents, quotedUrls],
   );
+  const quotedBodyLinks = useMemo(
+    () => quotedLinkUrls(documents, quotedUrls ?? []),
+    [documents, quotedUrls],
+  );
 
   const engagementSummary: PostEngagementSummary | undefined = viewPost?.engagement;
   const actionsEngagement = useMemo(
@@ -1051,7 +1055,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
           previewChars={isDetailMain ? Infinity : undefined}
           overrideText={languageDisplayText}
           linkCards={linkCards}
-          quotedUrls={quotedUrls}
+          quotedUrls={quotedBodyLinks}
           trailingContent={
             threadPosition && !isNested ? (
               <Text>

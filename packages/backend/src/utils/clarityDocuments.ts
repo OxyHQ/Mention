@@ -67,8 +67,8 @@ export function isOwnProfileLink(url: string): boolean {
  * URL extractor about profile links, which is a worse trade for a case that needs
  * five links in one body to reach.
  */
-export function previewableUrls(text: string): string[] {
-  return extractUrls(text).filter(
+export function previewableUrls(text: string, isQuoted?: (url: string) => boolean): string[] {
+  return extractUrls(text, undefined, isQuoted).filter(
     (url) => !isOwnProfileLink(url) && parseHomiioCaseUrl(url) === null,
   );
 }
@@ -81,8 +81,14 @@ export function previewableUrls(text: string): string[] {
 export function postPreviewableUrls(
   content: { linkUrl?: string } | null | undefined,
   text: string | null | undefined,
+  isQuoted?: (url: string) => boolean,
 ): string[] {
-  return [...new Set([...previewableUrls(content?.linkUrl ?? ''), ...previewableUrls(text ?? '')])];
+  return [
+    ...new Set([
+      ...previewableUrls(content?.linkUrl ?? '', isQuoted),
+      ...previewableUrls(text ?? '', isQuoted),
+    ]),
+  ];
 }
 
 /**
@@ -111,9 +117,8 @@ export function quotedPostUrls(
   return [...out];
 }
 
-/** `urls` without those that name the quoted post (compared as parsed hrefs, fragment dropped). */
-export function withoutQuotedPostUrls(urls: string[], quotedUrls: readonly string[]): string[] {
-  if (quotedUrls.length === 0) return urls;
+/** Whether a URL names the quoted post (compared as parsed hrefs, fragment and trailing slash dropped). */
+export function quotedPostUrlMatcher(quotedUrls: readonly string[]): (url: string) => boolean {
   const key = (url: string) => {
     try {
       const parsed = new URL(url);
@@ -124,7 +129,7 @@ export function withoutQuotedPostUrls(urls: string[], quotedUrls: readonly strin
     }
   };
   const quoted = new Set(quotedUrls.map(key));
-  return urls.filter((url) => !quoted.has(key(url)));
+  return (url) => quoted.has(key(url));
 }
 
 /**

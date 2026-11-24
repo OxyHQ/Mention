@@ -20,8 +20,14 @@ const URL_ONLY = ['url'] as const;
  * URLs are deduplicated preserving first-occurrence order, matches that are not
  * parseable as a URL are discarded, and the result is capped at `max` (default
  * {@link MAX_POST_DOCUMENTS}) — the number of preview cards a post renders.
+ * `exclude` drops a URL BEFORE it counts toward the cap, so a link that gets no
+ * card (the quoted post's) never takes a slot from one that does.
  */
-export function extractUrls(text: string, max: number = MAX_POST_DOCUMENTS): string[] {
+export function extractUrls(
+  text: string,
+  max: number = MAX_POST_DOCUMENTS,
+  exclude?: (url: string) => boolean,
+): string[] {
   if (!text || max <= 0) return [];
 
   const urls: string[] = [];
@@ -41,7 +47,7 @@ export function extractUrls(text: string, max: number = MAX_POST_DOCUMENTS): str
       continue;
     }
 
-    if (seen.has(url)) continue;
+    if (exclude?.(url) || seen.has(url)) continue;
     seen.add(url);
     urls.push(url);
 

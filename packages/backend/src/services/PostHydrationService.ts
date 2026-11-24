@@ -107,9 +107,9 @@ import {
 import { loadRecentReplierIds } from './PostRecentReplierService';
 import {
   postPreviewableUrls,
+  quotedPostUrlMatcher,
   quotedPostUrls,
   resolveClarityDocuments,
-  withoutQuotedPostUrls,
 } from '../utils/clarityDocuments';
 import {
   languageLadder,
@@ -2619,9 +2619,10 @@ export class PostHydrationService {
       const text = resolvedMap.get(postId)?.text;
       // A link to the quoted post is that post's embed, not a card of its own.
       const quotedId = this.extractReferenceIds({ quoteOf: post.quoteOf })[0];
-      const urls = withoutQuotedPostUrls(
-        postPreviewableUrls(post.content, typeof text === 'string' ? text : undefined),
-        quotedPostUrls(quotedId ? postsById.get(quotedId) : undefined),
+      const urls = postPreviewableUrls(
+        post.content,
+        typeof text === 'string' ? text : undefined,
+        quotedPostUrlMatcher(quotedPostUrls(quotedId ? postsById.get(quotedId) : undefined)),
       );
       if (urls.length === 0) continue;
 

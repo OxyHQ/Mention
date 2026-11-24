@@ -31,7 +31,8 @@ import {
   clarityHostedDocument,
   resolveClarityDocuments,
   quotedPostUrls,
-  withoutQuotedPostUrls,
+  quotedPostUrlMatcher,
+  postPreviewableUrls,
 } from '../../utils/clarityDocuments';
 
 function document(url: string) {
@@ -237,17 +238,19 @@ it('never asks Clarity for a Homiio case or uses a snapshot fallback', async () 
   expect(result.pending.size).toBe(0);
 });
 
-describe('quotedPostUrls / withoutQuotedPostUrls', () => {
-  it('drops a link naming the quoted post, in any spelling of its url, and keeps the rest', () => {
+describe('quoted post links', () => {
+  it('give no card and no slot of the cap, in any spelling of the quoted url', () => {
     const quoted = quotedPostUrls({
       id: 'q1',
-      federation: {
-        url: 'https://x.com/chatgpt/status/1',
-        activityId: 'https://x.com/chatgpt/status/1',
-      },
+      federation: { url: 'https://x.com/chatgpt/status/1' },
     });
-    expect(
-      withoutQuotedPostUrls(['https://x.com/chatgpt/status/1/', 'https://example.com/a'], quoted),
-    ).toEqual(['https://example.com/a']);
+    const body =
+      'https://x.com/chatgpt/status/1/ https://a.example https://b.example https://c.example https://d.example';
+    expect(postPreviewableUrls(undefined, body, quotedPostUrlMatcher(quoted))).toEqual([
+      'https://a.example/',
+      'https://b.example/',
+      'https://c.example/',
+      'https://d.example/',
+    ]);
   });
 });

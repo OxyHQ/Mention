@@ -1,5 +1,5 @@
 import type { ClarityDocument } from '@mention/shared-types/post';
-import { documentByline, postLinkCards, withoutCardLinks } from '../postLinkCards';
+import { documentByline, postLinkCards, quotedLinkUrls, withoutCardLinks } from '../postLinkCards';
 
 const ARTICLE =
   'https://www.nytimes.com/2026/09/18/technology/google-gemini-ai.html?unlocked_article_code=1.CVE&smid=nytcore-ios-share';
@@ -11,6 +11,20 @@ describe('postLinkCards / withoutCardLinks', () => {
     const cards = postLinkCards(text, [], [`${quoted}/`]);
     expect(cards.map((card) => card.url)).toEqual([ARTICLE]);
     expect(withoutCardLinks(text, cards, [`${quoted}/`])).toBe('Big news');
+  });
+
+  it('treats a link Clarity resolved to the quoted post as the quote, and gives it no slot', () => {
+    const quoted = 'https://x.com/a/status/1';
+    const alias = `${quoted}?s=20`;
+    const document = { canonicalUrl: quoted, requestedUrl: alias } as ClarityDocument;
+    const others = ['b', 'c', 'd', 'e'].map((host) => `https://${host}.example/`);
+    const text = `${alias}\n${others.join(' ')}`;
+    const aliases = quotedLinkUrls([document], [quoted]);
+    expect(aliases).toEqual([quoted, alias]);
+    expect(postLinkCards(text, [document], [quoted]).map((card) => card.url)).toEqual(
+      others.slice(0, 4),
+    );
+    expect(withoutCardLinks(text, [], aliases).startsWith('https://b.example')).toBe(true);
   });
 
   it('drops a trailing link its card shows, even before Clarity has a document', () => {
