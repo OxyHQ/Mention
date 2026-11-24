@@ -1,0 +1,57 @@
+diff --git a/android/src/main/java/expo/modules/updates/launcher/DatabaseLauncher.kt b/android/src/main/java/expo/modules/updates/launcher/DatabaseLauncher.kt
+index 1927ef2..086677a 100644
+--- a/android/src/main/java/expo/modules/updates/launcher/DatabaseLauncher.kt
++++ b/android/src/main/java/expo/modules/updates/launcher/DatabaseLauncher.kt
+@@ -148,6 +148,8 @@ class DatabaseLauncher(
+     val launchableUpdates = database.updateDao().loadLaunchableUpdatesForScope(configuration.scopeKey)
+ 
+     val embeddedUpdate = EmbeddedManifestUtils.getOriginalEmbeddedUpdate(context, configuration)
++    // The embedded update `launch` resolves missing assets from.
++    val launchEmbeddedUpdate = EmbeddedManifestUtils.getEmbeddedUpdate(context, configuration)
+     val filteredLaunchableUpdates = mutableListOf<UpdateEntity>()
+     for (update in launchableUpdates) {
+       // We can only run an update marked as embedded if it's actually the update embedded in the
+@@ -162,13 +164,23 @@ class DatabaseLauncher(
+         continue
+       }
+ 
+-      // An update with no launch asset can never launch. Excluding it here lets the loader
+-      // re-run and repair the row instead of failing every cold start.
+-      if (update.status != UpdateStatus.DEVELOPMENT &&
+-        database.updateDao().loadLaunchAssetForUpdate(update.id) == null
+-      ) {
+-        logger.warn("Skipping launchable update with no launch asset. Debug info: ${update.debugInfo()}")
+-        continue
++      if (update.status != UpdateStatus.DEVELOPMENT) {
++        // An update with no launch asset can never launch. Excluding it here lets the loader
++        // re-run and repair the row instead of failing every cold start.
++        val launchAsset = database.updateDao().loadLaunchAssetForUpdate(update.id)
++        if (launchAsset == null) {
++          logger.warn("Skipping launchable update with no launch asset. Debug info: ${update.debugInfo()}")
++          continue
++        }
++        // Nor can one whose launch asset is on neither disk, this binary nor a server: the
++        // update embedded in a previously installed binary. With copying off, Android marks an
++        // embedded update READY (iOS keeps it EMBEDDED, which the check above skips), so it
++        // stays launchable after the binary changes. Selecting it fails the launch, and the
++        // loader then waits for the network check before falling back on every cold start.
++        if (!isLaunchAssetAvailable(launchAsset, launchEmbeddedUpdate)) {
++          logger.warn("Skipping launchable update whose launch asset is not on disk, in this binary or at a URL. Debug info: ${update.debugInfo()}")
++          continue
++        }
+       }
+       filteredLaunchableUpdates.add(update)
+     }
+@@ -176,6 +188,12 @@ class DatabaseLauncher(
+     return selectionPolicy.selectUpdateToLaunch(filteredLaunchableUpdates, manifestFilters)
+   }
+ 
++  /** Whether `launch` can load this launch asset: from disk, from this binary or from its URL. */
++  private fun isLaunchAssetAvailable(launchAsset: AssetEntity, embeddedUpdate: EmbeddedUpdate?): Boolean =
++    launchAsset.url != null ||
++      embeddedUpdate?.assetEntityList?.any { it.key == launchAsset.key } == true ||
++      launchAsset.relativePath?.let { File(updatesDirectory, it).exists() } == true
++
+   private fun embeddedAssetFileMap(): MutableMap<AssetEntity, String> {
+     val embeddedManifest = EmbeddedManifestUtils.getEmbeddedUpdate(context, configuration)
+     val embeddedAssets = embeddedManifest?.assetEntityList ?: listOf()
