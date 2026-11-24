@@ -306,6 +306,8 @@ export const blockedDomainPurges = pgTable(
     measuredPosts: integer(),
     measuredActors: integer(),
     measuredBoosts: integer(),
+    // Expand-phase twin of `measuredBoosts` (docs/repost-rename.md); a trigger keeps the two equal.
+    measuredReposts: integer(),
     measuredLikes: integer(),
     measuredNotifications: integer(),
     measuredMediaCacheRows: integer(),
@@ -368,6 +370,8 @@ export const blockedDomainPurgeRuns = pgTable(
     removedPosts: integer().notNull(),
     removedActors: integer().notNull(),
     removedBoosts: integer().notNull(),
+    // Expand-phase twin of `removedBoosts` (docs/repost-rename.md); a trigger keeps the two equal. Defaults to 0 only so the column can be added.
+    removedReposts: integer().notNull().default(0),
     removedLikes: integer().notNull(),
     removedNotifications: integer().notNull(),
     removedMediaCacheRows: integer().notNull(),

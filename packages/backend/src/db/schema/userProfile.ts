@@ -165,6 +165,8 @@ export const userBehaviorAuthors = pgTable(
     lastInteractionAt: timestamptz().notNull().defaultNow(),
     likes: integer().notNull().default(0),
     boosts: integer().notNull().default(0),
+    // Expand-phase twin of `boosts` (docs/repost-rename.md); a trigger keeps the two equal.
+    reposts: integer().notNull().default(0),
     comments: integer().notNull().default(0),
     saves: integer().notNull().default(0),
     shares: integer().notNull().default(0),
@@ -359,6 +361,8 @@ export const userSettings = pgTable(
     notifyPushEnabled: boolean().notNull().default(true),
     notifyLikes: boolean().notNull().default(true),
     notifyBoosts: boolean().notNull().default(true),
+    // Expand-phase twin of `notifyBoosts` (docs/repost-rename.md); a trigger keeps the two equal.
+    notifyReposts: boolean().notNull().default(true),
     notifyFollows: boolean().notNull().default(true),
     notifyMentions: boolean().notNull().default(true),
     notifyReplies: boolean().notNull().default(true),

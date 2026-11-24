@@ -22,6 +22,17 @@ rolls (old and new pods side by side) never meets a name it cannot read.
 5. **Contract.** Once nothing reads the old names: drop the old columns, indexes
    and the trigger (`deploy-phase=post`).
 
+## The smaller tables
+
+Migrations 0127 and 0128 add the twin columns for `author_post_counts.reposts_count`,
+`user_behavior_authors.reposts`, `custom_feeds.include_reposts`,
+`blocked_domain_purge_runs.removed_reposts`, `blocked_domain_purges.measured_reposts`
+and `user_settings.notify_reposts` (`user_settings` is hot, so alone in 0128), each with
+a trigger that keeps the pair equal. The tables with a few thousand rows are copied inside
+the migration; `author_post_counts` is copied by the backfill. At the contract step the
+two blocklist tables need their `CHECK` constraints re-stated over the new columns before
+the old ones are dropped.
+
 ## Running the backfill
 
 After the deploy that carries 0126:

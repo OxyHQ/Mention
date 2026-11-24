@@ -890,6 +890,20 @@
       "when": 1795529205401,
       "tag": "0126_posts_repost_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1795558485702,
+      "tag": "0127_repost_columns_small_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1795558486702,
+      "tag": "0128_user_settings_notify_reposts",
+      "breakpoints": true
     }
   ]
 }
