@@ -22,6 +22,7 @@ import type { RemoteLinkPreview } from '../shared/linkPreviews';
 import { declaredApLanguage, extractApLanguage, getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { expandVariantTcoLinks } from './tcoLinks';
+import { completeBridgedBody } from './xFullText';
 import { rewriteMirrorUrls } from '../../utils/federation/mirrorTransports';
 import { metrics } from '../../utils/metrics';
 
@@ -543,9 +544,12 @@ async function assembleFederatedNoteContent(
   });
 
   const primaryHtml = extractApContentHtml(source);
-  const rawText = removeDeclaredCustomEmoji(
-    htmlToPlainText(primaryHtml, { preserveMentionLinks: true }),
-    customEmojiNames,
+  const rawText = await completeBridgedBody(
+    object.id,
+    removeDeclaredCustomEmoji(
+      htmlToPlainText(primaryHtml, { preserveMentionLinks: true }),
+      customEmojiNames,
+    ),
   );
 
   // Run the centralized hashtag normalizer on every path so an all-hashtag post
