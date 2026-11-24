@@ -61,7 +61,9 @@ type HandledPostKey =
   | 'originalPost'
   | 'quotedPost'
   | 'quotedPostUnavailable'
+  // `boost` is the deprecated duplicate of `repost` the server still emits for older clients; it is not carried.
   | 'boost'
+  | 'repost'
   | 'context';
 
 type UnhandledPostKey = Exclude<keyof HydratedPost, HandledPostKey>;
@@ -88,12 +90,12 @@ export function toFeedItem(
     canIncludeRelated && hydrated.quotedPost
       ? toFeedItem(hydrated.quotedPost, { nestingDepth: nestingDepth + 1 })
       : null;
-  const repost = hydrated.boost
+  const repost = hydrated.repost
     ? {
-        ...hydrated.boost,
+        ...hydrated.repost,
         originalPost:
-          canIncludeRelated && hydrated.boost.originalPost
-            ? toFeedItem(hydrated.boost.originalPost, { nestingDepth: nestingDepth + 1 })
+          canIncludeRelated && hydrated.repost.originalPost
+            ? toFeedItem(hydrated.repost.originalPost, { nestingDepth: nestingDepth + 1 })
             : null,
       }
     : null;
@@ -149,7 +151,7 @@ export function toFeedItem(
     originalPost,
     quotedPost,
     quotedPostUnavailable: hydrated.quotedPostUnavailable,
-    boost: repost,
+    repost,
     context: hydrated.context,
     date: post.metadata.createdAt,
     mediaIds,

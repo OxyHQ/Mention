@@ -79,7 +79,7 @@ function post(id: string, viewerState: Partial<HydratedPost['viewerState']> = {}
       createdAt: '2026-09-01T00:00:00.000Z',
       updatedAt: '2026-09-01T00:00:00.000Z',
     },
-    engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0 },
+    engagement: { likes: 0, downvotes: 0, reposts: 0, replies: 0 },
     viewerState: { isOwner: false, isSaved: false, ...viewerState },
     permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },
   } as HydratedPost;

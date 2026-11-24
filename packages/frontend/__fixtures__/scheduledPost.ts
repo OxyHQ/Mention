@@ -30,7 +30,7 @@ export function scheduledPostFixture(
     engagement: {
       likes: 0,
       downvotes: 0,
-      boosts: 0,
+      reposts: 0,
       replies: 0,
     },
     viewerState: {
@@ -38,7 +38,7 @@ export function scheduledPostFixture(
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: false,
     },
     permissions: {

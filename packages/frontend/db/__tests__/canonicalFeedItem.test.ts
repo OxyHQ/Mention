@@ -30,7 +30,7 @@ function makePost(id: string, overrides: Partial<HydratedPost> = {}): HydratedPo
     engagement: {
       likes: 3,
       downvotes: 1,
-      boosts: 2,
+      reposts: 2,
       replies: 4,
       saves: 5,
       views: 6,
@@ -41,7 +41,7 @@ function makePost(id: string, overrides: Partial<HydratedPost> = {}): HydratedPo
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: false,
     },
     permissions: {
@@ -63,9 +63,9 @@ describe('canonical post cache contract', () => {
   it('retains a boosted quote and its commentary through the disk round trip', () => {
     const original = makePost('original');
     const quote = makePost('quote', { quotedPost: original });
-    const repost = makePost('boost', { boost: { actor: original.user, originalPost: quote } });
+    const repost = makePost('boost', { repost: { actor: original.user, originalPost: quote } });
     const restored = rowToFeedItem(postToRow(toFeedItem(repost)));
-    const restoredQuote: HydratedPost | null | undefined = restored?.boost?.originalPost;
+    const restoredQuote: HydratedPost | null | undefined = restored?.repost?.originalPost;
     expect(restoredQuote?.content.text).toBe('post quote');
     expect(restoredQuote?.quotedPost?.content.text).toBe('post original');
   });
@@ -144,14 +144,14 @@ describe('canonical post cache contract', () => {
     const original: HydratedPostSummary = makePost('original');
     const repost = makePost('boost', {
       content: { text: '' },
-      boost: {
+      repost: {
         actor: makePost('actor').user,
         originalPost: original,
       },
     });
 
     const item = toFeedItem(repost);
-    const embedded = item.boost?.originalPost;
+    const embedded = item.repost?.originalPost;
 
     expect(embedded?.id).toBe('original');
     expect(embedded?.viewerState).toEqual(original.viewerState);

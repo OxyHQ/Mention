@@ -76,8 +76,8 @@ export function hasUnresolvedAuthor(items: readonly HydratedPost[]): boolean {
   return items.some(
     (post) =>
       unresolved(post.user) ||
-      unresolved(post.boost?.actor) ||
-      unresolved((post.boost?.originalPost ?? post.quotedPost ?? post.originalPost)?.user),
+      unresolved(post.repost?.actor) ||
+      unresolved((post.repost?.originalPost ?? post.quotedPost ?? post.originalPost)?.user),
   );
 }
 
@@ -123,7 +123,7 @@ export function removeFeedPost(data: FeedQueryData, postId: string): FeedQueryDa
       getItemKey(post),
       post.originalPost?.id,
       post.quotedPost?.id,
-      post.boost?.originalPost?.id,
+      post.repost?.originalPost?.id,
     ].includes(postId);
   let changed = false;
   const pages = data.pages.map((page) => {

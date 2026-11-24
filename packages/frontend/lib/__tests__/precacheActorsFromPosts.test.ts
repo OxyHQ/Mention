@@ -65,7 +65,7 @@ describe('precacheActorsFromPosts — extraction', () => {
       {
         user: { id: 'booster-1', username: 'booster' },
         originalPost: { user: { id: 'orig-1', username: 'orig' } },
-        boost: {
+        repost: {
           actor: { id: 'booster-1', username: 'booster' },
           originalPost: { user: { id: 'orig-1', username: 'orig' } },
         },

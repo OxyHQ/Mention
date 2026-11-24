@@ -184,7 +184,7 @@ const makePost = (id: string): FeedItem => ({
     isCollaborator: false,
     isLiked: false,
     isDownvoted: false,
-    isBoosted: false,
+    isReposted: false,
     isSaved: false,
   },
   permissions: {
@@ -196,7 +196,7 @@ const makePost = (id: string): FeedItem => ({
   engagement: {
     likes: 0,
     downvotes: 0,
-    boosts: 0,
+    reposts: 0,
     replies: 0,
     saves: 0,
     views: null,
@@ -274,7 +274,7 @@ describe('postsStore keyed SQLite reactivity', () => {
     const repost = makePost('boost');
     repost.content = { text: '' };
     repost.originalPost = repostOriginal;
-    repost.boost = {
+    repost.repost = {
       actor: repost.user,
       originalPost: repostOriginal,
     };
@@ -288,7 +288,7 @@ describe('postsStore keyed SQLite reactivity', () => {
       usePostsStore.getState().cachePosts([repost, quote]);
     });
 
-    expect(mockPosts.get('boost')?.boost?.originalPost?.id).toBe('boost-original');
+    expect(mockPosts.get('boost')?.repost?.originalPost?.id).toBe('boost-original');
     expect(mockPosts.get('quote')?.quotedPost?.id).toBe('quoted-post');
     expect(mockPosts.get('boost')).not.toHaveProperty('original');
     expect(mockPosts.get('quote')).not.toHaveProperty('quoted');

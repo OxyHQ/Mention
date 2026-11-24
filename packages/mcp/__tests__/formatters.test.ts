@@ -8,7 +8,7 @@ describe('post formatter', () => {
       content: { text: 'Canonical state' },
       viewerState: {
         isLiked: true,
-        isBoosted: true,
+        isReposted: true,
         isSaved: true,
       },
     });

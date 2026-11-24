@@ -234,7 +234,7 @@ function viewerState(overrides: Partial<PostViewerState>): PostViewerState {
     isCollaborator: false,
     isLiked: false,
     isDownvoted: false,
-    isBoosted: false,
+    isReposted: false,
     isSaved: false,
     ...overrides,
   };
@@ -251,7 +251,7 @@ function collabPost(state: PostViewerState): HydratedPost {
     attachments: {},
     user: { id: 'owner-1', username: 'owner', name: { displayName: 'Owner' } },
     authors: [],
-    engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0 },
+    engagement: { likes: 0, downvotes: 0, reposts: 0, replies: 0 },
     viewerState: state,
     permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },
     metadata: {

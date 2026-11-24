@@ -59,14 +59,14 @@ const post = (id: string): FeedItem =>
     authors: [],
     content: { text: `post ${id}` },
     attachments: {},
-    engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0 },
+    engagement: { likes: 0, downvotes: 0, reposts: 0, replies: 0 },
     permissions: { canReply: true, canDelete: false, canPin: false, canViewSources: false },
     viewerState: {
       isOwner: false,
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: false,
     },
     metadata: {

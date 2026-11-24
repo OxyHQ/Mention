@@ -253,7 +253,7 @@ describe('live post engagement counts, over a real socket', () => {
       actorId: OTHER_ACTOR_ID,
     });
     await waitFor(
-      () => storedPost(WATCHED_POST).engagement.boosts === 4,
+      () => storedPost(WATCHED_POST).engagement.reposts === 4,
       'the foreign boost event to land',
     );
 
@@ -284,7 +284,7 @@ describe('live post engagement counts, over a real socket', () => {
       actorId: OTHER_ACTOR_ID,
     });
     await waitFor(
-      () => storedPost(WATCHED_POST).engagement.boosts === 4,
+      () => storedPost(WATCHED_POST).engagement.reposts === 4,
       'the foreign boost event to land',
     );
 
@@ -317,7 +317,7 @@ describe('live post engagement counts, over a real socket', () => {
       'the batched events to land',
     );
     expect(storedPost(WATCHED_POST).engagement.likes).toBe(50);
-    expect(storedPost(WATCHED_POST).engagement.boosts).toBe(9);
+    expect(storedPost(WATCHED_POST).engagement.reposts).toBe(9);
   });
 
   it('takes the newest value within one batch, even when it is lower', async () => {

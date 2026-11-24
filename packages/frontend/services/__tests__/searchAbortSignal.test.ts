@@ -80,7 +80,7 @@ const canonicalSearchPost: HydratedPost = {
   engagement: {
     likes: 1,
     downvotes: 0,
-    boosts: 0,
+    reposts: 0,
     replies: 0,
   },
   viewerState: {
@@ -88,7 +88,7 @@ const canonicalSearchPost: HydratedPost = {
     isCollaborator: false,
     isLiked: true,
     isDownvoted: false,
-    isBoosted: false,
+    isReposted: false,
     isSaved: false,
   },
   permissions: {

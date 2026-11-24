@@ -388,7 +388,7 @@ describe('mapPostOg for search', () => {
       user: author,
       content: { text: 'hello world' },
       metadata: { createdAt: '2026-10-01T10:00:00.000Z', updatedAt: '2026-10-01T11:00:00.000Z' },
-      engagement: { likes: 12, downvotes: 0, boosts: 3, replies: 4 },
+      engagement: { likes: 12, downvotes: 0, reposts: 3, replies: 4 },
       ...overrides,
     } as unknown as HydratedPost;
   }
@@ -450,7 +450,7 @@ describe('mapPostOg for search', () => {
 
   it('says nothing about counts the author hid', () => {
     const og = mapPostOg(
-      post({ engagement: { likes: null, downvotes: null, boosts: null, replies: null } }),
+      post({ engagement: { likes: null, downvotes: null, reposts: null, replies: null } }),
       'p1',
       SAFE,
     );

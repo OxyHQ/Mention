@@ -118,7 +118,7 @@ function topLevelPosts(page: FeedResponse | SlicedFeedResponse): HydratedPost[] 
 function renderedSummaries(posts: readonly HydratedPost[]): HydratedPostSummary[] {
   const seen = new Set<HydratedPostSummary>();
   for (const post of posts) {
-    for (const summary of [post, post.quotedPost, post.originalPost, post.boost?.originalPost])
+    for (const summary of [post, post.quotedPost, post.originalPost, post.repost?.originalPost])
       if (summary) seen.add(summary);
   }
   return [...seen];

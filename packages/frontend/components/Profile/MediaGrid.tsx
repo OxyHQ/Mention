@@ -156,7 +156,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
 
       // Related media is embedded by the canonical hydrated contract, so it
       // works identically on web and native without a second SQLite lookup.
-      const embeddedOriginal = p.boost?.originalPost ?? p.quotedPost ?? p.originalPost ?? null;
+      const embeddedOriginal = p.repost?.originalPost ?? p.quotedPost ?? p.originalPost ?? null;
       if (embeddedOriginal) {
         extractFrom(embeddedOriginal, String(p.id));
       }

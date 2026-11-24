@@ -91,7 +91,11 @@ export const ZEmbeddedPost = z
     documentsPending: z.boolean().optional(),
     engagement: z.looseObject({
       replies: z.number().nullable(),
-      boosts: z.number().nullable(),
+      // Both names are accepted while the rename settles: a server that has not
+      // been updated yet only sends `boosts`, and failing here would drop the
+      // whole notification.
+      reposts: z.number().nullable().optional(),
+      boosts: z.number().nullable().optional(),
       likes: z.number().nullable(),
       downvotes: z.number().nullable(),
       saves: z.number().nullable().optional(),
@@ -103,7 +107,8 @@ export const ZEmbeddedPost = z
       isCollaborator: z.boolean(),
       isLiked: z.boolean(),
       isDownvoted: z.boolean(),
-      isBoosted: z.boolean(),
+      isReposted: z.boolean().optional(),
+      isBoosted: z.boolean().optional(),
       isSaved: z.boolean(),
       collabInvitePending: z.boolean().optional(),
       viewerRole: z.enum(['owner', 'collaborator']).optional(),

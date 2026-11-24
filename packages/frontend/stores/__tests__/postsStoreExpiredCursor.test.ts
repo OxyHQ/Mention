@@ -22,7 +22,7 @@ jest.mock('@/db', () => ({
   getPostIdsReferencing: (ids: string[]) =>
     [...mockPosts.values()]
       .filter((post) =>
-        [post.originalPost?.id, post.quotedPost?.id, post.boost?.originalPost?.id].some(
+        [post.originalPost?.id, post.quotedPost?.id, post.repost?.originalPost?.id].some(
           (id) => id && ids.includes(id),
         ),
       )

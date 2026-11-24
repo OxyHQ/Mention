@@ -369,7 +369,7 @@ describe('engagement queue across session changes', () => {
           finishRead = resolve;
         }),
       );
-      let engagement = { likes: 0, boosts: 0 };
+      let engagement = { likes: 0, reposts: 0 };
       mockUpdatePost.mockImplementation((_postId, update) => {
         engagement = update({ engagement }).engagement;
       });
@@ -386,11 +386,11 @@ describe('engagement queue across session changes', () => {
         JSON.stringify({
           version: 2,
           viewerId: 'viewer-a',
-          updates: { post: [{ counts: { likes: 5, boosts: 7 }, timestamp: 123 }] },
+          updates: { post: [{ counts: { likes: 5, reposts: 7 }, timestamp: 123 }] },
         }),
       );
       for (let i = 0; i < 40; i++) await Promise.resolve();
-      expect(engagement).toEqual({ likes: 10, boosts: 7 });
+      expect(engagement).toEqual({ likes: 10, reposts: 7 });
       mockUpdatePost.mockReset();
     },
   );
@@ -403,7 +403,7 @@ describe('engagement queue across session changes', () => {
         finishRead = resolve;
       }),
     );
-    let engagement = { likes: 0, boosts: 0 };
+    let engagement = { likes: 0, reposts: 0 };
     mockUpdatePost.mockImplementation((_postId, update) => {
       engagement = update({ engagement }).engagement;
     });
@@ -420,11 +420,11 @@ describe('engagement queue across session changes', () => {
       JSON.stringify({
         version: 2,
         viewerId: 'viewer-a',
-        updates: { post: [{ counts: { likes: 5, boosts: 7 }, timestamp: 123 }] },
+        updates: { post: [{ counts: { likes: 5, reposts: 7 }, timestamp: 123 }] },
       }),
     );
     for (let i = 0; i < 40; i++) await Promise.resolve();
-    expect(engagement).toEqual({ likes: 10, boosts: 7 });
+    expect(engagement).toEqual({ likes: 10, reposts: 7 });
     mockUpdatePost.mockReset();
   });
 

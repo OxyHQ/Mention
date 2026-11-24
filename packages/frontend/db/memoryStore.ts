@@ -70,7 +70,7 @@ export function memGetPostIdsReferencing(ids: readonly string[]): string[] {
   const revoked = new Set(ids);
   return [...posts.values()]
     .filter((post) =>
-      [post.originalPost?.id, post.quotedPost?.id, post.boost?.originalPost?.id].some(
+      [post.originalPost?.id, post.quotedPost?.id, post.repost?.originalPost?.id].some(
         (id) => id !== undefined && revoked.has(id),
       ),
     )

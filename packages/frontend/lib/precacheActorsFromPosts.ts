@@ -23,7 +23,7 @@ interface PostWithActors {
   user?: CacheableUser;
   originalPost?: { user?: CacheableUser } | null;
   quotedPost?: { user?: CacheableUser } | null;
-  boost?: {
+  repost?: {
     actor?: CacheableUser;
     originalPost?: { user?: CacheableUser } | null;
   } | null;
@@ -43,9 +43,9 @@ export function precacheActorsFromPosts(posts: readonly unknown[] | null | undef
     if (!raw || typeof raw !== 'object') continue;
     const p = raw as PostWithActors;
     if (p.user?.id) users.push(p.user);
-    const relatedPost = p.boost?.originalPost ?? p.quotedPost ?? p.originalPost;
+    const relatedPost = p.repost?.originalPost ?? p.quotedPost ?? p.originalPost;
     if (relatedPost?.user) users.push(relatedPost.user);
-    if (p.boost?.actor) users.push(p.boost.actor);
+    if (p.repost?.actor) users.push(p.repost.actor);
   }
 
   // Through `lib/actorCache`, like every other surface that primes an actor:

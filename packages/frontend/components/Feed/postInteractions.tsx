@@ -138,7 +138,7 @@ function createController(): Controller {
     toggleRepost: (post, source) => {
       if (!interactions.requireSession()) return Promise.resolve();
       const store = usePostsStore.getState();
-      const isReposted = currentPost(post).viewerState?.isBoosted ?? false;
+      const isReposted = currentPost(post).viewerState?.isReposted ?? false;
       return guarded(
         `${post.id}:boost`,
         () =>

@@ -103,13 +103,13 @@ function post(id: string, viewerState: Partial<HydratedPost['viewerState']> = {}
       createdAt: '2026-09-01T00:00:00.000Z',
       updatedAt: '2026-09-01T00:00:00.000Z',
     },
-    engagement: { likes: 0, downvotes: 0, boosts: 0, replies: 0 },
+    engagement: { likes: 0, downvotes: 0, reposts: 0, replies: 0 },
     viewerState: {
       isOwner: false,
       isCollaborator: false,
       isLiked: false,
       isDownvoted: false,
-      isBoosted: false,
+      isReposted: false,
       isSaved: false,
       ...viewerState,
     },
@@ -171,7 +171,7 @@ describe('engagement commands', () => {
   });
 
   it('falls back to the row copy when the store has never seen the post', async () => {
-    await interactions().toggleRepost(post('web-only', { isBoosted: true }));
+    await interactions().toggleRepost(post('web-only', { isReposted: true }));
     expect(mockStore.unrepostPost).toHaveBeenCalledWith({ postId: 'web-only' });
   });
 
