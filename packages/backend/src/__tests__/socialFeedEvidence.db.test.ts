@@ -222,7 +222,9 @@ describe('social evidence query plan', () => {
       sql`insert into posts (id,oxy_user_id,type,visibility,status,created_at) select ${planAuthor} || '-' || i::text, ${planAuthor}, 'text','public','published',date_trunc('milliseconds',now())-interval '1 hour' from generate_series(1,10000) i`,
     );
     await getDb().execute(sql`analyze posts`);
-  });
+    // The 10k-row insert and ANALYZE ran past the 10 s default hook deadline on a
+    // loaded CI shard (coverage on), failing a test that is about the query plan.
+  }, 60_000);
   afterAll(async () => {
     const { posts } = await import('../db/schema');
     await getDb().delete(posts).where(eq(posts.oxyUserId, planAuthor));
