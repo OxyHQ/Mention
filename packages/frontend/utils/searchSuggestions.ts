@@ -20,7 +20,7 @@ const USER_OPERATOR_PREFIXES = ['from', 'to'] as const;
 /**
  * Operators with a CLOSED value set, which is what makes completing them
  * honest — every suggestion is a value the backend actually recognizes.
- * `since`/`until`/`min_likes`/`min_boosts` are deliberately absent: their values
+ * `since`/`until`/`min_likes`/`min_reposts` are deliberately absent: their values
  * are open-ended, so there is nothing truthful to offer.
  */
 const CLOSED_OPERATOR_VALUES: Record<string, readonly string[]> = {

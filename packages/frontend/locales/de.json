@@ -2907,7 +2907,7 @@
       "since": "Beiträge nach einem Datum",
       "until": "Beiträge vor einem Datum",
       "min_likes": "Mindestanzahl Likes",
-      "min_boosts": "Mindestanzahl Boosts",
+      "min_reposts": "Mindestanzahl Boosts",
       "fromMe": "Deine eigenen Beiträge",
       "to": "Beiträge, die einen bestimmten Nutzer erwähnen",
       "toMe": "Beiträge, die dich erwähnen",

@@ -2907,7 +2907,7 @@
       "since": "Posts after a date",
       "until": "Posts before a date",
       "min_likes": "Minimum likes",
-      "min_boosts": "Minimum boosts",
+      "min_reposts": "Minimum boosts",
       "fromMe": "Your own posts",
       "to": "Posts mentioning a specific user",
       "toMe": "Posts mentioning you",

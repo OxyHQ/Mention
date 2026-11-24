@@ -197,7 +197,7 @@ interface FeedDataEnvelope {
 }
 
 interface PostEngagementUsersResponse {
-  // The engagement endpoints (`GET /posts/:id/likes` and `.../boosts`) return the
+  // The engagement endpoints (`GET /posts/:id/likes` and `.../reposts`) return the
   // canonical Oxy `PostUser` per liker/booster (same shape as `post.user`) —
   // `username` + structured `name.displayName`, NOT a flat `{ displayName, handle }`.
   // The renderer derives the `@handle` via `getNormalizedUserHandle`.
@@ -679,7 +679,7 @@ class FeedService {
       ...(source ? { source } : {}),
     };
 
-    const response = await authenticatedClient.post('/feed/boost', backendRequest);
+    const response = await authenticatedClient.post('/feed/repost', backendRequest);
     return { success: true, boost: response.data };
   }
 
@@ -738,7 +738,7 @@ class FeedService {
    * Unboost a post
    */
   async unrepostItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
-    const response = await authenticatedClient.delete(`/feed/${request.postId}/boost`);
+    const response = await authenticatedClient.delete(`/feed/${request.postId}/repost`);
     return { success: true, data: response.data };
   }
 
@@ -1053,7 +1053,7 @@ class FeedService {
     if (cursor) params.cursor = cursor;
 
     const response = await authenticatedClient.get<PostEngagementUsersResponse>(
-      `/posts/${postId}/boosts`,
+      `/posts/${postId}/reposts`,
       { params },
     );
     return response.data;
