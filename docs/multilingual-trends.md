@@ -44,9 +44,9 @@ these hold, measured over the same 48-hour window:
 
 - their hourly **share of all posts** is strongly correlated (≥ 0.85). Shares,
   not counts: every term follows the network's daily rhythm, so counts alone
-  correlate unrelated terms at 0.9+. Hours with too few posts are ignored;
+  correlate unrelated terms at 0.9+. Hours with too few posts, or under a quarter of a typical hour (the newest hour is still arriving), are ignored;
 - they share at least 6 posts, and that is at least 20% of the smaller term's;
-- both have at least 20% of their window volume in the recent window;
+- both have a clear peak: at least 40% of their window volume falls in their busiest six hours (chronic subjects sit at 0.2-0.35, every name of a live story at 0.56-0.88). The peak is judged wherever it fell, so a story that peaked ten hours ago still joins;
 - the row stays under 12 original terms.
 
 It repeats up to three rounds, re-measuring the merged groups, because a

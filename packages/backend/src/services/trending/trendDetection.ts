@@ -23,7 +23,7 @@ import { isTrendStopWord } from './termExtraction';
 import { pickLabelTerm } from './trendLabeling';
 import { trendCandidateUnionSql } from './termSpace';
 import { buildClusterMap, clusterTrendTerms, type TrendTermPair } from './trendClustering';
-import { mergeSynchronizedTerms } from './trendSynchrony';
+import { mergeSynchronizedTerms, peakShare } from './trendSynchrony';
 import { buildTrendGraph, type TrendGraphNodeInput, type TrendGraphSnapshot } from './trendGraph';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
@@ -826,8 +826,8 @@ async function loadTermSeries(
  * Join terms of one story that are not written in the same posts, by the shape
  * of their day (see {@link mergeSynchronizedTerms}).
  *
- * Only terms that are already bursting are looked at, so the two queries run
- * over a few hundred terms rather than the vocabulary. Each round re-measures
+ * Series are read for every term common enough to share `minSharedPosts`, and
+ * only the terms with a clear peak go on to the pair query. Each round re-measures
  * the GROUPS the last round made: `Chinese` sits beside no single name of the
  * story but well inside the whole of it, and only the merged row shows that.
  *
@@ -848,31 +848,28 @@ async function mergeSynchronizedStories(
 
   const { windowMs, recentWindowMs } = MtnConfig.trending.detection;
   const bins = Math.max(2, Math.ceil(windowMs / synchrony.binMs));
-  const recentBins = Math.max(1, Math.round(recentWindowMs / synchrony.binMs));
+  const peakBins = Math.max(1, Math.round(recentWindowMs / synchrony.binMs));
   const rootOf = (term: string): string => aliases.get(term) ?? term;
-
-  // Bursting at the single-term level is the cheap gate for who is queried.
-  // A group is only bursting if some member is, so nothing is lost by it.
-  const bursting = solo.filter(
-    ({ measurement }) =>
-      measurement.volume >= synchrony.minSharedPosts &&
-      measurement.recentVolume / measurement.volume >= synchrony.minRecentShare,
-  );
+  // A pair cannot share `minSharedPosts` posts if either term is rarer than it.
+  const eligible = solo.filter(({ measurement }) => measurement.volume >= synchrony.minSharedPosts);
 
   try {
     const bin = binSql(windowStart, synchrony.binMs, bins);
     let corpus: number[] | null = null;
 
     for (let round = 0; round < synchrony.maxRounds; round += 1) {
-      const reps = [...new Set(bursting.map(({ measurement }) => rootOf(measurement.term)))];
-      if (reps.length < 2) break;
-
       const termsSql = clusteredTermsSql(aliases);
+      const rows = [...new Set(eligible.map(({ measurement }) => rootOf(measurement.term)))];
+      if (rows.length < 2) break;
+
+      // The cheap grouped scan first, so the expensive pair self-join only
+      // runs over the terms that actually have a peak.
       corpus ??= await loadBinTotals(windowMatch, bin, bins);
-      const [pairs, series] = await Promise.all([
-        loadTermPairs(windowMatch, reps, termsSql, synchrony.minSharedPosts),
-        loadTermSeries(windowMatch, bin, bins, reps, termsSql),
-      ]);
+      const series = await loadTermSeries(windowMatch, bin, bins, rows, termsSql);
+      const peaked = rows.filter(
+        (term) => peakShare(series.get(term) ?? [], peakBins) >= synchrony.minPeakShare,
+      );
+      const pairs = await loadTermPairs(windowMatch, peaked, termsSql, synchrony.minSharedPosts);
       if (pairs.length === 0) break;
 
       const membersByRoot = new Map<string, string[]>();
@@ -884,14 +881,14 @@ async function mergeSynchronizedStories(
       }
 
       const result = mergeSynchronizedTerms(
-        reps.flatMap((term) => {
+        peaked.flatMap((term) => {
           const counts = series.get(term);
           return counts
             ? [{ term, members: membersByRoot.get(term) ?? [term], series: counts }]
             : [];
         }),
         pairs,
-        recentBins,
+        peakBins,
         corpus,
         synchrony,
       );
