@@ -1,5 +1,5 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { ShellRouteSync, shellRouteOf, useShellRoute } from '../shellRoute';
+import { ShellRouteProvider, shellRouteOf, useShellRoute, type ShellRoute } from '../shellRoute';
 
 let mockPathname = '/';
 jest.mock('@/lib/navigation/router', () => ({ usePathname: () => mockPathname }));
@@ -13,19 +13,27 @@ it('names the facts the shell reads, not the path', () => {
 });
 
 it('changes the shell route only when one of its facts changes', async () => {
+  const seen: ShellRoute[] = [];
+  function Shell() {
+    seen.push(useShellRoute());
+    return null;
+  }
+  // The shell is the provider's child: it renders only when the facts change.
+  const shell = <Shell />;
   let renderer: TestRenderer.ReactTestRenderer | undefined;
+  mockPathname = '/';
   await act(async () => {
-    renderer = TestRenderer.create(<ShellRouteSync />);
+    renderer = TestRenderer.create(<ShellRouteProvider>{shell}</ShellRouteProvider>);
   });
-  const home = useShellRoute.getState();
+  expect(seen).toHaveLength(1);
   // A tab switch: the shell has nothing to redraw.
   mockPathname = '/notifications';
-  await act(async () => renderer?.update(<ShellRouteSync />));
-  expect(useShellRoute.getState()).toBe(home);
-  // A post: its reply prompt replaces the bar.
+  await act(async () => renderer?.update(<ShellRouteProvider>{shell}</ShellRouteProvider>));
+  expect(seen).toHaveLength(1);
+  // A post: its reply prompt replaces the bar, in the navigation's own render.
   mockPathname = '/p/abc';
-  await act(async () => renderer?.update(<ShellRouteSync />));
-  expect(useShellRoute.getState()).not.toBe(home);
-  expect(useShellRoute.getState().post).toBe(true);
+  await act(async () => renderer?.update(<ShellRouteProvider>{shell}</ShellRouteProvider>));
+  expect(seen).toHaveLength(2);
+  expect(seen[1]?.post).toBe(true);
   await act(async () => renderer?.unmount());
 });
