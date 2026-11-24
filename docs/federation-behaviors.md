@@ -416,6 +416,27 @@ URI (`connectors/oxyIdentity.ts`) and takes the user and `canonicalAcct` it
 returns. Mention keeps no merge, alias or equivalence logic of its own, so
 discovery order cannot change the answer (OxyHQ/oxy#1253).
 
+## Which accounts the discovery backfill copies (`importAdmission.ts`)
+
+The discovery backfill (`FederationJobScheduler.runRecentOutboxBackfillForActor`)
+walks resolved remote accounts and copies their recent posts. On 2026-11-24 it was
+22% of all imports while accounts a local user follows were about 0.2%, on a
+database that had run out of I/O credit. So:
+
+- **An account a local user follows** (accepted outbound `federated_follows`) is copied in
+  full, as before.
+- **Any other account is on probation:** at most `PROBATION_POST_LIMIT` (20) posts, and each
+  note is judged on its **content**, not on follower counts: empty, emoji-only or link-only
+  notes (quality <= `discoveryGate.qualityRejectThreshold`) and confident spam
+  (>= `spamRejectThreshold`) are not stored. The thresholds are the For You discovery gate's own.
+- **An X account through a bridge that nobody follows** is not copied by discovery at all.
+- A reposted post still imports that one post and its author, never the author's other posts
+  (the `boost_dependency` road is not touched). Profile views still sync in full.
+
+`FEDERATION_DISCOVERY_ADMISSION` is `off` (old behaviour), `shadow` (default: only logs
+`[FedSync] discovery admission` lines, measured in Logs Insights; Mention's Prometheus
+counters are not scraped) or `enforce`.
+
 ## Federation Blocklist & Domain Purge
 
 - **Blocklist**: `connectors/activitypub/federationBlockPolicy.ts` is the

@@ -38,6 +38,8 @@ import {
   storeNotePost,
 } from './apNotePost';
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
+import { isWorthImporting } from './importAdmission';
+import { config } from '../../config';
 import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { createFederatedRepost } from '../shared/federatedBoost';
@@ -317,6 +319,11 @@ export interface OutboxSyncResult {
 
 export interface OutboxSyncOptions {
   importReason?: FederationImportReason;
+  /**
+   * Judge each note on its content before it is stored (an account no local user
+   * follows, see `importAdmission.ts`). Only the discovery backfill sets it.
+   */
+  filterContent?: boolean;
   limit?: number;
   maxPages?: number;
   startPageUrl?: string;
@@ -570,6 +577,8 @@ export class OutboxSyncService {
       typeof limitOrOptions === 'number'
         ? 'unknown_outbox'
         : (limitOrOptions.importReason ?? 'unknown_outbox');
+    const filterContent =
+      typeof limitOrOptions !== 'number' && limitOrOptions.filterContent === true;
 
     try {
       // An X account's bird.makeup outbox is always empty: its timeline is read
@@ -606,7 +615,12 @@ export class OutboxSyncService {
         };
       }
 
-      const imported = await this.importOutboxCandidates(actor, candidates, importReason);
+      const imported = await this.importOutboxCandidates(
+        actor,
+        candidates,
+        importReason,
+        filterContent,
+      );
       // A run that met an author Oxy has not linked yet is not done: it is not
       // stamped, so the next sync — which starts again from the cursor the last
       // COMPLETE run left — retries the note instead of paging past it.
@@ -633,6 +647,41 @@ export class OutboxSyncService {
       logger.warn('[FedSync] failed to sync outbox posts', err);
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'exception' };
     }
+  }
+
+  /**
+   * The notes of an account on probation that are worth storing (see
+   * {@link isWorthImporting}). Like the flattened-retweet drop above, a dropped
+   * note still counts as inspected, so the cursor moves on. In `shadow` mode
+   * nothing is dropped; the count is logged so the effect can be measured first.
+   */
+  private admitNotes(
+    actor: OutboxSyncActor,
+    notes: Extract<OutboxCandidate, { kind: 'note' }>[],
+    filterContent: boolean,
+  ): Extract<OutboxCandidate, { kind: 'note' }>[] {
+    const mode = config.federation.discoveryAdmission;
+    if (!filterContent || mode === 'off' || notes.length === 0) return notes;
+
+    let domain: string | undefined;
+    try {
+      domain = new URL(actor.uri).hostname;
+    } catch {
+      domain = undefined;
+    }
+    const admitted = notes.filter((c) => isWorthImporting(c.note, { type: actor.type, domain }));
+    const dropped = notes.length - admitted.length;
+    if (dropped > 0) {
+      // A log line, not a counter: Mention's Prometheus counters are not scraped,
+      // and the shadow rollout is measured in Logs Insights.
+      logger.info('[FedSync] discovery admission', {
+        decision: 'junk-note',
+        mode,
+        dropped,
+        of: notes.length,
+      });
+    }
+    return mode === 'enforce' ? admitted : notes;
   }
 
   /**
@@ -960,6 +1009,7 @@ export class OutboxSyncService {
     actor: OutboxSyncActor,
     candidates: OutboxCandidate[],
     importReason: FederationImportReason,
+    filterContent = false,
   ): Promise<{
     newPostCount: number;
     existingCount: number;
@@ -971,9 +1021,13 @@ export class OutboxSyncService {
     // byline is no candidate at all: it is decided on the bridge's own text
     // before the page's mentions are resolved. It still counts as inspected
     // (`candidates`), so the backfill cursor moves on.
-    const noteCandidates = candidates.filter(
-      (c): c is Extract<OutboxCandidate, { kind: 'note' }> =>
-        c.kind === 'note' && !isBridgeFlattenedRetweet(c.note, c.authorUri),
+    const noteCandidates = this.admitNotes(
+      actor,
+      candidates.filter(
+        (c): c is Extract<OutboxCandidate, { kind: 'note' }> =>
+          c.kind === 'note' && !isBridgeFlattenedRetweet(c.note, c.authorUri),
+      ),
+      filterContent,
     );
     const announceCandidates = candidates.filter(
       (c): c is Extract<OutboxCandidate, { kind: 'announce' }> => c.kind === 'announce',
