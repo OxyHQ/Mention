@@ -48,6 +48,7 @@ import communitiesRoutes from './routes/communities.routes';
 import { membershipRoutes, publicMembershipRoutes } from './routes/memberships';
 import { requireCommunitiesPreview } from './services/communities/communityPreview';
 import reportsRoutes from './routes/reports.routes';
+import promotionsRoutes from './routes/promotions.routes';
 import communityNotesRoutes from './routes/communityNotes.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
 import { createOxyAccountEventsRoutes } from './routes/oxyAccountEvents.routes';
@@ -209,6 +210,7 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   authenticatedApi.use('/communities', requireCommunitiesPreview, communitiesRoutes);
   authenticatedApi.use('/membership-communities', membershipRoutes);
   authenticatedApi.use('/reports', reportsRoutes);
+  authenticatedApi.use('/promotions', promotionsRoutes);
   // Writing and rating a note are acts of a person, and CrowdSource is told who
   // by an id it has to be able to trust — so the session, not the body, names
   // the principal. That is the whole reason this is not a public mount.
