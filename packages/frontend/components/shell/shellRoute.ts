@@ -1,5 +1,4 @@
-import { useLayoutEffect } from 'react';
-import { create } from 'zustand';
+import { createContext, createElement, useContext, useState, type ReactNode } from 'react';
 import { usePathname } from '@/lib/navigation/router';
 import { hidesBottomBar } from './bottomBarRoutes';
 
@@ -51,20 +50,24 @@ function sameRoute(a: ShellRoute, b: ShellRoute): boolean {
   );
 }
 
+const ShellRouteContext = createContext<ShellRoute>(shellRouteOf(null));
+
 /** The current route's facts. Its value changes only when one of them does. */
-export const useShellRoute = create<ShellRoute>(() => shellRouteOf(null));
+export function useShellRoute(): ShellRoute {
+  return useContext(ShellRouteContext);
+}
 
 /**
- * Publishes the route's facts for the shell. Mount it beside the shell, inside
- * the router: it is the one place the path is read, and it renders nothing.
- * The facts land in a layout effect, so the shell's update is drawn in the
- * same frame as the navigation.
+ * Publishes the route's facts for the shell. Mount it around the shell, inside
+ * the router: it is the one place the path is read. It re-renders on every
+ * navigation, its children do not; the shell re-renders when a fact changes,
+ * in the navigation's own render, so a pushed post costs one render of the
+ * tree, not a second one for the shell after the push has committed.
  */
-export function ShellRouteSync() {
+export function ShellRouteProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  useLayoutEffect(() => {
-    const next = shellRouteOf(pathname);
-    if (!sameRoute(useShellRoute.getState(), next)) useShellRoute.setState(next, true);
-  }, [pathname]);
-  return null;
+  const [route, setRoute] = useState(() => shellRouteOf(pathname));
+  const next = shellRouteOf(pathname);
+  if (!sameRoute(route, next)) setRoute(next);
+  return createElement(ShellRouteContext.Provider, { value: route }, children);
 }

@@ -18,7 +18,7 @@ import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 import { bottomBarContent } from '@/components/shell/bottomBarRoutes';
 import { RouteErrorBoundary } from '@/components/shell/RouteErrorBoundary';
-import { ShellRouteSync, useShellRoute } from '@/components/shell/shellRoute';
+import { ShellRouteProvider, useShellRoute } from '@/components/shell/shellRoute';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
 import RegisterPush from '@/components/RegisterPushToken';
 import { PushNotificationOpener } from '@/components/PushNotificationOpener';
@@ -147,7 +147,7 @@ const MentionShell = layout(function MentionShell() {
     );
   };
   // The route's facts, not its path: the shell re-renders when one of them
-  // changes, not on every navigation (see `ShellRouteSync`).
+  // changes, not on every navigation (see `ShellRouteProvider`).
   const route = useShellRoute();
   const onVideosRoute = route.videos;
   const deckAvailable = useDeckAvailable();
@@ -333,8 +333,9 @@ export default function AppRoute() {
       {/* Ungated on purpose: the public socket is what makes trending realtime
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
-      <ShellRouteSync />
-      <MentionShell />
+      <ShellRouteProvider>
+        <MentionShell />
+      </ShellRouteProvider>
       <RegisterPush />
       <PushNotificationOpener />
       <BootMilestone name="route-mounted" />
