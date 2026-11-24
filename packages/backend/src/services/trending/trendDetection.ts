@@ -20,6 +20,7 @@ import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { isNsfwHashtag } from '../contentClassification/nsfw';
 import { isTopicSlug } from '../contentClassification/taxonomy';
 import { isTrendStopWord } from './termExtraction';
+import { pickLabelTerm } from './trendLabeling';
 import { trendCandidateUnionSql } from './termSpace';
 import { buildClusterMap, clusterTrendTerms, type TrendTermPair } from './trendClustering';
 import { mergeSynchronizedTerms } from './trendSynchrony';
@@ -60,6 +61,8 @@ export interface TermCandidate {
    * only ever said `Kyiv` is the whole point of having merged them.
    */
   members: string[];
+  /** The member the row's NAME is derived from, when it is not the representative. */
+  labelTerm?: string;
   /** Language-independent identity, only when a reviewed alias resolved it. */
   conceptId?: string;
 }
@@ -349,8 +352,15 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     (candidate) =>
       !survived.has(candidate.measurement.term) && !aliases.has(candidate.measurement.term),
   );
+  // A merged row keeps its busiest term as the retrieval key, but a bare word
+  // is a poor NAME when the story is a person the posts write out in full.
+  const named = merged.map((candidate) => {
+    if (candidate.members.length < 2) return candidate;
+    const labelTerm = pickLabelTerm(candidate.members, soloVolume);
+    return labelTerm === candidate.measurement.term ? candidate : { ...candidate, labelTerm };
+  });
   return {
-    candidates: [...merged, ...orphaned],
+    candidates: [...named, ...orphaned],
     // Built from the SOLO measurements, not the merged ones: an edge's two
     // ratios are `posts` over each endpoint's OWN volume, and a merged row
     // reports the story's volume instead. Reading a cluster total as a term

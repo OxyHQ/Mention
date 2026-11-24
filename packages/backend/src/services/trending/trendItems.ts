@@ -122,7 +122,7 @@ export async function buildTrendItems(
   // instance's vocabulary — a side effect trending has no business causing.
   const topicTerms = terms.filter((term) => (byTerm.get(term)?.topicVolume ?? 0) > 0);
   const [labels, topicMap] = await Promise.all([
-    resolveTrendLabels(ranked, startedAt),
+    resolveTrendLabels(ranked, startedAt, byTerm),
     topicService.resolveNames(topicTerms.map((name) => ({ name, type: TopicType.TOPIC }))),
   ]);
 
@@ -321,8 +321,12 @@ async function loadTrendAppearances(
 async function resolveTrendLabels(
   ranked: readonly ScoredTrend[],
   startedAt: ReadonlyMap<string, Date>,
+  candidates: ReadonlyMap<string, TermCandidate>,
 ): Promise<Map<string, TrendLabel>> {
   const labels = new Map<string, TrendLabel>();
+  // The term a row's name is derived from: its own, unless a merged row's
+  // fuller member names the story better (see `pickLabelTerm`).
+  const labelTermOf = (term: string): string => candidates.get(term)?.labelTerm ?? term;
 
   try {
     const earliestRun = Math.min(
@@ -359,6 +363,9 @@ async function resolveTrendLabels(
       // label; the per-term run boundary is re-checked here because the query
       // could only narrow to the EARLIEST run across all of them.
       if (labels.has(row.name) || row.displayName === null) continue;
+      // A stored label for such a row was derived from the representative; the
+      // name it should carry now comes from the member, so it is re-derived.
+      if (labelTermOf(row.name) !== row.name) continue;
       const runStart = startedAt.get(row.name);
       if (runStart && row.calculatedAt < runStart) continue;
       labels.set(row.name, { displayName: row.displayName, category: row.category ?? 'other' });
@@ -371,14 +378,14 @@ async function resolveTrendLabels(
     .filter((trend) => !labels.has(trend.term))
     .slice(0, MtnConfig.trending.labeling.maxPerBatch);
 
-  const excerptsByTerm = await loadExcerptsByTerm(unlabelled.map((trend) => trend.term));
+  const excerptsByTerm = await loadExcerptsByTerm([
+    ...new Set(unlabelled.map((trend) => labelTermOf(trend.term))),
+  ]);
   for (const trend of unlabelled) {
+    const labelTerm = labelTermOf(trend.term);
     labels.set(
       trend.term,
-      deriveTrendLabel({
-        term: trend.term,
-        excerpts: excerptsByTerm.get(trend.term) ?? [],
-      }),
+      deriveTrendLabel({ term: labelTerm, excerpts: excerptsByTerm.get(labelTerm) ?? [] }),
     );
   }
 
