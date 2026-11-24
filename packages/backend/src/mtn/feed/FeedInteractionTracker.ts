@@ -31,6 +31,7 @@ const IS_FEDERATED = sql<boolean>`(
 )`;
 import { recordDedupedView } from '../../services/feedViewCounter';
 import { recordDwell } from '../../services/dwellAggregate';
+import { recordPromotionImpressions } from '../../services/promotion/impressions';
 import { type InteractionEntry, userPreferenceService } from '../../services/UserPreferenceService';
 import {
   recordImpression,
@@ -110,6 +111,16 @@ export async function trackFeedInteractions(
     interaction.event === 'impression' ? [index] : [],
   );
   if (impressionAt.length === 0) return viewCounts;
+  // A post with a running paid promotion also counts the sight in the promotion's ledger.
+  await recordPromotionImpressions(
+    impressionAt.map((index) => ({
+      viewerOxyUserId: interactions[index].userId,
+      postId: interactions[index].postUri,
+      at: interactions[index].timestamp,
+    })),
+  ).catch((error) => {
+    logger.warn('[FeedInteractionTracker] Failed to count promotion impressions', error);
+  });
   const counted = await applyImpressionSignals(impressionAt.map((index) => interactions[index]));
   impressionAt.forEach((index, at) => {
     viewCounts[index] = counted[at] ?? null;
