@@ -135,10 +135,7 @@ export default screen(function StarterPacksScreen() {
       .toolbar(
         Embed(
           canUsePrivateApi
-            ? toElement(
-                LButton(Text('New'))
-                  .onPress(() => router.push('/starter-packs/create')),
-              )
+            ? toElement(LButton(Text('New')).onPress(() => router.push('/starter-packs/create')))
             : undefined,
         ),
       )

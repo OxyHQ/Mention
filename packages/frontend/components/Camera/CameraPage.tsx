@@ -7,13 +7,15 @@ import { toast } from '@oxy.so/bloom/toast';
 import { CameraCapture } from '@/components/Camera/CameraCapture';
 import { CaptureReview } from '@/components/Camera/CaptureReview';
 import { useCaptureUpload, type LocalCapture } from '@/components/Camera/useCaptureUpload';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
-import { Screen } from '@oxy.so/bloom/screen';
 import { useTabPagerActions } from '@oxy.so/bloom/tab-pager';
 import { usePostsStore } from '@/stores/postsStore';
 import { setPendingShareMedia } from '@/utils/pendingShareMedia';
 import { buildCapturePost } from '@/utils/postBuilder';
 import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
+
+import { Embed, defineTokens } from '@oxy.so/bloom-language';
+const appColors = defineTokens({ color: { hex000: '#000' } });
+import { screen } from '@oxy.so/bloom-language/router';
 
 /**
  * The camera, as a page of the tab pager — reached by swiping right off Home and
@@ -54,7 +56,7 @@ import { usePublicationContinuation } from '@/hooks/usePublicationContinuation';
  * So this pushes the `/compose` ROUTE, like the fourteen other call sites that
  * open the composer with something already in it.
  */
-export default function CameraPage() {
+export default screen(function CameraPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const isFocused = useIsFocused();
@@ -144,24 +146,24 @@ export default function CameraPage() {
   // A dark surface, so Bloom gives it light status-bar content while it is the
   // page in front. Black even before the camera mounts: the pager brings this
   // page in by position, and an empty page would flash the app background.
-  return (
-    <BloomColorScope mode="dark" asChild>
-      <Screen scroll="none" style={{ backgroundColor: '#000' }}>
-        {capture ? (
-          <CaptureReview
-            capture={capture}
-            onPublish={publishNow}
-            onAddText={addText}
-            onRetake={retake}
-            busy={uploading || publishing}
-            uploadFailed={uploadFailed}
-            uploadProgress={progress}
-            publishFailed={publishFailed}
-          />
-        ) : isFocused ? (
-          <CameraCapture onCaptured={setCapture} onClose={leaveToFeed} />
-        ) : null}
-      </Screen>
-    </BloomColorScope>
-  );
-}
+  return Embed(
+    capture ? (
+      <CaptureReview
+        capture={capture}
+        onPublish={publishNow}
+        onAddText={addText}
+        onRetake={retake}
+        busy={uploading || publishing}
+        uploadFailed={uploadFailed}
+        uploadProgress={progress}
+        publishFailed={publishFailed}
+      />
+    ) : isFocused ? (
+      <CameraCapture onCaptured={setCapture} onClose={leaveToFeed} />
+    ) : null,
+  )
+    .header(false)
+    .screenScroll('none')
+    .screenBackground(appColors.color.hex000)
+    .colorScope('dark');
+});

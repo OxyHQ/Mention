@@ -39,8 +39,9 @@ export default screen(function MembershipsScreen() {
         Embed(
           canUsePrivateApi
             ? toElement(
-                LButton(LText(t('memberships.create', 'Create community')))
-                  .onPress(() => router.push('/memberships/create')),
+                LButton(LText(t('memberships.create', 'Create community'))).onPress(() =>
+                  router.push('/memberships/create'),
+                ),
               )
             : undefined,
         ),

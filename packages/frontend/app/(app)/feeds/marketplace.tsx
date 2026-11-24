@@ -1,14 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  type ViewStyle,
-} from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, Platform, type ViewStyle } from 'react-native';
 import {
   useInfiniteQuery,
   useQuery,
@@ -398,9 +391,14 @@ const FeedMarketplaceScreen = Lscreen(function FeedMarketplaceScreen() {
                       .foreground(active ? 'primary' : 'muted'),
                     active
                       ? Embed(
-                          <View
-                            style={[styles.sortIndicator, { backgroundColor: colors.primary }]}
-                          />,
+                          toElement(
+                            VStack()
+                              .frame({ height: '2xs' })
+                              .background('primary')
+                              .corner('xs', 'top-left')
+                              .corner('xs', 'top-right')
+                              .position({ bottom: 'none', left: '25%', right: '25%' }),
+                          ),
                         )
                       : null,
                   )
@@ -545,15 +543,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-  },
-  sortIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: '25%',
-    right: '25%',
-    height: 2,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
   },
 });
 

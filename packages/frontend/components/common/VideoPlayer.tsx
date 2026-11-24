@@ -30,7 +30,7 @@ import { VIDEO_BUFFER_OPTIONS, videoSourceFor } from '@/utils/videoSource';
 import { useVideoPlayerEvent } from '@/hooks/useVideoPlayerEvent';
 import { findVideoElement } from './videoElementSize';
 
-import { Icon, RawText, defineTokens, toElement } from '@oxy.so/bloom-language';
+import { Icon, RawText, defineTokens, toElement, Embed, VStack } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { white: 'white' } });
 
 interface VideoPlayerProps {
@@ -623,56 +623,70 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
             </Pressable>
           </>
         ) : (
-          /* Tap area to toggle controls */
-          <Pressable style={styles.tapArea} onPress={handleTap}>
-            {showControls && (
-              <View style={styles.controlsOverlay}>
-                {/* Play/Pause center button */}
-                <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
+          // Tap area to toggle controls
+          toElement(
+            VStack(
+              Embed(
+                showControls && (
+                  <View style={styles.controlsOverlay}>
+                    {/* Play/Pause center button */}
+                    <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
 
-                {/* Bottom bar: progress + time + buttons */}
-                <View style={styles.bottomBar}>
-                  {/* Time display */}
-                  <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
+                    {/* Bottom bar: progress + time + buttons */}
+                    <View style={styles.bottomBar}>
+                      {/* Time display */}
+                      <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
 
-                  {/* Progress bar */}
-                  <Pressable
-                    ref={progressBarRef}
-                    style={styles.progressBarContainer}
-                    onPress={handleProgressBarPress}
-                  >
-                    <View style={styles.progressBarTrack}>
-                      <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-                      <View style={[styles.progressBarThumb, { left: `${progress * 100}%` }]} />
+                      {/* Progress bar */}
+                      {toElement(
+                        VStack(
+                          Embed(
+                            <View style={styles.progressBarTrack}>
+                              <View
+                                style={[styles.progressBarFill, { width: `${progress * 100}%` }]}
+                              />
+                              <View
+                                style={[styles.progressBarThumb, { left: `${progress * 100}%` }]}
+                              />
+                            </View>,
+                          ),
+                        )
+                          .frame({ height: '2xl' })
+                          .justify('center')
+                          .grow()
+                          .ref(progressBarRef)
+                          .onPress(handleProgressBarPress),
+                      )}
+
+                      {/* Duration */}
+                      <Text style={styles.timeText}>{formatDuration(duration)}</Text>
+
+                      {/* Mute button */}
+                      {toElement(
+                        VStack(Embed(<MuteIcon size="md" fill="white" />))
+                          .padding('all', 'xs')
+                          .onPress(handleMuteToggle)
+                          .hitSlop('md'),
+                      )}
+
+                      {/* Fullscreen button */}
+                      {toElement(
+                        VStack(
+                          Icon(RiExpandDiagonalSLine).size('md').foreground(appColors.color.white),
+                        )
+                          .padding('all', 'xs')
+                          .onPress(handleFullscreen)
+                          .hitSlop('md'),
+                      )}
                     </View>
-                  </Pressable>
-
-                  {/* Duration */}
-                  <Text style={styles.timeText}>{formatDuration(duration)}</Text>
-
-                  {/* Mute button */}
-                  <Pressable
-                    onPress={handleMuteToggle}
-                    hitSlop={tokens.hitSlop.md}
-                    style={styles.controlButton}
-                  >
-                    <MuteIcon size="md" fill="white" />
-                  </Pressable>
-
-                  {/* Fullscreen button */}
-                  <Pressable
-                    onPress={handleFullscreen}
-                    hitSlop={tokens.hitSlop.md}
-                    style={styles.controlButton}
-                  >
-                    {toElement(
-                      Icon(RiExpandDiagonalSLine).size('md').foreground(appColors.color.white),
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </Pressable>
+                  </View>
+                ),
+              ),
+            )
+              .zIndex('raised')
+              .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+              .onPress(handleTap),
+          )
         ))}
     </View>
   );
@@ -749,11 +763,6 @@ const styles = StyleSheet.create({
     minWidth: 36,
     textAlign: 'center',
   },
-  progressBarContainer: {
-    flex: 1,
-    height: 24,
-    justifyContent: 'center',
-  },
   progressBarTrack: {
     height: 3,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
@@ -774,9 +783,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: 'white',
     ...(Platform.OS === 'web' ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.4)' } : { elevation: 2 }),
-  },
-  controlButton: {
-    padding: 4,
   },
 });
 

@@ -219,8 +219,7 @@ const ListsScreen = screen(function ListsScreen() {
           Embed(
             canUsePrivateApi
               ? toElement(
-                  LButton(LText(t('lists.new')))
-                    .onPress(() => router.push('/lists/create')),
+                  LButton(LText(t('lists.new'))).onPress(() => router.push('/lists/create')),
                 )
               : undefined,
           ),

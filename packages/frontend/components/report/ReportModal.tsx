@@ -24,13 +24,6 @@ import {
 
 const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
 
-// What the sheet's classes drew, as plain objects (inline, as the classes were).
-/** The sheet: the background colour, its top corners rounded 24pt, at most 90% of the window. */
-const SHEET_STYLE: ViewStyle = {
-  maxHeight: '90%',
-  borderTopLeftRadius: 24,
-  borderTopRightRadius: 24,
-};
 /** The close button: an 8pt target pad, above the centred title. */
 const CLOSE_STYLE: ViewStyle = { padding: 8, zIndex: 10 };
 const CONTENT_STYLE: ViewStyle = { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 };
@@ -92,155 +85,167 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
   const canSubmit = selectedCategories.length > 0;
 
   return toElement(
-    Embed((render) => (
-      <View style={[SHEET_STYLE, { backgroundColor: theme.colors.background }]}>
-        {/* Header */}
-        {render(
-          HStack(
-            Embed(
-              LtoElement(
-                LVStack(LEmbed(render(Icon(RiCloseLine).size('md').foreground('foreground'))))
-                  .padding('all', 'sm')
-                  .zIndex('floating')
-                  .role('button')
-                  .label(t('common.close', { defaultValue: 'Close' }))
-                  .onPress(handleCancel)
-                  .pressFade('70'),
-              ),
+    Embed((render) =>
+      LtoElement(
+        LVStack(
+          /* Header */ LEmbed(
+            render(
+              HStack(
+                Embed(
+                  LtoElement(
+                    LVStack(LEmbed(render(Icon(RiCloseLine).size('md').foreground('foreground'))))
+                      .padding('all', 'sm')
+                      .zIndex('floating')
+                      .role('button')
+                      .label(t('common.close', { defaultValue: 'Close' }))
+                      .onPress(handleCancel)
+                      .pressFade('70'),
+                  ),
+                ),
+                RawText('Report Post')
+                  .foreground('foreground')
+                  .font('18')
+                  .leading('28px')
+                  .weight('bold')
+                  .position({ left: 'none', right: 'none' })
+                  .textAlign('center')
+                  .allowsHitTesting(false),
+                Embed(LtoElement(LVStack().frame({ width: '36' }).margin('left', 'auto'))),
+              )
+                .padding('horizontal', 'lg')
+                .padding('vertical', 'md')
+                .frame({ minHeight: '56' })
+                .align('center'),
             ),
-            RawText('Report Post')
-              .foreground('foreground')
-              .font('18')
-              .leading('28px')
-              .weight('bold')
-              .position({ left: 'none', right: 'none' })
-              .textAlign('center')
-              .allowsHitTesting(false),
-            Embed(LtoElement(LVStack().frame({ width: '36' }).margin('left', 'auto'))),
-          )
-            .padding('horizontal', 'lg')
-            .padding('vertical', 'md')
-            .frame({ minHeight: '56' })
-            .align('center'),
-        )}
-        {render(LDivider())}
-        {/* Content */}
-        <ScrollView style={CONTENT_STYLE}>
-          {render(
-            RawText('Select at least one reason for reporting:')
-              .foreground('muted')
-              .font('md')
-              .leading('20px')
-              .margin('bottom', 'lg'),
-          )}
+          ),
+          LEmbed(render(LDivider())),
+          /* Content */ LEmbed(
+            <ScrollView style={CONTENT_STYLE}>
+              {render(
+                RawText('Select at least one reason for reporting:')
+                  .foreground('muted')
+                  .font('md')
+                  .leading('20px')
+                  .margin('bottom', 'lg'),
+              )}
 
-          {/* Categories */}
-          {render(
-            VStack(
-              REPORT_CATEGORIES.map((category) => {
-                const isSelected = selectedCategories.includes(category.id);
-                return Embed(
-                  // The selected tint is the primary at 10% (`withAlpha`), never
-                  // `theme.colors.primary + '20'`: the token is an `rgb(...)` string,
-                  // so a hex-alpha suffix makes a malformed colour react-native-web
-                  // reads as fully opaque primary — a solid card behind the label.
-                  <View
+              {/* Categories */}
+              {render(
+                VStack(
+                  REPORT_CATEGORIES.map((category) => {
+                    const isSelected = selectedCategories.includes(category.id);
+                    return Embed(
+                      // The selected tint is the primary at 10% (`withAlpha`), never
+                      // `theme.colors.primary + '20'`: the token is an `rgb(...)` string,
+                      // so a hex-alpha suffix makes a malformed colour react-native-web
+                      // reads as fully opaque primary — a solid card behind the label.
+                      <View
+                        style={[
+                          CATEGORY_STYLE,
+                          {
+                            backgroundColor: isSelected
+                              ? withAlpha(theme.colors.primary, 0.1)
+                              : theme.colors.card,
+                            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                          },
+                        ]}
+                      >
+                        {render(
+                          LCheckbox(
+                            [isSelected, () => toggleCategory(category.id)],
+                            category.label,
+                          ),
+                        )}
+                      </View>,
+                    ).id(category.id);
+                  }),
+                )
+                  .spacing('sm')
+                  .margin('bottom', '2xl'),
+              )}
+
+              {/* Details Input */}
+              {toElement(
+                LField(
+                  'Additional details (optional)',
+                  Embed(
+                    LtoElement(
+                      TextEditor([details, setDetails])
+                        .placeholder(t('report.contextPlaceholder'))
+                        .rows(5)
+                        .autoResize(7)
+                        .maxLength(500)
+                        .showCount(),
+                    ),
+                  ),
+                ).margin('bottom', 'lg'),
+              )}
+            </ScrollView>,
+          ),
+          /* Action Buttons */ LEmbed(render(LDivider())),
+          LEmbed(
+            render(
+              HStack(
+                Embed(
+                  <TouchableOpacity
                     style={[
-                      CATEGORY_STYLE,
+                      ACTION_STYLE,
                       {
-                        backgroundColor: isSelected
-                          ? withAlpha(theme.colors.primary, 0.1)
-                          : theme.colors.card,
-                        borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                        backgroundColor: theme.colors.card,
                       },
                     ]}
+                    accessibilityRole="button"
+                    onPress={handleCancel}
+                    activeOpacity={0.7}
                   >
                     {render(
-                      LCheckbox([isSelected, () => toggleCategory(category.id)], category.label),
+                      RawText('Cancel')
+                        .foreground('foreground')
+                        .font('16')
+                        .leading('normal')
+                        .weight('semibold'),
                     )}
-                  </View>,
-                ).id(category.id);
-              }),
-            )
-              .spacing('sm')
-              .margin('bottom', '2xl'),
-          )}
-
-          {/* Details Input */}
-          {toElement(
-            LField(
-              'Additional details (optional)',
-              Embed(
-                LtoElement(
-                  TextEditor([details, setDetails])
-                    .placeholder(t('report.contextPlaceholder'))
-                    .rows(5)
-                    .autoResize(7)
-                    .maxLength(500)
-                    .showCount(),
+                  </TouchableOpacity>,
                 ),
-              ),
-            ).margin('bottom', 'lg'),
-          )}
-        </ScrollView>
-        {/* Action Buttons */}
-        {render(LDivider())}
-        {render(
-          HStack(
-            Embed(
-              <TouchableOpacity
-                style={[
-                  ACTION_STYLE,
-                  {
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                    backgroundColor: theme.colors.card,
-                  },
-                ]}
-                accessibilityRole="button"
-                onPress={handleCancel}
-                activeOpacity={0.7}
-              >
-                {render(
-                  RawText('Cancel')
-                    .foreground('foreground')
-                    .font('16')
-                    .leading('normal')
-                    .weight('semibold'),
-                )}
-              </TouchableOpacity>,
+                Embed(
+                  <TouchableOpacity
+                    style={[
+                      ACTION_STYLE,
+                      { backgroundColor: canSubmit ? theme.colors.error : theme.colors.border },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !canSubmit }}
+                    onPress={handleSubmit}
+                    disabled={!canSubmit}
+                    activeOpacity={0.7}
+                  >
+                    {render(
+                      RawText('Submit Report')
+                        .font('16')
+                        .leading('normal')
+                        .weight('semibold')
+                        .foreground(canSubmit ? appColors.color.hexFFFFFF : 'muted'),
+                    )}
+                  </TouchableOpacity>,
+                ),
+              )
+                .spacing('md')
+                .padding('horizontal', 'lg')
+                .padding('top', 'lg')
+                // `py-4 pb-5`: the web's CSS kept py-4's bottom, NativeWind took pb-5's.
+                .padding('bottom', 'lg')
+                .when('native', (v) => v.padding('bottom', 'xl')),
             ),
-            Embed(
-              <TouchableOpacity
-                style={[
-                  ACTION_STYLE,
-                  { backgroundColor: canSubmit ? theme.colors.error : theme.colors.border },
-                ]}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !canSubmit }}
-                onPress={handleSubmit}
-                disabled={!canSubmit}
-                activeOpacity={0.7}
-              >
-                {render(
-                  RawText('Submit Report')
-                    .font('16')
-                    .leading('normal')
-                    .weight('semibold')
-                    .foreground(canSubmit ? appColors.color.hexFFFFFF : 'muted'),
-                )}
-              </TouchableOpacity>,
-            ),
-          )
-            .spacing('md')
-            .padding('horizontal', 'lg')
-            .padding('top', 'lg')
-            // `py-4 pb-5`: the web's CSS kept py-4's bottom, NativeWind took pb-5's.
-            .padding('bottom', 'lg')
-            .when('native', (v) => v.padding('bottom', 'xl')),
-        )}
-      </View>
-    )),
+          ),
+        )
+          .frame({ maxHeight: '90%' })
+          .background('background')
+          .corner('2xl', 'top-left')
+          .corner('2xl', 'top-right'),
+      ),
+    ),
   );
 };
 

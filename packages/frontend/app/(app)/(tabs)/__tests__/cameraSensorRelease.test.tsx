@@ -42,13 +42,10 @@ jest.mock('@/stores/postsStore', () => ({
   usePostsStore: (selector: (state: unknown) => unknown) => selector({ createPost: jest.fn() }),
 }));
 
-// The page's dark surface; no theme provider here, and nothing to measure.
+// The page's Screen draws nothing to measure here; its dark scope needs the theme (`inTheme`).
 jest.mock('@oxy.so/bloom/screen', () => ({
   ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({ children }: { children: React.ReactNode }) => children,
-}));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 jest.mock('@oxy.so/bloom/tab-pager', () => ({
@@ -93,6 +90,11 @@ jest.mock('@/components/Camera/CaptureReview', () => {
 jest.mock('@/utils/pendingShareMedia', () => ({ setPendingShareMedia: jest.fn() }));
 
 import CameraPage from '../camera';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+const inTheme = (page: React.ReactElement) => (
+  <BloomThemeProvider fonts={false}>{page}</BloomThemeProvider>
+);
 
 const mounted: TestRenderer.ReactTestRenderer[] = [];
 
@@ -113,7 +115,7 @@ afterEach(() => {
 function mountPage() {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<CameraPage />);
+    renderer = TestRenderer.create(inTheme(<CameraPage />));
   });
   mounted.push(renderer!);
   return renderer!;
@@ -123,7 +125,7 @@ function mountPage() {
 function setFocus(renderer: TestRenderer.ReactTestRenderer, focused: boolean) {
   mockFocused = focused;
   act(() => {
-    renderer.update(<CameraPage />);
+    renderer.update(inTheme(<CameraPage />));
   });
 }
 

@@ -13,7 +13,7 @@ import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Screen, ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
+import { ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -50,6 +50,7 @@ import {
   VStack as LVStack,
   toElement as LtoElement,
   Header as LHeader,
+  Group,
 } from '@oxy.so/bloom-language';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -59,6 +60,8 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { WEB_BASE_URL } from '@/config';
 import { logger } from '@oxy.so/core/logger';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+import { screen } from '@oxy.so/bloom-language/router';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';
 
@@ -604,7 +607,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
   );
 });
 
-function CustomFeedTimelineScreen() {
+const CustomFeedTimelineScreen = screen(function CustomFeedTimelineScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const back = useScreenBack();
@@ -747,33 +750,9 @@ function CustomFeedTimelineScreen() {
   const hasError = feedQuery.isError || feedId.length === 0;
   const isLoading = feedQuery.isPending && !hasError;
 
-  return (
-    <Screen
-      scroll="auto"
-      header={
-        // Compact Bluesky-style header
-        feed ? (
-          <FeedHeaderBar
-            feed={feed}
-            subscriberCount={subscriberCount}
-            isSubscribed={isSubscribed}
-            isSubscribing={isSubscribing}
-            onToggleSubscribe={onToggleSubscribe}
-            isPinned={isPinned}
-            onTogglePin={onTogglePin}
-            onOpenInfo={openInfoSheet}
-          />
-        ) : (
-          LtoElement(
-            Header('Feed')
-              .onBack(back)
-              .backLabel(t('common.back', { defaultValue: 'Back' }))
-              .inPage(),
-          )
-        )
-      }
-    >
-      {hasError ? (
+  return Group(
+    LEmbed(
+      hasError ? (
         toElement(
           VStack(RawText(t('feeds.loadError')).foreground('error'))
             .flex('1')
@@ -798,9 +777,11 @@ function CustomFeedTimelineScreen() {
           {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
           {activeTab === 'reviews' && <ReviewsTab feedId={feedId} />}
         </ScreenScrollView>
-      )}
-      {/* Feed info */}
-      {feed
+      ),
+    ),
+    // Feed info
+    LEmbed(
+      feed
         ? toElement(
             Dialog(
               FeedInfoContent({
@@ -822,10 +803,31 @@ function CustomFeedTimelineScreen() {
               .padding('none')
               .presented([infoOpen, setInfoOpen]),
           )
-        : null}
-    </Screen>
-  );
-}
+        : null,
+    ),
+  )
+    .screenScroll('auto')
+    .header(
+      // Compact Bluesky-style header
+      feed
+        ? LEmbed(
+            <FeedHeaderBar
+              feed={feed}
+              subscriberCount={subscriberCount}
+              isSubscribed={isSubscribed}
+              isSubscribing={isSubscribing}
+              onToggleSubscribe={onToggleSubscribe}
+              isPinned={isPinned}
+              onTogglePin={onTogglePin}
+              onOpenInfo={openInfoSheet}
+            />,
+          )
+        : Header('Feed')
+            .onBack(back)
+            .backLabel(t('common.back', { defaultValue: 'Back' }))
+            .inPage(),
+    );
+});
 
 // The title stays React Native's Pressable: its pressed highlight is a view of its
 // own, drawn from the press state its children render with. This draws its classes:

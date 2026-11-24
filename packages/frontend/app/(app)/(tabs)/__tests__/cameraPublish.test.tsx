@@ -68,13 +68,10 @@ jest.mock('@/stores/postsStore', () => ({
     selector({ createPost: mockCreatePost }),
 }));
 
-// The page's dark surface; no theme provider here, and nothing to measure.
+// The page's Screen draws nothing to measure here; its dark scope needs the theme (`inTheme`).
 jest.mock('@oxy.so/bloom/screen', () => ({
   ...jest.requireActual('@oxy.so/bloom/screen'),
   Screen: ({ children }: { children: React.ReactNode }) => children,
-}));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 jest.mock('@oxy.so/bloom/tab-pager', () => ({
@@ -101,6 +98,11 @@ jest.mock('@/utils/pendingShareMedia', () => ({
 }));
 
 import CameraPage from '../camera';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
+const inTheme = (page: React.ReactElement) => (
+  <BloomThemeProvider fonts={false}>{page}</BloomThemeProvider>
+);
 
 /**
  * Every mount is torn down, and that is not tidiness: several cases here deliberately leave `createPost` pending,
@@ -120,7 +122,7 @@ afterEach(() => {
 function mountWithCapture() {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(<CameraPage />);
+    renderer = TestRenderer.create(inTheme(<CameraPage />));
   });
   // The page starts on the viewfinder; hand it a capture the way the camera does.
   act(() => {

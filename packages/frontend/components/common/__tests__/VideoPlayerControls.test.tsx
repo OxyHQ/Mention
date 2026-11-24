@@ -153,12 +153,14 @@ it('a lent surface keeps its poster and mute button through attach and detach', 
   mockMounts.muteIcon = 0;
   let renderer!: TestRenderer.ReactTestRenderer;
   const at = (player: unknown) => (
-    <VideoPlayer
-      src={SOURCE}
-      poster="https://media.example.test/poster.jpg"
-      player={player as never}
-      onPress={jest.fn()}
-    />
+    <BloomThemeProvider fonts={false}>
+      <VideoPlayer
+        src={SOURCE}
+        poster="https://media.example.test/poster.jpg"
+        player={player as never}
+        onPress={jest.fn()}
+      />
+    </BloomThemeProvider>
   );
   act(() => {
     renderer = TestRenderer.create(at(null));

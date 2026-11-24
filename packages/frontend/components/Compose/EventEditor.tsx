@@ -1,10 +1,8 @@
 import React from 'react';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
-import { Field } from '@oxy.so/bloom/field';
 import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import { formatTimeInput } from '@/utils/dateUtils';
-
 import {
   Button as LButton,
   Dialog as LDialog,
@@ -15,6 +13,7 @@ import {
   TextField as LTextField,
   VStack,
   toElement,
+  Field as LField,
 } from '@oxy.so/bloom-language';
 
 /** Strict 24h `HH:mm` — `99:99`, `25:00` and half-typed values are not times. */
@@ -176,14 +175,19 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         ),
         HStack(
           Embed(
-            <Field label={t('compose.event.date', { defaultValue: 'Date' })} style={{ flex: 1 }}>
-              <DatePicker
-                value={eventDay}
-                onChange={handleDateChange}
-                accessibilityLabel={t('compose.event.date', { defaultValue: 'Date' })}
-                testID="eventEditorDatePicker"
-              />
-            </Field>,
+            toElement(
+              LField(
+                t('compose.event.date', { defaultValue: 'Date' }),
+                Embed(
+                  <DatePicker
+                    value={eventDay}
+                    onChange={handleDateChange}
+                    accessibilityLabel={t('compose.event.date', { defaultValue: 'Date' })}
+                    testID="eventEditorDatePicker"
+                  />,
+                ),
+              ).grow(),
+            ),
           ),
           VStack(
             Embed(

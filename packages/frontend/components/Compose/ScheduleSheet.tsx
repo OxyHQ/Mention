@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, type ViewStyle } from 'react-native';
+import { StyleSheet, ScrollView, type ViewStyle } from 'react-native';
 import { tokens } from '@oxy.so/bloom/styles';
 
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
@@ -18,6 +18,7 @@ import {
   VStack,
   toElement,
   Text,
+  Card as LCard,
 } from '@oxy.so/bloom-language';
 
 export type ScheduleOption = {
@@ -108,160 +109,164 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
     onClose();
   }, [onClose]);
 
-  return (
-    // The surface, corner radius and drag handle belong to the bottom sheet that
-    // hosts this; drawing them again here stacked a second background on it.
-    <View style={SHEET_STYLE}>
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {toElement(
-          RawText(t('compose.schedule.title', { defaultValue: 'Schedule post' }))
-            .font('xl')
-            .leading('28px')
-            .weight('semibold')
-            .foreground('foreground')
-            .margin('bottom', 'lg'),
-        )}
+  // The surface, corner radius and drag handle belong to the bottom sheet that
+  // hosts this; drawing them again here stacked a second background on it.
+  return toElement(
+    VStack(
+      Embed(
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {toElement(
+            RawText(t('compose.schedule.title', { defaultValue: 'Schedule post' }))
+              .font('xl')
+              .leading('28px')
+              .weight('semibold')
+              .foreground('foreground')
+              .margin('bottom', 'lg'),
+          )}
 
-        {scheduledAt && (
-          <Card appearance="subtle" border="hairline" radius="radius-16" style={CURRENT_STYLE}>
-            {toElement(
-              VStack(
-                RawText(t('compose.schedule.current', { defaultValue: 'Currently scheduled' }))
-                  .font('sm')
-                  .foreground('muted')
-                  .margin('bottom', 'xs'),
-                RawText(formatLabel(scheduledAt))
-                  .font('16')
-                  .leading('normal')
-                  .weight('medium')
-                  .foreground('foreground'),
-              ).flex('1'),
-            )}
-            {toElement(
-              LButton(LText(t('compose.schedule.clear', { defaultValue: 'Clear' })))
-                .style('subtle')
-                .tint('danger')
-                .size('sm')
-                .onPress(handleClear)
-                .testID('scheduleSheetClear'),
-            )}
-          </Card>
-        )}
+          {scheduledAt && (
+            <Card appearance="subtle" border="hairline" radius="radius-16" style={CURRENT_STYLE}>
+              {toElement(
+                VStack(
+                  RawText(t('compose.schedule.current', { defaultValue: 'Currently scheduled' }))
+                    .font('sm')
+                    .foreground('muted')
+                    .margin('bottom', 'xs'),
+                  RawText(formatLabel(scheduledAt))
+                    .font('16')
+                    .leading('normal')
+                    .weight('medium')
+                    .foreground('foreground'),
+                ).flex('1'),
+              )}
+              {toElement(
+                LButton(LText(t('compose.schedule.clear', { defaultValue: 'Clear' })))
+                  .style('subtle')
+                  .tint('danger')
+                  .size('sm')
+                  .onPress(handleClear)
+                  .testID('scheduleSheetClear'),
+              )}
+            </Card>
+          )}
 
-        {toElement(
-          RawText(t('compose.schedule.quickPick', { defaultValue: 'Quick picks' }))
-            .font('xs')
-            .leading('16px')
-            .textCase('uppercase')
-            .tracking('wide')
-            .foreground('muted')
-            .margin('bottom', '10'),
-        )}
+          {toElement(
+            RawText(t('compose.schedule.quickPick', { defaultValue: 'Quick picks' }))
+              .font('xs')
+              .leading('16px')
+              .textCase('uppercase')
+              .tracking('wide')
+              .foreground('muted')
+              .margin('bottom', '10'),
+          )}
 
-        {toElement(
-          HStack(
-            Embed(
-              options.map((option) => (
-                <Card
-                  key={option.key}
-                  appearance="outline"
-                  border="hairline"
-                  elevation="none"
-                  radius="radius-16"
-                  style={styles.optionButton}
-                  onPress={() => handleOptionPress(option)}
-                  accessibilityLabel={`${option.label}, ${formatLabel(option.date)}`}
+          {toElement(
+            HStack(
+              Embed(
+                options.map((option) =>
+                  toElement(
+                    LCard(
+                      RawText(option.label)
+                        .font('md')
+                        .weight('semibold')
+                        .foreground('foreground')
+                        .margin('bottom', '6')
+                        .textAlign('left'),
+                      RawText(formatLabel(option.date))
+                        .font('11')
+                        .foreground('muted')
+                        .textAlign('left')
+                        .leading('14px'),
+                    )
+                      .style('outline')
+                      .outline('hairline')
+                      .elevation('none')
+                      .radius('lg')
+                      .onPress(() => handleOptionPress(option))
+                      .label(`${option.label}, ${formatLabel(option.date)}`)
+                      .padding('all', '10')
+                      .justify('center')
+                      .align('start')
+                      .frame({ width: '31%' })
+                      .aspectRatio(1.6),
+                    option.key,
+                  ),
+                ),
+              ),
+            )
+              .wrap()
+              .spacing('10')
+              .margin('bottom', 'xl'),
+          )}
+
+          {toElement(
+            RawText(t('compose.schedule.pickCustom', { defaultValue: 'Pick custom time' }))
+              .font('xs')
+              .leading('16px')
+              .textCase('uppercase')
+              .tracking('wide')
+              .foreground('muted')
+              .margin('bottom', '10'),
+          )}
+
+          {toElement(
+            HStack(
+              Embed(
+                <Field
+                  label={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
+                  style={styles.dateField}
                 >
-                  {toElement(
-                    RawText(option.label)
-                      .font('md')
-                      .weight('semibold')
-                      .foreground('foreground')
-                      .margin('bottom', '6')
-                      .textAlign('left'),
-                  )}
-                  {toElement(
-                    RawText(formatLabel(option.date))
-                      .font('11')
-                      .foreground('muted')
-                      .textAlign('left')
-                      .leading('14px'),
-                  )}
-                </Card>
-              )),
-            ),
-          )
-            .wrap()
-            .spacing('10')
-            .margin('bottom', 'xl'),
-        )}
-
-        {toElement(
-          RawText(t('compose.schedule.pickCustom', { defaultValue: 'Pick custom time' }))
-            .font('xs')
-            .leading('16px')
-            .textCase('uppercase')
-            .tracking('wide')
-            .foreground('muted')
-            .margin('bottom', '10'),
-        )}
-
-        {toElement(
-          HStack(
-            Embed(
-              <Field
-                label={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
-                style={styles.dateField}
-              >
-                <DatePicker
-                  value={customDate}
-                  onChange={setCustomDate}
-                  minDate={today}
-                  accessibilityLabel={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
-                  testID="scheduleSheetDatePicker"
-                />
-              </Field>,
-            ),
-            Embed(
-              <Field
-                label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
-                style={styles.timeField}
-              >
-                <TimeField
-                  value={customTime}
-                  onChange={setCustomTime}
-                  testID="scheduleSheetTimeField"
-                />
-              </Field>,
-            ),
-          )
-            .margin('bottom', 'xl')
-            .spacing('md'),
-        )}
-      </ScrollView>
-      {toElement(
-        HStack(
-          LButton(Text(t('compose.schedule.cancel', { defaultValue: 'Close' })))
-            .style('outline')
-            .tint('neutral')
-            .size('lg')
-            .onPress(handleClose)
-            .testID('scheduleSheetClose')
-            .grow(),
-          LButton(Text(t('compose.schedule.apply', { defaultValue: 'Schedule' })))
-            .tint('action')
-            .size('lg')
-            .onPress(handleCustomApply)
-            .testID('scheduleSheetApply')
-            .grow(),
-        )
-          .padding('vertical', 'md')
-          .spacing('md'),
-      )}
-    </View>
+                  <DatePicker
+                    value={customDate}
+                    onChange={setCustomDate}
+                    minDate={today}
+                    accessibilityLabel={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
+                    testID="scheduleSheetDatePicker"
+                  />
+                </Field>,
+              ),
+              Embed(
+                <Field
+                  label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
+                  style={styles.timeField}
+                >
+                  <TimeField
+                    value={customTime}
+                    onChange={setCustomTime}
+                    testID="scheduleSheetTimeField"
+                  />
+                </Field>,
+              ),
+            )
+              .margin('bottom', 'xl')
+              .spacing('md'),
+          )}
+        </ScrollView>,
+      ),
+      HStack(
+        LButton(Text(t('compose.schedule.cancel', { defaultValue: 'Close' })))
+          .style('outline')
+          .tint('neutral')
+          .size('lg')
+          .onPress(handleClose)
+          .testID('scheduleSheetClose')
+          .grow(),
+        LButton(Text(t('compose.schedule.apply', { defaultValue: 'Schedule' })))
+          .tint('action')
+          .size('lg')
+          .onPress(handleCustomApply)
+          .testID('scheduleSheetApply')
+          .grow(),
+      )
+        .padding('vertical', 'md')
+        .spacing('md'),
+    )
+      .padding('horizontal', 'xl')
+      .padding('top', 'md')
+      .frame({ maxHeight: '90%' }),
   );
 };
 
@@ -269,12 +274,6 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 // off-scale steps named once (`px-3.5`, `mb-4.5`).
 const CURRENT_PADDING_X = 14;
 const CURRENT_MARGIN_BOTTOM = 18;
-/** The sheet's own room inside the bottom sheet (`px-5 pt-3`), at most 90% of it. */
-const SHEET_STYLE = {
-  paddingHorizontal: tokens.space.xl,
-  paddingTop: tokens.space.md,
-  maxHeight: '90%',
-} satisfies ViewStyle;
 /** The current schedule: its text and Clear in one row (`flex-row items-center py-3 px-3.5 mb-4.5`). */
 const CURRENT_STYLE = {
   flexDirection: 'row',
@@ -295,13 +294,6 @@ const styles = StyleSheet.create({
   timeField: {
     flexShrink: 0,
     width: 112,
-  },
-  optionButton: {
-    width: '31%',
-    aspectRatio: 1.6,
-    padding: 10,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
   },
 });
 
