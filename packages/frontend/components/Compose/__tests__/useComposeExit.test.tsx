@@ -17,7 +17,7 @@ jest.mock('@oxy.so/bloom/screen', () => ({ useScreenBack: () => mockBack }));
 const mockSelectTab = jest.fn();
 const mockLeaveTab = jest.fn();
 jest.mock('@oxy.so/bloom/tab-pager', () => ({
-  useTabPager: () => ({ selectTab: mockSelectTab, leaveTab: mockLeaveTab }),
+  useTabPagerActions: () => ({ selectTab: mockSelectTab, leaveTab: mockLeaveTab }),
 }));
 
 function mountExit(presentation: ComposePresentation): ComposeExit {

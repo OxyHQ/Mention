@@ -9,7 +9,7 @@ import { CaptureReview } from '@/components/Camera/CaptureReview';
 import { useCaptureUpload, type LocalCapture } from '@/components/Camera/useCaptureUpload';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { Screen } from '@oxy.so/bloom/screen';
-import { useTabPager } from '@oxy.so/bloom/tab-pager';
+import { useTabPagerActions } from '@oxy.so/bloom/tab-pager';
 import { usePostsStore } from '@/stores/postsStore';
 import { setPendingShareMedia } from '@/utils/pendingShareMedia';
 import { buildCapturePost } from '@/utils/postBuilder';
@@ -70,7 +70,7 @@ export default function CameraPage() {
   const [publishFailed, setPublishFailed] = useState(false);
   // The synchronous half of `publishing`; see the note above on why both.
   const working = useRef(false);
-  const { selectTab } = useTabPager();
+  const { selectTab } = useTabPagerActions();
   const createPost = usePostsStore((state) => state.createPost);
   const { capture: capturePublication, isMounted: isPublicationMounted } =
     usePublicationContinuation();
