@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from './AccountAvatar';
 import { useLiveUser } from '@/stores/livePresenceStore';
@@ -23,10 +22,13 @@ export interface LiveAvatarProps extends AvatarProps {
  * live badge and routes taps to `joinLiveRoom(roomId)`; otherwise it forwards
  * `onPress` untouched so non-live avatars keep their default behavior. An
  * explicit `live` prop still wins over the derived state.
+ *
+ * The badge says Bloom's own localized "LIVE" (Bloom follows the app's
+ * language), read by the badge itself: this component, which every post row
+ * mounts, holds no i18n subscription for a label almost no avatar shows.
  */
-export function LiveAvatar({ userId, onPress, live, liveLabel, ...rest }: LiveAvatarProps) {
+export function LiveAvatar({ userId, onPress, live, ...rest }: LiveAvatarProps) {
   const router = useRouter();
-  const { t } = useTranslation();
   const { isLive, roomId } = useLiveUser(userId);
 
   const userIsLive = live ?? isLive;
@@ -45,11 +47,6 @@ export function LiveAvatar({ userId, onPress, live, liveLabel, ...rest }: LiveAv
   const pressable = (userIsLive && Boolean(roomId)) || Boolean(onPress);
 
   return (
-    <AccountAvatar
-      {...rest}
-      live={userIsLive}
-      liveLabel={liveLabel ?? t('liveRooms.liveBadge', { defaultValue: 'LIVE' })}
-      onPress={pressable ? handlePress : undefined}
-    />
+    <AccountAvatar {...rest} live={userIsLive} onPress={pressable ? handlePress : undefined} />
   );
 }

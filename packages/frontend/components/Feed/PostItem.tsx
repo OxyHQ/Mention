@@ -1010,6 +1010,26 @@ function usePostRowModel({
     [clusterMembers],
   );
 
+  // The identity the header draws, one object per author: the avatar is memoized
+  // and takes it as `account`, so a fresh literal per render redrew it on every
+  // like, save or view count.
+  const headerUser = useMemo(
+    () =>
+      author
+        ? {
+            displayName: author.name?.displayName,
+            handle: authorHandle || '',
+            verified: author.verified,
+            isFederated: author.isFederated,
+            kind: author.kind,
+            character: author.character,
+            color: author.color,
+            instance: author.instance,
+          }
+        : undefined,
+    [author, authorHandle],
+  );
+
   return {
     t,
     isArticleModalVisible,
@@ -1096,6 +1116,7 @@ function usePostRowModel({
     headerAuthors,
     bylineNamesWriter,
     collabAvatars,
+    headerUser,
     languageDisplayText,
     isTranslating,
     isTranslated,
@@ -1211,6 +1232,7 @@ function PostRow(props: PostItemProps): Child {
     headerAuthors,
     bylineNamesWriter,
     collabAvatars,
+    headerUser,
     languageDisplayText,
     isTranslating,
     isTranslated,
@@ -1218,7 +1240,7 @@ function PostRow(props: PostItemProps): Child {
     toggleReaderTranslation,
   } = usePostRowModel(props);
 
-  if (!viewPost || !author) {
+  if (!viewPost || !author || !headerUser) {
     return null;
   }
 
@@ -1386,16 +1408,7 @@ function PostRow(props: PostItemProps): Child {
   const headerTopOffset = contextCount * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
 
   // ── PostHeader ──────────────────────────────────────────────────
-  const user = {
-    displayName: author.name?.displayName,
-    handle: authorHandle || '',
-    verified: author.verified,
-    isFederated: author.isFederated,
-    kind: author.kind,
-    character: author.character,
-    color: author.color,
-    instance: author.instance,
-  };
+  const user = headerUser;
   const compact = isNested;
   const detail = isDetailMain;
   const avatarSize = isNested ? 20 : POST_AVATAR_SIZE;

@@ -242,7 +242,8 @@ describe('LiveAvatar badge and join behaviour', () => {
 
     const props = mockAvatarProps.get('host')!;
     expect(props.live).toBe(true);
-    expect(props.liveLabel).toBe('LIVE');
+    // Bloom's own localized label, read by the badge: no i18n subscription here.
+    expect(props.liveLabel).toBeUndefined();
     act(() => props.onPress!());
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/live-rooms/live/[id]',
