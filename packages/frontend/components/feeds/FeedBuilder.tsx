@@ -1180,7 +1180,6 @@ export const FeedBuilder = screen(function FeedBuilder({
                         savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create'),
                       ),
                     )
-                      .size('sm')
                       .onPress(handleSave)
                       .disabled(!canSave)
                       .loading(saving),

@@ -40,7 +40,6 @@ export default screen(function MembershipsScreen() {
           canUsePrivateApi
             ? toElement(
                 LButton(LText(t('memberships.create', 'Create community')))
-                  .size('sm')
                   .onPress(() => router.push('/memberships/create')),
               )
             : undefined,

@@ -220,7 +220,6 @@ const ListsScreen = screen(function ListsScreen() {
             canUsePrivateApi
               ? toElement(
                   LButton(LText(t('lists.new')))
-                    .size('sm')
                     .onPress(() => router.push('/lists/create')),
                 )
               : undefined,

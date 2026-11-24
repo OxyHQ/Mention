@@ -159,7 +159,6 @@ export default screen(function MyJobsScreen() {
                 LButton(LText(t('jobs.mine.create', { defaultValue: 'Create job' })))
                   .style('solid')
                   .tint('accent')
-                  .size('sm')
                   .onPress(() => router.push('/jobs/create')),
               )
             : undefined,

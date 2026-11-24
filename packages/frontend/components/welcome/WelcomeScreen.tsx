@@ -129,7 +129,6 @@ export const WelcomeScreen = screen(function WelcomeScreen() {
             .onBack(null)
             .toolbar(
               LButton(Text(t('welcome.skip')))
-                .size('sm')
                 .style('subtle')
                 .tint('neutral')
                 .onPress(finish),

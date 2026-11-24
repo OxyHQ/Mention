@@ -50,7 +50,6 @@ export function MentionHomeHeader() {
                 .style('outline')
                 .tint('neutral')
                 .shape('circle')
-                .size('md')
                 .label(t('navigation.menu'))
                 .accessibilityState({ expanded: shell.drawerOpen })
                 .onPress(shell.toggleDrawer)

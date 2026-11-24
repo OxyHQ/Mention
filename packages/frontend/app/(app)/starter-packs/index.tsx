@@ -137,7 +137,6 @@ export default screen(function StarterPacksScreen() {
           canUsePrivateApi
             ? toElement(
                 LButton(Text('New'))
-                  .size('sm')
                   .onPress(() => router.push('/starter-packs/create')),
               )
             : undefined,

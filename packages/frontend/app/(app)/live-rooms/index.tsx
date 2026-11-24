@@ -246,7 +246,6 @@ const LiveRoomsScreen = screen(function LiveRoomsScreen() {
                   LButton(Icon(RiAddLine), LText('Create'))
                     .style('solid')
                     .tint('accent')
-                    .size('sm')
                     .onPress(openCreateSheet),
                 )
               : undefined,
