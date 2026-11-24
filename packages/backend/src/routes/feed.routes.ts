@@ -93,6 +93,10 @@ router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 // Action routes (protected)
 // ────────────────────────────────────────────────────────────
 router.post('/reply', feedController.createReply.bind(feedController));
+router.post('/repost', feedController.createRepost.bind(feedController));
+router.delete('/:postId/repost', feedController.unrepostItem.bind(feedController));
+// Deprecated aliases of the two routes above: clients shipped before the rename
+// ("boost" is now a different, paid feature) still call these.
 router.post('/boost', feedController.createRepost.bind(feedController));
 router.delete('/:postId/boost', feedController.unrepostItem.bind(feedController));
 

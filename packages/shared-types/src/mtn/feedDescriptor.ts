@@ -16,6 +16,8 @@ export type AuthorFeedFilter =
   | 'media'
   | 'videos'
   | 'likes'
+  | 'reposts'
+  /** Deprecated alias of `reposts`, kept for clients shipped before the rename. */
   | 'boosts'
   | 'mentions';
 
@@ -26,6 +28,7 @@ export const AUTHOR_FEED_FILTERS: readonly AuthorFeedFilter[] = [
   'media',
   'videos',
   'likes',
+  'reposts',
   'boosts',
   'mentions',
 ];

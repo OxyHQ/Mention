@@ -64,44 +64,70 @@ export function registerInteractionsTools(server: MentionToolRegistrar): void {
     }),
   );
 
-  server.tool(
-    'boost',
-    'Boost a post to your followers (requires authorization).',
-    { id: z.string() },
-    withAuthGuard(async ({ id }) => {
+  // `repost` / `unrepost` are the tools; `boost` / `unboost` are deprecated aliases of
+  // them ("boost" is reserved for a different feature) kept for connectors that were
+  // configured before the rename. Same handler, same wire route per name.
+  const repostTool =
+    (route: string, verb: string) =>
+    async ({ id }: { id: string }) => {
       try {
-        const result = await api.post('/feed/boost', {
+        const result = await api.post(route, {
           originalPostId: id,
           content: { text: '' },
           mentions: [],
           hashtags: [],
         });
         const repost = unwrapApiResponse<Record<string, unknown>>(
-          (result as { boost?: unknown }).boost ?? result,
+          (result as { repost?: unknown; boost?: unknown }).repost ??
+            (result as { boost?: unknown }).boost ??
+            result,
         );
         return {
           content: [
-            { type: 'text' as const, text: `Post ${id} boosted.\n\n${formatPost(repost)}` },
+            { type: 'text' as const, text: `Post ${id} ${verb}.\n\n${formatPost(repost)}` },
           ],
         };
       } catch (error) {
         return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
       }
-    }),
+    };
+  const unrepostTool =
+    (route: (id: string) => string, noun: string) =>
+    async ({ id }: { id: string }) => {
+      try {
+        await api.delete(route(id));
+        return { content: [{ type: 'text' as const, text: `${noun} of post ${id} removed.` }] };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
+      }
+    };
+
+  server.tool(
+    'repost',
+    'Repost a post to your followers (requires authorization).',
+    { id: z.string() },
+    withAuthGuard(repostTool('/feed/repost', 'reposted')),
+  );
+
+  server.tool(
+    'unrepost',
+    "Remove your repost of a post (requires authorization). Pass the ORIGINAL post's ID, the same one given to repost.",
+    { id: z.string().describe('The original post ID you reposted') },
+    withAuthGuard(unrepostTool((id) => `/feed/${encodeURIComponent(id)}/repost`, 'Repost')),
+  );
+
+  server.tool(
+    'boost',
+    'Deprecated alias of repost: repost a post to your followers (requires authorization).',
+    { id: z.string() },
+    withAuthGuard(repostTool('/feed/boost', 'boosted')),
   );
 
   server.tool(
     'unboost',
-    "Remove your boost of a post (requires authorization). Pass the ORIGINAL post's ID, the same one given to boost.",
+    "Deprecated alias of unrepost: remove your repost of a post (requires authorization). Pass the ORIGINAL post's ID.",
     { id: z.string().describe('The original post ID you boosted') },
-    withAuthGuard(async ({ id }) => {
-      try {
-        await api.delete(`/feed/${encodeURIComponent(id)}/boost`);
-        return { content: [{ type: 'text' as const, text: `Boost of post ${id} removed.` }] };
-      } catch (error) {
-        return { content: [{ type: 'text' as const, text: formatApiError(error) }], isError: true };
-      }
-    }),
+    withAuthGuard(unrepostTool((id) => `/feed/${encodeURIComponent(id)}/boost`, 'Boost')),
   );
 
   server.tool(

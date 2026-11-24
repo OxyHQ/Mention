@@ -49,14 +49,17 @@ function buildPayload(
   const visible = visibleEngagementCounts(input.counts, privacy);
   if (typeof visible.likes === 'number') payload.likesCount = visible.likes;
   if (typeof visible.downvotes === 'number') payload.downvotesCount = visible.downvotes;
-  if (typeof visible.boosts === 'number') payload.boostsCount = visible.boosts;
+  if (typeof visible.boosts === 'number') {
+    payload.repostsCount = visible.boosts;
+    payload.boostsCount = visible.boosts; // deprecated duplicate, see the payload type
+  }
   if (typeof visible.replies === 'number') payload.repliesCount = visible.replies;
   if (typeof visible.saves === 'number') payload.savesCount = visible.saves;
 
   const carriesACount =
     payload.likesCount !== undefined ||
     payload.downvotesCount !== undefined ||
-    payload.boostsCount !== undefined ||
+    payload.repostsCount !== undefined ||
     payload.repliesCount !== undefined ||
     payload.savesCount !== undefined;
 
@@ -65,6 +68,15 @@ function buildPayload(
   // number changed, which is most of what hiding it was meant to prevent.
   return carriesACount ? payload : undefined;
 }
+
+/**
+ * The event name clients shipped before the rename still listen for, emitted
+ * beside the current one. Removed together with the other deprecated aliases.
+ */
+const LEGACY_EVENT_ALIAS: Partial<Record<string, string>> = {
+  [POST_ENGAGEMENT_EVENTS.REPOSTED]: POST_ENGAGEMENT_EVENTS.BOOSTED,
+  [POST_ENGAGEMENT_EVENTS.UNREPOSTED]: POST_ENGAGEMENT_EVENTS.UNBOOSTED,
+};
 
 /**
  * Push one post's new counters to everyone watching that post.
@@ -81,7 +93,11 @@ export async function broadcastPostEngagement(input: BroadcastPostEngagementInpu
   const payload = buildPayload(input, await loadEngagementCountPrivacy(input.authorOxyUserId));
   if (!payload) return;
 
-  io.to(postEngagementRoom(input.postId)).emit(input.event, payload);
+  const room = io.to(postEngagementRoom(input.postId));
+  room.emit(input.event, payload);
+  // Clients shipped before the rename listen for the old event names.
+  const legacy = LEGACY_EVENT_ALIAS[input.event];
+  if (legacy) room.emit(legacy, payload);
 }
 
 /**

@@ -210,14 +210,15 @@ an isolated ranking experiment. Do not log credentials or private feed bodies.
 
 ### Interactions (auth required)
 
-| Tool                        | Backend                                         | Inverse                                                          |
-| --------------------------- | ----------------------------------------------- | ---------------------------------------------------------------- |
-| `like-post`                 | `POST /posts/:id/like`                          | `unlike-post` (`DELETE`)                                         |
-| `save-post`                 | `POST /posts/:id/save`                          | `unsave-post` (`DELETE`)                                         |
-| `boost`                     | `POST /feed/boost`                              | `unboost` (`DELETE /feed/:postId/boost`, the original post's id) |
-| `quote-post`                | `POST /posts`                                   | `delete-post`                                                    |
-| `move-saved-post-to-folder` | `PATCH /posts/bookmarks/by-post/:postId/folder` | the same tool with `folder: null`                                |
-| `get-bookmark-folders`      | `GET /posts/bookmarks/folders`                  | —                                                                |
+| Tool                        | Backend                                         | Inverse                                                                     |
+| --------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| `like-post`                 | `POST /posts/:id/like`                          | `unlike-post` (`DELETE`)                                                    |
+| `save-post`                 | `POST /posts/:id/save`                          | `unsave-post` (`DELETE`)                                                    |
+| `repost`                    | `POST /feed/repost`                             | `unrepost` (`DELETE /feed/:postId/repost`, the original post's id)          |
+| `boost` (deprecated)        | `POST /feed/boost`                              | `unboost` (`DELETE /feed/:postId/boost`) — aliases of `repost` / `unrepost` |
+| `quote-post`                | `POST /posts`                                   | `delete-post`                                                               |
+| `move-saved-post-to-folder` | `PATCH /posts/bookmarks/by-post/:postId/folder` | the same tool with `folder: null`                                           |
+| `get-bookmark-folders`      | `GET /posts/bookmarks/folders`                  | —                                                                           |
 
 ### Social (public unless noted)
 

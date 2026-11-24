@@ -232,6 +232,14 @@ export const MENTION_TOOL_POLICIES: Readonly<Record<string, MentionToolPolicy>> 
   'unsave-post': write('DELETE', '/posts/{id}/save', 'administer', 'social.posts.save', post, {
     rollback: 'supported',
   }),
+  repost: effect('POST', '/feed/repost', 'communicate', 'social.interact', post, {
+    rollback: 'supported',
+  }),
+  unrepost: effect('DELETE', '/feed/{postId}/repost', 'communicate', 'social.interact', post, {
+    rollback: 'supported',
+  }),
+  // Deprecated aliases of `repost` / `unrepost`. "Boost" is reserved for a different
+  // feature; these stay only for connectors configured before the rename.
   boost: effect('POST', '/feed/boost', 'communicate', 'social.interact', post, {
     rollback: 'supported',
   }),

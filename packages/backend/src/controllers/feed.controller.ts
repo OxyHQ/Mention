@@ -818,7 +818,7 @@ class FeedController {
       // sending it to a room would tell every other member what the booster has
       // liked and saved. Nothing on the client reads it — the count is the point.
       emitPostEngagement({
-        event: POST_ENGAGEMENT_EVENTS.BOOSTED,
+        event: POST_ENGAGEMENT_EVENTS.REPOSTED,
         postId: originalPostId,
         ...(updatedStats?.oxyUserId ? { authorOxyUserId: updatedStats.oxyUserId } : {}),
         counts: { boosts: updatedStats?.boostsCount },
@@ -891,7 +891,7 @@ class FeedController {
 
       const repostOriginalId = repost.boostOf ?? '';
       emitPostEngagement({
-        event: POST_ENGAGEMENT_EVENTS.UNBOOSTED,
+        event: POST_ENGAGEMENT_EVENTS.UNREPOSTED,
         postId: repostOriginalId,
         ...(updatedStats?.oxyUserId ? { authorOxyUserId: updatedStats.oxyUserId } : {}),
         counts: { boosts: updatedStats?.boostsCount },
