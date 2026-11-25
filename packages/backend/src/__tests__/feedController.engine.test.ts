@@ -451,10 +451,11 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
         page: expect.objectContaining({ items: expect.any(Array) }),
         revisions: expect.any(Object),
       }),
+      { degraded: false },
     );
   });
 
-  it('never caches a page whose author Oxy could not resolve', async () => {
+  it('keeps a page whose author Oxy could not resolve only as a degraded stale page', async () => {
     anonCache.read.mockResolvedValueOnce(null);
     engineRun.mockResolvedValueOnce({
       slices: [],
@@ -467,9 +468,12 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
 
     await mtnFeedController.getFeed(req, makeRes() as never);
 
-    // The page records an Oxy failure, not the feed: caching it would show
-    // "Unknown user" to every reader for the TTL after Oxy recovered.
-    expect(anonCache.write).not.toHaveBeenCalled();
+    // The page records an Oxy failure, not the feed: serving it as fresh would show
+    // "Unknown user" to every reader after Oxy recovered, so it is stored flagged
+    // `degraded` (served only as the stale page of last resort).
+    expect(anonCache.write).toHaveBeenCalledWith('anon-key', expect.anything(), {
+      degraded: true,
+    });
   });
 
   /**
