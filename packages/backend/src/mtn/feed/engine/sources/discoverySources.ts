@@ -22,6 +22,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
+import { withStatementTimeout } from '../../../../utils/withStatementTimeout';
 import { postClassificationTopicRefs, postMedia, posts } from '../../../../db/schema';
 import { assemblePostRecords, assembleShellRecords } from '../../../../db/posts/postRepository';
 import {
@@ -353,6 +354,13 @@ function exploreFinalScoreSql(now: Date, relevance: SQL, negativeTopic: SQL): SQ
 }
 
 /**
+ * The statement budget of {@link exploreSource}'s candidate query. Under the
+ * 60 s idle timeout of `oxy-alb`, so a slow build still answers instead of being
+ * cut by the load balancer, and far below the 120 s the leader jobs get.
+ */
+const EXPLORE_STATEMENT_BUDGET_MS = 45_000;
+
+/**
  * `explore`: pre-scored discovery aggregation (engagement×recency×relevance) of
  * non-followed public SFW content. Returns candidates decorated with a
  * `finalScore` and sorted, with the score cursor already applied — the engine's
@@ -436,13 +444,21 @@ export const exploreSource: SourceModule = {
       );
     }
 
-    const db = getDb();
-    const rows = await db
-      .select({ ...getTableColumns(posts), finalScore })
-      .from(posts)
-      .where(and(...conditions))
-      .orderBy(desc(finalScore), desc(posts.id))
-      .limit(cap + 1);
+    // Under its own budget, not the serving pool's 15 s. This statement scores a
+    // whole day of public originals in the reader's language (about 18,000 rows
+    // over 43,000 heap blocks, 45,000 blocks read: 23 s of I/O on 2026-11-25) and
+    // keeps only the best page of them. At 15 s it was killed every time the
+    // blocks were not already cached, so the build never finished, nothing was
+    // cached and the next reader paid for it again. Allowed to finish, the answer
+    // is cached (`anonFeedCache`) and served stale while one request refreshes it.
+    const rows = await withStatementTimeout(EXPLORE_STATEMENT_BUDGET_MS, (tx) =>
+      tx
+        .select({ ...getTableColumns(posts), finalScore })
+        .from(posts)
+        .where(and(...conditions))
+        .orderBy(desc(finalScore), desc(posts.id))
+        .limit(cap + 1),
+    );
 
     const shells: CandidatePost[] = assembleShellRecords(rows);
     return shells.map((shell, index) => {
