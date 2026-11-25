@@ -110,6 +110,7 @@ vi.mock('../services/UserPreferenceService', () => ({
 vi.mock('../services/anonFeedCache', () => ({
   anonFeedCache: {
     read: vi.fn(async (): Promise<unknown> => null),
+    readStale: vi.fn(async (): Promise<unknown> => null),
     write: vi.fn(async (): Promise<void> => undefined),
     buildKey: vi.fn((): string => 'anon-key'),
   },

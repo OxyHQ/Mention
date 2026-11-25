@@ -94,16 +94,34 @@ function stableStringify(value: unknown): string {
 }
 
 /**
- * Short TTL: the anon feed is shared, so this collapses a burst of anonymous
- * requests into one recompute, while new posts still appear within ~1 minute.
+ * How long a page counts as FRESH: the anon feed is shared, so this collapses a
+ * burst of anonymous requests into one recompute, while new posts still appear
+ * within ~1 minute.
  */
-const TTL_SECONDS = 45;
+const FRESH_MS = 45 * 1000;
 
-const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: TTL_SECONDS });
+/**
+ * How long a page is KEPT after it stops being fresh, to be served while one
+ * build refreshes it. A build is the whole gather-rank-hydrate pipeline: on the
+ * Explore feed it scores a day of posts and runs 4 to 15 s against a 15 s
+ * statement timeout, so an entry that simply vanished after 45 s sent every
+ * reader that arrived next into a build of their own, and a loaded database
+ * answered those with 503s. A stale page is a shared page a minute or so old;
+ * a 503 is nothing.
+ */
+const STALE_TTL_SECONDS = 15 * 60;
+
+const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: STALE_TTL_SECONDS });
+
+/** What is stored: the entry and when it was built (the cache has no age of its own). */
+interface StoredAnonFeed {
+  cachedAt: number;
+  entry: AnonFeedEntry;
+}
 
 class AnonFeedCache {
-  /** v2: entries are {@link AnonFeedEntry}, not bare pages. */
-  private readonly KEY_PREFIX = 'anonfeed:v2:';
+  /** v3: entries are {@link StoredAnonFeed} (entry + build time), kept past their freshness. */
+  private readonly KEY_PREFIX = 'anonfeed:v3:';
 
   /**
    * Build a collision-free cache key. Distinct filters/sort/cursor/limit/languages
@@ -139,13 +157,38 @@ class AnonFeedCache {
     key: string,
     requestLanguages?: RequestLanguages,
   ): Promise<CacheableFeedResponse | null> {
-    const cached = await cache.get<AnonFeedEntry>(key);
-    return cached?.page ? revalidateAnonymousFeed(cached, requestLanguages) : null;
+    return this.readWhere(
+      key,
+      requestLanguages,
+      (stored) => Date.now() - stored.cachedAt < FRESH_MS,
+    );
+  }
+
+  /**
+   * The page kept for `key` whatever its age (still re-authorized, like
+   * {@link read}), or `null` when none is kept. For serving while a build
+   * refreshes it, never instead of one.
+   */
+  async readStale(
+    key: string,
+    requestLanguages?: RequestLanguages,
+  ): Promise<CacheableFeedResponse | null> {
+    return this.readWhere(key, requestLanguages, () => true);
+  }
+
+  private async readWhere(
+    key: string,
+    requestLanguages: RequestLanguages | undefined,
+    accepts: (stored: StoredAnonFeed) => boolean,
+  ): Promise<CacheableFeedResponse | null> {
+    const stored = await cache.get<StoredAnonFeed>(key);
+    if (!stored?.entry?.page || !accepts(stored)) return null;
+    return revalidateAnonymousFeed(stored.entry, requestLanguages);
   }
 
   /** Persist an anon page. Fail-soft: a write error is logged and swallowed. */
   async write(key: string, entry: AnonFeedEntry): Promise<void> {
-    await cache.set(key, entry);
+    await cache.set<StoredAnonFeed>(key, { cachedAt: Date.now(), entry });
   }
 
   /**

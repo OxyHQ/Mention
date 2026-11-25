@@ -353,6 +353,12 @@ class MtnFeedController {
     // `anonFeedCache.claimBuild`. Settled with the page once built, and with
     // `null` in the `finally` on every other way out.
     let settleAnonBuild: ((entry: AnonFeedEntry | null) => void) | undefined;
+    // True once a stale anonymous page has been sent: the rest of the handler is
+    // then a background refresh of the cache and must not answer a second time.
+    let servedStale = false;
+    const reply = (status: number, body: Record<string, unknown>) => {
+      if (!res.headersSent) res.status(status).json(body);
+    };
     try {
       // Read query params through `queryString`, never through a cast: a tampered
       // `?cursor[]=a&cursor[]=b` arrives as an ARRAY, and the interstitial planner
@@ -360,7 +366,7 @@ class MtnFeedController {
       // TypeError, i.e. a 500 from a crafted URL.
       const descriptorParam = queryString(req.query.descriptor);
       if (!descriptorParam || !isValidFeedDescriptor(descriptorParam)) {
-        res.status(400).json({ success: false, error: 'Invalid or missing feed descriptor' });
+        reply(400, { success: false, error: 'Invalid or missing feed descriptor' });
         return;
       }
 
@@ -419,7 +425,17 @@ class MtnFeedController {
           res.json({ success: true, data: cached });
           return;
         }
+        // Past freshness but still kept: answer with it NOW and let one request
+        // rebuild it. Nobody waits for a build, and nobody builds a second copy.
+        const stale = await anonFeedCache.readStale(anonCacheKey, requestLanguages);
+        if (stale) {
+          res.json({ success: true, data: stale });
+          servedStale = true;
+        }
         const build = anonFeedCache.claimBuild(anonCacheKey);
+        if (build.role === 'join' && servedStale) {
+          return;
+        }
         if (build.role === 'join') {
           const shared = await build.result;
           if (shared) {
@@ -583,7 +599,7 @@ class MtnFeedController {
         requestedSort !== 'chronological' &&
         requestedSort !== 'relevance'
       ) {
-        res.status(400).json({ success: false, error: 'Invalid Following sort' });
+        reply(400, { success: false, error: 'Invalid Following sort' });
         return;
       }
       const storedSort = context.feedSettings?.following?.sort;
@@ -600,7 +616,7 @@ class MtnFeedController {
         feedProfile === 'protected' &&
         (await isWithheldFromProtectedProfile(descriptor, resolveContext))
       ) {
-        res.status(403).json({
+        reply(403, {
           success: false,
           error: 'This feed is not available for this account',
           code: 'FEED_WITHHELD_FOR_PROFILE',
@@ -618,9 +634,7 @@ class MtnFeedController {
           ? () => feedApi.fetch({ cursor, limit }, context)
           : null;
       if (!runFeed) {
-        res
-          .status(400)
-          .json({ success: false, error: `Unsupported feed descriptor: ${descriptor}` });
+        reply(400, { success: false, error: `Unsupported feed descriptor: ${descriptor}` });
         return;
       }
       // An anonymous page is cached with the record revisions its hydration
@@ -728,10 +742,12 @@ class MtnFeedController {
         });
       }
 
-      res.json({
-        success: true,
-        data: response,
-      });
+      if (!servedStale) {
+        res.json({
+          success: true,
+          data: response,
+        });
+      }
     } catch (error) {
       // `baseDescriptor` folds anything that is not a valid descriptor into 'unknown'.
       const failedDescriptor = queryString(req.query.descriptor) ?? '';
@@ -740,9 +756,14 @@ class MtnFeedController {
       } else {
         recordFeedFailure(failedDescriptor, 500, 'INTERNAL_ERROR');
       }
+      if (servedStale) {
+        // The reader already has the previous page; the next request retries.
+        logger.warn('[MtnFeedController] Anonymous feed refresh failed; stale page kept', error);
+        return;
+      }
       if (respondWithApiError(res, error)) return;
       logger.error('[MtnFeedController] getFeed error', error);
-      res.status(500).json({ success: false, error: 'Failed to fetch feed' });
+      reply(500, { success: false, error: 'Failed to fetch feed' });
     } finally {
       // Releases any joiners on every path the page was not shared on; a no-op
       // once it was.
