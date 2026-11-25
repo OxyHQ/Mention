@@ -1,21 +1,8 @@
-import type { ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { FollowingAvatars } from './FollowingAvatars';
 import type { VideoFeedTab } from '@/hooks/useVideoFeed';
 
 import { Embed, HStack, Text as LText, toElement } from '@oxy.so/bloom-language';
-
-// Each tab stays Bloom's PressableScale: it announces itself selected, which the
-// language has no modifier for. This draws its classes:
-// `min-h-11 flex-row items-center justify-center gap-1.5`.
-const tabStyle: ViewStyle = {
-  minHeight: 44,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-};
 
 interface VideoFeedTabsProps {
   value: VideoFeedTab;
@@ -27,26 +14,26 @@ export function VideoFeedTabs({ value, onValueChange }: VideoFeedTabsProps) {
   const { t } = useTranslation();
   return toElement(
     HStack(
-      Embed(
-        (['videos', 'following'] as const).map((tab) => (
-          <PressableScale
-            key={tab}
-            accessibilityRole="tab"
-            aria-selected={value === tab}
-            onPress={() => onValueChange(tab)}
-            style={tabStyle}
-            testID={`video-feed-tab-${tab}`}
-          >
-            {toElement(
-              LText(t(tab === 'videos' ? 'videos.tabs.forYou' : 'videos.tabs.following'))
-                .font('18')
-                .leading('28px')
-                .weight('semibold')
-                .foreground(value === tab ? 'white' : 'white/60'),
-            )}
-            {tab === 'following' && <FollowingAvatars />}
-          </PressableScale>
-        )),
+      (['videos', 'following'] as const).map((tab) =>
+        // Bloom's PressableScale, announced as a tab and selected (aria-selected on the web).
+        HStack(
+          LText(t(tab === 'videos' ? 'videos.tabs.forYou' : 'videos.tabs.following'))
+            .font('18')
+            .leading('28px')
+            .weight('semibold')
+            .foreground(value === tab ? 'white' : 'white/60'),
+          tab === 'following' ? Embed(<FollowingAvatars />) : null,
+        )
+          .frame({ minHeight: '44' })
+          .align('center')
+          .justify('center')
+          .spacing('6')
+          .pressScale()
+          .role('tab')
+          .accessibilityState({ selected: value === tab })
+          .onPress(() => onValueChange(tab))
+          .testID(`video-feed-tab-${tab}`)
+          .id(tab),
       ),
     )
       .align('center')
