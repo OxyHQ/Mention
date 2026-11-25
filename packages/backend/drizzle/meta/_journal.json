@@ -981,6 +981,13 @@
       "when": 1795573384870,
       "tag": "0139_validate_repost_value_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1795573385870,
+      "tag": "0140_posts_triggers_ignore_repost_rename",
+      "breakpoints": true
     }
   ]
 }
