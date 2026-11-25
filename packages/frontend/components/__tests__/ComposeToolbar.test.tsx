@@ -67,7 +67,8 @@ jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
 // Bloom's button entry is untranspiled source. The stand-in keeps Button's
 // contract as Bloom's own tests pin it: a button with the given name, disabled
 // and busy both announced and both refusing a press, and the glyph painted in
-// `color` or, by default, the theme's secondary text colour.
+// `color` or, by default, the theme's secondary text colour (children are a
+// render function handed that ink, or views drawn as they are: the busy spinner).
 jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -79,7 +80,7 @@ jest.mock('@oxy.so/bloom/button', () => {
       onPress,
       color,
     }: {
-      children: (foreground: string) => React.ReactNode;
+      children: React.ReactNode | ((foreground: string) => React.ReactNode);
       accessibilityLabel: string;
       disabled?: boolean;
       loading?: boolean;
@@ -93,7 +94,7 @@ jest.mock('@oxy.so/bloom/button', () => {
         disabled={disabled || busy}
         onPress={onPress}
       >
-        {children(color ?? '#666')}
+        {typeof children === 'function' ? children(color ?? '#666') : children}
       </TouchableOpacity>
     ),
   };
