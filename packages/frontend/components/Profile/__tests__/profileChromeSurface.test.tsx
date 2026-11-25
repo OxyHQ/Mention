@@ -21,13 +21,16 @@ import { ProfileTabBarRow } from '../ProfileTabBarRow';
  */
 
 /**
- * Bloom's `styles` subpath ships untranspiled ESM that Jest cannot require, and
- * every other Bloom subpath in this suite is stubbed the same way. The value is
- * a sentinel: it stands in for "whatever the surrounding surface published".
+ * The value is a sentinel: it stands in for "whatever the surrounding surface
+ * published". The rest of Bloom's `styles` subpath stays real (the language the
+ * row is drawn in reads its tokens there).
  */
 const PUBLISHED_FILL = '#0f1e2d';
 
-jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => '#0f1e2d' }));
+jest.mock('@oxy.so/bloom/styles', () => ({
+  ...jest.requireActual('@oxy.so/bloom/styles'),
+  useSurfaceFill: () => '#0f1e2d',
+}));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
   ...jest.requireActual('@oxy.so/bloom/theme'),

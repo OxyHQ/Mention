@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Link } from '@/lib/navigation/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { useTranslation } from 'react-i18next';
 import type { Experience } from '@clarity.surf/sdk/experience';
 import { organizationDirectoryQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -14,14 +13,19 @@ import { useSupervisionState } from '@/hooks/useSupervisionState';
 import { ExperienceEditor } from './ExperienceEditor';
 import { experienceMonthLabel, experienceMonths, groupExperience } from './experiencePresentation';
 import {
+  Avatar as LAvatar,
   Button as LButton,
   Embed,
   HStack,
   RawText,
   Text as LText,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+
+/** A company logo is 48pt, off the avatar scale. */
+const experienceTokens = defineTokens({ avatarSize: { logo: 48 } });
 
 function CompanyLogo({
   company,
@@ -32,13 +36,10 @@ function CompanyLogo({
   name: string;
   showDetails: boolean;
 }) {
-  const avatar = (
-    <Avatar
-      source={showDetails && company && 'avatar' in company ? company.avatar : undefined}
-      name={name}
-      size={48}
-      shape="squircle"
-    />
+  const avatar = toElement(
+    LAvatar(showDetails && company && 'avatar' in company ? company.avatar : undefined, { name })
+      .size(experienceTokens.avatarSize.logo)
+      .shape('squircle'),
   );
   return showDetails && company?.username ? (
     <Link href={`/@${company.username}`} accessibilityLabel={name}>

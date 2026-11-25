@@ -1,20 +1,12 @@
 import type React from 'react';
-import { View, type ViewStyle } from 'react-native';
-import { useColorTokens } from '@oxy.so/bloom/theme';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
-/** The row's bottom hairline, as `border-b border-border` drew it (its colour is the border token). */
-const TAB_BAR_ROW_STYLE: ViewStyle = { borderBottomWidth: 1 };
-
-/** Opaque surface for the profile's scrollable Bloom tab bar. */
+/**
+ * Opaque surface for the profile's scrollable Bloom tab bar, its bottom hairline
+ * as `border-b border-border` drew it.
+ */
 export function ProfileTabBarRow({ children }: { children: React.ReactNode }) {
-  const surfaceFill = useSurfaceFill();
-  const colorTokens = useColorTokens();
-  return (
-    <View
-      style={[TAB_BAR_ROW_STYLE, { borderColor: colorTokens.border, backgroundColor: surfaceFill }]}
-    >
-      {children}
-    </View>
+  return toElement(
+    VStack(Embed(children)).background('surfaceFill').border('border', 'thin', 'bottom'),
   );
 }

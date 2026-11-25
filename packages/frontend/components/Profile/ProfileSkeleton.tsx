@@ -4,7 +4,6 @@ import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
 import {
@@ -65,8 +64,6 @@ const META_ROW: ViewStyle = {
 };
 /** The stats row: wraps, 16pt between items, 8pt between lines. */
 const STATS_ROW: ViewStyle = { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 8 };
-/** The tab strip: a row over a bottom hairline. */
-const TAB_BAR: ViewStyle = { flexDirection: 'row', borderBottomWidth: 1 };
 
 // A CHANNEL's anatomy, which is a different shape rather than a smaller one: no
 // banner to overlap, a CENTRED masthead (avatar, then name, then handle, then
@@ -98,7 +95,6 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   const insets = useContentSafeAreaInsets();
   // The avatar ring is the colour of the surface under it, as on the loaded profile.
   const surfaceFill = useSurfaceFill();
-  const colorTokens = useColorTokens();
   // Mirrors the loaded profile: the same opaque blocks, in the same colour as
   // the column they land in (see ProfileContent / ProfileTabBarRow).
 
@@ -301,9 +297,9 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
       </CoverHeader>
       {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
           min-60 cells) with an active-indicator hint under the first tab. */}
-      <View style={[TAB_BAR, { borderColor: colorTokens.border, backgroundColor: surfaceFill }]}>
-        {TAB_CHIP_WIDTHS.map((width, index) =>
-          toElement(
+      {toElement(
+        HStack(
+          TAB_CHIP_WIDTHS.map((width, index) =>
             VStack(
               Embed(<Skeleton.Box width={width} height={14} borderRadius={6} />),
               index === 0
@@ -317,11 +313,13 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
               .padding('vertical', '10')
               .padding('horizontal', 'md')
               .frame({ minWidth: '5xl' })
-              .align('center'),
-            index,
+              .align('center')
+              .id(String(index)),
           ),
-        )}
-      </View>
+        )
+          .background('surfaceFill')
+          .border('border', 'thin', 'bottom'),
+      )}
       {/* Placeholder feed rows below the tab bar. */}
       <FeedSkeleton count={FEED_ROW_COUNT} />
     </Skeleton.Region>

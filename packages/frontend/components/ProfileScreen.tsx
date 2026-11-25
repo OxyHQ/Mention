@@ -2,7 +2,6 @@ import type React from 'react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter, Redirect, type Href } from '@/lib/navigation/router';
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 
 import {
   ProfileShell,
@@ -12,7 +11,7 @@ import {
   type ProfileScreenProps,
   type ProfileTabDescriptor,
 } from './Profile';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, TabItem, Tabs, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * ONE PERSON's profile page, at `/@<handle>` — the NATIVE composition.
@@ -81,26 +80,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const tabBar = (
     <ProfileTabBarRow>
-      <Tabs
-        value={view.activeDescriptor?.key ?? 'posts'}
-        onValueChange={(key) => {
-          if (key === 'manage-lanes') router.push('/lanes');
-          else view.selectTab(key);
-        }}
-        variant="underline"
-      >
-        {view.tabDescriptors
-          .map((descriptor) => ({
-            id: descriptor.key,
-            label: descriptor.label,
-          }))
-          .map((tab: { id: string; label: string; count?: number }) => (
-            <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
-          ))}
-        {view.isOwnProfile && (
-          <TabsTrigger value="manage-lanes" label={t('lanes.title', { defaultValue: 'Lanes' })} />
-        )}
-      </Tabs>
+      {toElement(
+        Tabs(
+          [
+            view.activeDescriptor?.key ?? 'posts',
+            (key) => {
+              if (key === 'manage-lanes') router.push('/lanes');
+              else view.selectTab(key);
+            },
+          ],
+          ...view.tabDescriptors.map((descriptor) => TabItem(descriptor.key, descriptor.label)),
+          view.isOwnProfile
+            ? TabItem('manage-lanes', t('lanes.title', { defaultValue: 'Lanes' }))
+            : null,
+        ).style('underline'),
+      )}
     </ProfileTabBarRow>
   );
 
