@@ -9,7 +9,7 @@ export type ShareTargetPost = {
 export type ShareValidationResult = { ok: true } | { ok: false; status: number; message: string };
 
 export type ShareValidationOptions = {
-  action: 'boost' | 'quote';
+  action: 'repost' | 'quote';
 };
 
 /**

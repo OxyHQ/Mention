@@ -269,7 +269,7 @@ describe('POST /feed/boost', () => {
     ]);
     expect(notification).toEqual({
       actorId: USER_ID,
-      type: 'boost',
+      type: 'repost',
       entityId: original.id,
       entityType: 'post',
     });

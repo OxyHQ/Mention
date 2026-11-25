@@ -469,7 +469,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     if (repost_of) {
       const repostedPost = await loadPostRecord(String(repost_of));
-      const repostValidation = validatePublicShareTarget(repostedPost, { action: 'boost' });
+      const repostValidation = validatePublicShareTarget(repostedPost, { action: 'repost' });
       if (!repostValidation.ok) {
         return res.status(repostValidation.status).json({ message: repostValidation.message });
       }

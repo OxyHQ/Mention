@@ -23,7 +23,7 @@ export enum PostType {
   IMAGE = 'image',
   VIDEO = 'video',
   POLL = 'poll',
-  REPOST = 'boost',
+  REPOST = 'repost',
   QUOTE = 'quote',
 }
 

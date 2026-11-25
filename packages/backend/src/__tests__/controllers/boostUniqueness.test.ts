@@ -122,7 +122,7 @@ async function repostRows(original: string) {
   return db
     .select({ id: posts.id, oxyUserId: posts.oxyUserId })
     .from(posts)
-    .where(and(eq(posts.repostOf, original), eq(posts.type, 'boost')));
+    .where(and(eq(posts.repostOf, original), eq(posts.type, 'repost')));
 }
 
 beforeAll(async () => {

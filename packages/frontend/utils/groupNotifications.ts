@@ -4,7 +4,7 @@ import type { TRawNotification } from '../types/validation';
  * Types that should be grouped when they share the same target entity.
  * Mentions and replies are kept individual since they carry unique content.
  */
-export const GROUPABLE_TYPES = new Set(['like', 'boost', 'follow', 'quote']);
+export const GROUPABLE_TYPES = new Set(['like', 'repost', 'boost', 'follow', 'quote']);
 
 /**
  * Time window (in ms) within which notifications of the same type+entity
