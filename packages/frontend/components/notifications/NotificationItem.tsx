@@ -58,6 +58,7 @@ import {
   VStack as LVStack,
   toElement as LtoElement,
   defineModifier,
+  type StackView,
 } from '@oxy.so/bloom-language';
 
 /** The byline's name keeps its width; the handle beside it gives way. */
@@ -822,48 +823,32 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   // A read row is opaque in the colour of the column it sits in; an unread one
   // replaces that with the tint (`tailwind-merge` dropped `bg-card` for exactly
   // the same reason when both were classes), so the two stay exclusive.
+  // With separate gestures the row's own press is a layer under the columns, so the avatar and
+  // the text take the same press and long press themselves: hidden from assistive technology
+  // and out of the focus order (the layer is the row's one named button). React Native's
+  // hiding props are native-only; react-native-web drops them, so the web writes none.
+  const hiddenPress = (column: StackView) =>
+    column
+      .onPress(handlePress)
+      .onLongPress(handleLongPress)
+      .accessibilityElement(false)
+      .focusable(false)
+      .when('native', (v) => v.accessibilityHidden());
+
   const rowContent = (
     <>
       <SubtleHover />
       {LtoElement(
         LVStack(
           HStack(
-            /* Avatar column: avatar + themed action-badge overlay. */ Embed(
-              separateGestures ? (
-                <Pressable
-                  style={rowStyles.avatarColumn}
-                  onPress={handlePress}
-                  onLongPress={handleLongPress}
-                  accessible={false}
-                  tabIndex={-1}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                >
-                  {avatarContent}
-                </Pressable>
-              ) : (
-                toElement(VStack(Embed(avatarContent)).margin('right', 'md'))
-              ),
-            ),
+            /* Avatar column: avatar + themed action-badge overlay. */ separateGestures
+              ? hiddenPress(VStack(Embed(avatarContent)).margin('right', 'md'))
+              : VStack(Embed(avatarContent)).margin('right', 'md'),
             /* Content column — mirrors PostHeader's flex-1 name/handle/time byline
                     plus the muted action phrase and the text preview. */ LVStack(
-              Embed(
-                separateGestures ? (
-                  <Pressable
-                    style={rowStyles.mainContent}
-                    onPress={handlePress}
-                    onLongPress={handleLongPress}
-                    accessible={false}
-                    tabIndex={-1}
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                  >
-                    {mainContent}
-                  </Pressable>
-                ) : (
-                  mainContent
-                ),
-              ),
+              separateGestures
+                ? hiddenPress(VStack(Embed(mainContent)).spacing('xs'))
+                : Embed(mainContent),
               Embed(
                 isGroup && item.expandable
                   ? toElement(
@@ -1075,8 +1060,6 @@ const useRowTokens = createTokenStyles((t) => ({
 // The row's inner layout, as React Native views: each passes touches through
 // to the row's own press layer when the row separates its gestures.
 const rowStyles = StyleSheet.create({
-  avatarColumn: { position: 'relative', marginRight: 12 },
-  mainContent: { gap: 4 },
   thumbnail: { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE },
 });
 
