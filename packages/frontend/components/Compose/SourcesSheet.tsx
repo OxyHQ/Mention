@@ -1,17 +1,15 @@
-import { tokens } from '@oxy.so/bloom/styles';
 import type React from 'react';
 import { useMemo, useEffect } from 'react';
-import { ScrollView, type ViewStyle } from 'react-native';
-import { Card } from '@oxy.so/bloom/card';
+import { ScrollView } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
 
 import {
   Button as LButton,
+  Card,
   Embed,
   Field as LField,
   HStack,
@@ -23,9 +21,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** A source: its fields stacked in the card (`p-3 gap-2.5`). */
-const SOURCE_CARD = { padding: tokens.space.md, gap: 10 } satisfies ViewStyle;
 
 type SourceField = 'title' | 'url';
 
@@ -54,7 +49,6 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
   validateUrl,
   maxSources = 5,
 }) => {
-  const colorTokens = useColorTokens();
   const { t } = useTranslation();
 
   const canAddMore = sources.length < maxSources;
@@ -131,85 +125,78 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
           ) : (
             toElement(
               VStack(
-                Embed(
-                  sources.map((source, index) => {
-                    const isUrlInvalid = source.url.trim().length > 0 && !validateUrl(source.url);
+                sources.map((source, index) => {
+                  const isUrlInvalid = source.url.trim().length > 0 && !validateUrl(source.url);
 
-                    return (
-                      <Card
-                        key={source.id}
-                        appearance="outline"
-                        elevation="none"
-                        radius="radius-12"
-                        style={[SOURCE_CARD, isUrlInvalid && { borderColor: colorTokens.error }]}
-                      >
-                        {toElement(
-                          HStack(
-                            RawText(
-                              t('compose.sources.itemLabel', {
-                                defaultValue: 'Source {{index}}',
-                                index: index + 1,
-                              }),
-                            )
-                              .font('xs')
-                              .leading('16px')
-                              .weight('semibold')
-                              .tracking('wide')
-                              .textCase('uppercase')
-                              .foreground('muted'),
-                            VStack(Icon(RiCloseLine).size('sm').foreground('muted'))
-                              .padding('xs')
-                              .onPress(() => onRemove(source.id))
-                              .hitSlop('md')
-                              .role('button')
-                              .label(t('common.remove', { defaultValue: 'Remove' }))
-                              .pressFade(),
-                          )
-                            .align('center')
-                            .justify('between'),
-                        )}
-                        {toElement(
+                  // A source: its fields stacked in the card (`p-3 gap-2.5`), its outline the
+                  // error colour while its URL is not one.
+                  return Card(
+                    HStack(
+                      RawText(
+                        t('compose.sources.itemLabel', {
+                          defaultValue: 'Source {{index}}',
+                          index: index + 1,
+                        }),
+                      )
+                        .font('xs')
+                        .leading('16px')
+                        .weight('semibold')
+                        .tracking('wide')
+                        .textCase('uppercase')
+                        .foreground('muted'),
+                      VStack(Icon(RiCloseLine).size('sm').foreground('muted'))
+                        .padding('xs')
+                        .onPress(() => onRemove(source.id))
+                        .hitSlop('md')
+                        .role('button')
+                        .label(t('common.remove', { defaultValue: 'Remove' }))
+                        .pressFade(),
+                    )
+                      .align('center')
+                      .justify('between'),
+                    TextField(
+                      [source.title, (value) => onUpdate(source.id, 'title', value)],
+                      t('compose.sources.titlePlaceholder', {
+                        defaultValue: 'Source title (optional)',
+                      }),
+                    )
+                      .maxLength(200)
+                      .autocapitalize('sentences')
+                      .autocorrect(true),
+                    LField(
+                      undefined,
+                      Embed(
+                        toElement(
                           TextField(
-                            [source.title, (value) => onUpdate(source.id, 'title', value)],
-                            t('compose.sources.titlePlaceholder', {
-                              defaultValue: 'Source title (optional)',
+                            [source.url, (value) => onUpdate(source.id, 'url', value)],
+                            t('compose.sources.urlPlaceholder', {
+                              defaultValue: 'https://example.com/article',
                             }),
                           )
-                            .maxLength(200)
-                            .autocapitalize('sentences')
-                            .autocorrect(true),
-                        )}
-                        {toElement(
-                          LField(
-                            undefined,
-                            Embed(
-                              toElement(
-                                TextField(
-                                  [source.url, (value) => onUpdate(source.id, 'url', value)],
-                                  t('compose.sources.urlPlaceholder', {
-                                    defaultValue: 'https://example.com/article',
-                                  }),
-                                )
-                                  .invalid(isUrlInvalid)
-                                  .keyboard('url')
-                                  .autocapitalize('none')
-                                  .autocorrect(false)
-                                  .textContentType('URL')
-                                  .submitLabel('done'),
-                              ),
-                            ),
-                          ).error(
-                            isUrlInvalid
-                              ? t('compose.sources.invalidUrl', {
-                                  defaultValue: 'Enter a valid URL.',
-                                })
-                              : null,
-                          ),
-                        )}
-                      </Card>
-                    );
-                  }),
-                ),
+                            .invalid(isUrlInvalid)
+                            .keyboard('url')
+                            .autocapitalize('none')
+                            .autocorrect(false)
+                            .textContentType('URL')
+                            .submitLabel('done'),
+                        ),
+                      ),
+                    ).error(
+                      isUrlInvalid
+                        ? t('compose.sources.invalidUrl', {
+                            defaultValue: 'Enter a valid URL.',
+                          })
+                        : null,
+                    ),
+                  )
+                    .style('outline')
+                    .elevation('none')
+                    .radius('md')
+                    .padding('md')
+                    .spacing('10')
+                    .when(isUrlInvalid, (v) => v.border('error'))
+                    .id(source.id);
+                }),
               )
                 .padding('horizontal', 'lg')
                 .spacing('md'),
