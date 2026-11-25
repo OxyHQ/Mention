@@ -148,7 +148,7 @@ const renderEditor = (
 
 const findInput = (tree: TestRenderer.ReactTestRenderer) => {
   const node = tree.root.findAll(
-    (n) => n.props.testID === 'eventEditorTimeField' && n.props.onChangeText,
+    (n) => n.props.testID === 'eventEditorTimeField' && n.props.onValueChange,
   )[0];
   if (!node) throw new Error('time input not rendered');
   return node;
@@ -206,7 +206,7 @@ describe('EventEditor date field', () => {
     expect(field.props.value).toBe('08:05');
 
     act(() => {
-      field.props.onChangeText('21:30');
+      field.props.onValueChange('21:30');
     });
     expect(onDateChange).toHaveBeenCalledTimes(1);
     const merged = new Date(onDateChange.mock.calls[0][0]);
@@ -234,7 +234,7 @@ describe('EventEditor date field', () => {
       );
 
       act(() => {
-        findInput(tree).props.onChangeText(typed);
+        findInput(tree).props.onValueChange(typed);
       });
 
       expect(onDateChange).not.toHaveBeenCalled();
@@ -264,10 +264,10 @@ describe('EventEditor date field', () => {
     );
 
     act(() => {
-      findInput(tree).props.onChangeText('99:99');
+      findInput(tree).props.onValueChange('99:99');
     });
     act(() => {
-      findInput(tree).props.onChangeText('7:05');
+      findInput(tree).props.onValueChange('7:05');
     });
 
     expect(
@@ -385,12 +385,8 @@ describe('EventEditor surface', () => {
     // empty form on the second open — and this is the assertion that catches it.
     if (!tree) throw new Error('EventEditor failed to re-render');
     const values = tree.root
-      // A language field binds Bloom's `onValueChange`; the time field is still React Native's `onChangeText`.
-      .findAll(
-        (node) =>
-          node.props.value !== undefined &&
-          (node.props.onChangeText ?? node.props.onValueChange) !== undefined,
-      )
+      // Every field is a language field, bound through Bloom's `onValueChange`.
+      .findAll((node) => node.props.value !== undefined && node.props.onValueChange !== undefined)
       .map((node) => node.props.value);
     expect(values).toEqual(expect.arrayContaining(['Launch party', 'Berlin', 'Bring cake']));
 
