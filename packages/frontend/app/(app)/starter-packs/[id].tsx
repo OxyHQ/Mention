@@ -8,7 +8,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard } from '@/components/ProfileCard';
@@ -20,6 +20,7 @@ import { logger } from '@oxy.so/core/logger';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 
 import {
+  AvatarGroup,
   Button as LButton,
   Embed,
   HStack,
@@ -28,9 +29,13 @@ import {
   ScrollView,
   Text as LText,
   VStack,
+  defineTokens,
   toElement,
   Group,
 } from '@oxy.so/bloom-language';
+
+/** The hero's member faces are 56pt. */
+const packTokens = defineTokens({ avatarSize: { hero: 56 } });
 import { screen } from '@oxy.so/bloom-language/router';
 
 interface MemberProfile {
@@ -139,26 +144,18 @@ export default screen(function StarterPackDetailScreen() {
       {/* Hero section with grouped member avatars */}
       {toElement(
         VStack(
-          Embed(
-            avatarItems.length > 0 ? (
-              <AvatarGroup
-                items={avatarItems}
-                size={56}
-                max={8}
-                total={members.length}
-                variant={MEDIA_VARIANT_AVATAR_LG}
-              />
-            ) : (
-              toElement(
-                VStack(Icon(RiRocket2Line).size('2xl').foreground('primary'))
-                  .frame({ width: '64', height: '64' })
-                  .background('primary/20')
-                  .corner('lg')
-                  .align('center')
-                  .justify('center'),
-              )
-            ),
-          ),
+          avatarItems.length > 0
+            ? AvatarGroup(avatarItems)
+                .size(packTokens.avatarSize.hero)
+                .max(8)
+                .total(members.length)
+                .variant(MEDIA_VARIANT_AVATAR_LG)
+            : VStack(Icon(RiRocket2Line).size('2xl').foreground('primary'))
+                .frame({ width: '64', height: '64' })
+                .background('primary/20')
+                .corner('lg')
+                .align('center')
+                .justify('center'),
           LText(pack.name)
             .font('2xl')
             .leading('24px')

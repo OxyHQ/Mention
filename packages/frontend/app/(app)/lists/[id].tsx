@@ -14,7 +14,6 @@ import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
@@ -33,6 +32,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 import {
+  Avatar,
   Button as LButton,
   Embed,
   HStack,
@@ -78,7 +78,8 @@ interface ListData {
 }
 
 // The title's 26px line over its 22pt size (a leading is a ratio of the size).
-const listTokens = defineTokens({ leading: { title: 26 / 22 } });
+/** The title's 26pt line over its 22pt size, and the cover's 58pt side. */
+const listTokens = defineTokens({ leading: { title: 26 / 22 }, avatarSize: { cover: 58 } });
 
 // Tailwind's `ml-auto`: the language has no auto margin, so this slot stays a view.
 const followSlot: ViewStyle = { marginLeft: 'auto' };
@@ -181,14 +182,9 @@ const ListDetailScreen = screen(function ListDetailScreen() {
       toElement(
         VStack(
           HStack(
-            Embed(
-              <Avatar
-                source={list?.avatar || undefined}
-                size={58}
-                variant={MEDIA_VARIANT_AVATAR_LG}
-                style={{ borderRadius: 12 }}
-              />,
-            ),
+            Avatar(list?.avatar || undefined, { variant: MEDIA_VARIANT_AVATAR_LG })
+              .size(listTokens.avatarSize.cover)
+              .cornerRadius('md'),
             VStack(
               RawText(list?.title || 'Untitled List')
                 .foreground('foreground')
