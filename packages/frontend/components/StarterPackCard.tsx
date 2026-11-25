@@ -1,8 +1,8 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { useCallback, useMemo, type ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { StyleSheet } from 'react-native';
+import { useTheme } from '@oxy.so/bloom/theme';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -265,28 +265,21 @@ export function StarterPackCard({ pack, onPress, noDescription, footer }: Starte
  * Skeleton placeholder matching StarterPackCard layout.
  */
 export function StarterPackCardSkeleton() {
-  const colors = useColorTokens();
   return LtoElement(
     LCard(
-      /* Skeleton avatar row */ LEmbed(
-        toElement(
-          HStack(
-            Embed(
-              Array.from({ length: 6 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.skeletonCircle,
-                    { backgroundColor: colors.input, marginLeft: i > 0 ? -8 : 0, zIndex: 6 - i },
-                  ]}
-                />
-              )),
-            ),
-          )
-            .padding('vertical', 'xs')
-            .align('center'),
+      /* Skeleton avatar row */ HStack(
+        Array.from({ length: 6 }).map((_, i) =>
+          VStack()
+            .frame({ width: '3xl', height: '3xl' })
+            .background('input')
+            .corner('lg')
+            .margin('left', i > 0 ? '-sm' : 'none')
+            .zIndex(6 - i)
+            .id(String(i)),
         ),
-      ),
+      )
+        .padding('vertical', 'xs')
+        .align('center'),
       LEmbed(
         <Skeleton.Row style={{ gap: 12 }}>
           <Skeleton.Col style={{ gap: 6 }}>
@@ -332,10 +325,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 4,
-  },
-  skeletonCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
   },
 });
