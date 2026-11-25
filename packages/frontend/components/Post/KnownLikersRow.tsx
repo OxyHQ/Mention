@@ -1,14 +1,12 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
-import { memo, useMemo } from 'react';
-import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useKnownLikers } from '@/hooks/useKnownLikers';
 import { displayNameOrHandle } from '@/utils/displayName';
 
-import { RawText, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, RawText, type ViewModifier, view } from '@oxy.so/bloom-language';
 
 /** Diameter of each stacked avatar, matching the profile's "Followed by" row. */
 const AVATAR_SIZE = 20;
@@ -38,41 +36,19 @@ interface KnownLikersRowProps {
   onPress?: () => void;
   /**
    * The shared row chrome from `PostDetailStats` — full-width top hairline plus
-   * the horizontal padding its sibling rows use. Passed in rather than applied
+   * the horizontal padding its sibling rows use. Handed in rather than applied
    * by the parent because this row renders nothing most of the time, and an
    * outer wrapper would leave a stray rule behind when it does.
    */
-  rowStyle?: StyleProp<ViewStyle>;
+  look?: ViewModifier;
 }
 
 /**
- * Social proof on a focused post — "Liked by Ana, Luis and 12 others" with
- * overlapping avatars — for the likers the viewer follows.
- *
- * The profile analogue is `Profile/FollowedByRow`, and this deliberately mirrors
- * it: same avatar size, same one/two/many copy shape, same "render nothing
- * rather than reserve height" rule. Renders null for signed-out viewers, zero
- * known likers, and while the first fetch is in flight (all surfaced through
- * {@link useKnownLikers}), so the block never changes height mid-load.
- *
- * Layout follows bluesky-social/social-app `44b1ab08b`: the social proof gets
- * its OWN full-width row rather than being folded into the like counter. The
- * sentence wraps to a second line instead of clipping, so a narrow phone
- * viewport degrades by re-flowing rather than truncating mid-name.
+ * The likers the viewer follows, as the row draws them: the face pile's items, the
+ * total and the sentence, or `null` while there is nothing to say.
  */
-// The row lays out its faces and sentence; the caller's style draws its rule
-// (width and padding), in the theme's border colour.
-const useRowStyles = createTokenStyles((t) => ({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, borderColor: t.border },
-}));
-
-export const KnownLikersRow = memo(function KnownLikersRow({
-  postId,
-  onPress,
-  rowStyle,
-}: KnownLikersRowProps) {
+function useLikedBy(postId: string) {
   const { t } = useTranslation();
-  const styles = useRowStyles();
   const { likers, total, isPending } = useKnownLikers(postId);
 
   // One pass serves both the face pile and the sentence, so a name can never
@@ -122,26 +98,54 @@ export const KnownLikersRow = memo(function KnownLikersRow({
       defaultValue: 'Liked by {{name1}}, {{name2}} and {{count}} others',
     });
   }
+  return { avatarItems, total, label };
+}
 
-  return (
-    <Pressable
-      style={[styles.row, rowStyle]}
-      onPress={onPress}
-      disabled={!onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
+/**
+ * Social proof on a focused post — "Liked by Ana, Luis and 12 others" with
+ * overlapping avatars — for the likers the viewer follows.
+ *
+ * The profile analogue is `Profile/FollowedByRow`, and this deliberately mirrors
+ * it: same avatar size, same one/two/many copy shape, same "render nothing
+ * rather than reserve height" rule. Renders null for signed-out viewers, zero
+ * known likers, and while the first fetch is in flight (all surfaced through
+ * {@link useKnownLikers}), so the block never changes height mid-load.
+ *
+ * Layout follows bluesky-social/social-app `44b1ab08b`: the social proof gets
+ * its OWN full-width row rather than being folded into the like counter. The
+ * sentence wraps to a second line instead of clipping, so a narrow phone
+ * viewport degrades by re-flowing rather than truncating mid-name.
+ */
+export const KnownLikersRow = view(function KnownLikersRow({
+  postId,
+  onPress,
+  look,
+}: KnownLikersRowProps) {
+  const likedBy = useLikedBy(postId);
+  if (!likedBy) return null;
+
+  // The row lays out its faces and sentence; the caller's look draws its rule
+  // (padding and the top hairline).
+  return HStack(
+    Embed(
       <AccountAvatarGroup
-        items={avatarItems}
+        items={likedBy.avatarItems}
         size={AVATAR_SIZE}
         max={3}
-        total={total}
+        total={likedBy.total}
         variant={MEDIA_VARIANT_AVATAR}
-      />
-      {/* Two lines, not one: on a phone the sentence does not fit beside the
-          avatars, and wrapping keeps the "and N others" tail readable where
-          `numberOfLines={1}` would clip it mid-name. */}
-      {toElement(RawText(label).foreground('muted').font('14').shrink('normal').lines(2))}
-    </Pressable>
-  );
+      />,
+    ),
+    // Two lines, not one: on a phone the sentence does not fit beside the
+    // avatars, and wrapping keeps the "and N others" tail readable where
+    // `numberOfLines={1}` would clip it mid-name.
+    RawText(likedBy.label).foreground('muted').font('14').shrink('normal').lines(2),
+  )
+    .align('center')
+    .spacing('sm')
+    .modifier(look)
+    .onPress(onPress)
+    .disabled(!onPress)
+    .role('button')
+    .label(likedBy.label);
 });

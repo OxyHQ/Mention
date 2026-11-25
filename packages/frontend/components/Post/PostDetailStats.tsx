@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -7,18 +6,7 @@ import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import type { ReplyPermission } from '@mention/shared-types';
 import { KnownLikersRow } from '@/components/Post/KnownLikersRow';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { POST_ITEM_SPACING } from '@/styles/shared';
-import {
-  Embed,
-  HStack,
-  Icon,
-  RawText,
-  VStack,
-  defineModifier,
-  toElement,
-} from '@oxy.so/bloom-language';
-
-const { HPAD, SECTION_GAP } = POST_ITEM_SPACING;
+import { HStack, Icon, RawText, VStack, defineModifier, toElement } from '@oxy.so/bloom-language';
 
 /**
  * A detail row: its own full-width hairline rule on top, the post's side
@@ -27,6 +15,11 @@ const { HPAD, SECTION_GAP } = POST_ITEM_SPACING;
 const detailRow = defineModifier((v) =>
   v.padding('horizontal', 'md').padding('top', 'md').border('border', 'hairline', 'top'),
 );
+// Each row carries its OWN full-width top rule. The wrapper deliberately holds
+// no horizontal padding so those rules span the row exactly like the post
+// container's bottom border; the padding lives on the rows themselves.
+/** The known-likers row: a detail row with the section gap below it too. */
+const likersRow = defineModifier((v) => v.padding('bottom', 'md').modifier(detailRow));
 
 /**
  * A count straight off the post DTO, NOT coalesced by the caller — the three
@@ -130,29 +123,13 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
 
   if (!timestampLabel && restrictions.length === 0 && statsEntries.length === 0) return null;
 
-  // Each row carries its OWN full-width top rule. The wrapper deliberately holds
-  // no horizontal padding so those rules span the row exactly like the post
-  // container's bottom border; the padding lives on the rows themselves.
-  const rowStyle = {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: HPAD,
-    paddingTop: SECTION_GAP,
-  } as const;
-
   return toElement(
     VStack(
-      /* Social proof leads the block: it sits directly under the action bar,
-            so the faces land next to the like button that produced them. It draws
-            nothing at all when the viewer follows none of the likers, so the rows
-            below simply move up. */ Embed(
-        postId ? (
-          <KnownLikersRow
-            postId={postId}
-            onPress={onLikesPress}
-            rowStyle={[rowStyle, { paddingBottom: SECTION_GAP }]}
-          />
-        ) : null,
-      ),
+      // Social proof leads the block: it sits directly under the action bar,
+      // so the faces land next to the like button that produced them. It draws
+      // nothing at all when the viewer follows none of the likers, so the rows
+      // below simply move up.
+      postId ? KnownLikersRow({ postId, onPress: onLikesPress, look: likersRow }) : null,
       timestampLabel || restrictions.length > 0
         ? HStack(
             timestampLabel ? RawText(timestampLabel).foreground('muted').font('14') : null,

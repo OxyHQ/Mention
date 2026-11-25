@@ -16,6 +16,7 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
 import { Text } from 'react-native';
 import TestRenderer, { act, type ReactTestRendererJSON } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';
+import { toElement } from '@oxy.so/bloom-language';
 import { KnownLikersRow } from '../KnownLikersRow';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
@@ -79,7 +80,7 @@ function render(state: { likers: PostUser[]; total: number; isPending: boolean }
   act(() => {
     renderer = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        <KnownLikersRow postId="post-1" onPress={jest.fn()} />
+        {toElement(KnownLikersRow({ postId: 'post-1', onPress: jest.fn() }))}
       </BloomThemeProvider>,
     );
   });
