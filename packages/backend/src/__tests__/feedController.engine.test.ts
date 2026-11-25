@@ -442,6 +442,7 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     expect(anonCache.read).toHaveBeenCalledWith(
       'anon-key',
       expect.objectContaining({ accepted: expect.any(Array) }),
+      expect.any(Number),
     );
     expect(engineRun).toHaveBeenCalledOnce();
     // The freshly built page is persisted for the next anonymous viewer.

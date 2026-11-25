@@ -2,6 +2,7 @@ import { revalidateAnonymousFeed, type AnonymousFeedSnapshot } from './revalidat
 import { createHash } from 'node:crypto';
 import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { createCache } from '../utils/cache';
+import { ANON_FRESH_MS } from './anonFeedFreshness';
 import type { RequestLanguages } from '../utils/viewerLanguage';
 
 /**
@@ -94,13 +95,6 @@ function stableStringify(value: unknown): string {
 }
 
 /**
- * How long a page counts as FRESH: the anon feed is shared, so this collapses a
- * burst of anonymous requests into one recompute, while new posts still appear
- * within ~1 minute.
- */
-const FRESH_MS = 45 * 1000;
-
-/**
  * How long a page is KEPT after it stops being fresh, to be served while one
  * build refreshes it. A build is the whole gather-rank-hydrate pipeline: on the
  * Explore feed it scores a day of posts and runs 4 to 15 s against a 15 s
@@ -163,11 +157,12 @@ class AnonFeedCache {
   async read(
     key: string,
     requestLanguages?: RequestLanguages,
+    freshMs: number = ANON_FRESH_MS,
   ): Promise<CacheableFeedResponse | null> {
     return this.readWhere(
       key,
       requestLanguages,
-      (stored) => !stored.degraded && Date.now() - stored.cachedAt < FRESH_MS,
+      (stored) => !stored.degraded && Date.now() - stored.cachedAt < freshMs,
     );
   }
 

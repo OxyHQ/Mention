@@ -57,6 +57,7 @@ import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { feedSeenPostsService } from '../../services/FeedSeenPostsService';
 import { anonFeedCache, type AnonFeedEntry } from '../../services/anonFeedCache';
+import { anonFreshMsFor } from '../../services/anonFeedFreshness';
 import { hasUnresolvedAuthor } from '../../services/revalidateAnonymousFeed';
 import {
   captureHydrationRevisions,
@@ -420,7 +421,11 @@ class MtnFeedController {
           })
         : undefined;
       if (anonCacheKey) {
-        const cached = await anonFeedCache.read(anonCacheKey, requestLanguages);
+        const cached = await anonFeedCache.read(
+          anonCacheKey,
+          requestLanguages,
+          anonFreshMsFor(descriptor),
+        );
         if (cached) {
           res.json({ success: true, data: cached });
           return;
