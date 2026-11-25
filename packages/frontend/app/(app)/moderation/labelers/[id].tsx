@@ -1,15 +1,13 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, Text, type TextStyle, View } from 'react-native';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { labelerService } from '@/services/labelerService';
-import { SEVERITY_COLORS, type Severity, type LabelActionType } from '@/components/LabelBadge';
+import { severityTokens, type Severity, type LabelActionType } from '@/components/LabelBadge';
 import { logger } from '@oxy.so/core/logger';
 import {
   Divider as LDivider,
@@ -32,13 +30,6 @@ import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 /** An action chip's 5pt vertical padding and a badge's 7pt horizontal one, off the space scale. */
 const labelerTokens = defineTokens({ space: { chipY: 5, badgeX: 7 } });
-
-/** A label's slug: 12/16, the platform's monospace on native (the web drew the inherited face). */
-const SLUG_STYLE: TextStyle = {
-  fontSize: 12,
-  lineHeight: 16,
-  ...Platform.select({ native: { fontFamily: 'monospace' } }),
-};
 
 /** The "Official" badge: a shield and the word, white on the primary fill (rounded on the web only, as the app's `rounded-md` drew it). */
 function officialBadge(label: string) {
@@ -87,22 +78,21 @@ const ACTION_OPTIONS_CONFIG: { value: LabelAction; labelKey: string }[] = [
   { value: 'hide', labelKey: 'moderation.hide' },
 ];
 
-interface SeverityBadgeProps {
-  severity: Severity;
+/** A label's severity: the word in its swatch, on the swatch at 12.5% (hex `20`) inside a 31.4% (hex `50`) hairline. */
+function severityBadge(severity: Severity) {
+  const color = severityTokens.color[severity] ?? severityTokens.color.low;
+  return VStack(
+    RawText(severity.charAt(0).toUpperCase() + severity.slice(1))
+      .font('11')
+      .weight('semibold')
+      .foreground(color),
+  )
+    .padding('horizontal', labelerTokens.space.badgeX)
+    .padding('vertical', '2xs')
+    .background(color.opacity('12.5'))
+    .border(color.opacity('31.4'), 'thin')
+    .corner('6');
 }
-
-const SeverityBadge = React.memo(({ severity }: SeverityBadgeProps) => {
-  const color = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS.low;
-  return (
-    <View style={[styles.badge, { backgroundColor: `${color}20`, borderColor: `${color}50` }]}>
-      <Text style={[styles.badgeText, { color }]}>
-        {severity.charAt(0).toUpperCase() + severity.slice(1)}
-      </Text>
-    </View>
-  );
-});
-
-SeverityBadge.displayName = 'SeverityBadge';
 
 interface ActionChipsProps {
   labelSlug: string;
@@ -156,7 +146,6 @@ const ActionChips = React.memo(
 ActionChips.displayName = 'ActionChips';
 
 export default screen(function LabelerDetailScreen() {
-  const theme = useTheme();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -413,7 +402,7 @@ export default screen(function LabelerDetailScreen() {
                               .flex('1')
                               .foreground('foreground'),
                             HStack(
-                              Embed(<SeverityBadge severity={severity} />),
+                              severityBadge(severity),
                               // Same defect as the action chip above: an interpolated
                               // hex alpha on the `rgb(...)` primary token painted this
                               // badge solid primary under its own primary label. Tint
@@ -438,14 +427,13 @@ export default screen(function LabelerDetailScreen() {
                             .align('center')
                             .justify('between')
                             .spacing('sm'),
-                          Embed(
-                            <Text
-                              style={[SLUG_STYLE, { color: theme.colors.textSecondary }]}
-                              numberOfLines={1}
-                            >
-                              {ld.slug}
-                            </Text>,
-                          ),
+                          // A label's slug: 12/16, the platform's monospace on native (the web drew the inherited face).
+                          RawText(ld.slug)
+                            .font('xs')
+                            .leading('16px')
+                            .when('native', (v) => v.font('system-mono'))
+                            .foreground('muted')
+                            .lines(1),
                           ld.description
                             ? RawText(ld.description).font('sm').leading('18px').foreground('muted')
                             : null,
@@ -490,21 +478,4 @@ export default screen(function LabelerDetailScreen() {
       .backLabel(t('common.back', { defaultValue: 'Back' }))
       .inPage(),
   );
-});
-
-const styles = StyleSheet.create({
-  scrollContent: {
-    padding: 16,
-    gap: 8,
-  },
-  badge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
 });
