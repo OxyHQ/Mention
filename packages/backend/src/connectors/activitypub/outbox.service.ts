@@ -91,6 +91,7 @@ import {
   xTimelinePageUrl,
 } from './xTimeline';
 import { mirrorPostTime, mirrorTransportOf } from '../../utils/federation/mirrorTransports';
+import { typeIsRepost } from '../../utils/repostType';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
@@ -1682,7 +1683,7 @@ export class OutboxSyncService {
           and(
             eq(posts.repostOf, originalPostId),
             eq(posts.oxyUserId, reposterOxyUserId),
-            eq(posts.type, 'boost'),
+            typeIsRepost(posts.type),
           ),
         )
         .limit(1);

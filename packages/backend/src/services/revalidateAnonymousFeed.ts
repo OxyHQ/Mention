@@ -152,7 +152,8 @@ async function rehydrate<T extends FeedResponse | SlicedFeedResponse>(
         ...rest,
         items: visible,
         isIncompleteThread: slice.isIncompleteThread || visible.length !== slice.items.length,
-        ...(reason?.type === 'boost' && !fresh.some((post) => post.user.id === reason.actor.id)
+        ...((reason?.type === 'boost' || reason?.type === 'repost') &&
+        !fresh.some((post) => post.user.id === reason.actor.id)
           ? {}
           : { reason }),
       },

@@ -30,6 +30,7 @@ import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
+import { typeIsRepost } from '../utils/repostType';
 
 /** Posts scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -68,7 +69,7 @@ async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCou
     db
       .select({ id: posts.repostOf, count: count() })
       .from(posts)
-      .where(and(inArray(posts.repostOf, postIds), eq(posts.type, 'boost')))
+      .where(and(inArray(posts.repostOf, postIds), typeIsRepost(posts.type)))
       .groupBy(posts.repostOf),
     // Comments: reply posts whose parent is this post.
     db

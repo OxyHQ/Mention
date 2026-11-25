@@ -519,7 +519,14 @@ export interface OnlineEngagementReport {
 }
 
 /** Events that count as POSITIVE engagement in the per-impression ratio. */
-const ENGAGEMENT_EVENTS: FeedInteractionEventName[] = ['click', 'like', 'reply', 'boost', 'save'];
+const ENGAGEMENT_EVENTS: FeedInteractionEventName[] = [
+  'click',
+  'like',
+  'reply',
+  'boost',
+  'repost',
+  'save',
+];
 
 /** Compute engagement-per-impression and report-per-impression from event counts. Pure. */
 export function computeOnlineEngagement(

@@ -27,7 +27,7 @@
  */
 
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
-import { PostType, PostVisibility } from '@mention/shared-types';
+import { PostVisibility, isRepostType } from '@mention/shared-types';
 import { qualified } from '@oxy.so/db';
 import { getDb, type Transaction } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
@@ -284,7 +284,7 @@ export async function eraseAccountPosts(
       removed,
     );
     const repostedOriginals = tally(
-      own.filter((row) => row.type === PostType.REPOST).map((row) => row.boostOf),
+      own.filter((row) => isRepostType(row.type)).map((row) => row.boostOf),
       removed,
     );
 

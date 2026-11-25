@@ -50,19 +50,8 @@
  * to empty on error so a single failing query never sinks the whole computation.
  */
 
-import { PostType, MtnConfig, isVideoSurface } from '@mention/shared-types';
-import {
-  and,
-  arrayOverlaps,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNotNull,
-  ne,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
+import { MtnConfig, isVideoSurface } from '@mention/shared-types';
+import { and, arrayOverlaps, desc, eq, gte, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { entityFollows, likes } from '../db/schema/engagement';
 import { userSettings } from '../db/schema/userProfile';
@@ -80,6 +69,7 @@ import {
   type OxyClient,
 } from '../utils/privacyHelpers';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
+import { typeIsNotRepost, typeIsRepost } from '../utils/repostType';
 
 /** Recency window for content signals (days). */
 const WINDOW_DAYS = 30;
@@ -618,7 +608,7 @@ export class ContentAffinityService {
             arrayOverlaps(posts.hashtags, tags),
             eq(posts.visibility, 'public'),
             eq(posts.status, 'published'),
-            ne(posts.type, PostType.REPOST),
+            typeIsNotRepost(posts.type),
             isNotNull(posts.oxyUserId),
             gte(posts.createdAt, since),
           ),
@@ -799,7 +789,7 @@ export class ContentAffinityService {
       ];
       const conditions =
         kind === 'boost'
-          ? [...shared, eq(posts.type, PostType.REPOST), isNotNull(posts.repostOf)]
+          ? [...shared, typeIsRepost(posts.type), isNotNull(posts.repostOf)]
           : [...shared, isNotNull(posts.parentPostId)];
 
       const rows = await getDb()

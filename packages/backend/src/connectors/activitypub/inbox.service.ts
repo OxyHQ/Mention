@@ -101,6 +101,7 @@ import {
 import { isBannedFromCommunity } from '../../db/communities/communityBanRepository';
 import { communityOfPost } from '../../services/communities/communityPosting';
 import { getNotificationRecipients, normalizeAuthorship } from '../../utils/postAuthorship';
+import { typeIsRepost } from '../../utils/repostType';
 
 /**
  * Whether a Note replies to one of our posts, or mentions or is addressed to one
@@ -458,7 +459,7 @@ export class InboxProcessingService {
         and(
           eq(posts.federationActivityId, announceId),
           eq(posts.federationActorUri, actorUri),
-          eq(posts.type, 'boost'),
+          typeIsRepost(posts.type),
         ),
         { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 },
       );
@@ -472,7 +473,7 @@ export class InboxProcessingService {
             eq(posts.repostOf, originalPostId),
             eq(posts.oxyUserId, reposterOxyUserId),
             eq(posts.federationActorUri, actorUri),
-            eq(posts.type, 'boost'),
+            typeIsRepost(posts.type),
           ),
           { orderBy: CHRONO_DESC, limit: 1 },
         );

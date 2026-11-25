@@ -47,6 +47,7 @@ import {
   PUBLIC_APPVIEW,
 } from './constants';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
+import { typeIsRepost } from '../../utils/repostType';
 
 /**
  * Maps Bluesky `app.bsky.feed.post` records (from `app.bsky.feed.getAuthorFeed`
@@ -1202,7 +1203,7 @@ export async function importAtprotoRepost(input: {
       and(
         eq(posts.repostOf, input.originalPostId),
         eq(posts.oxyUserId, input.boosterOxyUserId),
-        eq(posts.type, 'boost'),
+        typeIsRepost(posts.type),
       ),
     )
     .limit(1);

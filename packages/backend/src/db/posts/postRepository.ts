@@ -153,6 +153,7 @@ const POST_TYPE_BY_COLUMN = {
   video: PostType.VIDEO,
   poll: PostType.POLL,
   boost: PostType.REPOST,
+  repost: PostType.REPOST,
   quote: PostType.QUOTE,
 } as const satisfies Record<PostRow['type'], PostType>;
 

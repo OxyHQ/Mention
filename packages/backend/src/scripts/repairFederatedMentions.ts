@@ -214,7 +214,7 @@
  *   await d.closePostgres();})()"
  */
 
-import { and, asc, count, eq, exists, gt, inArray, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, exists, gt, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import type { PostContentVariant } from '@mention/shared-types';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -243,6 +243,7 @@ import {
   recordRepairFetchFailures,
   type RepairFetchFailureRecord,
 } from './lib/repairFetchFailureLog';
+import { typeIsNotRepost } from '../utils/repostType';
 
 /** This sweep's own name — the mutation-guard token and the cursor's key. */
 export const SCRIPT_NAME = 'repairFederatedMentions';
@@ -598,7 +599,7 @@ export function buildCandidateFilter(
   if (range.through) variantRange.push(lte(postContentVariants.postId, range.through));
   const clauses: SQL[] = [
     sql`${posts.federationActivityId} is not null`,
-    ne(posts.type, 'boost'),
+    typeIsNotRepost(posts.type),
     /**
      * Some stored body still carries the residue of an unqualified mention.
      *

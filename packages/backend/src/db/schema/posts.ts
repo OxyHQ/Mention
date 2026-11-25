@@ -59,7 +59,9 @@ import { createdAt, generatedId, geography, inList, timestamptz, updatedAt } fro
  * type and the CHECK derive from ONE list; the enum in shared-types stays the
  * product-level source and this is asserted equal to it by test.
  */
-export const POST_TYPES = ['text', 'image', 'video', 'poll', 'boost', 'quote'] as const;
+// 'boost' is the old name of 'repost' and goes when the rename's last release ships
+// (docs/repost-rename.md); until then both are valid stored values.
+export const POST_TYPES = ['text', 'image', 'video', 'poll', 'boost', 'repost', 'quote'] as const;
 
 /**
  * `PostVisibility` (`@mention/shared-types`).
@@ -938,6 +940,14 @@ export const posts = pgTable(
       .on(t.oxyUserId, t.repostOf)
       .where(
         sql`${t.type} = 'boost' and ${t.repostOf} is not null and ${t.federationActivityId} is null`,
+      ),
+    // The same rule over both names of the stored type while 'boost' is renamed to 'repost':
+    // the index above only sees 'boost' rows, so a row written as 'repost' needs this one.
+    // It replaces the one above, which goes in the rename's last release (docs/repost-rename.md).
+    uniqueIndex('posts_one_repost_per_account_v2_key')
+      .on(t.oxyUserId, t.repostOf)
+      .where(
+        sql`${t.type} in ('boost', 'repost') and ${t.repostOf} is not null and ${t.federationActivityId} is null`,
       ),
     index('posts_quote_of_idx').on(t.quoteOf, t.createdAt.desc()),
     index('posts_scheduled_idx').on(t.scheduledFor).where(sql`${t.status} = 'scheduled'`),

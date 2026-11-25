@@ -16,6 +16,7 @@ import {
   type HydratedPost,
   MtnConfig,
   PostVisibility,
+  isRepostType,
 } from '@mention/shared-types';
 import { and, asc, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../db/schema/posts';
@@ -396,7 +397,7 @@ class ThreadSlicingService {
 }
 
 function isRepost(post: RawPost): post is RawPost & { boostOf: string } {
-  return post.type === 'boost' && typeof post.boostOf === 'string' && post.boostOf.length > 0;
+  return isRepostType(post.type) && typeof post.boostOf === 'string' && post.boostOf.length > 0;
 }
 
 function getPostId(post: RawPost): string {

@@ -4,6 +4,7 @@ import { getDb } from '../db/postgres';
 import { likes } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
+import { typeIsRepost } from '../utils/repostType';
 
 /**
  * Per-request aggregation of "social proof" — how many people in the VIEWER'S
@@ -74,7 +75,7 @@ export async function getNetworkEngagerCounts(
         .from(posts)
         .where(
           and(
-            eq(posts.type, 'boost'),
+            typeIsRepost(posts.type),
             eq(posts.status, 'published'),
             eq(posts.visibility, 'public'),
             window ? gte(posts.createdAt, window.since) : undefined,

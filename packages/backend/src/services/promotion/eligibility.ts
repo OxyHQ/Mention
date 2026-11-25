@@ -14,7 +14,7 @@
  *  - one open promotion per post.
  */
 
-import { PostType, PostVisibility } from '@mention/shared-types';
+import { PostType, PostVisibility, isRepostType } from '@mention/shared-types';
 import { type FeedSafetyPostShape, requiresContentWarning } from '../../mtn/feed/feedSafety';
 
 /** The reasons a post cannot be promoted. Stable strings: clients map them to copy. */
@@ -59,7 +59,7 @@ export function promotionIneligibility(
   const reasons: PromotionIneligibility[] = [];
   if (post.oxyUserId !== context.buyerOxyUserId) reasons.push('not-owner');
   if (
-    post.type === PostType.REPOST ||
+    isRepostType(post.type) ||
     post.type === PostType.QUOTE ||
     post.isReply ||
     post.quoteOf ||

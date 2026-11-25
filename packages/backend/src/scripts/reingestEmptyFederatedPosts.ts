@@ -36,7 +36,7 @@
  * differently if the upstream media is permanently unavailable.
  */
 
-import { and, asc, count, eq, gt, isNotNull, isNull, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, gt, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -55,6 +55,7 @@ import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { DeletionPreflightError, assertPostsSafeToDelete } from './lib/adminDeletionPreflight';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
+import { typeIsNotRepost } from '../utils/repostType';
 
 /** Posts scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -138,7 +139,7 @@ function parseFlags(argv: string[]): Flags {
 function buildEmptyFederatedFilter(actorUri: string | undefined): SQL {
   const conditions: SQL[] = [
     isNotNull(posts.federationActivityId),
-    ne(posts.type, PostType.REPOST),
+    typeIsNotRepost(posts.type),
     isNull(posts.contentPollId),
     sql`not exists (
       select 1 from ${postContentVariants}

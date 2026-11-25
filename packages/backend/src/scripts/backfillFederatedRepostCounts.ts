@@ -38,6 +38,7 @@ import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { typeIsRepost } from '../utils/repostType';
 
 /** Posts scanned per page (stable ascending `id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
@@ -102,7 +103,7 @@ export async function backfillFederatedRepostCounts(
       .where(
         and(
           inArray(posts.repostOf, pageIds),
-          eq(posts.type, 'boost'),
+          typeIsRepost(posts.type),
           isNotNull(posts.federationActivityId),
         ),
       )

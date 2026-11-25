@@ -14,6 +14,20 @@ stored VALUE `'boost'` of `posts.type`, `notifications.type`, `feed_interactions
 federation import reasons, which are renamed the same way (widen the CHECK, write the new value,
 backfill, narrow).
 
+## The stored value `'boost'` -> `'repost'`
+
+`posts.type`, `notifications.type`, `feed_interactions.event` and the federation import reasons
+(`boost_dependency`) hold the old word, and so do the payloads clients read. The owner chose a clean cut,
+done in three releases so a rolling deploy never meets a value it rejects:
+
+1. **Tolerate** (this release): every CHECK, the two trigger functions that hardcode the value and a
+   new unique index accept both names, and every reader goes through `REPOST_TYPE_VALUES` /
+   `isRepostType` (shared) or `typeIsRepost` (queries). Nothing writes `'repost'` yet.
+2. **Write**: the enums flip to `'repost'`, writers and the wire emit it, the stored rows are copied by a
+   resumable backfill. Native apps older than the release that understands `'repost'` show reposts
+   badly until they update.
+3. **Narrow**: the old value leaves the CHECKs, the list, the readers and the old unique index.
+
 ## Phases
 
 1. **Expand** (migration 0126). `posts` gains `repost_of`, `stats_reposts_count`,

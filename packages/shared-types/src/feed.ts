@@ -115,7 +115,8 @@ export interface FeedSliceItem {
 }
 
 export type FeedSliceReason =
-  | { type: 'boost'; actor: PostUser }
+  // 'boost' is the old name of 'repost' (docs/repost-rename.md); readers accept both.
+  | { type: 'boost' | 'repost'; actor: PostUser }
   /**
    * The slice's LAST item is a reply. The parent post is prepended as the first
    * item when it is available; when it is not — already rendered higher in the
@@ -247,6 +248,7 @@ export type FeedInteractionEventName =
   | 'like'
   | 'reply'
   | 'boost'
+  | 'repost' // the new name of 'boost' (docs/repost-rename.md); both are accepted
   | 'save'
   | 'report';
 

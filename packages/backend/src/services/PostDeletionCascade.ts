@@ -60,7 +60,7 @@ import { eventAttendance } from '../db/schema/events';
 
 import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { enqueueFederatedMediaDeletionsForPosts } from '../db/federation/mediaDeletionRepository';
-import { PostType } from '@mention/shared-types';
+
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { deletePostRecord, lockPostContent } from '../db/posts/postRepository';
@@ -79,6 +79,7 @@ import {
   type PostDeletionTarget,
   type PostReferenceProbeName,
 } from '../scripts/lib/adminDeletionPreflight';
+import { typeIsRepost } from '../utils/repostType';
 
 /**
  * Best-effort work after a COMMITTED deletion that did not complete.
@@ -327,7 +328,7 @@ export async function collectDeletionTargets(
     const next = await tx
       .select(CASCADE_ROW_COLUMNS)
       .from(posts)
-      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.repostOf, frontier)))
+      .where(and(typeIsRepost(posts.type), inArray(posts.repostOf, frontier)))
       .limit(MAX_DELETION_TARGETS + 1);
 
     frontier = [];

@@ -155,7 +155,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import { PostType } from '@mention/shared-types';
+
 import { config } from '../config';
 import { connectPostgres, getDb } from '../db/postgres';
 import { bookmarks, entityFollows, likes, postSubscriptions } from '../db/schema/engagement';
@@ -215,6 +215,7 @@ import {
   recordAdminScriptCursor,
 } from './lib/adminScriptCursor';
 import { chunk } from '@oxy.so/utils/text';
+import { typeIsRepost } from '../utils/repostType';
 
 /** This script's own name — the token its mutation guard and cursor rows use. */
 const SCRIPT_NAME = 'purgeBlockedDomainContent';
@@ -911,7 +912,7 @@ async function collectRepostClosure(seeds: readonly PostRow[]): Promise<PostRow[
     const next = await getDb()
       .select(POST_CASCADE_COLUMNS)
       .from(posts)
-      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.repostOf, frontier)));
+      .where(and(typeIsRepost(posts.type), inArray(posts.repostOf, frontier)));
 
     frontier = [];
     for (const repost of next) {

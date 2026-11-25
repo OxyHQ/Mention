@@ -262,6 +262,18 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       "WHERE ((type = 'boost'::text) AND (repost_of IS NOT NULL) AND (federation_activity_id IS NULL))",
   },
   {
+    name: 'posts_one_repost_per_account_v2_key',
+    table: 'posts',
+    serves:
+      'the same one-native-repost-per-account rule as `posts_one_repost_per_account_key`, over both ' +
+      "names of the stored type ('boost' and 'repost') while the value is renamed. The old index only " +
+      "sees 'boost' rows, so a row written as 'repost' needs this one. It replaces it in the rename's " +
+      'last release',
+    definition:
+      'CREATE UNIQUE INDEX posts_one_repost_per_account_v2_key ON public.posts USING btree (oxy_user_id, repost_of) ' +
+      "WHERE ((type = ANY (ARRAY['boost'::text, 'repost'::text])) AND (repost_of IS NOT NULL) AND (federation_activity_id IS NULL))",
+  },
+  {
     name: 'posts_quote_of_idx',
     table: 'posts',
     serves:
