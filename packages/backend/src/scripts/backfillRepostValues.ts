@@ -91,6 +91,25 @@ export interface BackfillRepostValuesOptions {
 
 export type BackfillRepostValuesResult = Record<string, number>;
 
+/** A deadlock aborts only the batch that lost it: redo that batch a few times before giving up. */
+async function withDeadlockRetry<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      const text = String(
+        (error as { message?: unknown; cause?: { code?: unknown } })?.message ?? '',
+      );
+      const code =
+        (error as { cause?: { code?: unknown }; code?: unknown })?.cause?.code ??
+        (error as { code?: unknown })?.code;
+      const isDeadlock = code === '40P01' || text.includes('deadlock detected');
+      if (!isDeadlock || attempt >= 5) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
+  }
+}
+
 const idList = (ids: readonly string[]): SQL =>
   sql.join(
     ids.map((id) => sql`${id}`),
@@ -148,19 +167,29 @@ export async function backfillRepostValues(
       if (opts.dryRun) continue;
 
       if (target.dropWhenNewExists) {
-        await db.execute(sql`
+        await withDeadlockRetry(() =>
+          db.execute(sql`
           delete from ${table} old
           where old.${idColumn} in (${idList(ids)}) and old.${column} = ${target.from}
             and exists (
               select 1 from ${table} new
               where new.${idColumn} = old.${idColumn} and new.${column} = ${target.to}
             )
-        `);
+        `),
+        );
       }
-      await db.execute(sql`
-        update ${table} set ${column} = ${target.to}
-        where ${idColumn} in (${idList(ids)}) and ${column} = ${target.from}
-      `);
+      // Lock the rows in key order first: two writers that take the same rows in different orders
+      // deadlock, and the app writes these rows (counters, edits) while the backfill runs.
+      await withDeadlockRetry(() =>
+        db.execute(sql`
+          update ${table} set ${column} = ${target.to}
+          where ${idColumn} in (
+            select ${idColumn} from ${table}
+            where ${idColumn} in (${idList(ids)}) and ${column} = ${target.from}
+            order by ${idColumn} for update
+          )
+        `),
+      );
       if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
     }
     result[target.table] = done;
