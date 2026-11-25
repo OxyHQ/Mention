@@ -28,8 +28,8 @@
  * `--dry-run` (report what it would update, write nothing).
  *
  * Runnable as a Fargate one-shot post-deploy:
- *   bun packages/backend/dist/src/scripts/backfillFederatedBoostCounts.js
- *   bun packages/backend/dist/src/scripts/backfillFederatedBoostCounts.js --dry-run
+ *   bun packages/backend/dist/src/scripts/backfillFederatedRepostCounts.js
+ *   bun packages/backend/dist/src/scripts/backfillFederatedRepostCounts.js --dry-run
  */
 
 import { and, asc, count, eq, gt, inArray, isNotNull, type SQL } from 'drizzle-orm';
@@ -129,7 +129,7 @@ export async function backfillFederatedRepostCounts(
           .where(eq(posts.id, post.id));
       } catch (error) {
         failed += 1;
-        logger.warn('[backfillFederatedBoostCounts] write failed for post; skipping', {
+        logger.warn('[backfillFederatedRepostCounts] write failed for post; skipping', {
           id: post.id,
           reason: error instanceof Error ? error.message : 'unknown',
         });
@@ -138,7 +138,7 @@ export async function backfillFederatedRepostCounts(
 
     lastId = page[page.length - 1].id;
     logger.info(
-      `[backfillFederatedBoostCounts] progress: scanned ${scanned}, updated ${updated}, failed ${failed}`,
+      `[backfillFederatedRepostCounts] progress: scanned ${scanned}, updated ${updated}, failed ${failed}`,
     );
   }
 
@@ -151,24 +151,24 @@ async function main(): Promise<void> {
 
   try {
     assertAdminMutationAllowed({
-      scriptName: 'backfillFederatedBoostCounts',
+      scriptName: 'backfillFederatedRepostCounts',
       dryRun,
     });
     await connectPostgres();
-    logger.info('[backfillFederatedBoostCounts] connected to PostgreSQL', { dryRun });
+    logger.info('[backfillFederatedRepostCounts] connected to PostgreSQL', { dryRun });
 
     const result = await backfillFederatedRepostCounts({ dryRun });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[backfillFederatedBoostCounts] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated}, failed ${result.failed} (${elapsedSeconds}s)`,
+      `[backfillFederatedRepostCounts] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated}, failed ${result.failed} (${elapsedSeconds}s)`,
     );
 
-    assertAdminRunComplete('backfillFederatedBoostCounts', {
+    assertAdminRunComplete('backfillFederatedRepostCounts', {
       failed: result.failed,
     });
   } catch (error) {
-    logger.error('[backfillFederatedBoostCounts] failed', error);
+    logger.error('[backfillFederatedRepostCounts] failed', error);
     throw error;
   } finally {
     await closeAdminScriptResources();
@@ -179,7 +179,7 @@ if (require.main === module) {
   main()
     .then(() => process.exit(0))
     .catch((error) => {
-      logger.error('[backfillFederatedBoostCounts] unhandled failure', error);
+      logger.error('[backfillFederatedRepostCounts] unhandled failure', error);
       process.exit(1);
     });
 }

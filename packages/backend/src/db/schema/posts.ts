@@ -924,7 +924,7 @@ export const posts = pgTable(
      * ordinary federation failure — two rows for one (actor, original) is the
      * CORRECT state, not a defect. A wider index rejects that insert with a
      * 23505 inside the BullMQ inbox worker, which retries it forever. Caught by
-     * `backfillFederatedBoostCounts.test.ts`, whose fixture is two Announces
+     * `backfillFederatedRepostCounts.test.ts`, whose fixture is two Announces
      * from one booster; that fixture is right and the first version of this
      * index was wrong.
      *

@@ -13,12 +13,12 @@ import type { MuteWordRule } from '../../services/safety/muteWordMatcher';
 // against does not exist: every tuner imports exactly one thing from this module,
 // the `TunerContext` TYPE, which is erased at compile time and leaves no runtime
 // edge to be circular. What it did instead was throw
-// `Cannot find module './tuners/removeBoosts'` under vitest, where a CommonJS
+// `Cannot find module './tuners/removeReposts'` under vitest, where a CommonJS
 // `require` cannot resolve a `.ts` sibling — so `FeedTuner.default()` raised on
 // every call and EVERY controller path that produces slices answered 500. In
 // tests only, which is why it went unnoticed: the whole tuner pipeline (mute
 // words, hidden posts, dedupe) was unreachable from any end-to-end test.
-import { removeReposts } from './tuners/removeBoosts';
+import { removeReposts } from './tuners/removeReposts';
 import { removeReplies } from './tuners/removeReplies';
 import { deduplicateSlices } from './tuners/deduplicateSlices';
 import { filterSensitiveContent } from './tuners/filterSensitiveContent';

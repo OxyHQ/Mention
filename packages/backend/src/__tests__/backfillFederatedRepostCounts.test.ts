@@ -32,12 +32,12 @@ import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { deletePostRecord, insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecordInput } from '../db/posts/postRecord';
-import { backfillFederatedRepostCounts } from '../scripts/backfillFederatedBoostCounts';
+import { backfillFederatedRepostCounts } from '../scripts/backfillFederatedRepostCounts';
 
 const OWNER = 'oxy-boost-backfill-owner';
 const REPOSTER = 'oxy-boost-backfill-booster';
 
-describe('backfillFederatedBoostCounts', () => {
+describe('backfillFederatedRepostCounts', () => {
   const created: string[] = [];
 
   async function seed(overrides: Partial<PostRecordInput> = {}): Promise<string> {
