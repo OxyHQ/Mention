@@ -1587,13 +1587,7 @@ function PostRow(props: PostItemProps): Child {
       : null,
     // The lane chip, after the time; not on a boost or a collaborative byline.
     viewPost.lane && !viewPost.boost && !isCollab
-      ? Embed(
-          <PostLaneChip
-            lane={viewPost.lane}
-            authorHandle={authorHandle || ''}
-            feedDescriptor={feedDescriptor}
-          />,
-        )
+      ? PostLaneChip({ lane: viewPost.lane, authorHandle: authorHandle || '', feedDescriptor })
       : null,
     viewPost.boost && !isNested
       ? Icon(RiRepeat2Line)

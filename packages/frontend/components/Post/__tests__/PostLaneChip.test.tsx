@@ -1,8 +1,9 @@
 import type React from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import type { LaneSummary } from '@mention/shared-types';
 
+import { toElement } from '@oxy.so/bloom-language';
 import PostLaneChip from '../PostLaneChip';
 // The subject draws language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
@@ -60,7 +61,9 @@ describe('PostLaneChip', () => {
 
   it('opens the lane tab for a `tab` lane, and swallows the press', () => {
     const renderer = render(
-      <PostLaneChip lane={laneOf('tab')} authorHandle="nate" feedDescriptor="for_you" />,
+      toElement(
+        PostLaneChip({ lane: laneOf('tab'), authorHandle: 'nate', feedDescriptor: 'for_you' }),
+      ),
     );
     const link = linkOrNull(renderer);
     expect(link).not.toBeNull();
@@ -77,7 +80,9 @@ describe('PostLaneChip', () => {
   it('renders plain text — never a link — for a mixed or hidden lane', () => {
     for (const mode of ['mixed', 'hidden'] as const) {
       const renderer = render(
-        <PostLaneChip lane={laneOf(mode)} authorHandle="nate" feedDescriptor="for_you" />,
+        toElement(
+          PostLaneChip({ lane: laneOf(mode), authorHandle: 'nate', feedDescriptor: 'for_you' }),
+        ),
       );
       expect(linkOrNull(renderer)).toBeNull();
       expect(renderer.root.findAllByType(Text)).toHaveLength(1);
@@ -86,13 +91,15 @@ describe('PostLaneChip', () => {
 
   it('is not pressable without a handle to route by', () => {
     const renderer = render(
-      <PostLaneChip lane={laneOf('tab')} authorHandle="" feedDescriptor="for_you" />,
+      toElement(PostLaneChip({ lane: laneOf('tab'), authorHandle: '', feedDescriptor: 'for_you' })),
     );
     expect(linkOrNull(renderer)).toBeNull();
   });
 
   it('shows the lane name after a chevron', () => {
-    const renderer = render(<PostLaneChip lane={laneOf('mixed')} authorHandle="nate" />);
+    const renderer = render(
+      toElement(PostLaneChip({ lane: laneOf('mixed'), authorHandle: 'nate' })),
+    );
     expect(renderer.root.findByType(Text).props.children).toBe('› dev notes');
   });
 
@@ -101,7 +108,13 @@ describe('PostLaneChip', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <PostLaneChip lane={laneOf('tab')} authorHandle="nate" feedDescriptor="lane|lane-1" />,
+        toElement(
+          PostLaneChip({
+            lane: laneOf('tab'),
+            authorHandle: 'nate',
+            feedDescriptor: 'lane|lane-1',
+          }),
+        ),
       );
     });
     expect(renderer.toJSON()).toBeNull();
@@ -109,18 +122,23 @@ describe('PostLaneChip', () => {
 
   it('still renders inside a DIFFERENT lane’s tab', () => {
     const renderer = render(
-      <PostLaneChip lane={laneOf('tab')} authorHandle="nate" feedDescriptor="lane|lane-2" />,
+      toElement(
+        PostLaneChip({ lane: laneOf('tab'), authorHandle: 'nate', feedDescriptor: 'lane|lane-2' }),
+      ),
     );
     expect(renderer.toJSON()).not.toBeNull();
   });
 
   it('yields its space before the @handle does', () => {
     const renderer = render(
-      <PostLaneChip lane={laneOf('tab')} authorHandle="nate" feedDescriptor="for_you" />,
+      toElement(
+        PostLaneChip({ lane: laneOf('tab'), authorHandle: 'nate', feedDescriptor: 'for_you' }),
+      ),
     );
     // The identity line ranks the handle at 10 and the name/time at 0, so the
     // chip has to shrink harder than any of them or it pushes the handle out.
-    expect(linkOrNull(renderer)?.props.style.flexShrink).toBeGreaterThan(10);
-    expect(linkOrNull(renderer)?.props.style.minWidth).toBe(0);
+    const style = StyleSheet.flatten(linkOrNull(renderer)?.props.style);
+    expect(style.flexShrink).toBeGreaterThan(10);
+    expect(style.minWidth).toBe(0);
   });
 });

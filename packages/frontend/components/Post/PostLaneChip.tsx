@@ -1,38 +1,33 @@
-import { tokens } from '@oxy.so/bloom/styles';
-import React, { useCallback } from 'react';
-import { type GestureResponderEvent, Pressable, StyleSheet, Text } from 'react-native';
+import { type GestureResponderEvent, Text } from 'react-native';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
 import type { LaneSummary } from '@mention/shared-types';
 
-import { RawText, toElement } from '@oxy.so/bloom-language';
+import { Embed, VStack, defineModifier, view } from '@oxy.so/bloom-language';
 
 /**
- * The widest the chip may grow before it starts truncating. A lane name can be
+ * The chip's frame: the widest it may grow and how hard it yields.
+ *
+ * The widest the chip may grow before it starts truncating (`'140'`). A lane name can be
  * 40 characters (`MAX_LANE_NAME_LENGTH`); at the identity line's 15px that is far
  * wider than the row can spare, and an uncapped chip pushes the `@handle` out
  * before the flex shrink ever gets a say.
- */
-const MAX_CHIP_WIDTH = 140;
-
-/**
+ *
  * How hard the chip yields when the identity line runs out of room.
  *
  * The row's shrink ranks are: display name `0`, `@handle` `10`, the time slot
  * `0`. The chip is the LEAST important thing on that line — it names a
  * carriageway, not a person or a moment — so it shrinks harder than the handle
- * and gives up its space first. `minWidth: 0` is what lets it shrink below its
- * intrinsic width at all.
+ * and gives up its space first (shrink `'20'`). `minWidth: 'none'` is what lets it
+ * shrink below its intrinsic width at all.
  */
-const CHIP_SHRINK = 20;
+const chip = defineModifier((v) => v.shrink('20').frame({ minWidth: 'none', maxWidth: '140' }));
+/** The same frame on the bare label, which stays React Native's Text (below). */
+const CHIP_STYLE = { flexShrink: 20, minWidth: 0, maxWidth: 140 } as const;
 
-const styles = StyleSheet.create({
-  chip: { flexShrink: CHIP_SHRINK, minWidth: 0, maxWidth: MAX_CHIP_WIDTH },
-});
-
-// A chip that cannot open a tab is the label alone, which shrinks at a rank no
-// shrink token has: React Native's Text, in the muted ink at the identity line's
-// 15px (`leading-tight`).
+// The label is React Native's Text in the muted ink at the identity line's 15px
+// (`leading-tight`), cut at its tail: as a language text it would read the
+// environment as well as the theme, one context read more on every lane row.
 const useLabelStyles = createTokenStyles((t) => ({
   label: { color: t.mutedForeground, fontSize: 15, lineHeight: 18.75 },
 }));
@@ -67,44 +62,42 @@ interface Props {
  * header, where the identity line is already saying something more important
  * about who published the post.
  */
-const PostLaneChip: React.FC<Props> = ({ lane, authorHandle, feedDescriptor }) => {
+const PostLaneChip = view(function PostLaneChip({ lane, authorHandle, feedDescriptor }: Props) {
   const router = useRouter();
-  const labelStyles = useLabelStyles();
 
-  const handlePress = useCallback(
-    (event: GestureResponderEvent) => {
-      // The chip lives inside the post's own press target: opening the lane tab
-      // must never open the post detail underneath it.
-      event.stopPropagation?.();
-      router.push(`/@${authorHandle}/lane/${lane.id}`);
-    },
-    [router, authorHandle, lane.id],
-  );
+  const labelStyles = useLabelStyles();
 
   if (feedDescriptor === `lane|${lane.id}`) return null;
 
   const label = `› ${lane.name}`;
   const canOpenTab = lane.displayMode === 'tab' && authorHandle.length > 0;
 
+  // A chip that cannot open a tab is the label alone, with the chip's frame.
   if (!canOpenTab) {
-    return (
-      <Text style={[labelStyles.label, styles.chip]} numberOfLines={1} ellipsizeMode="tail">
+    return Embed(
+      <Text style={[labelStyles.label, CHIP_STYLE]} numberOfLines={1} ellipsizeMode="tail">
         {label}
-      </Text>
+      </Text>,
     );
   }
 
-  return (
-    <Pressable
-      onPress={handlePress}
-      hitSlop={tokens.hitSlop.md}
-      accessibilityRole="link"
-      accessibilityLabel={lane.name}
-      style={styles.chip}
-    >
-      {toElement(RawText(label).foreground('muted').font('md').leading('close').lines(1))}
-    </Pressable>
-  );
-};
+  return VStack(
+    Embed(
+      <Text style={labelStyles.label} numberOfLines={1} ellipsizeMode="tail">
+        {label}
+      </Text>,
+    ),
+  )
+    .modifier(chip)
+    .hitSlop('md')
+    .role('link')
+    .label(lane.name)
+    .onPress((event: GestureResponderEvent) => {
+      // The chip lives inside the post's own press target: opening the lane tab
+      // must never open the post detail underneath it.
+      event.stopPropagation?.();
+      router.push(`/@${authorHandle}/lane/${lane.id}`);
+    });
+});
 
-export default React.memo(PostLaneChip);
+export default PostLaneChip;
