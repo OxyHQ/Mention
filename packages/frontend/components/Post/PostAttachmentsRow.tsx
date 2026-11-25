@@ -1012,12 +1012,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
       }
       if (item.type === 'job') {
         if (!job) return null;
-        return (
-          <JobCard
-            key={`job-${postId ?? ''}-${idx}`}
-            job={job}
-            style={isSingleItem ? FULL_CELL : cells.card}
-          />
+        return toElement(
+          JobCard({ job, look: isSingleItem ? fullFrames.job : frames.job }),
+          `job-${postId ?? ''}-${idx}`,
         );
       }
       if (item.type === 'poll') {
@@ -1203,16 +1200,19 @@ const rowSpace = defineTokens({ space: { row: ROW_HEIGHT, tall: TALL_ROW_HEIGHT 
  */
 const fullFrames = {
   article: defineModifier((v) => v.frame({ width: 'full', minHeight: '140' })),
+  job: defineModifier((v) => v.frame({ width: 'full' })),
 };
 const FRAMES = {
   article: defineModifier((v) =>
     v.frame({ width: '200', minHeight: '140', height: rowSpace.space.row }),
   ),
+  job: defineModifier((v) => v.frame({ width: '280', height: rowSpace.space.row })),
 };
 const TALL_FRAMES = {
   article: defineModifier((v) =>
     v.frame({ width: '200', minHeight: '140', height: rowSpace.space.tall }),
   ),
+  job: defineModifier((v) => v.frame({ width: '280', height: rowSpace.space.tall })),
 };
 
 export default PostAttachmentsRow;

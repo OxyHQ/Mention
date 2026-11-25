@@ -1,17 +1,21 @@
 import type { Href } from '@/lib/navigation/router';
-import type React from 'react';
-import { useCallback } from 'react';
-import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import type { PostJobContent } from '@mention/shared-types';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
-import { Badge as LBadge, Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Badge as LBadge,
+  HStack,
+  RawText,
+  VStack,
+  type ViewModifier,
+  defineModifier,
+  view,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('JobCard');
 
@@ -46,23 +50,50 @@ interface JobCardProps {
    * apparent status, and there is no second round trip to render the card.
    */
   job: PostJobContent;
-  /** The cell's size: its full width alone in the attachments row, width and row height beside others; 280pt wide by default. */
-  style?: StyleProp<ViewStyle>;
+  /**
+   * The card's frame: its full width alone in the attachments row, its width and
+   * the row's height beside others; 280pt wide by default.
+   */
+  look?: ViewModifier;
 }
 
-// The card's pressable takes the caller's cell style, which a language stack
-// cannot merge, so it stays React Native's Pressable over the theme's tokens.
-const useStyles = createTokenStyles((t) => ({
-  card: {
-    borderWidth: 1,
-    borderColor: t.border,
-    backgroundColor: t.muted,
-    borderRadius: 14,
-    overflow: 'hidden',
-    padding: 12,
-  },
-  cell: { width: 280 },
-}));
+/** The card's own frame: 280pt wide. */
+const jobFrame = defineModifier((v) => v.frame({ width: '280' }));
+
+/**
+ * The card's two presses: the job page (by its canonical URL's path) and the
+ * employer's profile (its handle resolved on tap).
+ */
+function useJobCardPresses(job: PostJobContent) {
+  const router = useRouter();
+  const { oxyServices } = useAuth();
+  const openJob = () => {
+    // `canonicalUrl` is Mention's own absolute canonical URL for the job page
+    // (e.g. `https://mention.earth/jobs/<slug>`). Navigate by its PATH so the
+    // tap stays in-app instead of opening a browser tab; fall back to the id
+    // route if the URL is somehow unparseable.
+    try {
+      const path = new URL(job.canonicalUrl).pathname;
+      router.push((path || `/jobs/${job.mentionJobId}`) as Href);
+    } catch {
+      router.push(`/jobs/${job.mentionJobId}`);
+    }
+  };
+
+  const openEmployer = () => {
+    void (async () => {
+      try {
+        const profile = await oxyServices.users.get(job.employerOxyUserId);
+        const handle = getNormalizedUserHandle(profile);
+        if (handle) router.push(`/@${handle}`);
+      } catch (error) {
+        logger.warn('Failed to resolve employer profile for job card', { error });
+      }
+    })();
+  };
+
+  return { openJob, openEmployer };
+}
 
 /**
  * Post-attachment card for a Mention-authored job listing. Renders the
@@ -75,40 +106,13 @@ const useStyles = createTokenStyles((t) => ({
  * so the handle is resolved on tap via the Oxy SDK's cached `users.get`
  * rather than upfront for every rendered card.
  */
-const JobCard: React.FC<JobCardProps> = ({ job, style }) => {
-  const styles = useStyles();
-  const router = useRouter();
+const JobCard = view(function JobCard({ job, look = jobFrame }: JobCardProps) {
   const { t } = useTranslation();
-  const { oxyServices } = useAuth();
   const vocabulary = useJobVocabulary();
+  const { openJob, openEmployer } = useJobCardPresses(job);
 
   const isPublished = job.status === 'published';
   const isNegativeStatus = job.status === 'closed' || job.status === 'expired';
-
-  const openJob = useCallback(() => {
-    // `canonicalUrl` is Mention's own absolute canonical URL for the job page
-    // (e.g. `https://mention.earth/jobs/<slug>`). Navigate by its PATH so the
-    // tap stays in-app instead of opening a browser tab; fall back to the id
-    // route if the URL is somehow unparseable.
-    try {
-      const path = new URL(job.canonicalUrl).pathname;
-      router.push((path || `/jobs/${job.mentionJobId}`) as Href);
-    } catch {
-      router.push(`/jobs/${job.mentionJobId}`);
-    }
-  }, [job.canonicalUrl, job.mentionJobId, router]);
-
-  const openEmployer = useCallback(() => {
-    void (async () => {
-      try {
-        const profile = await oxyServices.users.get(job.employerOxyUserId);
-        const handle = getNormalizedUserHandle(profile);
-        if (handle) router.push(`/@${handle}`);
-      } catch (error) {
-        logger.warn('Failed to resolve employer profile for job card', { error });
-      }
-    })();
-  }, [oxyServices, job.employerOxyUserId, router]);
 
   const metaBadges = [
     job.location ? vocabulary.formatJobLocation(job.location) : undefined,
@@ -116,63 +120,55 @@ const JobCard: React.FC<JobCardProps> = ({ job, style }) => {
     job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : undefined,
   ].filter((value): value is string => Boolean(value));
 
-  return (
-    <Pressable
-      onPress={openJob}
-      style={[styles.card, style ?? styles.cell]}
-      accessibilityRole="button"
-      accessibilityLabel={job.title}
-    >
-      {toElement(
-        HStack(
-          RawText(t('post.job.label', { defaultValue: 'Job' }))
-            .foreground('muted')
-            .font('11')
-            .weight('semibold')
-            .textCase('uppercase')
-            .tracking('wide'),
-          !isPublished
-            ? LBadge(STATUS_LABELS[job.status] ?? job.status)
-                .color(isNegativeStatus ? 'error' : 'warning')
-                .style('subtle')
-                .size('sm')
-            : null,
+  return VStack(
+    HStack(
+      RawText(t('post.job.label', { defaultValue: 'Job' }))
+        .foreground('muted')
+        .font('11')
+        .weight('semibold')
+        .textCase('uppercase')
+        .tracking('wide'),
+      !isPublished
+        ? LBadge(STATUS_LABELS[job.status] ?? job.status)
+            .color(isNegativeStatus ? 'error' : 'warning')
+            .style('subtle')
+            .size('sm')
+        : null,
+    )
+      .align('center')
+      .justify('between')
+      .spacing('sm'),
+    RawText(job.title)
+      .foreground('foreground')
+      .font('md')
+      .weight('bold')
+      .margin('top', 'xs')
+      .lines(2),
+    VStack(RawText(job.employerName).foreground('primary').font('sm').lines(1))
+      .onPress(openEmployer)
+      .hitSlop('md')
+      .alignSelf('start')
+      .margin('top', '2xs'),
+    metaBadges.length > 0
+      ? HStack(
+          metaBadges.map((label) =>
+            LBadge(label).color('default').style('outlined').size('sm').id(label),
+          ),
         )
-          .align('center')
-          .justify('between')
-          .spacing('sm'),
-      )}
-      {toElement(
-        RawText(job.title)
-          .foreground('foreground')
-          .font('md')
-          .weight('bold')
-          .margin('top', 'xs')
-          .lines(2),
-      )}
-      {toElement(
-        VStack(RawText(job.employerName).foreground('primary').font('sm').lines(1))
-          .onPress(openEmployer)
-          .hitSlop('md')
-          .alignSelf('start')
-          .margin('top', '2xs'),
-      )}
-      {metaBadges.length > 0
-        ? toElement(
-            HStack(
-              Embed(
-                metaBadges.map((label) =>
-                  toElement(LBadge(label).color('default').style('outlined').size('sm'), label),
-                ),
-              ),
-            )
-              .wrap()
-              .spacing('6')
-              .margin('top', '10'),
-          )
-        : null}
-    </Pressable>
-  );
-};
+          .wrap()
+          .spacing('6')
+          .margin('top', '10')
+      : null,
+  )
+    .padding('md')
+    .modifier(look)
+    .background('mutedFill')
+    .border('border', 'thin')
+    .corner('14')
+    .clipped()
+    .onPress(openJob)
+    .role('button')
+    .label(job.title);
+});
 
 export default JobCard;

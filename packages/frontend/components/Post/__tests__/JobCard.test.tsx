@@ -2,6 +2,7 @@ import type React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { toElement } from '@oxy.so/bloom-language';
 import JobCard from '../JobCard';
 import type { PostJobContent } from '@mention/shared-types';
 
@@ -94,7 +95,7 @@ beforeEach(() => {
 
 describe('JobCard', () => {
   it('renders the title and employer name, with no status badge when published', () => {
-    const renderer = render(<JobCard job={job()} />);
+    const renderer = render(toElement(JobCard({ job: job() })));
     expect(textOf(renderer)).toContain('Senior Widget Engineer');
     expect(textOf(renderer)).toContain('Acme Hiring');
     expect(textOf(renderer)).not.toContain('Closed');
@@ -107,24 +108,26 @@ describe('JobCard', () => {
     ['expired', 'Expired'],
     ['draft', 'Draft'],
   ] as const)('shows a status badge for a %s job', (status, label) => {
-    const renderer = render(<JobCard job={job({ status })} />);
+    const renderer = render(toElement(JobCard({ job: job({ status }) })));
     expect(textOf(renderer)).toContain(label);
   });
 
   it('renders location, workplace type and employment type as meta badges when present', () => {
     const renderer = render(
-      <JobCard
-        job={job({
-          location: {
-            placeId: '5391959',
-            countryCode: 'US',
-            region: 'California',
-            city: 'San Francisco',
-          },
-          workplaceType: 'remote',
-          employmentType: 'full_time',
-        })}
-      />,
+      toElement(
+        JobCard({
+          job: job({
+            location: {
+              placeId: '5391959',
+              countryCode: 'US',
+              region: 'California',
+              city: 'San Francisco',
+            },
+            workplaceType: 'remote',
+            employmentType: 'full_time',
+          }),
+        }),
+      ),
     );
     const text = textOf(renderer);
     expect(text).toMatch(/San Francisco, California, (United States|US)/);
@@ -133,13 +136,13 @@ describe('JobCard', () => {
   });
 
   it('renders no meta badges when location/workplace/employment are all absent', () => {
-    const renderer = render(<JobCard job={job()} />);
+    const renderer = render(toElement(JobCard({ job: job() })));
     // Only the "Job" label and title/employer text should be present — no stray badge row.
     expect(textOf(renderer)).not.toContain('undefined');
   });
 
   it("navigates to the canonical URL's path when tapped", () => {
-    const renderer = render(<JobCard job={job()} />);
+    const renderer = render(toElement(JobCard({ job: job() })));
 
     TestRenderer.act(() => {
       pressHandler(renderer, 0)();
@@ -149,7 +152,7 @@ describe('JobCard', () => {
   });
 
   it('falls back to the id route when canonicalUrl cannot be parsed as a URL', () => {
-    const renderer = render(<JobCard job={job({ canonicalUrl: 'not-a-url' })} />);
+    const renderer = render(toElement(JobCard({ job: job({ canonicalUrl: 'not-a-url' }) })));
 
     TestRenderer.act(() => {
       pressHandler(renderer, 0)();
@@ -160,7 +163,7 @@ describe('JobCard', () => {
 
   it("resolves the employer's handle and navigates to their profile when the employer name is tapped", async () => {
     mockGetUserById.mockResolvedValue({ username: 'acme' });
-    const renderer = render(<JobCard job={job()} />);
+    const renderer = render(toElement(JobCard({ job: job() })));
 
     await TestRenderer.act(async () => {
       pressHandler(renderer, 1)();
@@ -173,7 +176,7 @@ describe('JobCard', () => {
 
   it("does not navigate when the employer's handle cannot be resolved", async () => {
     mockGetUserById.mockResolvedValue({ username: undefined });
-    const renderer = render(<JobCard job={job()} />);
+    const renderer = render(toElement(JobCard({ job: job() })));
 
     await TestRenderer.act(async () => {
       pressHandler(renderer, 1)();
@@ -185,7 +188,7 @@ describe('JobCard', () => {
 
   it('does not throw when the employer profile lookup rejects', async () => {
     mockGetUserById.mockRejectedValue(new Error('network down'));
-    const renderer = render(<JobCard job={job()} />);
+    const renderer = render(toElement(JobCard({ job: job() })));
 
     await TestRenderer.act(async () => {
       pressHandler(renderer, 1)();

@@ -2,6 +2,9 @@ import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import TestRenderer, { act } from 'react-test-renderer';
 import { StyleSheet, type ViewStyle } from 'react-native';
 
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { VStack, type ViewModifier } from '@oxy.so/bloom-language';
+
 import PostAttachmentsRow from '../PostAttachmentsRow';
 
 /**
@@ -75,8 +78,11 @@ const podcast = {
 function render(props: Record<string, unknown>): Captured[] {
   captured.length = 0;
   act(() => {
+    // The language cards (article, job) are views: their roots paint from Bloom's theme.
     TestRenderer.create(
-      <PostAttachmentsRow postId="post-1" renderNestedPost={renderNestedPost} {...props} />,
+      <BloomThemeProvider fonts={false}>
+        <PostAttachmentsRow postId="post-1" renderNestedPost={renderNestedPost} {...props} />
+      </BloomThemeProvider>,
     );
   });
   return [...captured];
@@ -88,6 +94,11 @@ const of = (items: Captured[], kind: string) =>
 /** The cell style a carousel item was given, flattened. */
 const cellOf = (props: Record<string, unknown>): ViewStyle =>
   StyleSheet.flatten(props.style as ViewStyle) ?? {};
+/** The frame a language card's look gives it (its `frame` modifier's value). */
+const frameOf = (props: Record<string, unknown>) =>
+  VStack()
+    .modifier(props.look as ViewModifier)
+    .modifiers.find((m) => m.kind === 'frame')?.value as Record<string, unknown> | undefined;
 /** The height a carousel cell was given, if any. */
 const heightOf = (props: Record<string, unknown>) => cellOf(props).height;
 
@@ -146,8 +157,10 @@ describe('several items share one height', () => {
 describe('a job card follows the same rules', () => {
   it('spans the row alone, and shares the row height beside an image', () => {
     const job = { mentionJobId: 'job-1', title: 'Engineer', status: 'published' };
-    expect(cellOf(of(render({ job }), 'job'))).toEqual({ width: '100%' });
-    expect(heightOf(of(render({ job, media: [image] }), 'job'))).toBe(200);
+    expect(frameOf(of(render({ job }), 'job'))).toEqual({ width: 'full' });
+    expect(frameOf(of(render({ job, media: [image] }), 'job'))?.height).toMatchObject({
+      value: 200,
+    });
   });
 });
 
