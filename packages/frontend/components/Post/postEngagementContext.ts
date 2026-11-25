@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { ReplyDraft } from '@/components/Post/replyDraft';
 
-export type PostPanelKind = 'likes' | 'boosts' | 'insights' | 'replies';
+export type PostPanelKind = 'likes' | 'reposts' | 'insights' | 'replies';
 export interface PostPanelOptions {
   /** Publish the active video's inline replies without opening a floating sheet. */
   inlineOnly?: boolean;

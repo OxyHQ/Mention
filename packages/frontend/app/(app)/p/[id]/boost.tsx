@@ -1,5 +1,7 @@
-import RepostScreen from '@/components/BoostScreen';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
-export default function RepostPage() {
-  return <RepostScreen />;
+/** The old URL of the reposts screen (`/p/:id/boost`): links already out there keep working. */
+export default function PostBoostRedirect() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  return <Redirect href={`/p/${id}/reposts` as never} />;
 }

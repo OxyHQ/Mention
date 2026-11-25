@@ -17,7 +17,7 @@ export const TAB_NAMES = [
   'media',
   'videos',
   'likes',
-  'boosts',
+  'reposts',
   'mentions',
   'feeds',
   'starter_packs',
@@ -273,7 +273,7 @@ export const VIRTUALIZED_PROFILE_FEED_TABS = [
   'posts',
   'replies',
   'likes',
-  'boosts',
+  'reposts',
   'mentions',
 ] as const satisfies readonly ProfileTab[];
 

@@ -587,7 +587,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
     if (viewPostId) openPostInsights(openPostEngagement, viewPostId, interactions.openInsights);
   }, [openPostEngagement, interactions, viewPostId]);
   const openEngagementList = useCallback(
-    (type: 'likes' | 'boosts') => {
+    (type: 'likes' | 'reposts') => {
       if (!viewPostId) return;
       if (openPostEngagement?.(viewPostId, type)) return;
       void presentSheet(
@@ -600,7 +600,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
           label:
             type === 'likes'
               ? t('post.likesTitle', { defaultValue: 'Likes' })
-              : t('post.boostsTitle', { defaultValue: 'Reposts' }),
+              : t('post.repostsTitle', { defaultValue: 'Reposts' }),
           // The list owns its scrolling: no second scroll container around it.
           scrollable: false,
         },
@@ -612,7 +612,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
   // Bound once each so the memoized <PostDetailStats> is not handed a fresh
   // closure on every render of the focused post.
   const openLikesList = useCallback(() => openEngagementList('likes'), [openEngagementList]);
-  const openRepostsList = useCallback(() => openEngagementList('boosts'), [openEngagementList]);
+  const openRepostsList = useCallback(() => openEngagementList('reposts'), [openEngagementList]);
   // Quotes are posts, not actors, so they get a feed screen instead of the
   // engagement list the other two counters open.
   const openQuotesList = useCallback(() => {
@@ -1253,7 +1253,7 @@ const PostItemContent: React.FC<PostItemProps> = ({
                         ? t('post.quoteUnavailable', {
                             defaultValue: 'This quoted post is unavailable',
                           })
-                        : t('post.boostUnavailable', {
+                        : t('post.repostUnavailable', {
                             defaultValue: 'This post is no longer available',
                           })}
                     </Text>

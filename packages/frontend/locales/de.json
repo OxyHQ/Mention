@@ -668,8 +668,8 @@
     "stats": {
       "likes_one": "Like",
       "likes_other": "Likes",
-      "boosts_one": "Boost",
-      "boosts_other": "Boosts",
+      "reposts_one": "Repost",
+      "reposts_other": "Reposts",
       "quotes_one": "Zitat",
       "quotes_other": "Zitate",
       "saves_one": "Speicherung",
@@ -693,7 +693,7 @@
     "contentWarning": "Inhaltswarnung",
     "contentWarningShow": "Anzeigen",
     "contentWarningHide": "Ausblenden",
-    "boostUnavailable": "Dieser Beitrag ist nicht mehr verfügbar",
+    "repostUnavailable": "Dieser Beitrag ist nicht mehr verfügbar",
     "quoteUnavailable": "Dieser zitierte Beitrag ist nicht verfügbar",
     "articleSheet": {
       "emptyBody": "Kein Inhalt vorhanden.",
@@ -701,12 +701,12 @@
       "title": "Artikel",
       "untitled": "Artikel ohne Titel"
     },
-    "boostsTitle": "Boosts",
+    "repostsTitle": "Reposts",
     "likesTitle": "Likes",
     "engagement": {
       "loadError": "Liste konnte nicht geladen werden",
       "loadErrorMessage": "Prüfe deine Verbindung und versuche es erneut.",
-      "noBoosts": "Noch keine Boosts",
+      "noReposts": "Noch keine Reposts",
       "noLikes": "Noch keine Likes"
     },
     "pinned": "Angeheftet",
@@ -766,7 +766,7 @@
     },
     "action": {
       "like": "gefällt dein Beitrag",
-      "boost": "hat deinen Beitrag geboostet",
+      "repost": "hat deinen Beitrag repostet",
       "reply": "hat auf deinen Beitrag geantwortet",
       "mention": "hat dich erwähnt",
       "quote": "hat deinen Beitrag zitiert",
@@ -795,7 +795,7 @@
         "title": "Keine neuen Follower"
       },
       "likes": {
-        "subtitle": "Wenn jemandem deine Inhalte gefallen oder sie geboostet werden, erscheint es hier.",
+        "subtitle": "Wenn jemand deinen Inhalt liked oder repostet, erscheint es hier.",
         "title": "Noch keine Likes"
       },
       "mentions": {
@@ -877,7 +877,7 @@
       "media": "Medien",
       "videos": "Videos",
       "likes": "Gefällt mir",
-      "boosts": "Boosts",
+      "reposts": "Reposts",
       "mentions": "Erwähnungen",
       "writers": "Autoren",
       "feeds": "Feeds",
@@ -889,8 +889,8 @@
     "stats": {
       "posts_one": "Beitrag",
       "posts_other": "Beiträge",
-      "boosts_one": "Boost",
-      "boosts_other": "Boosts",
+      "reposts_one": "Repost",
+      "reposts_other": "Reposts",
       "replies_one": "Antwort",
       "replies_other": "Antworten",
       "reputation": "Reputation"
@@ -1244,7 +1244,7 @@
       "hiddenWordsDesc": "Beiträge mit bestimmten Wörtern filtern",
       "hideCounts": {
         "signInRequired": "Melde dich an, um Interaktionszahlen auszublenden",
-        "signInRequiredDesc": "Blende Likes, Boosts, Antworten und Speicherungen in deinen Beiträgen aus."
+        "signInRequiredDesc": "Likes, Reposts, Antworten und Speicherungen deiner Beiträge ausblenden."
       },
       "hideLikeShareCountsDesc": "Interaktionszahlen in Beiträgen ausblenden",
       "onlineStatus": {
@@ -1428,8 +1428,8 @@
       "description": "Themen, denen du folgst, prägen deinen Feed und begleiten dich in jede Oxy-App."
     },
     "notifications": {
-      "boosts": "Boosts",
-      "boostsDesc": "Wenn jemand deinen Beitrag boostet",
+      "reposts": "Reposts",
+      "repostsDesc": "Wenn jemand deinen Beitrag repostet",
       "follows": "Neue Follower",
       "followsDesc": "Wenn dir jemand folgt",
       "likes": "Likes",
@@ -1931,8 +1931,8 @@
         "description": "Antworten ausblenden."
       },
       "noBoosts": {
-        "label": "Keine Boosts",
-        "description": "Boosts ausblenden."
+        "label": "Keine Reposts",
+        "description": "Reposts ausblenden."
       },
       "linksOnly": {
         "label": "Nur Links",
@@ -1948,7 +1948,7 @@
       },
       "minEngagement": {
         "label": "Mindestinteraktion",
-        "description": "Eine Mindestanzahl an Likes, Boosts usw. verlangen."
+        "description": "Eine Mindestanzahl an Likes, Reposts usw. verlangen."
       },
       "recencyWindow": {
         "label": "Zeitfenster",
@@ -2092,10 +2092,6 @@
         "title": "Noch keine Antworten",
         "subtitle": "Antworte als Erste*r!"
       },
-      "boosts": {
-        "title": "Noch keine Boosts",
-        "subtitle": "Geboostete Beiträge erscheinen hier."
-      },
       "likes": {
         "title": "Noch keine Likes",
         "subtitle": "Beiträge, die dir gefallen, erscheinen hier."
@@ -2119,6 +2115,10 @@
       "following": {
         "title": "Noch keine Beiträge",
         "subtitle": "Folge Leuten, um ihre Beiträge zu sehen."
+      },
+      "reposts": {
+        "title": "Noch keine Reposts",
+        "subtitle": "Hier erscheinen Reposts."
       }
     },
     "tuning": {
@@ -2236,8 +2236,8 @@
       "deleteConfirmPosts_one": "Damit wird {{count}} von diesem Kanal veröffentlichter Beitrag vernichtet, samt aller Likes und Speicherungen dazu.",
       "deleteConfirmPosts_other": "Damit werden {{count}} von diesem Kanal veröffentlichte Beiträge vernichtet, samt aller Likes und Speicherungen dazu.",
       "deleteConfirmEmpty": "Dieser Kanal hat nichts veröffentlicht, es gibt also keine Beiträge zu vernichten.",
-      "deleteConfirmBoosts_one": "{{count}} Boost davon durch jemand anderen verschwindet ebenfalls.",
-      "deleteConfirmBoosts_other": "{{count}} Boosts davon durch andere Personen verschwinden ebenfalls.",
+      "deleteConfirmReposts_one": "{{count}} Repost davon von einer anderen Person wird ebenfalls gelöscht.",
+      "deleteConfirmReposts_other": "{{count}} Reposts davon von anderen Personen werden ebenfalls gelöscht.",
       "deleteConfirmFediverse": "Jeder Server, der eine Kopie erhalten hat, wird gebeten, sie zu entfernen. Wir schicken diese Bitte; erzwingen können wir sie nicht.",
       "deleteConfirmAccount": "Das Kanalkonto wird zum Schluss archiviert, sodass ihm niemand mehr folgen oder in seinem Namen veröffentlichen kann.",
       "deleteConfirmAction_one": "{{count}} Beitrag löschen",
@@ -2262,7 +2262,7 @@
       },
       "step2": {
         "title": "Er veröffentlicht, er antwortet nicht",
-        "body": "Die Beiträge eines Kanals sind ganz normale Beiträge: Sie erreichen Feeds, die Suche und das Fediverse wie die aller anderen, und du kannst einen davon in dein eigenes Profil boosten. Was du nicht findest, ist ein Antwortfeld. Ein Kanal nimmt nie Antworten entgegen, und das liegt daran, wie Kanäle gebaut sind, nicht an einer Einstellung, die jemand abgeschaltet hat."
+        "body": "Die Beiträge eines Kanals sind ganz normale Beiträge: Sie erreichen Feeds, die Suche und das Fediverse wie die aller anderen, und du kannst einen davon in dein eigenes Profil reposten. Was du nicht findest, ist ein Antwortfeld. Ein Kanal nimmt nie Antworten entgegen, und das liegt daran, wie Kanäle gebaut sind, nicht an einer Einstellung, die jemand abgeschaltet hat."
       },
       "step3": {
         "title": "Wer hat das geschrieben?",
@@ -2779,8 +2779,8 @@
     "like": "Gefällt mir",
     "unlike": "Gefällt mir nicht mehr",
     "comment": "Kommentieren",
-    "boost": "Boosten",
-    "unboost": "Boost zurücknehmen",
+    "repost": "Reposten",
+    "unrepost": "Repost rückgängig machen",
     "save": "Speichern",
     "unsave": "Aus Gespeichertem entfernen",
     "share": "Teilen",
@@ -2857,13 +2857,14 @@
       "image": "Bild",
       "video": "Video",
       "poll": "Umfrage",
-      "boost": "Boost"
+      "boost": "Repost",
+      "repost": "Repost"
     },
     "engagementRatios": "Interaktionsquoten",
     "ofViews": "der Aufrufe",
     "likeRate": "Like-Rate",
     "replyRate": "Antwortrate",
-    "boostRate": "Boost-Rate",
+    "repostRate": "Repost-Rate",
     "shareRate": "Teilen-Rate",
     "viewsPerPost": "Aufrufe pro Beitrag",
     "engagementPerPost": "Interaktionen pro Beitrag",
@@ -2882,7 +2883,7 @@
       "totalInteractions": "Interaktionen insgesamt",
       "reach": "Reichweite",
       "replies": "Antworten",
-      "boosts": "Boosts",
+      "reposts": "Reposts",
       "shares": "Teilungen",
       "quotes": "Zitate",
       "totalQuotes": "Zitate insgesamt"
@@ -2907,7 +2908,7 @@
       "since": "Beiträge nach einem Datum",
       "until": "Beiträge vor einem Datum",
       "min_likes": "Mindestanzahl Likes",
-      "min_reposts": "Mindestanzahl Boosts",
+      "min_reposts": "Mindestanzahl Reposts",
       "fromMe": "Deine eigenen Beiträge",
       "to": "Beiträge, die einen bestimmten Nutzer erwähnen",
       "toMe": "Beiträge, die dich erwähnen",
@@ -3023,7 +3024,7 @@
     "introSource": "Diese Seite listet jede Instanz auf, mit der Mention keinen Austausch zulässt, und warum. Sie wird aus derselben Liste erzeugt, die der Server durchsetzt, und kann daher nicht stillschweigend veralten.",
     "whatItDoes": {
       "title": "Was eine Sperre bewirkt",
-      "body": "Von einer gesperrten Instanz erreicht nichts Mention. Beiträge, Follows, Likes und Boosts, die sie schickt, werden bei der Ankunft abgelehnt, wir rufen ihre Konten und Timelines nicht mehr ab, und ihre Konten lassen sich von hier aus nicht mehr finden oder abonnieren.",
+      "body": "Von einer gesperrten Instanz erreicht nichts Mention. Beiträge, Follows, Likes und Reposts, die sie schickt, werden bei der Ankunft abgelehnt, wir rufen ihre Konten und Timelines nicht mehr ab, und ihre Konten lassen sich von hier aus nicht mehr finden oder abonnieren.",
       "bluntness": "Sie gilt für eine ganze Seite, nicht für die einzelnen Menschen darauf. Das ist ein grobes Werkzeug, deshalb setzen wir es lieber selten ein und erklären es jedes Mal.",
       "scope": "Jeder Eintrag nennt genau einen Server und deckt genau diesen Namen ab. Eine Subdomain ist ein anderer Server – eine Sperre für example.com gilt nicht für social.example.com –, deshalb wird jede für sich entschieden und erscheint hier eigenständig.",
       "limits": "Gut zu wissen: Eine Sperre regelt, was Mention erreicht. Alles, was du hier öffentlich postest, bleibt öffentlich und kann weiterhin von überall gelesen werden, auch von den Instanzen auf dieser Liste."

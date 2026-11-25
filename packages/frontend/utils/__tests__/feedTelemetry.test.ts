@@ -88,7 +88,7 @@ describe('resolveFeedDescriptor', () => {
   });
 
   it('retains each profile tab in the descriptor fetched by the API', () => {
-    for (const tab of ['replies', 'media', 'likes', 'boosts'] as const) {
+    for (const tab of ['replies', 'media', 'likes', 'reposts'] as const) {
       expect(resolveFeedDescriptor(tab, 'u1')).toBe(`author|u1|${tab}`);
     }
   });

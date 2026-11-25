@@ -97,7 +97,7 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
     });
   };
   pushStat('likes', likes, onLikesPress);
-  pushStat('boosts', reposts, onRepostsPress);
+  pushStat('reposts', reposts, onRepostsPress);
   pushStat('quotes', quotes, onQuotesPress);
   pushStat('saves', saves);
 

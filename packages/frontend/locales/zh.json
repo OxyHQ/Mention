@@ -668,8 +668,8 @@
     "stats": {
       "likes_one": "赞",
       "likes_other": "赞",
-      "boosts_one": "转发",
-      "boosts_other": "转发",
+      "reposts_one": "转发",
+      "reposts_other": "转发",
       "quotes_one": "引用",
       "quotes_other": "引用",
       "saves_one": "收藏",
@@ -693,7 +693,7 @@
     "contentWarning": "内容警示",
     "contentWarningShow": "显示",
     "contentWarningHide": "隐藏",
-    "boostUnavailable": "这条帖子已不再可用",
+    "repostUnavailable": "这条帖子已不再可用",
     "quoteUnavailable": "此引用的帖子不可用",
     "articleSheet": {
       "emptyBody": "未提供内容。",
@@ -701,12 +701,12 @@
       "title": "文章",
       "untitled": "无标题文章"
     },
-    "boostsTitle": "转发",
+    "repostsTitle": "转发",
     "likesTitle": "点赞",
     "engagement": {
       "loadError": "无法加载列表",
       "loadErrorMessage": "请检查网络连接后重试。",
-      "noBoosts": "还没有转发",
+      "noReposts": "还没有转发",
       "noLikes": "还没有点赞"
     },
     "pinned": "已置顶",
@@ -766,7 +766,7 @@
     },
     "action": {
       "like": "赞了你的帖子",
-      "boost": "转发了你的帖子",
+      "repost": "转发了你的帖子",
       "reply": "回复了你的帖子",
       "mention": "提到了你",
       "quote": "引用了你的帖子",
@@ -877,7 +877,7 @@
       "media": "媒体",
       "videos": "视频",
       "likes": "喜欢",
-      "boosts": "转发",
+      "reposts": "转发",
       "mentions": "提及",
       "writers": "作者",
       "feeds": "信息流",
@@ -889,8 +889,8 @@
     "stats": {
       "posts_one": "帖子",
       "posts_other": "帖子",
-      "boosts_one": "转发",
-      "boosts_other": "转发",
+      "reposts_one": "转发",
+      "reposts_other": "转发",
       "replies_one": "回复",
       "replies_other": "回复",
       "reputation": "声誉"
@@ -1428,8 +1428,8 @@
       "description": "你关注的话题会塑造你的信息流，并在每个 Oxy 应用中同步生效。"
     },
     "notifications": {
-      "boosts": "转发",
-      "boostsDesc": "当有人转发你的帖子时",
+      "reposts": "转发",
+      "repostsDesc": "当有人转发你的帖子时",
       "follows": "新粉丝",
       "followsDesc": "当有人关注你时",
       "likes": "点赞",
@@ -2092,10 +2092,6 @@
         "title": "还没有回复",
         "subtitle": "来第一个回复吧！"
       },
-      "boosts": {
-        "title": "还没有转发",
-        "subtitle": "转发的帖子会显示在这里。"
-      },
       "likes": {
         "title": "还没有点赞",
         "subtitle": "你点赞的帖子会显示在这里。"
@@ -2119,6 +2115,10 @@
       "following": {
         "title": "还没有帖子",
         "subtitle": "开始关注他人，查看他们的帖子。"
+      },
+      "reposts": {
+        "title": "还没有转发",
+        "subtitle": "转发的帖子会显示在这里。"
       }
     },
     "tuning": {
@@ -2236,8 +2236,8 @@
       "deleteConfirmPosts_one": "这将销毁此频道发布的 {{count}} 条帖子，以及帖子上的所有点赞和收藏。",
       "deleteConfirmPosts_other": "这将销毁此频道发布的 {{count}} 条帖子，以及帖子上的所有点赞和收藏。",
       "deleteConfirmEmpty": "此频道没有发布过内容，因此没有帖子会被销毁。",
-      "deleteConfirmBoosts_one": "他人对这些帖子的 {{count}} 次转发也会一并消失。",
-      "deleteConfirmBoosts_other": "他人对这些帖子的 {{count}} 次转发也会一并消失。",
+      "deleteConfirmReposts_one": "他人对这些帖子的 {{count}} 次转发也会一并消失。",
+      "deleteConfirmReposts_other": "他人对这些帖子的 {{count}} 次转发也会一并消失。",
       "deleteConfirmFediverse": "我们会请求每一台收到副本的服务器将其删除。请求由我们发出，但无法强制它们照办。",
       "deleteConfirmAccount": "频道账号最后会被归档，此后无人能关注它，也无法再以它的名义发布内容。",
       "deleteConfirmAction_one": "删除 {{count}} 条帖子",
@@ -2779,8 +2779,8 @@
     "like": "点赞",
     "unlike": "取消点赞",
     "comment": "评论",
-    "boost": "转发",
-    "unboost": "撤销转发",
+    "repost": "转发",
+    "unrepost": "撤销转发",
     "save": "收藏",
     "unsave": "取消收藏",
     "share": "分享",
@@ -2857,13 +2857,14 @@
       "image": "图片",
       "video": "视频",
       "poll": "投票",
-      "boost": "转发"
+      "boost": "转发",
+      "repost": "转发"
     },
     "engagementRatios": "互动比例",
     "ofViews": "占浏览量",
     "likeRate": "点赞率",
     "replyRate": "回复率",
-    "boostRate": "转发率",
+    "repostRate": "转发率",
     "shareRate": "分享率",
     "viewsPerPost": "每帖浏览量",
     "engagementPerPost": "每帖互动量",
@@ -2882,7 +2883,7 @@
       "totalInteractions": "互动总数",
       "reach": "触达",
       "replies": "回复",
-      "boosts": "转发",
+      "reposts": "转发",
       "shares": "分享",
       "quotes": "引用",
       "totalQuotes": "引用总数"

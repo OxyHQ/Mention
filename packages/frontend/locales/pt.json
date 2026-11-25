@@ -673,14 +673,14 @@
     "stats": {
       "likes_one": "gosto",
       "likes_other": "gostos",
-      "boosts_one": "impulso",
-      "boosts_other": "impulsos",
+      "reposts_one": "republicação",
+      "reposts_other": "republicações",
       "quotes_one": "citação",
       "quotes_other": "citações",
       "saves_one": "guardado",
       "saves_other": "guardados",
       "likes_many": "gostos",
-      "boosts_many": "impulsos",
+      "reposts_many": "republicações",
       "quotes_many": "citações",
       "saves_many": "guardados"
     },
@@ -703,7 +703,7 @@
     "contentWarning": "Aviso de conteúdo",
     "contentWarningShow": "Mostrar",
     "contentWarningHide": "Ocultar",
-    "boostUnavailable": "Esta publicação já não está disponível",
+    "repostUnavailable": "Esta publicação já não está disponível",
     "quoteUnavailable": "Esta publicação citada não está disponível",
     "articleSheet": {
       "emptyBody": "Sem conteúdo.",
@@ -711,12 +711,12 @@
       "title": "Artigo",
       "untitled": "Artigo sem título"
     },
-    "boostsTitle": "Impulsos",
+    "repostsTitle": "Republicações",
     "likesTitle": "Gostos",
     "engagement": {
       "loadError": "Não foi possível carregar a lista",
       "loadErrorMessage": "Verifique a sua conexão e tente novamente.",
-      "noBoosts": "Ainda não há impulsos",
+      "noReposts": "Ainda não há republicações",
       "noLikes": "Ainda não há gostos"
     },
     "pinned": "Fixada",
@@ -778,7 +778,7 @@
     },
     "action": {
       "like": "gostou da tua publicação",
-      "boost": "impulsionou a tua publicação",
+      "repost": "republicou a tua publicação",
       "reply": "respondeu à tua publicação",
       "mention": "mencionou-te",
       "quote": "citou a tua publicação",
@@ -807,7 +807,7 @@
         "title": "Sem novos seguidores"
       },
       "likes": {
-        "subtitle": "Quando alguém gostar do teu conteúdo ou o impulsionar, aparece aqui.",
+        "subtitle": "Quando alguém gostar ou republicar o teu conteúdo, vai aparecer aqui.",
         "title": "Ainda não há gostos"
       },
       "mentions": {
@@ -889,7 +889,7 @@
       "media": "Multimédia",
       "videos": "Vídeos",
       "likes": "Gostos",
-      "boosts": "Impulsos",
+      "reposts": "Republicações",
       "mentions": "Menções",
       "writers": "Autores",
       "feeds": "Feeds",
@@ -901,13 +901,13 @@
     "stats": {
       "posts_one": "Publicação",
       "posts_other": "Publicações",
-      "boosts_one": "Impulso",
-      "boosts_other": "Impulsos",
+      "reposts_one": "Republicação",
+      "reposts_other": "Republicações",
       "replies_one": "Resposta",
       "replies_other": "Respostas",
       "reputation": "Reputação",
       "posts_many": "Publicações",
-      "boosts_many": "Impulsos",
+      "reposts_many": "Republicações",
       "replies_many": "Respostas"
     },
     "joined": "Aderiu",
@@ -1262,7 +1262,7 @@
       "hiddenWordsDesc": "Filtra as publicações que contenham determinadas palavras",
       "hideCounts": {
         "signInRequired": "Inicia sessão para ocultares as contagens de interações",
-        "signInRequiredDesc": "Oculta gostos, impulsos, respostas e guardados nas tuas publicações."
+        "signInRequiredDesc": "Oculta os gostos, as republicações, as respostas e os guardados das tuas publicações."
       },
       "hideLikeShareCountsDesc": "Oculta as contagens de interações nas publicações",
       "onlineStatus": {
@@ -1446,8 +1446,8 @@
       "description": "Os temas que segues moldam o teu feed e acompanham-te em todas as apps Oxy."
     },
     "notifications": {
-      "boosts": "Impulsos",
-      "boostsDesc": "Quando alguém impulsiona a tua publicação",
+      "reposts": "Republicações",
+      "repostsDesc": "Quando alguém republica a tua publicação",
       "follows": "Novos seguidores",
       "followsDesc": "Quando alguém te segue",
       "likes": "Gostos",
@@ -1949,8 +1949,8 @@
         "description": "Oculta as respostas."
       },
       "noBoosts": {
-        "label": "Sem impulsos",
-        "description": "Oculta os impulsos."
+        "label": "Sem republicações",
+        "description": "Oculta as republicações."
       },
       "linksOnly": {
         "label": "Só ligações",
@@ -1966,7 +1966,7 @@
       },
       "minEngagement": {
         "label": "Interação mínima",
-        "description": "Exige um mínimo de gostos, impulsos, etc."
+        "description": "Exige um mínimo de gostos, republicações, etc."
       },
       "recencyWindow": {
         "label": "Janela de atualidade",
@@ -2112,10 +2112,6 @@
         "title": "Ainda não há respostas",
         "subtitle": "Seja o primeiro a responder!"
       },
-      "boosts": {
-        "title": "Ainda não há impulsos",
-        "subtitle": "As publicações impulsionadas aparecerão aqui."
-      },
       "likes": {
         "title": "Ainda não há curtidas",
         "subtitle": "As publicações que você curtir aparecerão aqui."
@@ -2139,6 +2135,10 @@
       "following": {
         "title": "Ainda não há publicações",
         "subtitle": "Comece a seguir pessoas para ver as publicações delas."
+      },
+      "reposts": {
+        "title": "Ainda não há republicações",
+        "subtitle": "As publicações republicadas vão aparecer aqui."
       }
     },
     "tuning": {
@@ -2256,8 +2256,8 @@
       "deleteConfirmPosts_one": "Isto destrói {{count}} publicação deste canal, juntamente com todos os gostos e guardados dela.",
       "deleteConfirmPosts_other": "Isto destrói {{count}} publicações deste canal, juntamente com todos os gostos e guardados delas.",
       "deleteConfirmEmpty": "Este canal não publicou nada, por isso não há publicações para destruir.",
-      "deleteConfirmBoosts_one": "{{count}} impulso delas feito por outra pessoa desaparece também.",
-      "deleteConfirmBoosts_other": "{{count}} impulsos delas feitos por outras pessoas desaparecem também.",
+      "deleteConfirmReposts_one": "{{count}} republicação delas feita por outra pessoa também é eliminada.",
+      "deleteConfirmReposts_other": "{{count}} republicações delas feitas por outras pessoas também são eliminadas.",
       "deleteConfirmFediverse": "É pedido a todos os servidores que receberam uma cópia que a removam. Enviamos esse pedido; não os podemos obrigar a cumpri-lo.",
       "deleteConfirmAccount": "A conta do canal é arquivada no fim, para que ninguém a possa voltar a seguir nem publicar em seu nome.",
       "deleteConfirmAction_one": "Eliminar {{count}} publicação",
@@ -2265,7 +2265,7 @@
       "deleteConfirmActionEmpty": "Eliminar este canal",
       "deleted": "Canal eliminado",
       "deleteConfirmPosts_many": "Isto destrói {{count}} publicações deste canal, juntamente com todos os gostos e guardados delas.",
-      "deleteConfirmBoosts_many": "{{count}} impulsos delas feitos por outras pessoas desaparecem também.",
+      "deleteConfirmReposts_many": "{{count}} republicações delas feitas por outras pessoas desaparecem também.",
       "deleteConfirmAction_many": "Eliminar {{count}} publicações"
     },
     "insights": {
@@ -2285,7 +2285,7 @@
       },
       "step2": {
         "title": "Publica, não responde",
-        "body": "As publicações de um canal são publicações normais: chegam aos feeds, à pesquisa e ao Fediverse como as de qualquer outra pessoa, e podes impulsionar uma para o teu perfil. O que não vais encontrar é uma caixa de resposta. Um canal nunca aceita respostas, e é assim que os canais são feitos, não uma opção que alguém desligou."
+        "body": "As publicações de um canal são publicações normais: chegam aos feeds, à pesquisa e ao Fediverse como as de qualquer outra pessoa, e podes republicar uma para o teu perfil. O que não vais encontrar é uma caixa de resposta. Um canal nunca aceita respostas, e é assim que os canais são feitos, não uma opção que alguém desligou."
       },
       "step3": {
         "title": "Quem escreveu isto?",
@@ -2802,8 +2802,8 @@
     "like": "Gostar",
     "unlike": "Não gostar",
     "comment": "Comentar",
-    "boost": "Impulsionar",
-    "unboost": "Anular impulso",
+    "repost": "Republicar",
+    "unrepost": "Desfazer republicação",
     "save": "Guardar",
     "unsave": "Remover dos guardados",
     "share": "Partilhar",
@@ -2880,13 +2880,14 @@
       "image": "Imagem",
       "video": "Vídeo",
       "poll": "Sondagem",
-      "boost": "Impulso"
+      "boost": "Republicação",
+      "repost": "Republicação"
     },
     "engagementRatios": "Rácios de interação",
     "ofViews": "das visualizações",
     "likeRate": "Taxa de gostos",
     "replyRate": "Taxa de respostas",
-    "boostRate": "Taxa de impulsos",
+    "repostRate": "Taxa de republicações",
     "shareRate": "Taxa de partilhas",
     "viewsPerPost": "Visualizações por publicação",
     "engagementPerPost": "Interação por publicação",
@@ -2905,7 +2906,7 @@
       "totalInteractions": "Interações no total",
       "reach": "Alcance",
       "replies": "Respostas",
-      "boosts": "Impulsos",
+      "reposts": "Republicações",
       "shares": "Partilhas",
       "quotes": "Citações",
       "totalQuotes": "Citações no total"
@@ -2931,7 +2932,7 @@
       "since": "Publicações depois de uma data",
       "until": "Publicações antes de uma data",
       "min_likes": "Mínimo de gostos",
-      "min_reposts": "Mínimo de impulsos",
+      "min_reposts": "Mínimo de republicações",
       "fromMe": "As tuas publicações",
       "to": "Publicações que mencionam um utilizador específico",
       "toMe": "Publicações que te mencionam",
@@ -3047,7 +3048,7 @@
     "introSource": "Esta página lista todas as instâncias com que o Mention se recusa a trocar conteúdo, e porquê. É gerada a partir da mesma lista que o servidor aplica, por isso não pode ficar desatualizada sem se notar.",
     "whatItDoes": {
       "title": "O que faz um bloqueio",
-      "body": "Nada de uma instância bloqueada chega ao Mention. As publicações, seguidores, gostos e impulsos que envia são recusados à chegada, deixamos de obter as suas contas e cronologias, e as suas contas já não podem ser encontradas nem seguidas a partir daqui.",
+      "body": "Nada de uma instância bloqueada chega ao Mention. As publicações, seguidores, gostos e republicações que envia são recusados à chegada, deixamos de obter as suas contas e cronologias, e as suas contas já não podem ser encontradas nem seguidas a partir daqui.",
       "bluntness": "Aplica-se a um site inteiro, não às pessoas individuais que lá estão. É um instrumento pouco fino, por isso preferimos usá-lo raramente e explicá-lo sempre.",
       "scope": "Cada entrada nomeia um servidor e abrange exatamente esse nome. Um subdomínio é um servidor diferente — um bloqueio a example.com não se estende a social.example.com — por isso cada um é decidido por si e aparece aqui por direito próprio.",
       "limits": "Vale a pena saber: um bloqueio rege o que chega ao Mention. Tudo o que publicares publicamente aqui continua público e pode continuar a ser lido a partir de qualquer lado, incluindo das instâncias desta lista."

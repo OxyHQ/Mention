@@ -4,7 +4,7 @@ type EchoAction =
   | 'like'
   | 'unlike'
   | 'downvote'
-  | 'boost'
+  | 'repost'
   | 'unboost'
   | 'save'
   | 'unsave'

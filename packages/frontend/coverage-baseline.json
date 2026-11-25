@@ -490,7 +490,7 @@
     "components/AddToStarterPackSheet.tsx": [65,49,19,59],
     "components/AppErrorBoundary.tsx": [14,2,6,14],
     "components/AppSplashScreen.tsx": [41,24,12,32],
-    "components/BoostScreen.tsx": [52,34,8,47],
+    "components/RepostScreen.tsx": [52,34,8,47],
     "components/BootMilestone.tsx": [3,0,2,3],
     "components/Camera/CameraCapture.tsx": [135,96,41,119],
     "components/Camera/CameraPage.tsx": [67,34,7,57],

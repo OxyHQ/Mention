@@ -27,6 +27,8 @@ export type FeedType =
   | 'replies'
   | 'quotes'
   | 'likes'
+  | 'reposts'
+  // The old name of 'reposts' (docs/repost-rename.md); the server still accepts it.
   | 'boosts'
   | 'mentions'
   | 'mixed'

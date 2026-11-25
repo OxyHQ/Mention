@@ -673,14 +673,14 @@
     "stats": {
       "likes_one": "j'aime",
       "likes_other": "j'aime",
-      "boosts_one": "boost",
-      "boosts_other": "boosts",
+      "reposts_one": "repost",
+      "reposts_other": "reposts",
       "quotes_one": "citation",
       "quotes_other": "citations",
       "saves_one": "enregistrement",
       "saves_other": "enregistrements",
       "likes_many": "j'aime",
-      "boosts_many": "boosts",
+      "reposts_many": "reposts",
       "quotes_many": "citations",
       "saves_many": "enregistrements"
     },
@@ -703,7 +703,7 @@
     "contentWarning": "Avertissement de contenu",
     "contentWarningShow": "Afficher",
     "contentWarningHide": "Masquer",
-    "boostUnavailable": "Ce post n'est plus disponible",
+    "repostUnavailable": "Ce post n'est plus disponible",
     "quoteUnavailable": "Cette publication citée est indisponible",
     "articleSheet": {
       "emptyBody": "Aucun contenu fourni.",
@@ -711,12 +711,12 @@
       "title": "Article",
       "untitled": "Article sans titre"
     },
-    "boostsTitle": "Boosts",
+    "repostsTitle": "Reposts",
     "likesTitle": "J'aime",
     "engagement": {
       "loadError": "Impossible de charger la liste",
       "loadErrorMessage": "Vérifiez votre connexion et réessayez.",
-      "noBoosts": "Aucun boost pour l'instant",
+      "noReposts": "Aucun repost pour l'instant",
       "noLikes": "Aucun J'aime pour l'instant"
     },
     "pinned": "Épinglé",
@@ -778,7 +778,7 @@
     },
     "action": {
       "like": "a aimé ton post",
-      "boost": "a boosté ton post",
+      "repost": "a reposté ton post",
       "reply": "a répondu à ton post",
       "mention": "t'a mentionné",
       "quote": "a cité ton post",
@@ -807,7 +807,7 @@
         "title": "Aucun nouvel abonné"
       },
       "likes": {
-        "subtitle": "Quand quelqu'un aimera ou boostera ton contenu, ça apparaîtra ici.",
+        "subtitle": "Quand quelqu'un aime ou reposte ton contenu, cela apparaîtra ici.",
         "title": "Aucun j'aime pour l'instant"
       },
       "mentions": {
@@ -889,7 +889,7 @@
       "media": "Médias",
       "videos": "Vidéos",
       "likes": "J'aime",
-      "boosts": "Boosts",
+      "reposts": "Reposts",
       "mentions": "Mentions",
       "writers": "Auteurs",
       "feeds": "Fils",
@@ -901,13 +901,13 @@
     "stats": {
       "posts_one": "Publication",
       "posts_other": "Publications",
-      "boosts_one": "Boost",
-      "boosts_other": "Boosts",
+      "reposts_one": "Repost",
+      "reposts_other": "Reposts",
       "replies_one": "Réponse",
       "replies_other": "Réponses",
       "reputation": "Réputation",
       "posts_many": "Publications",
-      "boosts_many": "Boosts",
+      "reposts_many": "Reposts",
       "replies_many": "Réponses"
     },
     "joined": "Inscrit en",
@@ -1262,7 +1262,7 @@
       "hiddenWordsDesc": "Filtre les posts contenant certains mots",
       "hideCounts": {
         "signInRequired": "Connecte-toi pour masquer les compteurs d'interactions",
-        "signInRequiredDesc": "Masque les j'aime, boosts, réponses et enregistrements sur tes posts."
+        "signInRequiredDesc": "Masquer les j'aime, les reposts, les réponses et les enregistrements sur tes posts."
       },
       "hideLikeShareCountsDesc": "Masque les compteurs d'interactions sur les posts",
       "onlineStatus": {
@@ -1446,8 +1446,8 @@
       "description": "Les sujets que tu suis façonnent ton fil et te suivent dans toutes les apps Oxy."
     },
     "notifications": {
-      "boosts": "Boosts",
-      "boostsDesc": "Quand quelqu'un booste ton post",
+      "reposts": "Reposts",
+      "repostsDesc": "Quand quelqu'un reposte ton post",
       "follows": "Nouveaux abonnés",
       "followsDesc": "Quand quelqu'un s'abonne à toi",
       "likes": "J'aime",
@@ -1949,8 +1949,8 @@
         "description": "Masque les réponses."
       },
       "noBoosts": {
-        "label": "Sans boosts",
-        "description": "Masque les boosts."
+        "label": "Aucun repost",
+        "description": "Masquer les reposts."
       },
       "linksOnly": {
         "label": "Liens uniquement",
@@ -1966,7 +1966,7 @@
       },
       "minEngagement": {
         "label": "Interactions minimales",
-        "description": "Exige un minimum de j'aime, de boosts, etc."
+        "description": "Exiger un minimum de j'aime, de reposts, etc."
       },
       "recencyWindow": {
         "label": "Fenêtre de fraîcheur",
@@ -2112,10 +2112,6 @@
         "title": "Aucune réponse pour l'instant",
         "subtitle": "Soyez le premier à répondre !"
       },
-      "boosts": {
-        "title": "Aucun boost pour l'instant",
-        "subtitle": "Les publications boostées apparaîtront ici."
-      },
       "likes": {
         "title": "Aucun j'aime pour l'instant",
         "subtitle": "Les publications que vous aimez apparaîtront ici."
@@ -2139,6 +2135,10 @@
       "following": {
         "title": "Aucune publication pour l'instant",
         "subtitle": "Suivez des personnes pour voir leurs publications."
+      },
+      "reposts": {
+        "title": "Aucun repost pour l'instant",
+        "subtitle": "Les posts repostés apparaîtront ici."
       }
     },
     "tuning": {
@@ -2256,8 +2256,8 @@
       "deleteConfirmPosts_one": "Cela détruit {{count}} post publié par cette chaîne, ainsi que tous les j'aime et enregistrements dessus.",
       "deleteConfirmPosts_other": "Cela détruit {{count}} posts publiés par cette chaîne, ainsi que tous les j'aime et enregistrements dessus.",
       "deleteConfirmEmpty": "Cette chaîne n'a rien publié, il n'y a donc aucun post à détruire.",
-      "deleteConfirmBoosts_one": "{{count}} boost de ces posts par quelqu'un d'autre disparaît également.",
-      "deleteConfirmBoosts_other": "{{count}} boosts de ces posts par d'autres personnes disparaissent également.",
+      "deleteConfirmReposts_one": "{{count}} repost de ces posts par quelqu'un d'autre est aussi supprimé.",
+      "deleteConfirmReposts_other": "{{count}} reposts de ces posts par d'autres personnes sont aussi supprimés.",
       "deleteConfirmFediverse": "Il est demandé à chaque serveur ayant reçu une copie de la supprimer. Nous envoyons cette demande ; nous ne pouvons pas les obliger à l'honorer.",
       "deleteConfirmAccount": "Le compte de la chaîne est archivé à la fin, si bien que plus personne ne peut s'y abonner ni publier en son nom.",
       "deleteConfirmAction_one": "Supprimer {{count}} post",
@@ -2265,7 +2265,7 @@
       "deleteConfirmActionEmpty": "Supprimer cette chaîne",
       "deleted": "Chaîne supprimée",
       "deleteConfirmPosts_many": "Cela détruit {{count}} posts publiés par cette chaîne, ainsi que tous les j'aime et enregistrements dessus.",
-      "deleteConfirmBoosts_many": "{{count}} boosts de ces posts par d'autres personnes disparaissent également.",
+      "deleteConfirmReposts_many": "{{count}} reposts de ces posts par d'autres personnes disparaissent également.",
       "deleteConfirmAction_many": "Supprimer {{count}} posts"
     },
     "insights": {
@@ -2285,7 +2285,7 @@
       },
       "step2": {
         "title": "Elle publie, elle ne répond pas",
-        "body": "Les posts d'une chaîne sont des posts ordinaires : ils atteignent les fils, la recherche et le Fediverse comme ceux de n'importe qui, et tu peux en booster un sur ton propre profil. Ce que tu ne trouveras pas, c'est un champ de réponse. Une chaîne n'accepte jamais de réponses : c'est ainsi que les chaînes sont conçues, ce n'est pas un réglage que quelqu'un aurait désactivé."
+        "body": "Les posts d'une chaîne sont des posts ordinaires : ils atteignent les fils, la recherche et le Fediverse comme ceux de n'importe qui, et tu peux en reposter un sur ton propre profil. Ce que tu ne trouveras pas, c'est un champ de réponse. Une chaîne n'accepte jamais de réponses : c'est ainsi que les chaînes sont conçues, ce n'est pas un réglage que quelqu'un aurait désactivé."
       },
       "step3": {
         "title": "Qui a écrit ça ?",
@@ -2802,8 +2802,8 @@
     "like": "J'aime",
     "unlike": "Je n'aime plus",
     "comment": "Commenter",
-    "boost": "Booster",
-    "unboost": "Annuler le boost",
+    "repost": "Reposter",
+    "unrepost": "Annuler le repost",
     "save": "Enregistrer",
     "unsave": "Retirer des enregistrements",
     "share": "Partager",
@@ -2880,13 +2880,14 @@
       "image": "Image",
       "video": "Vidéo",
       "poll": "Sondage",
-      "boost": "Boost"
+      "boost": "Repost",
+      "repost": "Repost"
     },
     "engagementRatios": "Taux d'interaction",
     "ofViews": "des vues",
     "likeRate": "Taux de j'aime",
     "replyRate": "Taux de réponses",
-    "boostRate": "Taux de boosts",
+    "repostRate": "Taux de reposts",
     "shareRate": "Taux de partages",
     "viewsPerPost": "Vues par post",
     "engagementPerPost": "Interactions par post",
@@ -2905,7 +2906,7 @@
       "totalInteractions": "Interactions au total",
       "reach": "Portée",
       "replies": "Réponses",
-      "boosts": "Boosts",
+      "reposts": "Reposts",
       "shares": "Partages",
       "quotes": "Citations",
       "totalQuotes": "Citations au total"
@@ -2931,7 +2932,7 @@
       "since": "Les posts après une date",
       "until": "Les posts avant une date",
       "min_likes": "Minimum de j'aime",
-      "min_reposts": "Minimum de boosts",
+      "min_reposts": "Minimum de reposts",
       "fromMe": "Tes propres posts",
       "to": "Les posts mentionnant un compte précis",
       "toMe": "Les posts qui te mentionnent",
@@ -3047,7 +3048,7 @@
     "introSource": "Cette page liste chaque instance avec laquelle Mention refuse d'échanger, et pourquoi. Elle est générée à partir de la liste même qu'applique le serveur : elle ne peut donc pas devenir obsolète en silence.",
     "whatItDoes": {
       "title": "Ce que fait un blocage",
-      "body": "Rien de ce qui vient d'une instance bloquée n'atteint Mention. Les posts, abonnements, j'aime et boosts qu'elle envoie sont refusés à l'arrivée, nous cessons de récupérer ses comptes et ses fils, et ses comptes ne peuvent plus être trouvés ni suivis depuis ici.",
+      "body": "Rien de ce qui vient d'une instance bloquée n'atteint Mention. Les posts, abonnements, j'aime et reposts qu'elle envoie sont refusés à l'arrivée, nous cessons de récupérer ses comptes et ses fils, et ses comptes ne peuvent plus être trouvés ni suivis depuis ici.",
       "bluntness": "Cela s'applique à un site entier, pas aux personnes qui s'y trouvent. C'est un outil brutal : nous préférons y recourir rarement et l'expliquer à chaque fois.",
       "scope": "Chaque entrée nomme un serveur et ne couvre que ce nom précis. Un sous-domaine est un autre serveur — bloquer example.com ne s'étend pas à social.example.com — chacun est donc décidé séparément et figure ici en son nom propre.",
       "limits": "À savoir : un blocage régit ce qui arrive jusqu'à Mention. Tout ce que tu publies publiquement ici reste public et peut toujours être lu de partout, y compris depuis les instances de cette liste."

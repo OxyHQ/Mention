@@ -28,6 +28,13 @@ done in three releases so a rolling deploy never meets a value it rejects:
    badly until they update.
 3. **Narrow**: the old value leaves the CHECKs, the list, the readers and the old unique index.
 
+## What people read
+
+The words people read were renamed too: the profile tab, the notification, the counters, the empty states, the
+settings and the Insights labels say "repost" in every language (they said boost, impulso, продвижение or
+ブースト in twelve of the fifteen). Where a statistics payload still calls the counter `boosts` the label alone
+is mapped. The URLs `/@name/boosts` and `/p/:id/boost` redirect to `/reposts`. "Boost" is left to the paid feature.
+
 ## Phases
 
 1. **Expand** (migration 0126). `posts` gains `repost_of`, `stats_reposts_count`,

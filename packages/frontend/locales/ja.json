@@ -668,8 +668,8 @@
     "stats": {
       "likes_one": "いいね",
       "likes_other": "いいね",
-      "boosts_one": "ブースト",
-      "boosts_other": "ブースト",
+      "reposts_one": "リポスト",
+      "reposts_other": "リポスト",
       "quotes_one": "引用",
       "quotes_other": "引用",
       "saves_one": "保存",
@@ -693,7 +693,7 @@
     "contentWarning": "内容に関する警告",
     "contentWarningShow": "表示",
     "contentWarningHide": "非表示",
-    "boostUnavailable": "この投稿は利用できなくなりました",
+    "repostUnavailable": "この投稿は利用できなくなりました",
     "quoteUnavailable": "この引用された投稿は表示できません",
     "articleSheet": {
       "emptyBody": "本文がありません。",
@@ -701,12 +701,12 @@
       "title": "記事",
       "untitled": "無題の記事"
     },
-    "boostsTitle": "ブースト",
+    "repostsTitle": "リポスト",
     "likesTitle": "いいね",
     "engagement": {
       "loadError": "リストを読み込めませんでした",
       "loadErrorMessage": "接続を確認してもう一度お試しください。",
-      "noBoosts": "まだブーストはありません",
+      "noReposts": "まだリポストはありません",
       "noLikes": "まだいいねはありません"
     },
     "pinned": "固定済み",
@@ -766,7 +766,7 @@
     },
     "action": {
       "like": "あなたの投稿にいいねしました",
-      "boost": "あなたの投稿をブーストしました",
+      "repost": "あなたの投稿をリポストしました",
       "reply": "あなたの投稿に返信しました",
       "mention": "あなたにメンションしました",
       "quote": "あなたの投稿を引用しました",
@@ -795,7 +795,7 @@
         "title": "新しいフォロワーはいません"
       },
       "likes": {
-        "subtitle": "あなたのコンテンツにいいねやブーストがあると、ここに表示されます。",
+        "subtitle": "誰かがあなたのコンテンツにいいねまたはリポストすると、ここに表示されます。",
         "title": "いいねはまだありません"
       },
       "mentions": {
@@ -877,7 +877,7 @@
       "media": "メディア",
       "videos": "動画",
       "likes": "いいね",
-      "boosts": "ブースト",
+      "reposts": "リポスト",
       "mentions": "メンション",
       "writers": "ライター",
       "feeds": "フィード",
@@ -889,8 +889,8 @@
     "stats": {
       "posts_one": "投稿",
       "posts_other": "投稿",
-      "boosts_one": "ブースト",
-      "boosts_other": "ブースト",
+      "reposts_one": "リポスト",
+      "reposts_other": "リポスト",
       "replies_one": "返信",
       "replies_other": "返信",
       "reputation": "評判"
@@ -1244,7 +1244,7 @@
       "hiddenWordsDesc": "特定の語句を含む投稿を除外します",
       "hideCounts": {
         "signInRequired": "反応の数を非表示にするにはログインしてください",
-        "signInRequiredDesc": "あなたの投稿のいいね・ブースト・返信・保存の数を非表示にします。"
+        "signInRequiredDesc": "投稿のいいね、リポスト、返信、保存を非表示にします。"
       },
       "hideLikeShareCountsDesc": "投稿の反応の数を非表示にします",
       "onlineStatus": {
@@ -1428,8 +1428,8 @@
       "description": "フォローしたトピックはフィードに反映され、Oxyのすべてのアプリに引き継がれます。"
     },
     "notifications": {
-      "boosts": "ブースト",
-      "boostsDesc": "あなたの投稿がブーストされたとき",
+      "reposts": "リポスト",
+      "repostsDesc": "誰かがあなたの投稿をリポストしたとき",
       "follows": "新しいフォロワー",
       "followsDesc": "誰かにフォローされたとき",
       "likes": "いいね",
@@ -1931,8 +1931,8 @@
         "description": "返信を非表示にします。"
       },
       "noBoosts": {
-        "label": "ブーストを除く",
-        "description": "ブーストを非表示にします。"
+        "label": "リポストなし",
+        "description": "リポストを非表示にします。"
       },
       "linksOnly": {
         "label": "リンクのみ",
@@ -1948,7 +1948,7 @@
       },
       "minEngagement": {
         "label": "反応の最小数",
-        "description": "いいねやブーストなどが一定数以上あることを条件にします。"
+        "description": "いいね、リポストなどの最小数を必須にします。"
       },
       "recencyWindow": {
         "label": "対象期間",
@@ -2092,10 +2092,6 @@
         "title": "まだ返信はありません",
         "subtitle": "最初に返信してみましょう！"
       },
-      "boosts": {
-        "title": "まだブーストはありません",
-        "subtitle": "ブーストした投稿はここに表示されます。"
-      },
       "likes": {
         "title": "まだいいねはありません",
         "subtitle": "いいねした投稿はここに表示されます。"
@@ -2119,6 +2115,10 @@
       "following": {
         "title": "まだ投稿はありません",
         "subtitle": "誰かをフォローすると、その人の投稿が表示されます。"
+      },
+      "reposts": {
+        "title": "まだリポストはありません",
+        "subtitle": "リポストされた投稿がここに表示されます。"
       }
     },
     "tuning": {
@@ -2236,8 +2236,8 @@
       "deleteConfirmPosts_one": "このチャンネルが公開した{{count}}件の投稿と、それに付いたいいね・保存がすべて失われます。",
       "deleteConfirmPosts_other": "このチャンネルが公開した{{count}}件の投稿と、それらに付いたいいね・保存がすべて失われます。",
       "deleteConfirmEmpty": "このチャンネルはまだ何も公開していないため、失われる投稿はありません。",
-      "deleteConfirmBoosts_one": "他の人によるブースト{{count}}件も併せて失われます。",
-      "deleteConfirmBoosts_other": "他の人によるブースト{{count}}件も併せて失われます。",
+      "deleteConfirmReposts_one": "他の人によるそれらのリポスト{{count}}件も削除されます。",
+      "deleteConfirmReposts_other": "他の人によるそれらのリポスト{{count}}件も削除されます。",
       "deleteConfirmFediverse": "複製を受け取ったすべてのサーバーに削除を依頼します。依頼は送りますが、応じるよう強制することはできません。",
       "deleteConfirmAccount": "最後にチャンネルのアカウントがアーカイブされ、以後は誰もフォローしたり、その名義で投稿したりできなくなります。",
       "deleteConfirmAction_one": "{{count}}件の投稿を削除",
@@ -2262,7 +2262,7 @@
       },
       "step2": {
         "title": "発信はしますが、返信はしません",
-        "body": "チャンネルの投稿は通常の投稿です。他の投稿と同じようにフィードや検索、Fediverseに届き、自分のプロフィールにブーストすることもできます。ただし返信欄はありません。チャンネルは返信を受け付けない設計であり、誰かが設定でオフにしたわけではありません。"
+        "body": "チャンネルの投稿は通常の投稿です。他の投稿と同じようにフィードや検索、Fediverseに届き、自分のプロフィールにリポストすることもできます。ただし返信欄はありません。チャンネルは返信を受け付けない設計であり、誰かが設定でオフにしたわけではありません。"
       },
       "step3": {
         "title": "これは誰が書いたのか？",
@@ -2779,8 +2779,8 @@
     "like": "いいね",
     "unlike": "いいねを取り消す",
     "comment": "コメント",
-    "boost": "ブースト",
-    "unboost": "ブーストを取り消す",
+    "repost": "リポスト",
+    "unrepost": "リポストを取り消す",
     "save": "保存",
     "unsave": "保存を解除",
     "share": "共有",
@@ -2857,13 +2857,14 @@
       "image": "画像",
       "video": "動画",
       "poll": "アンケート",
-      "boost": "ブースト"
+      "boost": "リポスト",
+      "repost": "リポスト"
     },
     "engagementRatios": "反応の割合",
     "ofViews": "表示回数のうち",
     "likeRate": "いいね率",
     "replyRate": "返信率",
-    "boostRate": "ブースト率",
+    "repostRate": "リポスト率",
     "shareRate": "共有率",
     "viewsPerPost": "1投稿あたりの表示回数",
     "engagementPerPost": "1投稿あたりの反応",
@@ -2882,7 +2883,7 @@
       "totalInteractions": "反応の合計",
       "reach": "リーチ",
       "replies": "返信",
-      "boosts": "ブースト",
+      "reposts": "リポスト",
       "shares": "共有",
       "quotes": "引用",
       "totalQuotes": "引用の合計"
@@ -2907,7 +2908,7 @@
       "since": "指定した日付以降の投稿",
       "until": "指定した日付より前の投稿",
       "min_likes": "いいねの最小数",
-      "min_reposts": "ブーストの最小数",
+      "min_reposts": "最小リポスト数",
       "fromMe": "自分の投稿",
       "to": "特定のユーザーにメンションした投稿",
       "toMe": "自分にメンションした投稿",
@@ -3023,7 +3024,7 @@
     "introSource": "このページには、Mentionがやり取りを拒否しているすべてのインスタンスと、その理由を掲載しています。サーバーが実際に適用しているリストからそのまま生成されるため、内容が知らないうちに古くなることはありません。",
     "whatItDoes": {
       "title": "ブロックで起きること",
-      "body": "ブロックしたインスタンスからのものは、一切Mentionに届きません。送られてくる投稿・フォロー・いいね・ブーストは受信時に拒否され、そのサーバーのアカウントやタイムラインの取得も停止し、そのアカウントはここから検索することもフォローすることもできなくなります。",
+      "body": "ブロックしたインスタンスからのものは、一切Mentionに届きません。送られてくる投稿・フォロー・いいね・リポストは受信時に拒否され、そのサーバーのアカウントやタイムラインの取得も停止し、そのアカウントはここから検索することもフォローすることもできなくなります。",
       "bluntness": "ブロックはサイト全体に適用され、そこにいる個々の人に対して行うものではありません。大ざっぱな手段であるため、私たちはできる限り使わず、使うときには必ず理由を説明します。",
       "scope": "各項目は1つのサーバーを指し、その名前だけを対象とします。サブドメインは別のサーバーです。example.comへのブロックはsocial.example.comには及びません。そのため一つひとつ個別に判断し、それぞれを独立した項目として掲載しています。",
       "limits": "知っておいていただきたいこと: ブロックが制御するのは、Mentionに届くものです。ここで公開した投稿は公開のままであり、このリストに載っているインスタンスを含め、どこからでも読むことができます。"

@@ -31,7 +31,7 @@ async function confirmChannelDeletion(node: AccountNode, t: TFunction): Promise<
         ? t('channels.settings.deleteConfirmPosts', { count: counts.posts })
         : t('channels.settings.deleteConfirmEmpty'),
       counts.boostsByOthers > 0
-        ? t('channels.settings.deleteConfirmBoosts', { count: counts.boostsByOthers })
+        ? t('channels.settings.deleteConfirmReposts', { count: counts.boostsByOthers })
         : null,
       t('channels.settings.deleteConfirmFediverse'),
       t('channels.settings.deleteConfirmAccount'),

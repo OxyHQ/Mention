@@ -1,7 +1,7 @@
-import ProfileScreen from '@/components/ProfileScreen';
-import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
-export default function ProfileRepostsRoute() {
-  const username = useRoutedProfileUsername();
-  return <ProfileScreen username={username} tab="boosts" />;
+/** The old URL of the reposts tab (`/@name/boosts`): links already out there keep working. */
+export default function ProfileBoostsRedirect() {
+  const { username } = useLocalSearchParams<{ username: string }>();
+  return <Redirect href={`/${username}/reposts` as never} />;
 }

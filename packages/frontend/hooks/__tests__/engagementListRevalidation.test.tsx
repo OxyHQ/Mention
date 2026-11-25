@@ -89,7 +89,7 @@ function page(ids: string[]): SlicedFeedResponse {
 
 let latest: UseFeedStateReturn | undefined;
 
-function ProfileTab({ tab }: { tab: 'likes' | 'boosts' }) {
+function ProfileTab({ tab }: { tab: 'likes' | 'reposts' }) {
   latest = useFeedState({
     type: tab,
     userId: VIEWER_ID,
@@ -109,7 +109,7 @@ async function flush(): Promise<void> {
 }
 
 /** Open a profile tab, as a navigation would: a fresh mount. */
-async function openTab(tab: 'likes' | 'boosts'): Promise<TestRenderer.ReactTestRenderer> {
+async function openTab(tab: 'likes' | 'reposts'): Promise<TestRenderer.ReactTestRenderer> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -140,7 +140,7 @@ describe('engagement lists revalidate on their next visit', () => {
     resetEngagementInvalidation();
     serverLists = { likes: [], boosts: [] };
     getUserFeedMock.mockImplementation((_userId: string, request: { type: string }) =>
-      Promise.resolve(page(request.type === 'boosts' ? serverLists.boosts : serverLists.likes)),
+      Promise.resolve(page(request.type === 'reposts' ? serverLists.boosts : serverLists.likes)),
     );
   });
 
@@ -164,14 +164,14 @@ describe('engagement lists revalidate on their next visit', () => {
   it('shows a post boosted elsewhere on the next visit to the boosts tab, with no reload', async () => {
     serverLists.boosts = ['post-old'];
 
-    const firstVisit = await openTab('boosts');
+    const firstVisit = await openTab('reposts');
     expect(renderedIds()).toEqual(['post-old']);
     act(() => firstVisit.unmount());
 
     serverLists.boosts = ['post-new', 'post-old'];
-    invalidateEngagementLists('boost');
+    invalidateEngagementLists('repost');
 
-    const secondVisit = await openTab('boosts');
+    const secondVisit = await openTab('reposts');
     expect(renderedIds()).toContain('post-new');
     act(() => secondVisit.unmount());
   });
@@ -255,13 +255,13 @@ describe('engagement lists revalidate on their next visit', () => {
   it('does not revalidate a boosts tab because a LIKE landed', async () => {
     serverLists.boosts = ['post-old'];
 
-    const firstVisit = await openTab('boosts');
+    const firstVisit = await openTab('reposts');
     expect(getUserFeedMock).toHaveBeenCalledTimes(1);
     act(() => firstVisit.unmount());
 
     invalidateEngagementLists('like');
 
-    const secondVisit = await openTab('boosts');
+    const secondVisit = await openTab('reposts');
     expect(getUserFeedMock).toHaveBeenCalledTimes(1);
     act(() => secondVisit.unmount());
   });

@@ -60,7 +60,7 @@ const COUNT_FIELDS: ReadonlyArray<keyof EngagementCounts> = [
 const ENGAGEMENT_EVENT_ACTIONS: ReadonlyArray<[PostEngagementEvent, EchoAction]> = [
   [POST_ENGAGEMENT_EVENTS.LIKED, 'like'],
   [POST_ENGAGEMENT_EVENTS.UNLIKED, 'unlike'],
-  [POST_ENGAGEMENT_EVENTS.REPOSTED, 'boost'],
+  [POST_ENGAGEMENT_EVENTS.REPOSTED, 'repost'],
   [POST_ENGAGEMENT_EVENTS.UNREPOSTED, 'unboost'],
   [POST_ENGAGEMENT_EVENTS.SAVED, 'save'],
   [POST_ENGAGEMENT_EVENTS.UNSAVED, 'unsave'],

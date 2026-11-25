@@ -5,7 +5,7 @@
  *
  *  - An empty thread read "No posts yet" over "No replies yet. Be the first to
  *    reply!" — two headlines, in English only.
- *  - Counters read "1 Boosts", "1 Replies".
+ *  - Counters read "1 Reposts", "1 Replies".
  */
 import i18next, { type TFunction } from 'i18next';
 import en from '@/locales/en.json';
@@ -46,7 +46,7 @@ describe('empty feed copy', () => {
   });
 
   it('never titles a non-post list "No posts yet"', () => {
-    for (const type of ['replies', 'boosts', 'likes', 'media', 'mentions'] as const) {
+    for (const type of ['replies', 'reposts', 'likes', 'media', 'mentions'] as const) {
       expect(emptyCopy(t, type).title).not.toBe('No posts yet');
     }
     expect(emptyCopy(t, 'saved').title).toBe('No saved posts yet');
@@ -67,9 +67,9 @@ describe('empty feed copy', () => {
 });
 
 describe('counter labels follow the language’s plural rules', () => {
-  it('reads "1 Boost", "1 Reply", "1 Post" in English, and the plural otherwise', () => {
-    expect(t('profile.stats.boosts', { count: 1 })).toBe('Boost');
-    expect(t('profile.stats.boosts', { count: 2 })).toBe('Boosts');
+  it('reads "1 Repost", "1 Reply", "1 Post" in English, and the plural otherwise', () => {
+    expect(t('profile.stats.reposts', { count: 1 })).toBe('Repost');
+    expect(t('profile.stats.reposts', { count: 2 })).toBe('Reposts');
     expect(t('profile.stats.replies', { count: 1 })).toBe('Reply');
     expect(t('profile.stats.replies', { count: 0 })).toBe('Replies');
     expect(t('profile.stats.posts', { count: 1 })).toBe('Post');

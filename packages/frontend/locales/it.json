@@ -673,14 +673,14 @@
     "stats": {
       "likes_one": "mi piace",
       "likes_other": "mi piace",
-      "boosts_one": "boost",
-      "boosts_other": "boost",
+      "reposts_one": "ripubblicazione",
+      "reposts_other": "ripubblicazioni",
       "quotes_one": "citazione",
       "quotes_other": "citazioni",
       "saves_one": "salvataggio",
       "saves_other": "salvataggi",
       "likes_many": "mi piace",
-      "boosts_many": "boost",
+      "reposts_many": "ripubblicazioni",
       "quotes_many": "citazioni",
       "saves_many": "salvataggi"
     },
@@ -703,7 +703,7 @@
     "contentWarning": "Avviso sul contenuto",
     "contentWarningShow": "Mostra",
     "contentWarningHide": "Nascondi",
-    "boostUnavailable": "Questo post non è più disponibile",
+    "repostUnavailable": "Questo post non è più disponibile",
     "quoteUnavailable": "Questo post citato non è disponibile",
     "articleSheet": {
       "emptyBody": "Nessun contenuto disponibile.",
@@ -711,12 +711,12 @@
       "title": "Articolo",
       "untitled": "Articolo senza titolo"
     },
-    "boostsTitle": "Boost",
+    "repostsTitle": "Ripubblicazioni",
     "likesTitle": "Mi piace",
     "engagement": {
       "loadError": "Impossibile caricare l'elenco",
       "loadErrorMessage": "Controlla la connessione e riprova.",
-      "noBoosts": "Ancora nessun boost",
+      "noReposts": "Ancora nessuna ripubblicazione",
       "noLikes": "Ancora nessun Mi piace"
     },
     "pinned": "Fissato",
@@ -778,7 +778,7 @@
     },
     "action": {
       "like": "ha messo mi piace al tuo post",
-      "boost": "ha boostato il tuo post",
+      "repost": "ha ripubblicato il tuo post",
       "reply": "ha risposto al tuo post",
       "mention": "ti ha menzionato",
       "quote": "ha citato il tuo post",
@@ -807,7 +807,7 @@
         "title": "Nessun nuovo follower"
       },
       "likes": {
-        "subtitle": "Quando qualcuno metterà mi piace o boosterà i tuoi contenuti, comparirà qui.",
+        "subtitle": "Quando qualcuno mette mi piace o ripubblica i tuoi contenuti, apparirà qui.",
         "title": "Ancora nessun mi piace"
       },
       "mentions": {
@@ -889,7 +889,7 @@
       "media": "Media",
       "videos": "Video",
       "likes": "Mi piace",
-      "boosts": "Boost",
+      "reposts": "Ripubblicazioni",
       "mentions": "Menzioni",
       "writers": "Chi scrive",
       "feeds": "Feed",
@@ -901,13 +901,13 @@
     "stats": {
       "posts_one": "Post",
       "posts_other": "Post",
-      "boosts_one": "Boost",
-      "boosts_other": "Boost",
+      "reposts_one": "Ripubblicazione",
+      "reposts_other": "Ripubblicazioni",
       "replies_one": "Risposta",
       "replies_other": "Risposte",
       "reputation": "Reputazione",
       "posts_many": "Post",
-      "boosts_many": "Boost",
+      "reposts_many": "Ripubblicazioni",
       "replies_many": "Risposte"
     },
     "joined": "Iscritto",
@@ -1262,7 +1262,7 @@
       "hiddenWordsDesc": "Filtra i post che contengono parole specifiche",
       "hideCounts": {
         "signInRequired": "Accedi per nascondere i conteggi di coinvolgimento",
-        "signInRequiredDesc": "Nascondi mi piace, boost, risposte e salvataggi sui tuoi post."
+        "signInRequiredDesc": "Nascondi mi piace, ripubblicazioni, risposte e salvataggi sui tuoi post."
       },
       "hideLikeShareCountsDesc": "Nascondi i conteggi di coinvolgimento sui post",
       "onlineStatus": {
@@ -1446,8 +1446,8 @@
       "description": "Gli argomenti che segui plasmano il tuo feed e ti seguono in tutte le app Oxy."
     },
     "notifications": {
-      "boosts": "Boost",
-      "boostsDesc": "Quando qualcuno boosta il tuo post",
+      "reposts": "Ripubblicazioni",
+      "repostsDesc": "Quando qualcuno ripubblica il tuo post",
       "follows": "Nuovi follower",
       "followsDesc": "Quando qualcuno inizia a seguirti",
       "likes": "Mi piace",
@@ -1949,8 +1949,8 @@
         "description": "Nascondi le risposte."
       },
       "noBoosts": {
-        "label": "Niente boost",
-        "description": "Nascondi i boost."
+        "label": "Nessuna ripubblicazione",
+        "description": "Nascondi le ripubblicazioni."
       },
       "linksOnly": {
         "label": "Solo link",
@@ -1966,7 +1966,7 @@
       },
       "minEngagement": {
         "label": "Interazioni minime",
-        "description": "Richiedi un minimo di mi piace, boost, ecc."
+        "description": "Richiedi un minimo di mi piace, ripubblicazioni, ecc."
       },
       "recencyWindow": {
         "label": "Finestra temporale",
@@ -2112,10 +2112,6 @@
         "title": "Ancora nessuna risposta",
         "subtitle": "Sii il primo a rispondere!"
       },
-      "boosts": {
-        "title": "Ancora nessun boost",
-        "subtitle": "I post con boost appariranno qui."
-      },
       "likes": {
         "title": "Ancora nessun mi piace",
         "subtitle": "I post che ti piacciono appariranno qui."
@@ -2139,6 +2135,10 @@
       "following": {
         "title": "Ancora nessun post",
         "subtitle": "Inizia a seguire qualcuno per vedere i suoi post."
+      },
+      "reposts": {
+        "title": "Ancora nessuna ripubblicazione",
+        "subtitle": "I post ripubblicati compariranno qui."
       }
     },
     "tuning": {
@@ -2256,8 +2256,8 @@
       "deleteConfirmPosts_one": "Questo distrugge {{count}} post pubblicato da questo canale, insieme a ogni mi piace e ogni salvataggio che ha ricevuto.",
       "deleteConfirmPosts_other": "Questo distrugge {{count}} post pubblicati da questo canale, insieme a ogni mi piace e ogni salvataggio che hanno ricevuto.",
       "deleteConfirmEmpty": "Questo canale non ha pubblicato nulla, quindi non ci sono post da distruggere.",
-      "deleteConfirmBoosts_one": "Anche {{count}} boost di un'altra persona sparisce.",
-      "deleteConfirmBoosts_other": "Spariscono anche {{count}} boost di altre persone.",
+      "deleteConfirmReposts_one": "{{count}} ripubblicazione di questi post fatta da un'altra persona viene eliminata.",
+      "deleteConfirmReposts_other": "{{count}} ripubblicazioni di questi post fatte da altre persone vengono eliminate.",
       "deleteConfirmFediverse": "A ogni server che ne ha ricevuto una copia viene chiesto di rimuoverla. Noi inviamo la richiesta; non possiamo costringerli a rispettarla.",
       "deleteConfirmAccount": "L'account del canale viene archiviato alla fine, così nessuno potrà più seguirlo né pubblicare a suo nome.",
       "deleteConfirmAction_one": "Elimina {{count}} post",
@@ -2265,7 +2265,7 @@
       "deleteConfirmActionEmpty": "Elimina questo canale",
       "deleted": "Canale eliminato",
       "deleteConfirmPosts_many": "Questo distrugge {{count}} post pubblicati da questo canale, insieme a ogni mi piace e ogni salvataggio che hanno ricevuto.",
-      "deleteConfirmBoosts_many": "Spariscono anche {{count}} boost di altre persone.",
+      "deleteConfirmReposts_many": "Spariscono anche {{count}} ripubblicazioni di altre persone.",
       "deleteConfirmAction_many": "Elimina {{count}} post"
     },
     "insights": {
@@ -2802,8 +2802,8 @@
     "like": "Mi piace",
     "unlike": "Non mi piace più",
     "comment": "Commenta",
-    "boost": "Rilancia",
-    "unboost": "Annulla rilancio",
+    "repost": "Ripubblica",
+    "unrepost": "Annulla ripubblicazione",
     "save": "Salva",
     "unsave": "Rimuovi dai salvati",
     "share": "Condividi",
@@ -2880,13 +2880,14 @@
       "image": "Immagine",
       "video": "Video",
       "poll": "Sondaggio",
-      "boost": "Boost"
+      "boost": "Ripubblicazione",
+      "repost": "Ripubblicazione"
     },
     "engagementRatios": "Tassi di Coinvolgimento",
     "ofViews": "delle visualizzazioni",
     "likeRate": "Tasso di Mi Piace",
     "replyRate": "Tasso di Risposte",
-    "boostRate": "Tasso di Boost",
+    "repostRate": "Tasso di ripubblicazioni",
     "shareRate": "Tasso di Condivisioni",
     "viewsPerPost": "Visualizzazioni per Post",
     "engagementPerPost": "Coinvolgimento per Post",
@@ -2905,7 +2906,7 @@
       "totalInteractions": "Totale interazioni",
       "reach": "Portata",
       "replies": "Risposte",
-      "boosts": "Boost",
+      "reposts": "Ripubblicazioni",
       "shares": "Condivisioni",
       "quotes": "Citazioni",
       "totalQuotes": "Totale citazioni"
@@ -2931,7 +2932,7 @@
       "since": "Post dopo una data",
       "until": "Post prima di una data",
       "min_likes": "Mi piace minimi",
-      "min_reposts": "Boost minimi",
+      "min_reposts": "Minimo di ripubblicazioni",
       "fromMe": "I tuoi post",
       "to": "Post che menzionano un utente specifico",
       "toMe": "Post che ti menzionano",
@@ -3047,7 +3048,7 @@
     "introSource": "Questa pagina elenca ogni istanza con cui Mention rifiuta di scambiare contenuti, e il perché. È generata dalla stessa lista che il server applica, quindi non può diventare obsoleta senza che nessuno se ne accorga.",
     "whatItDoes": {
       "title": "Che cosa fa un blocco",
-      "body": "Niente che provenga da un'istanza bloccata arriva su Mention. I post, i follow, i mi piace e i boost che invia vengono rifiutati all'arrivo, smettiamo di recuperare i suoi account e le sue timeline, e i suoi account non possono più essere trovati né seguiti da qui.",
+      "body": "Niente che provenga da un'istanza bloccata arriva su Mention. I post, i follow, i mi piace e i ripubblicazioni che invia vengono rifiutati all'arrivo, smettiamo di recuperare i suoi account e le sue timeline, e i suoi account non possono più essere trovati né seguiti da qui.",
       "bluntness": "Si applica a un intero sito, non alle singole persone che lo abitano. È uno strumento grossolano, quindi preferiamo usarlo raramente e spiegarlo ogni volta.",
       "scope": "Ogni voce indica un solo server e copre esattamente quel nome. Un sottodominio è un server diverso — un blocco su example.com non si estende a social.example.com — quindi ognuno viene deciso a sé e compare qui per conto proprio.",
       "limits": "Da sapere: un blocco governa ciò che arriva su Mention. Tutto ciò che pubblichi qui pubblicamente resta pubblico e può comunque essere letto da ovunque, incluse le istanze di questa lista."

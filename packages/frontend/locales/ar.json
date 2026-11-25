@@ -688,8 +688,8 @@
     "stats": {
       "likes_one": "إعجاب",
       "likes_other": "إعجاب",
-      "boosts_one": "إعادة نشر",
-      "boosts_other": "إعادة نشر",
+      "reposts_one": "إعادة نشر",
+      "reposts_other": "إعادة نشر",
       "quotes_one": "اقتباس",
       "quotes_other": "اقتباس",
       "saves_one": "حفظ",
@@ -698,10 +698,10 @@
       "likes_two": "إعجابان",
       "likes_few": "إعجابات",
       "likes_many": "إعجابًا",
-      "boosts_zero": "إعادات نشر",
-      "boosts_two": "إعادتا نشر",
-      "boosts_few": "إعادات نشر",
-      "boosts_many": "إعادة نشر",
+      "reposts_zero": "إعادات نشر",
+      "reposts_two": "إعادتا نشر",
+      "reposts_few": "إعادات نشر",
+      "reposts_many": "إعادة نشر",
       "quotes_zero": "اقتباسات",
       "quotes_two": "اقتباسان",
       "quotes_few": "اقتباسات",
@@ -733,7 +733,7 @@
     "contentWarning": "تحذير بشأن المحتوى",
     "contentWarningShow": "عرض",
     "contentWarningHide": "إخفاء",
-    "boostUnavailable": "لم يعد هذا المنشور متاحًا",
+    "repostUnavailable": "لم يعد هذا المنشور متاحًا",
     "quoteUnavailable": "هذا المنشور المقتبس غير متاح",
     "articleSheet": {
       "emptyBody": "لا يوجد محتوى.",
@@ -741,12 +741,12 @@
       "title": "مقال",
       "untitled": "مقال بلا عنوان"
     },
-    "boostsTitle": "إعادات النشر",
+    "repostsTitle": "إعادات النشر",
     "likesTitle": "الإعجابات",
     "engagement": {
       "loadError": "تعذّر تحميل القائمة",
       "loadErrorMessage": "تحقق من اتصالك وأعد المحاولة.",
-      "noBoosts": "لا توجد إعادات نشر بعد",
+      "noReposts": "لا توجد إعادات نشر بعد",
       "noLikes": "لا توجد إعجابات بعد"
     },
     "pinned": "مثبّت",
@@ -814,7 +814,7 @@
     },
     "action": {
       "like": "أعجب بمنشورك",
-      "boost": "أعاد نشر منشورك",
+      "repost": "أعاد نشر منشورك",
       "reply": "ردّ على منشورك",
       "mention": "أشار إليك",
       "quote": "اقتبس منشورك",
@@ -925,7 +925,7 @@
       "media": "الوسائط",
       "videos": "الفيديوهات",
       "likes": "الإعجابات",
-      "boosts": "إعادات النشر",
+      "reposts": "إعادات النشر",
       "mentions": "الإشارات",
       "writers": "الكُتّاب",
       "feeds": "الخلاصات",
@@ -937,8 +937,8 @@
     "stats": {
       "posts_one": "منشور",
       "posts_other": "منشور",
-      "boosts_one": "إعادة نشر",
-      "boosts_other": "إعادة نشر",
+      "reposts_one": "إعادة نشر",
+      "reposts_other": "إعادة نشر",
       "replies_one": "رد",
       "replies_other": "رد",
       "reputation": "السمعة",
@@ -946,10 +946,10 @@
       "posts_two": "منشوران",
       "posts_few": "منشورات",
       "posts_many": "منشورًا",
-      "boosts_zero": "إعادات نشر",
-      "boosts_two": "إعادتا نشر",
-      "boosts_few": "إعادات نشر",
-      "boosts_many": "إعادة نشر",
+      "reposts_zero": "إعادات نشر",
+      "reposts_two": "إعادتا نشر",
+      "reposts_few": "إعادات نشر",
+      "reposts_many": "إعادة نشر",
       "replies_zero": "ردود",
       "replies_two": "ردان",
       "replies_few": "ردود",
@@ -1500,8 +1500,8 @@
       "description": "تشكّل الموضوعات التي تتابعها خلاصتك، وترافقك إلى كل تطبيقات Oxy."
     },
     "notifications": {
-      "boosts": "إعادات النشر",
-      "boostsDesc": "عندما يعيد أحدهم نشر منشورك",
+      "reposts": "إعادات النشر",
+      "repostsDesc": "عندما يعيد أحدهم نشر منشورك",
       "follows": "متابِعون جدد",
       "followsDesc": "عندما يتابعك أحدهم",
       "likes": "الإعجابات",
@@ -2172,10 +2172,6 @@
         "title": "لا توجد ردود بعد",
         "subtitle": "كن أول من يرد!"
       },
-      "boosts": {
-        "title": "لا توجد إعادات نشر بعد",
-        "subtitle": "ستظهر المنشورات المعاد نشرها هنا."
-      },
       "likes": {
         "title": "لا توجد إعجابات بعد",
         "subtitle": "ستظهر المنشورات التي أعجبتك هنا."
@@ -2199,6 +2195,10 @@
       "following": {
         "title": "لا توجد منشورات بعد",
         "subtitle": "ابدأ بمتابعة أشخاص لترى منشوراتهم."
+      },
+      "reposts": {
+        "title": "لا توجد إعادات نشر بعد",
+        "subtitle": "ستظهر المنشورات المعاد نشرها هنا."
       }
     },
     "tuning": {
@@ -2316,8 +2316,8 @@
       "deleteConfirmPosts_one": "سيؤدي هذا إلى تدمير منشور واحد نشرته هذه القناة، مع كل إعجاب وحفظ عليه.",
       "deleteConfirmPosts_other": "سيؤدي هذا إلى تدمير {{count}} منشور نشرته هذه القناة، مع كل إعجاب وحفظ عليه.",
       "deleteConfirmEmpty": "لم تنشر هذه القناة شيئًا، فلا توجد منشورات لتدميرها.",
-      "deleteConfirmBoosts_one": "وتزول معها إعادة نشر واحدة لها من شخص آخر.",
-      "deleteConfirmBoosts_other": "وتزول معها {{count}} إعادة نشر لها من أشخاص آخرين.",
+      "deleteConfirmReposts_one": "وتزول معها إعادة نشر واحدة لها من شخص آخر.",
+      "deleteConfirmReposts_other": "وتزول معها {{count}} إعادة نشر لها من أشخاص آخرين.",
       "deleteConfirmFediverse": "يُطلب من كل خادم تلقّى نسخة أن يزيلها. نحن نرسل ذلك الطلب؛ لكننا لا نستطيع إجباره على تنفيذه.",
       "deleteConfirmAccount": "يُؤرشف حساب القناة في النهاية، فلا يستطيع أحد متابعته أو النشر باسمه مجددًا.",
       "deleteConfirmAction_one": "حذف منشور واحد",
@@ -2328,10 +2328,10 @@
       "deleteConfirmPosts_two": "سيؤدي هذا إلى تدمير منشورين نشرتهما هذه القناة، مع كل إعجاب وحفظ عليهما.",
       "deleteConfirmPosts_few": "سيؤدي هذا إلى تدمير {{count}} منشورات نشرتها هذه القناة، مع كل إعجاب وحفظ عليها.",
       "deleteConfirmPosts_many": "سيؤدي هذا إلى تدمير {{count}} منشورًا نشرتها هذه القناة، مع كل إعجاب وحفظ عليها.",
-      "deleteConfirmBoosts_zero": "ولا توجد إعادات نشر لها من أشخاص آخرين.",
-      "deleteConfirmBoosts_two": "وتزول معها إعادتا نشر لهما من أشخاص آخرين.",
-      "deleteConfirmBoosts_few": "وتزول معها {{count}} إعادات نشر لها من أشخاص آخرين.",
-      "deleteConfirmBoosts_many": "وتزول معها {{count}} إعادة نشر لها من أشخاص آخرين.",
+      "deleteConfirmReposts_zero": "ولا توجد إعادات نشر لها من أشخاص آخرين.",
+      "deleteConfirmReposts_two": "وتزول معها إعادتا نشر لهما من أشخاص آخرين.",
+      "deleteConfirmReposts_few": "وتزول معها {{count}} إعادات نشر لها من أشخاص آخرين.",
+      "deleteConfirmReposts_many": "وتزول معها {{count}} إعادة نشر لها من أشخاص آخرين.",
       "deleteConfirmAction_zero": "حذف القناة",
       "deleteConfirmAction_two": "حذف منشورين",
       "deleteConfirmAction_few": "حذف {{count}} منشورات",
@@ -2871,8 +2871,8 @@
     "like": "إعجاب",
     "unlike": "إلغاء الإعجاب",
     "comment": "تعليق",
-    "boost": "إعادة نشر",
-    "unboost": "التراجع عن إعادة النشر",
+    "repost": "إعادة نشر",
+    "unrepost": "التراجع عن إعادة النشر",
     "save": "حفظ",
     "unsave": "إزالة من المحفوظات",
     "share": "مشاركة",
@@ -2949,13 +2949,14 @@
       "image": "صورة",
       "video": "فيديو",
       "poll": "استطلاع",
-      "boost": "إعادة نشر"
+      "boost": "إعادة نشر",
+      "repost": "إعادة نشر"
     },
     "engagementRatios": "نسب التفاعل",
     "ofViews": "من المشاهدات",
     "likeRate": "معدل الإعجاب",
     "replyRate": "معدل الرد",
-    "boostRate": "معدل إعادة النشر",
+    "repostRate": "معدل إعادة النشر",
     "shareRate": "معدل المشاركة",
     "viewsPerPost": "المشاهدات لكل منشور",
     "engagementPerPost": "التفاعل لكل منشور",
@@ -2974,7 +2975,7 @@
       "totalInteractions": "إجمالي التفاعلات",
       "reach": "الوصول",
       "replies": "الردود",
-      "boosts": "إعادات النشر",
+      "reposts": "إعادات النشر",
       "shares": "المشاركات",
       "quotes": "الاقتباسات",
       "totalQuotes": "إجمالي الاقتباسات"

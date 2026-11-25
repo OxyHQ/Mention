@@ -145,7 +145,7 @@ export function InsightsDashboard({
       icon: <RiChat3Line width={16} height={16} fill={colors.text} />,
     },
     {
-      label: t('insights.post.boosts'),
+      label: t('insights.post.reposts'),
       value: stats.interactions.boosts,
       icon: <RiRepeat2Line width={16} height={16} fill={colors.text} />,
     },
@@ -456,7 +456,7 @@ export function InsightsDashboard({
               data={[
                 { label: t('insights.post.likes'), rate: engagementRatios.ratios.likeRate },
                 { label: t('insights.post.replies'), rate: engagementRatios.ratios.replyRate },
-                { label: t('insights.post.boosts'), rate: engagementRatios.ratios.boostRate },
+                { label: t('insights.post.reposts'), rate: engagementRatios.ratios.boostRate },
                 { label: t('insights.post.shares'), rate: engagementRatios.ratios.shareRate },
               ]}
               series={[{ key: 'rate', label: t('insights.ofViews') }]}
@@ -481,7 +481,8 @@ export function InsightsDashboard({
               headline={stats.overview.totalInteractions}
               columns={weekdayInteractions.columns}
               rows={(['likes', 'replies', 'boosts', 'shares'] as const).map((kind) => ({
-                label: t(`insights.post.${kind}`),
+                // `boosts` is still the name of the counter in the statistics payload.
+                label: t(`insights.post.${kind === 'boosts' ? 'reposts' : kind}`),
                 values: weekdayInteractions.values[kind],
               }))}
               format={formatNumber}
@@ -505,7 +506,7 @@ export function InsightsDashboard({
               items={[
                 { label: t('insights.likeRate'), value: engagementRatios.ratios.likeRate },
                 { label: t('insights.replyRate'), value: engagementRatios.ratios.replyRate },
-                { label: t('insights.boostRate'), value: engagementRatios.ratios.boostRate },
+                { label: t('insights.repostRate'), value: engagementRatios.ratios.boostRate },
                 { label: t('insights.shareRate'), value: engagementRatios.ratios.shareRate },
               ]}
             />

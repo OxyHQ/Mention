@@ -480,7 +480,7 @@ it('opens repost evidence as reposts and does not repeat the same structural boo
   const dialog = mockDialogs[mockDialogs.length - 1];
   expect(dialog.render(() => undefined).props.children?.props).toMatchObject({
     postId: parent.id,
-    type: 'boosts',
+    type: 'reposts',
   });
   act(() => tree.update(<PostItem post={parent} repostedBy={writer} socialContext={context} />));
   expect(
