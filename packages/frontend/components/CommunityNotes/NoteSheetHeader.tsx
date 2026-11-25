@@ -1,24 +1,9 @@
-import { Text, type TextStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { useColorTokens } from '@oxy.so/bloom/theme';
-import { Button, Embed, HStack, Icon, defineTokens, toElement } from '@oxy.so/bloom-language';
+import { Button, HStack, Icon, RawText, defineTokens, toElement } from '@oxy.so/bloom-language';
 
 /** The row's floor: 52pt, a sheet header's height. */
 const header = defineTokens({ space: { minHeight: 52 } });
-
-/**
- * The title, centred across the whole row under the close button: React Native's Text, since
- * its inline insets (`insetInline`, Tailwind's `inset-x-0`) have no modifier.
- */
-const TITLE_STYLE: TextStyle = {
-  pointerEvents: 'none',
-  position: 'absolute',
-  insetInline: 0,
-  textAlign: 'center',
-  fontSize: 17,
-  fontWeight: '700',
-};
 
 interface NoteSheetHeaderProps {
   title?: string;
@@ -28,7 +13,6 @@ interface NoteSheetHeaderProps {
 /** The close-and-title row every community-note sheet opens with. */
 export function NoteSheetHeader({ title, onClose }: NoteSheetHeaderProps) {
   const { t } = useTranslation();
-  const colorTokens = useColorTokens();
   return toElement(
     HStack(
       Button(Icon(RiCloseLine))
@@ -38,12 +22,16 @@ export function NoteSheetHeader({ title, onClose }: NoteSheetHeaderProps) {
         .label(t('common.close', { defaultValue: 'Close' }))
         .onPress(onClose)
         .zIndex('floating'),
+      // The title, centred across the whole row under the close button (Tailwind's `inset-x-0`).
       title
-        ? Embed(
-            <Text style={[TITLE_STYLE, { color: colorTokens.foreground }]} numberOfLines={1}>
-              {title}
-            </Text>,
-          )
+        ? RawText(title)
+            .font('lg')
+            .weight('bold')
+            .textAlign('center')
+            .foreground('foreground')
+            .position({ horizontal: 'none' })
+            .allowsHitTesting(false)
+            .lines(1)
         : null,
     )
       .padding('horizontal', 'md')

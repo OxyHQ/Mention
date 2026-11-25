@@ -1,6 +1,5 @@
 import type React from 'react';
 import { useCallback } from 'react';
-import { View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -41,17 +40,6 @@ const BANNER_PREVIEW_STYLE = { width: '100%', aspectRatio: 3 } as const;
 const banner = defineTokens({ space: { hintInset: 34, emptyMinHeight: 112 } });
 // What the classes drew, as plain objects (inline, as the classes were).
 /** The edit bar along the preview's bottom: black at 60% under the glyphs. */
-const EDIT_BAR_STYLE: ViewStyle = {
-  position: 'absolute',
-  insetInline: 0,
-  bottom: 0,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-};
 export const BannerSection: React.FC = () => {
   const { t } = useTranslation();
   const { showBottomSheet, oxyServices } = useAuth();
@@ -127,37 +115,37 @@ export const BannerSection: React.FC = () => {
                 contentFit="cover"
               />,
             ),
-            // A View: the bar spans the preview by its inline insets, which no modifier says.
-            Embed((render) => (
-              <View style={EDIT_BAR_STYLE}>
-                {render(
-                  HStack(
-                    Icon(RiCameraLine).size('17').foreground('onPrimary'),
-                    RawText(t('common.edit'))
-                      .foreground('white')
-                      .font('14')
-                      .leading('20px')
-                      .weight('semibold'),
-                  )
-                    .align('center')
-                    .spacing('sm'),
-                )}
-                {render(
-                  VStack(Icon(RiDeleteBinLine).size('17').foreground('onPrimary'))
-                    .frame({ width: '36', height: '36' })
-                    .background('black/40')
-                    .corner('infinite')
-                    .align('center')
-                    .justify('center')
-                    .onPress((event) => {
-                      event.stopPropagation();
-                      void removeHeaderImage();
-                    })
-                    .role('button')
-                    .label(`${t('common.remove')} ${t('settings.profileHeader')}`),
-                )}
-              </View>
-            )),
+            // The bar spans the preview by its inline insets.
+            HStack(
+              HStack(
+                Icon(RiCameraLine).size('17').foreground('onPrimary'),
+                RawText(t('common.edit'))
+                  .foreground('white')
+                  .font('14')
+                  .leading('20px')
+                  .weight('semibold'),
+              )
+                .align('center')
+                .spacing('sm'),
+              VStack(Icon(RiDeleteBinLine).size('17').foreground('onPrimary'))
+                .frame({ width: '36', height: '36' })
+                .background('black/40')
+                .corner('infinite')
+                .align('center')
+                .justify('center')
+                .onPress((event) => {
+                  event.stopPropagation();
+                  void removeHeaderImage();
+                })
+                .role('button')
+                .label(`${t('common.remove')} ${t('settings.profileHeader')}`),
+            )
+              .position({ horizontal: 'none', bottom: 'none' })
+              .padding('horizontal', 'md')
+              .padding('vertical', 'sm')
+              .background('black/60')
+              .align('center')
+              .justify('between'),
           )
             .background('mutedFill')
             .border('border', 'thin')
