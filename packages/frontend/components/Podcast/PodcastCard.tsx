@@ -1,14 +1,7 @@
 import { clamp } from '@oxy.so/utils/text';
 import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
-import {
-  Pressable,
-  StyleSheet,
-  View,
-  type StyleProp,
-  type ViewStyle,
-  type DimensionValue,
-} from 'react-native';
+import { Pressable, StyleSheet, View, type ViewStyle, type DimensionValue } from 'react-native';
 import { Image } from 'expo-image';
 import { RiRadioLine } from '@oxy.so/bloom/icons/RiRadioLine';
 import { RiSpotifyFill } from '@oxy.so/bloom/icons/RiSpotifyFill';
@@ -82,7 +75,6 @@ interface PodcastCardProps {
   /** Owner edit affordance (full variant only) — pencil tap + long-press. */
   onEdit?: () => void;
   isOwnProfile?: boolean;
-  style?: StyleProp<ViewStyle>;
 }
 
 /** Provider glyph and fallback-mic tint — icons take a colour prop, not a class. */
@@ -180,9 +172,9 @@ const artwork = (uri: string | undefined, size: 'card' | 'strip') => {
  * `onPress` override — across the profile card (`variant="full"`), the compose
  * attachment and the rendered-post attachment (`"card"` / `"video"`).
  *
- * Styling is NativeWind; `style` carries only what is computed at runtime —
- * the width and shared row height a parent hands down, the artwork-derived
- * background, and a video's ratio.
+ * The runtime styles are what is computed as it renders — the width and shared
+ * row height a parent hands down, the artwork-derived background, and a video's
+ * ratio.
  */
 export const PodcastCard = memo(function PodcastCard({
   title,
@@ -199,7 +191,6 @@ export const PodcastCard = memo(function PodcastCard({
   onPress,
   onEdit,
   isOwnProfile = false,
-  style,
 }: PodcastCardProps) {
   const { t } = useTranslation();
   const accent = useArtworkAccent(variant === 'full' ? undefined : artworkUrl, accentColor, title);
@@ -218,7 +209,7 @@ export const PodcastCard = memo(function PodcastCard({
     // the muted fill (`contrast50`) this profile card has always sat on.
     return (
       <Pressable
-        style={[cardStyles.full, style]}
+        style={cardStyles.full}
         onPress={handlePress}
         onLongPress={isOwnProfile ? onEdit : undefined}
         accessibilityRole="button"
@@ -299,13 +290,7 @@ export const PodcastCard = memo(function PodcastCard({
     // landscape wider than 16:9 leaves a sliver. Threads crops to the same band.
     const clampedRatio = clamp(ratio, 4 / 5, 16 / 9);
     return (
-      <View
-        style={[
-          cardStyles.video,
-          { width: width ?? '100%', height, backgroundColor: accent },
-          style,
-        ]}
-      >
+      <View style={[cardStyles.video, { width: width ?? '100%', height, backgroundColor: accent }]}>
         <View
           // In a row the video takes whatever the strip below does not: the
           // strip's height depends on its text, so a guessed height clips it.
@@ -368,7 +353,7 @@ export const PodcastCard = memo(function PodcastCard({
       // Takes the row's shared height like every other item; the artwork stays
       // 96px and centres in it, so a podcast looks the same whatever sits
       // beside it.
-      style={[cardStyles.card, { width: width ?? 320, height, backgroundColor: accent }, style]}
+      style={[cardStyles.card, { width: width ?? 320, height, backgroundColor: accent }]}
     >
       {toElement(
         HStack(

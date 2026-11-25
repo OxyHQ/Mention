@@ -11,7 +11,6 @@ import {
   Dimensions,
   Platform,
   View,
-  type ViewStyle,
   type ScrollViewInstance,
   type ViewInstance,
 } from 'react-native';
@@ -138,7 +137,6 @@ interface Props {
    * independently. Non-media attachments (polls, links, articles…) are unaffected.
    */
   sensitive?: boolean;
-  style?: ViewStyle;
 }
 
 type AttachmentItem =
@@ -257,7 +255,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     documents,
     documentsPending,
     sensitive,
-    style,
   }) => {
     const router = useRouter();
     // Media URLs come from `feedImages` (the server's URLs, sized; the legacy
@@ -1084,7 +1081,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     };
 
     return (
-      <View style={style}>
+      <View>
         {items.length === 1 && (
           // Claims the touch that no child did, as the carousel's ScrollView did, so
           // a tap on an attachment's padding never falls through to open the post.
