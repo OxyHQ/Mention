@@ -152,13 +152,12 @@ const VariantEditor = memo(function VariantEditor({
                 multiline
               />,
             ),
-            Embed(
-              primaryText.trim().length > 0 ? (
-                <View style={[styles.reference, { borderLeftColor: colorTokens.border }]}>
-                  {toElement(RawText(primaryText).foreground('muted').font('sm').lines(3))}
-                </View>
-              ) : null,
-            ),
+            primaryText.trim().length > 0
+              ? VStack(RawText(primaryText).foreground('muted').font('sm').lines(3))
+                  .padding('left', '10')
+                  .border('border', 'thick', 'left')
+                  .margin('top', 'sm')
+              : null,
             HStack(
               isTranslating ? Loading().style('inline').size('sm') : null,
               RawText(t('compose.languages.translate', { defaultValue: 'Translate with AI' }))
@@ -354,11 +353,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 40,
     textAlignVertical: 'top',
-  },
-  reference: {
-    borderLeftWidth: 2,
-    paddingLeft: 10,
-    marginTop: 8,
   },
   mediaSection: {
     marginTop: 4,

@@ -1,6 +1,6 @@
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import {
   CameraView,
   useCameraPermissions,
@@ -60,6 +60,7 @@ const cameraColors = defineTokens({
     zoomSelected: 'rgba(0,0,0,0.55)',
     recording: '#ef4444',
     badge: '#facc15',
+    shutter: '#fff',
   },
 });
 /**
@@ -70,6 +71,29 @@ const cameraColors = defineTokens({
 const cameraSpace = defineTokens({
   space: { controlTop: 52, controlsBottom: 74, zoomStop: 34, zoomRowBottom: 148 },
 });
+/** The shutter core's side: nearly filling the ring for a photo, a little smaller for a video. */
+const shutterCore = defineTokens({ space: { photo: 62, video: 58 } });
+
+/**
+ * The shutter: a white 4pt ring around its core. White and nearly filling the ring
+ * in photo mode — the still-camera shutter everyone recognises; red for a video;
+ * while recording a rounded SQUARE, the universal "stop", and shrinking it inside
+ * the untouched ring is what makes the progress arc read as progress.
+ */
+function shutter(video: boolean, recording: boolean) {
+  const side = recording ? '30' : video ? shutterCore.space.video : shutterCore.space.photo;
+  return VStack(
+    VStack()
+      .frame({ width: side, height: side })
+      .background(video || recording ? cameraColors.color.recording : cameraColors.color.shutter)
+      .corner(recording ? 'sm' : 'full'),
+  )
+    .frame({ width: '76', height: '76' })
+    .border(cameraColors.color.shutter, '4')
+    .corner('full')
+    .align('center')
+    .justify('center');
+}
 
 /** The arc drawn around the shutter while recording. */
 const RING_SIZE = 92;
@@ -638,15 +662,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                 {/* A RING plus a separate core, not one filled circle: the core is
                     what changes between the three states, and animating a border
                     colour would have moved the ring with it. */}
-                <View style={styles.shutterRing}>
-                  <View
-                    style={[
-                      styles.shutterCore,
-                      captureMode === 'video' && styles.shutterCoreVideo,
-                      recording && styles.shutterCoreRecording,
-                    ]}
-                  />
-                </View>
+                {toElement(shutter(captureMode === 'video', recording))}
               </Pressable>
               {recording ? (
                 <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ring} pointerEvents="none">
@@ -807,22 +823,6 @@ const styles = StyleSheet.create({
   // The hit area is the RING's box, so the drag-to-zoom gesture and the press
   // start from the same place a thumb aims at.
   shutterHitArea: { alignItems: 'center', justifyContent: 'center' },
-  shutterRing: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 4,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // White and nearly filling the ring in photo mode — the still-camera shutter
-  // everyone recognises.
-  shutterCore: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#fff' },
-  shutterCoreVideo: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#ef4444' },
-  // The rounded SQUARE is the universal "stop", and shrinking it inside the
-  // untouched ring is what makes the progress arc read as progress.
-  shutterCoreRecording: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
   ring: { position: 'absolute', top: -8, left: -8 },
   modeItem: { paddingHorizontal: 14, paddingVertical: 6 },
 });
