@@ -4,7 +4,6 @@ import React, { lazy, memo, Suspense } from 'react';
 import { type View, Platform } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -46,6 +45,7 @@ import {
   Button as LButton,
   Text,
   toElement as LtoElement,
+  Icon,
 } from '@oxy.so/bloom-language';
 
 const ProfileExperience = lazy(() =>
@@ -87,7 +87,6 @@ export const ProfileTabs = memo(function ProfileTabs({
   listContentContainerStyle,
   onProfileRefresh,
 }: ProfileTabsRuntimeProps) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
 
@@ -124,9 +123,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   if (isPrivate && !isOwnProfile) {
     return toElement(
       VStack(
-        Embed(
-          <RiLockLine size="3xl" fill={theme.colors.textSecondary} style={{ marginBottom: 16 }} />,
-        ),
+        Icon(RiLockLine).size('3xl').margin('bottom', 'lg').foreground('muted'),
         RawText(t('profile.private.message', { defaultValue: 'This profile is private' }))
           .foreground('foreground')
           .font('18')

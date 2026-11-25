@@ -1,57 +1,25 @@
-import type React from 'react';
-import { StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { GeoJSONPoint } from '@mention/shared-types';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 
-import { RawText, toElement } from '@oxy.so/bloom-language';
+import { HStack, Icon, RawText } from '@oxy.so/bloom-language';
 
-interface PostLocationProps {
-  location: GeoJSONPoint;
-  paddingHorizontal?: number;
-  style?: StyleProp<ViewStyle>;
-  onPress?: () => void;
-}
-
-const PostLocation: React.FC<PostLocationProps> = ({
-  location,
-  paddingHorizontal = 16,
-  style,
-  onPress,
-}) => {
-  const theme = useTheme();
-
+/**
+ * A post's place: a pin and its address (or its coordinates when it has none) on one muted
+ * line. Nothing when the point has no coordinates.
+ */
+export function postLocation(location: GeoJSONPoint) {
   if (!location?.coordinates?.[0] || !location?.coordinates?.[1]) {
     return null;
   }
 
   const longitude = location.coordinates[0];
   const latitude = location.coordinates[1];
-  const address = location.address;
+  const displayText = location.address || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
 
-  const displayText = address || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-
-  const Container = onPress ? TouchableOpacity : View;
-
-  return (
-    <Container
-      style={[styles.row, { paddingHorizontal }, style]}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-    >
-      <RiMapPinLine
-        width={14}
-        height={14}
-        fill={theme.colors.textSecondary}
-        style={{ marginRight: 4 }}
-      />
-      {toElement(RawText(displayText).foreground('muted').font('sm').flex('1').lines(1))}
-    </Container>
-  );
-};
-
-export default PostLocation;
-
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-});
+  return HStack(
+    Icon(RiMapPinLine).size('14').margin('right', 'xs').foreground('muted'),
+    RawText(displayText).foreground('muted').font('sm').flex('1').lines(1),
+  )
+    .align('center')
+    .padding('vertical', 'xs');
+}

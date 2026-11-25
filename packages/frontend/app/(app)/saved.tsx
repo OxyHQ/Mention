@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
-import { Item } from '@oxy.so/bloom/item';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -35,6 +34,7 @@ import {
   FAB,
   Icon,
   identity,
+  Row,
 } from '@oxy.so/bloom-language';
 
 const PAGE_SIZE = 30;
@@ -412,24 +412,16 @@ const SavedPostsScreen: React.FC = () => {
       {toElement(
         LDialog(
           VStack(
-            Embed(
-              <Item
-                role="option"
-                title={t('saved.allBookmarks', 'All Bookmarks')}
-                onPress={() => handleMoveToFolder(null)}
-                disabled={isMovingBookmark}
-              />,
-            ),
-            Embed(
-              folders.map((folder) => (
-                <Item
-                  key={folder}
-                  role="option"
-                  title={folder}
-                  onPress={() => handleMoveToFolder(folder)}
-                  disabled={isMovingBookmark}
-                />
-              )),
+            Row(t('saved.allBookmarks', 'All Bookmarks'))
+              .role('option')
+              .onPress(() => handleMoveToFolder(null))
+              .disabled(isMovingBookmark),
+            folders.map((folder) =>
+              Row(folder)
+                .role('option')
+                .onPress(() => handleMoveToFolder(folder))
+                .disabled(isMovingBookmark)
+                .id(folder),
             ),
           ).margin('bottom', 'md'),
         )

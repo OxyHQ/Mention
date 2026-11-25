@@ -5,7 +5,6 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
-import { Item } from '@oxy.so/bloom/item';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 
 import {
@@ -104,33 +103,25 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
         .subtitle(describeContentLanguage(primaryTag).nativeName)
         .leadingView(Icon(RiGlobalLine).size('md').foreground('foreground'))
         .trailing(Icon(RiArrowRightSLine).size('18').foreground('textTertiary')),
-      Embed(
-        variantTags.length > 0
-          ? tags.map((tag) => {
-              const language = describeContentLanguage(tag);
-              const isActive = tag === activeTag;
-              return (
-                <Item
-                  key={tag}
-                  onPress={() => handlePress(tag)}
-                  role="option"
-                  selected={isActive}
-                  title={language.nativeName}
-                  subtitle={
-                    tag === primaryTag
-                      ? t('compose.languages.main', { defaultValue: 'Main language' })
-                      : language.englishName
-                  }
-                  trailing={
-                    isActive
-                      ? toElement(Icon(RiCheckboxCircleFill).size('md').foreground('primary'))
-                      : undefined
-                  }
-                />
-              );
-            })
-          : null,
-      ),
+      variantTags.length > 0
+        ? tags.map((tag) => {
+            const language = describeContentLanguage(tag);
+            const isActive = tag === activeTag;
+            return Row(language.nativeName)
+              .onPress(() => handlePress(tag))
+              .role('option')
+              .selected(isActive)
+              .subtitle(
+                tag === primaryTag
+                  ? t('compose.languages.main', { defaultValue: 'Main language' })
+                  : language.englishName,
+              )
+              .trailing(
+                isActive ? Icon(RiCheckboxCircleFill).size('md').foreground('primary') : undefined,
+              )
+              .id(tag);
+          })
+        : null,
       Embed(
         toElement(
           Row(t('compose.languages.add', { defaultValue: 'Add language' }))

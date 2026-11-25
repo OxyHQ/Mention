@@ -39,7 +39,6 @@ import {
   type ActiveOperatorToken,
 } from '@/utils/searchSuggestions';
 import PostItem from '@/components/Feed/PostItem';
-import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { SEO } from '@/components/SEO';
 import {
@@ -70,7 +69,6 @@ import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLatchedState } from '@/hooks/useLatchedState';
 import { useSearchAllSources } from '@/hooks/useSearchAllSources';
-
 import {
   Embed,
   HStack,
@@ -82,6 +80,7 @@ import {
   VStack,
   VirtualList as LVirtualList,
   toElement,
+  Search as LSearch,
 } from '@oxy.so/bloom-language';
 
 type ResultTab = 'posts' | 'users' | 'feeds' | 'hashtags' | 'lists' | 'starterPacks' | 'saved';
@@ -1588,18 +1587,13 @@ function SearchIndex() {
           <StickySection testID="search-sticky-tabs">
             {toElement(
               VStack(
-                Embed(
-                  <Search
-                    ref={searchInputRef}
-                    label={t('search.placeholder', 'Search...')}
-                    value={query}
-                    onChangeText={handleQueryChange}
-                    onSelectionChange={handleSelectionChange}
-                    onSubmitEditing={handleSubmit}
-                    onClearText={clearSearch}
-                    autoFocus
-                  />,
-                ),
+                LSearch([query, handleQueryChange])
+                  .inputRef(searchInputRef)
+                  .label(t('search.placeholder', 'Search...'))
+                  .onSelectionChange(handleSelectionChange)
+                  .onSubmit(handleSubmit)
+                  .onClearText(clearSearch)
+                  .autoFocus(),
               )
                 .margin('horizontal', 'lg')
                 .margin('vertical', 'sm'),

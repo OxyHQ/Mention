@@ -104,10 +104,14 @@ jest.mock('@/stores/trendsStore', () => {
   return { useTrendsStore: (select: (value: typeof state) => unknown) => select(state) };
 });
 
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: new Proxy({}, { get: () => '#000' }) }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: new Proxy({}, { get: () => '#000' }) };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 
 function mockStub(name: string) {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -392,7 +396,9 @@ it('omits the redundant search row while preserving results, history suggestions
   client.clear();
 });
 
-it.each(['onClearText', 'onChangeText'])(
+// The language's Search hands its text binding to Bloom's Search as `onValueChange`, which Bloom
+// calls where `onChangeText` was called (one or the other, never both).
+it.each(['onClearText', 'onValueChange'])(
   'clears the URL query when the input clears through %s',
   async (event) => {
     const { renderer, client } = await renderScreen();

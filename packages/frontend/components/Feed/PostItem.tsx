@@ -79,7 +79,7 @@ import ContentWarning from '../Post/ContentWarning';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostDetailStats from '../Post/PostDetailStats';
-import PostLocation from '../Post/PostLocation';
+import { postLocation } from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
 import UserName from '../UserName';
@@ -1702,9 +1702,7 @@ function PostRow(props: PostItemProps): Child {
   const blocks =
     hasBelowHeaderBlocks && !isContentGated
       ? VStack(
-          hasValidLocation && location
-            ? inset(Embed(<PostLocation location={location} paddingHorizontal={0} />))
-            : null,
+          hasValidLocation && location ? inset(postLocation(location)) : null,
           boostUnavailable || quoteUnavailable
             ? inset(
                 Embed(

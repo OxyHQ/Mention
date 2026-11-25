@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { View, type ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
@@ -101,22 +101,22 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   if (variant === 'channel') {
     return (
       <Skeleton.Region style={FULL_WIDTH}>
-        <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
-          {toElement(
+        {LtoElement(
+          VStack(
             VStack(
               /* Centred masthead — avatar, then name, then handle. The margins
-                          are `ChannelHeader`'s own: the name Text carries `marginTop: 12,
-                          marginBottom: 4` and the handle sits straight under it, so the
-                          placeholders repeat those as `mt-3` / `mb-1` rather than a
-                          rhythm of their own.
-                          Each bar is drawn SHORTER than the line it stands in — a
-                          full-height slab reads as a block, not a line — so it is centred
-                          inside a wrapper of the line's TRUE height: `h-7` (28px) for the
-                          24px display name, `h-5` (20px) for the 15px/20 handle. Measured
-                          in a browser: without the wrappers the masthead came out 12px
-                          short and everything below it, the follow control and the tab
-                          strip included, sat 12px high and jumped when the data landed —
-                          which is the exact defect a skeleton exists to prevent. */ VStack(
+                      are `ChannelHeader`'s own: the name Text carries `marginTop: 12,
+                      marginBottom: 4` and the handle sits straight under it, so the
+                      placeholders repeat those as `mt-3` / `mb-1` rather than a
+                      rhythm of their own.
+                      Each bar is drawn SHORTER than the line it stands in — a
+                      full-height slab reads as a block, not a line — so it is centred
+                      inside a wrapper of the line's TRUE height: `h-7` (28px) for the
+                      24px display name, `h-5` (20px) for the 15px/20 handle. Measured
+                      in a browser: without the wrappers the masthead came out 12px
+                      short and everything below it, the follow control and the tab
+                      strip included, sat 12px high and jumped when the data landed —
+                      which is the exact defect a skeleton exists to prevent. */ VStack(
                 Embed(
                   <Skeleton.Circle
                     size={CHANNEL_AVATAR_SIZE}
@@ -135,7 +135,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
                 .frame({ width: 'full' })
                 .align('center'),
               /* Follow button — the whole action row, and the last element of the
-                          centred masthead; a channel has no poke and no self view. */ HStack(
+                      centred masthead; a channel has no poke and no self view. */ HStack(
                 Embed(<Skeleton.Box width={92} height={36} borderRadius={999} />),
               )
                 .margin('top', 'lg')
@@ -176,9 +176,6 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
             )
               .padding('horizontal', 'lg')
               .padding('bottom', 'lg'),
-          )}
-
-          {toElement(
             HStack(
               Embed(
                 CHANNEL_TAB_CHIP_WIDTHS.map((width, index) =>
@@ -202,10 +199,9 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
                 ),
               ),
             ).border('border', 'thin', 'bottom'),
-          )}
-
-          <FeedSkeleton count={FEED_ROW_COUNT} />
-        </View>
+            LEmbed(<FeedSkeleton count={FEED_ROW_COUNT} />),
+          ).padding('top', insets.top + CHANNEL_CONTENT_OFFSET),
+        )}
       </Skeleton.Region>
     );
   }

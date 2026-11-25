@@ -56,10 +56,14 @@ jest.mock('../../UserName', () => {
   };
 });
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: () => undefined }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { textSecondary: '#8899a6' } };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
@@ -92,8 +96,10 @@ it('renders one root node carrying both the padding and the row layout', () => {
   if (!root || typeof root === 'string' || provider.children?.length !== 1)
     throw new Error('expected a single root');
 
+  // The language writes a horizontal padding as its two logical edges.
   expect(StyleSheet.flatten(root.props.style)).toMatchObject({
-    paddingHorizontal: 12,
+    paddingStart: 12,
+    paddingEnd: 12,
     flexDirection: 'row',
   });
 

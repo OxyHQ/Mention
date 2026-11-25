@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { useState, useRef, useEffect } from 'react';
-import { View, TextInput, type TextInputInstance, type ViewStyle } from 'react-native';
+import { TextInput, type TextInputInstance } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { useScreenBack } from '@oxy.so/bloom/screen';
@@ -11,7 +11,6 @@ import type { FeedItem } from '@/db';
 import PostContentText from '@/components/Post/PostContentText';
 import UserName from './UserName';
 
-import { useContentSafeAreaInsets } from '@oxy.so/bloom/layout';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { usePostsStore } from '../stores/postsStore';
@@ -39,21 +38,11 @@ const SMALL_HANDLE = defineModifier((v) => v.font('sm'));
 /** "Post not found" sits 100pt down the empty screen. */
 const boost = defineTokens({ space: { notFoundTop: 100 } });
 
-// What the screen's classes drew, as plain objects (inline, as the classes were).
-const HEADER_ROW_STYLE: ViewStyle = {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  paddingHorizontal: 16,
-  paddingBottom: 12,
-};
-
 const MAX_CHARACTERS = 280;
 
 export default screen(function BoostScreen() {
   const { user } = useAuth();
   const { id: postId } = useLocalSearchParams<{ id: string }>();
-  const insets = useContentSafeAreaInsets();
   const theme = useTheme();
   const { t } = useTranslation();
   const back = useScreenBack();
@@ -277,37 +266,31 @@ export default screen(function BoostScreen() {
   )
     .header(
       VStack(
-        // A View: its top pad is the safe area's, a number known only as it renders.
-        Embed((render) => (
-          <View style={[HEADER_ROW_STYLE, { paddingTop: insets.top }]}>
-            {render(
-              VStack(
-                RawText('Cancel')
-                  .foreground('primary')
-                  .font('16')
-                  .leading('normal')
-                  .weight('semibold'),
-              )
-                .padding('vertical', 'sm')
-                .padding('horizontal', 'md')
-                .onPress(handleCancel)
-                .pressFade(),
-            )}
-
-            {render(
-              HStack(
-                VStack(canBoost ? boostLabel : boostLabel.opacity('70'))
-                  .padding('horizontal', 'xl')
-                  .padding('vertical', 'sm')
-                  .corner('infinite')
-                  .when(!canBoost, (v) => v.opacity('half'))
-                  .onPress(handleBoost)
-                  .disabled(!canBoost)
-                  .pressFade(),
-              ).align('center'),
-            )}
-          </View>
-        )),
+        HStack(
+          VStack(
+            RawText('Cancel').foreground('primary').font('16').leading('normal').weight('semibold'),
+          )
+            .padding('vertical', 'sm')
+            .padding('horizontal', 'md')
+            .onPress(handleCancel)
+            .pressFade(),
+          HStack(
+            VStack(canBoost ? boostLabel : boostLabel.opacity('70'))
+              .padding('horizontal', 'xl')
+              .padding('vertical', 'sm')
+              .corner('infinite')
+              .when(!canBoost, (v) => v.opacity('half'))
+              .onPress(handleBoost)
+              .disabled(!canBoost)
+              .pressFade(),
+          ).align('center'),
+        )
+          .padding('horizontal', 'lg')
+          .padding('bottom', 'md')
+          // The content's top inset: what the frame around the screen left of the device's.
+          .safeAreaPadding('top', 'content')
+          .justify('between')
+          .align('center'),
         LDivider(),
       ).background('background'),
     )

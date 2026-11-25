@@ -16,7 +16,6 @@ import {
   useScreenReselect,
   useScreen,
 } from '@oxy.so/bloom/screen';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
 import { VideoRepostBubble } from '@/components/videos/VideoRepostBubble';
 import { VideoFeedTabs } from '@/components/videos/VideoFeedTabs';
@@ -97,6 +96,7 @@ import {
   Embed as LEmbed,
   VStack as LVStack,
   toElement as LtoElement,
+  Header,
 } from '@oxy.so/bloom-language';
 
 // ── Tuning constants ─────────────────────────────────────────────
@@ -234,6 +234,8 @@ const appColors = defineTokens({
     hexFFFFFF: '#FFFFFF',
     /** The dark disc behind the buffering spinner and the pause affordance's play glyph. */
     scrim: 'rgba(0, 0, 0, 0.45)',
+    /** The opaque black the header's scrim fades from over the reels. */
+    black: '#000000',
   },
 });
 /** The pause affordance's disc is an 88pt square. */
@@ -1909,19 +1911,18 @@ export default function VideosScreen() {
           contentClearance={0}
           testID="videos-screen"
           style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
-          header={
-            <PageHeader
-              testID="videos-header"
-              titleAlign="center"
-              presentation="floating"
-              scrim="always"
-              scrimColor="#000000"
-              scrimFalloff="linear"
-              tone="onImage"
-              onBack={inDeck ? undefined : null}
-              title={<VideoFeedTabs value={activeFeed} onValueChange={handleSelectFeed} />}
-            />
-          }
+          header={LtoElement(
+            Header(LEmbed(<VideoFeedTabs value={activeFeed} onValueChange={handleSelectFeed} />))
+              .testID('videos-header')
+              .titleAlign('center')
+              .presentation('floating')
+              .scrollEdge('always')
+              .scrimColor(appColors.color.black)
+              .scrimFalloff('linear')
+              .tone('onImage')
+              .onBack(inDeck ? undefined : null)
+              .inPage(),
+          )}
         >
           <View
             style={classStyles.reel}

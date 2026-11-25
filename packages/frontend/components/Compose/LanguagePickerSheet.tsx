@@ -2,9 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { Item } from '@oxy.so/bloom/item';
 import { CONTENT_LANGUAGES, type ContentLanguage } from '@/constants/contentLanguages';
-
 import {
   Button as LButton,
   Embed,
@@ -15,6 +13,7 @@ import {
   Text as LText,
   VStack,
   toElement,
+  Row,
 } from '@oxy.so/bloom-language';
 
 interface LanguagePickerSheetProps {
@@ -90,29 +89,25 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
     ({ item }: { item: ContentLanguage }) => {
       const isCurrent = item.tag === currentTag;
       const isTaken = !isCurrent && usedTags.includes(item.tag);
-      return (
-        <Item
-          onPress={isTaken ? undefined : () => handleSelect(item.tag)}
-          disabled={isTaken}
-          role="option"
-          selected={isCurrent}
-          title={item.nativeName}
-          subtitle={
+      return toElement(
+        Row(item.nativeName)
+          .onPress(isTaken ? undefined : () => handleSelect(item.tag))
+          .disabled(isTaken)
+          .role('option')
+          .selected(isCurrent)
+          .subtitle(
             isTaken
               ? t('compose.languages.alreadyAdded', { defaultValue: 'Already added' })
-              : item.englishName
-          }
-          trailing={
+              : item.englishName,
+          )
+          .trailing(
             isCurrent
-              ? toElement(
-                  RawText(t('compose.languages.current', { defaultValue: 'Current' }))
-                    .foreground('primary')
-                    .font('sm')
-                    .weight('semibold'),
-                )
-              : undefined
-          }
-        />
+              ? RawText(t('compose.languages.current', { defaultValue: 'Current' }))
+                  .foreground('primary')
+                  .font('sm')
+                  .weight('semibold')
+              : undefined,
+          ),
       );
     },
     [currentTag, handleSelect, t, usedTags],
