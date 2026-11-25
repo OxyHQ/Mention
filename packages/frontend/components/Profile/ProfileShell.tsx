@@ -3,7 +3,6 @@ import type React from 'react';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useState } from 'react';
 import { Platform, View, type ViewProps } from 'react-native';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
@@ -19,8 +18,7 @@ import { ProfileTabs } from './ProfileTabs';
 import { shouldFeedOwnProfileScroll, shouldGridOwnProfileScroll } from './types';
 import type { ProfileTabsProps } from './types';
 import type { ProfileChrome } from './hooks/useProfileChrome';
-
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, VStack, toElement, VirtualList as LVirtualList } from '@oxy.so/bloom-language';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -226,36 +224,34 @@ function ProfileShellBody({
         <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
       ) : (
         <>
-          {nativeListOwnsScroll && tabs ? (
-            toElement(
-              VStack(
-                Embed(
-                  <ProfileTabs
-                    {...tabs}
-                    listOwnsScroll
-                    listContentHeaderComponent={listHeader}
-                    listStickyHeaderComponent={stickyTabs}
-                  />,
-                ),
+          {nativeListOwnsScroll && tabs
+            ? toElement(
+                VStack(
+                  Embed(
+                    <ProfileTabs
+                      {...tabs}
+                      listOwnsScroll
+                      listContentHeaderComponent={listHeader}
+                      listStickyHeaderComponent={stickyTabs}
+                    />,
+                  ),
+                )
+                  .frame({ minHeight: 'none' })
+                  .flex('1'),
               )
-                .frame({ minHeight: 'none' })
-                .flex('1'),
-            )
-          ) : (
-            <VirtualList
-              screen={{}}
-              data={['tabs', 'content'] as const}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (item === 'tabs' ? stickyTabs : nativeContent)}
-              ListHeaderComponent={listHeader}
-              ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
-              onEndReached={chrome.loadMore}
-              scrollbar="never"
-              // The tabs are the first data row; ListHeaderComponent sits outside
-              // the data index space.
-              stickyHeaderIndices={tabBar ? [0] : undefined}
-            />
-          )}
+            : toElement(
+                LVirtualList(['tabs', 'content'] as const, ({ item }) =>
+                  Embed(item === 'tabs' ? stickyTabs : nativeContent),
+                )
+                  .screen()
+                  .itemKey((item) => item)
+                  .headerContent(Embed(listHeader))
+                  .headerFitsContent()
+                  .onEndReached(chrome.loadMore)
+                  .scrollbar('never')
+                  // The tabs are the first data row; the header sits outside the data index space.
+                  .stickyIndices(tabBar ? [0] : undefined),
+              )}
         </>
       )}
     </Screen>

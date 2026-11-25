@@ -1,14 +1,21 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { VirtualList } from '@oxy.so/bloom/list';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 import { PrivateMentionRow } from '@/components/privateMentions/PrivateMentionRow';
 import { usePrivateMentionConversations } from '@/hooks/usePrivateMentionConversations';
+import {
+  Embed,
+  Header,
+  List,
+  VStack,
+  toElement,
+  Group,
+  VirtualList as LVirtualList,
+} from '@oxy.so/bloom-language';
 
-import { Embed, Header, List, VStack, toElement, Group } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 const ROW_HEIGHT = 72;
@@ -104,19 +111,19 @@ export default screen(function PrivateMentionsScreen() {
       />,
     ),
     Embed(
-      <VirtualList
-        screen={{}}
-        data={canUsePrivateApi ? conversations : []}
-        keyExtractor={conversationKey}
-        renderItem={renderItem}
-        estimatedItemSize={ROW_HEIGHT}
-        onEndReached={hasNextPage ? loadMore : undefined}
-        onEndReachedThreshold={0.5}
-        refreshing={isRefetching}
-        onRefresh={canUsePrivateApi ? handleRefresh : undefined}
-        ListEmptyComponent={renderEmpty()}
-        ListFooterComponent={isFetchingNextPage ? toElement(VStack(LOADING_MORE_ROWS)) : null}
-      />,
+      toElement(
+        LVirtualList(canUsePrivateApi ? conversations : [], renderItem)
+          .screen()
+          .itemKey(conversationKey)
+          .estimatedItemSize(ROW_HEIGHT)
+          .onEndReached(hasNextPage ? loadMore : undefined, 0.5)
+          .refreshable({
+            refreshing: isRefetching,
+            onRefresh: canUsePrivateApi ? handleRefresh : undefined,
+          })
+          .emptyState(Embed(renderEmpty()))
+          .footerContent(isFetchingNextPage ? VStack(LOADING_MORE_ROWS) : null),
+      ),
     ),
   ).header(
     Header(t('privateMentions.title', { defaultValue: 'Private mentions' }))

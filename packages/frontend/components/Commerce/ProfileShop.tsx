@@ -1,6 +1,5 @@
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { VirtualList } from '@oxy.so/bloom/list';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import type { CommerceReference } from '@mention/shared-types/commerce';
@@ -39,6 +38,7 @@ import {
   VStack,
   toElement,
   Search as LSearch,
+  VirtualList as LVirtualList,
 } from '@oxy.so/bloom-language';
 
 type ShopRow =
@@ -401,24 +401,21 @@ export function ProfileShop({
           : null,
       ),
       Embed(
-        <VirtualList
-          key="catalog-grid"
-          screen={{}}
-          data={rows}
-          keyExtractor={(item) => item.key}
-          renderItem={renderRow}
-          getItemType={(item) => item.kind}
-          numColumns={columns}
-          overrideItemLayout={span}
-          stickyHeaderIndices={
-            listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined
-          }
-          estimatedItemSize={272}
-          overscan={2}
-          maxItemsInRecyclePool={24}
-          drawDistance={544}
-          scrollbar="never"
-        />,
+        toElement(
+          LVirtualList(rows, renderRow)
+            .tuning({ overscan: 2, drawDistance: 544, maxItemsInRecyclePool: 24 })
+            .screen()
+            .itemKey((item) => item.key)
+            .itemType((item) => item.kind)
+            .columns(columns)
+            .itemLayout(span)
+            .stickyIndices(
+              listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined,
+            )
+            .estimatedItemSize(272)
+            .scrollbar('never'),
+          'catalog-grid',
+        ),
       ),
     )
       .frame({ minHeight: 'none' })
