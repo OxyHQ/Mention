@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { useRouter } from '@/lib/navigation/router';
 import type {
   FeedType,
@@ -112,6 +112,9 @@ const MAX_THREAD_NESTING_DEPTH = 3;
 export { boundFeedRows, canLoadMoreFeed } from './feedPaging';
 
 const logger = createLogger('Feed');
+
+/** A thread line's left edge at depth 0: centred under the post's avatar. */
+const THREAD_LINE_LEFT = POST_ITEM_SPACING.HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2;
 
 export interface BuildFeedRowsParams {
   /** A post already rendered in the leading section. */
@@ -592,7 +595,7 @@ export function renderFeedRow(
       {showMoreReplies && (
         <MoreRepliesLink
           onPress={() => router.push(`/p/${renderedPostId}`)}
-          lineColor={row.isThreadParent ? threadLineColor : undefined}
+          showLine={row.isThreadParent}
         />
       )}
     </PostErrorBoundary>
@@ -617,11 +620,7 @@ export function renderFeedRow(
             style={[
               styles.nestedThreadLine,
               {
-                left:
-                  POST_ITEM_SPACING.HPAD +
-                  POST_AVATAR_SIZE / 2 -
-                  THREAD_LINE_WIDTH / 2 +
-                  depth * REPLY_BRANCH_INDENT,
+                left: THREAD_LINE_LEFT + depth * REPLY_BRANCH_INDENT,
                 backgroundColor: threadLineColor,
               },
             ]}
@@ -635,30 +634,30 @@ export function renderFeedRow(
   return content;
 }
 
-function MoreRepliesLink({ onPress, lineColor }: { onPress: () => void; lineColor?: string }) {
+function MoreRepliesLink({ onPress, showLine }: { onPress: () => void; showLine: boolean }) {
   const { t } = useTranslation();
-  return (
-    <Pressable accessibilityRole="button" style={styles.showMoreReplies} onPress={onPress}>
-      {lineColor && (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.nestedThreadLine,
-            {
-              left: POST_ITEM_SPACING.HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2,
-              backgroundColor: lineColor,
-            },
-          ]}
-        />
-      )}
-      {toElement(
-        RawText(t('post.viewConversation', { defaultValue: 'View conversation' }))
-          .foreground('primary')
-          .font('14')
-          .leading('20px')
-          .weight('medium'),
-      )}
-    </Pressable>
+  return toElement(
+    VStack(
+      // The thread parent's line runs on through the link, in the border colour.
+      showLine
+        ? VStack()
+            .position({ top: 'none', bottom: 'none', left: THREAD_LINE_LEFT })
+            .frame({ width: '2xs' })
+            .zIndex('-1')
+            .background('border')
+            .allowsHitTesting(false)
+        : null,
+      RawText(t('post.viewConversation', { defaultValue: 'View conversation' }))
+        .foreground('primary')
+        .font('14')
+        .leading('20px')
+        .weight('medium'),
+    )
+      .padding('vertical', '10')
+      .padding('left', '64')
+      .padding('right', 'md')
+      .role('button')
+      .onPress(onPress),
   );
 }
 
@@ -698,10 +697,5 @@ const styles = StyleSheet.create({
   },
   branchSeparator: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  showMoreReplies: {
-    paddingVertical: 10,
-    paddingLeft: POST_ITEM_SPACING.AVATAR_OFFSET,
-    paddingRight: 12,
   },
 });
