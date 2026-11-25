@@ -1,5 +1,7 @@
 import TestRenderer, { act } from 'react-test-renderer';
 
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+
 import PostAttachmentsRow from '../PostAttachmentsRow';
 
 /**
@@ -68,7 +70,12 @@ const video = [{ id: 'm1', type: 'video' as const, url: 'https://cdn/m1.mp4' }];
 function formOfVideo(props: Record<string, unknown>): boolean | undefined {
   captured.length = 0;
   act(() => {
-    TestRenderer.create(<PostAttachmentsRow postId="post-1" media={video} {...props} />);
+    // The article card is a language view: its root paints from Bloom's theme.
+    TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <PostAttachmentsRow postId="post-1" media={video} {...props} />
+      </BloomThemeProvider>,
+    );
   });
   return captured.find((p) => p.type === 'video')?.hasSingleMedia;
 }

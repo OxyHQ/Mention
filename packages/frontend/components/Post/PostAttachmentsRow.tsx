@@ -45,6 +45,7 @@ import {
 } from '@/stores/videoPlayerRegistry';
 import { measurePanelSurface } from '@/components/shell/panelSurface';
 import { createLogger } from '@oxy.so/core/logger';
+import { defineModifier, defineTokens, toElement } from '@oxy.so/bloom-language';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
   PostAttachmentArticle,
@@ -535,6 +536,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // row's height, styles built once at module scope so a cell keeps its style's
     // identity across renders.
     const cells = isTallRow ? TALL_CELLS : CELLS;
+    const frames = isTallRow ? TALL_FRAMES : FRAMES;
 
     const { measureAnchor, flyTo } = useMediaFlight();
 
@@ -885,14 +887,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // playing on the next, without that post's press or consent.
     const renderItem = (item: AttachmentItem, idx: number): React.ReactNode => {
       if (item.type === 'article') {
-        return (
-          <PostAttachmentArticle
-            key={`article-${postId ?? ''}-${idx}`}
-            title={article?.title?.trim()}
-            body={article?.body?.trim()}
-            onPress={onArticlePress || undefined}
-            style={isSingleItem ? FULL_CELL : cells.article}
-          />
+        return toElement(
+          PostAttachmentArticle({
+            title: article?.title?.trim(),
+            body: article?.body?.trim(),
+            onPress: onArticlePress || undefined,
+            look: isSingleItem ? fullFrames.article : frames.article,
+          }),
+          `article-${postId ?? ''}-${idx}`,
         );
       }
       if (item.type === 'event') {
@@ -1184,7 +1186,6 @@ const FULL_CELL = StyleSheet.create({ cell: { width: '100%' } }).cell;
 /** A cell beside others: its kind's width, at one of the row's two heights. */
 function cellSizes(height: number) {
   return StyleSheet.create({
-    article: { width: 200, height },
     event: { width: 240, height },
     room: { width: 260, height },
     card: { width: 280, height },
@@ -1192,5 +1193,26 @@ function cellSizes(height: number) {
 }
 const CELLS = cellSizes(ROW_HEIGHT);
 const TALL_CELLS = cellSizes(TALL_ROW_HEIGHT);
+
+/** The row's two heights, as the language names them. */
+const rowSpace = defineTokens({ space: { row: ROW_HEIGHT, tall: TALL_ROW_HEIGHT } });
+/**
+ * The language cards' frames (each card's whole frame: a view holds one), alone in
+ * the row (its full width) and beside others (its kind's width at one of the row's
+ * two heights), each with the card's own floor.
+ */
+const fullFrames = {
+  article: defineModifier((v) => v.frame({ width: 'full', minHeight: '140' })),
+};
+const FRAMES = {
+  article: defineModifier((v) =>
+    v.frame({ width: '200', minHeight: '140', height: rowSpace.space.row }),
+  ),
+};
+const TALL_FRAMES = {
+  article: defineModifier((v) =>
+    v.frame({ width: '200', minHeight: '140', height: rowSpace.space.tall }),
+  ),
+};
 
 export default PostAttachmentsRow;

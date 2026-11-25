@@ -1,63 +1,51 @@
-import type React from 'react';
-import { TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
+import { RawText, VStack, type ViewModifier, defineModifier, view } from '@oxy.so/bloom-language';
 
-import { RawText, toElement } from '@oxy.so/bloom-language';
+/** The card's own frame: 200pt wide, at least 140 tall. */
+const articleFrame = defineModifier((v) => v.frame({ width: '200', minHeight: '140' }));
 
 interface PostAttachmentArticleProps {
   title?: string;
   body?: string;
   onPress?: () => void;
-  /** The cell's size from the row; a 200pt-wide card by default. */
-  style?: StyleProp<ViewStyle>;
+  /**
+   * The card's frame from the row (its full width alone, its cell's width and the
+   * row's height beside others), always with the card's 140pt floor; 200pt wide
+   * by default.
+   */
+  look?: ViewModifier;
 }
 
-// A touchable card (its press dims it): the language's press variant has no
-// timed opacity, so the touchable keeps its own style.
-const useStyles = createTokenStyles((t) => ({
-  card: {
-    width: 200,
-    minHeight: 140,
-    borderWidth: 1,
-    borderColor: t.border,
-    backgroundColor: t.card,
-    borderRadius: 14,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-}));
-
-const PostAttachmentArticle: React.FC<PostAttachmentArticleProps> = ({
+// A touchable card: its press dims it (`activeOpacity` 0.85).
+const PostAttachmentArticle = view(function PostAttachmentArticle({
   title,
   body,
   onPress,
-  style,
-}) => {
-  const styles = useStyles();
+  look = articleFrame,
+}: PostAttachmentArticleProps) {
   const trimmedTitle = title?.trim();
   const trimmedBody = body?.trim();
 
-  return (
-    <TouchableOpacity
-      style={[styles.card, style]}
-      activeOpacity={0.85}
-      onPress={onPress}
-      disabled={!onPress}
-    >
-      {toElement(
-        RawText(trimmedTitle || 'Untitled article')
-          .foreground('foreground')
-          .font('18')
-          .leading('28px')
-          .weight('bold')
-          .margin('bottom', 'md')
-          .lines(2),
-      )}
-      {trimmedBody
-        ? toElement(RawText(trimmedBody).foreground('muted').font('sm').leading('18px').lines(3))
-        : null}
-    </TouchableOpacity>
-  );
-};
+  return VStack(
+    RawText(trimmedTitle || 'Untitled article')
+      .foreground('foreground')
+      .font('18')
+      .leading('28px')
+      .weight('bold')
+      .margin('bottom', 'md')
+      .lines(2),
+    trimmedBody
+      ? RawText(trimmedBody).foreground('muted').font('sm').leading('18px').lines(3)
+      : null,
+  )
+    .justify('between')
+    .padding('lg')
+    .modifier(look)
+    .background('card')
+    .border('border', 'thin')
+    .corner('14')
+    .onPress(onPress)
+    .disabled(!onPress)
+    .pressFade('85');
+});
 
 export default PostAttachmentArticle;
