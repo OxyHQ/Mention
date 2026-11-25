@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import {
   INSTALLMENT_CAPABILITY_FIXTURES,
@@ -15,6 +14,7 @@ import {
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
   Text as LText,
+  TextField as LTextField,
   Toggle,
   VStack,
   toElement,
@@ -111,29 +111,15 @@ export function MerchantInstallmentSettings({
               LText(label('limits')),
               LField(
                 label('minimum'),
-                Embed(
-                  <TextFieldInput
-                    label={label('minimum')}
-                    accessibilityLabel={label('minimum')}
-                    placeholder={label('minimum')}
-                    value={minimum}
-                    onChangeText={setMinimum}
-                    keyboardType="decimal-pad"
-                  />,
-                ),
+                LTextField([minimum, setMinimum], label('minimum'))
+                  .placeholder(label('minimum'))
+                  .keyboard('decimal-pad'),
               ),
               LField(
                 label('maximum'),
-                Embed(
-                  <TextFieldInput
-                    label={label('maximum')}
-                    accessibilityLabel={label('maximum')}
-                    placeholder={label('maximum')}
-                    value={maximum}
-                    onChangeText={setMaximum}
-                    keyboardType="decimal-pad"
-                  />,
-                ),
+                LTextField([maximum, setMaximum], label('maximum'))
+                  .placeholder(label('maximum'))
+                  .keyboard('decimal-pad'),
               ),
               !valid ? LText(label('invalidLimits')).role('alert') : null,
               LGroupedSection(
@@ -202,30 +188,19 @@ export function MerchantInstallmentSettings({
                 .caption(label('capabilityPerPlan')),
               LField(
                 label('message'),
-                Embed(
-                  <TextFieldInput
-                    label={label('message')}
-                    accessibilityLabel={label('message')}
-                    placeholder={label('message')}
-                    value={draft.message}
-                    maxLength={160}
-                    onChangeText={(message) => setDraft({ ...draft, message })}
-                  />,
-                ),
+                LTextField(
+                  [draft.message, (message) => setDraft({ ...draft, message })],
+                  label('message'),
+                )
+                  .placeholder(label('message'))
+                  .maxLength(160),
               ),
               LField(
                 label('terms'),
-                Embed(
-                  <TextFieldInput
-                    label={label('terms')}
-                    accessibilityLabel={label('terms')}
-                    placeholder={label('terms')}
-                    value={draft.terms}
-                    maxLength={2000}
-                    multiline
-                    onChangeText={(terms) => setDraft({ ...draft, terms })}
-                  />,
-                ),
+                LTextField([draft.terms, (terms) => setDraft({ ...draft, terms })], label('terms'))
+                  .placeholder(label('terms'))
+                  .maxLength(2000)
+                  .multiline(),
               ),
               LText(label('termsBoundary')),
               LButton(LText(label('save')))

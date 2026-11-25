@@ -1,12 +1,12 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { TopicPicker } from '@/components/interests/TopicPicker';
-import { Search } from '@oxy.so/bloom/search';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Embed,
   GroupedSection as LGroupedSection,
+  Search as LSearch,
   SettingsSection as LSettingsSection,
   VStack,
   toElement,
@@ -62,24 +62,14 @@ export default function InterestsSettingsScreen() {
     VStack(
       VStack(
         VStack(
-          Embed(
-            <Search
-              value={query}
-              onValueChange={setQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder={t('settings.interests.searchPlaceholder', {
-                defaultValue: 'Search topics',
-              })}
-              accessibilityLabel={t('settings.interests.searchLabel', {
-                defaultValue: 'Search topics',
-              })}
-              label={t('settings.interests.searchLabel', {
-                defaultValue: 'Search topics',
-              })}
-              onClearText={() => setQuery('')}
-            />,
-          ),
+          LSearch([query, setQuery])
+            .label(t('settings.interests.searchLabel', { defaultValue: 'Search topics' }))
+            .placeholder(
+              t('settings.interests.searchPlaceholder', { defaultValue: 'Search topics' }),
+            )
+            .autocapitalize('none')
+            .autocorrect(false)
+            .onClearText(() => setQuery('')),
         ).padding('bottom', 'sm'),
         LSettingsSection(
           t('settings.interests.title', {
