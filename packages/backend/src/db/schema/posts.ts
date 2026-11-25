@@ -161,7 +161,7 @@ interface EngagementRankColumns {
  * It lives here, next to the index built over it, because those two are one
  * fact: Postgres matches an expression index to an `ORDER BY` by comparing
  * PARSED expressions, so the index is used only while the query spells the
- * composite exactly as `posts_engagement_rank_v2_idx` declares it. Written twice —
+ * composite exactly as `posts_engagement_rank_idx` declares it. Written twice —
  * once here, once in the feed source — the two would agree on the day they were
  * written and diverge on the day someone retunes a weight, and the failure is
  * silent: no error, no wrong rows, the popular scan just goes back to reading
@@ -361,8 +361,6 @@ export const posts = pgTable(
      * permanently blank cards.
      */
     repostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
-    /** @deprecated Old name of `repostOf`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    boostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
 
     /**
      * The quoted post. SET NULL: a quote has a body of its own and must survive
@@ -447,16 +445,12 @@ export const posts = pgTable(
     statsLikesCount: integer().notNull().default(0),
     statsDownvotesCount: integer().notNull().default(0),
     statsRepostsCount: integer().notNull().default(0),
-    /** @deprecated Old name of `statsRepostsCount`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    statsBoostsCount: integer().notNull().default(0),
     /**
      * Of `statsBoostsCount`, the subset that arrived as inbound ActivityPub
      * Announces. `boosts - federatedBoosts` is the native count, and the
      * discovery ranking expression weights the two differently.
      */
     statsFederatedRepostsCount: integer().notNull().default(0),
-    /** @deprecated Old name of `statsFederatedRepostsCount`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    statsFederatedBoostsCount: integer().notNull().default(0),
     statsCommentsCount: integer().notNull().default(0),
     statsViewsCount: integer().notNull().default(0),
     statsSharesCount: integer().notNull().default(0),
@@ -466,8 +460,6 @@ export const posts = pgTable(
     metadataIsSensitive: boolean().notNull().default(false),
     metadataIsPinned: boolean().notNull().default(false),
     metadataIsReposted: boolean().notNull().default(false),
-    /** @deprecated Old name of `metadataIsReposted`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    metadataIsBoosted: boolean().notNull().default(false),
     metadataIsCommented: boolean().notNull().default(false),
     metadataIsFollowingAuthor: boolean().notNull().default(false),
     metadataAuthorBlocked: boolean().notNull().default(false),
@@ -867,7 +859,7 @@ export const posts = pgTable(
      * `created_at` and `repost_of` are not written after a post is created, so
      * HOT updates of the engagement counters are unaffected.
      */
-    index('posts_public_originals_recent_v2_idx')
+    index('posts_public_originals_recent_idx')
       .on(t.createdAt)
       .where(
         sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.repostOf} is null`,
@@ -1099,7 +1091,7 @@ export const posts = pgTable(
      * took 737-844ms with it and 764-935ms without — no difference this bench can
      * resolve.
      */
-    index('posts_engagement_rank_v2_idx')
+    index('posts_engagement_rank_idx')
       .on(
         // The extra parentheses are not decoration: drizzle-kit compares index
         // expressions TEXTUALLY against the recorded snapshot, and
@@ -1293,6 +1285,4 @@ export const authorPostCounts = pgTable('author_post_counts', {
   repliesCount: integer().notNull().default(0),
   /** Counted posts of `type = 'boost'`; each is also in one of the two counts above. */
   repostsCount: integer().notNull().default(0),
-  /** @deprecated Old name of `repostsCount`; see docs/repost-rename.md. */
-  boostsCount: integer().notNull().default(0),
 });

@@ -227,7 +227,7 @@ describe('read-only import review', () => {
     expect(row?.protectionReasons).toContain('authoritative_follow_graph_unverified');
   });
 
-  it.each(['statsLikesCount', 'statsBoostsCount', 'statsCommentsCount'] as const)(
+  it.each(['statsLikesCount', 'statsRepostsCount', 'statsCommentsCount'] as const)(
     'protects remote activity reported only by %s',
     async (counter) => {
       const post = await remote('discovery_backfill');

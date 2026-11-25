@@ -57,7 +57,7 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
  * discovery lanes can never drift from each other.
  *
  * The expression itself lives on the SCHEMA (`engagementRankSql`, `db/schema/posts.ts`)
- * rather than here, and that is not filing: `posts_engagement_rank_v2_idx` is built
+ * rather than here, and that is not filing: `posts_engagement_rank_idx` is built
  * over it, Postgres matches an expression index by comparing parsed expressions,
  * and an index and a query that spell the same composite in two places agree
  * until the first weight change and then silently stop — leaving the popular scan

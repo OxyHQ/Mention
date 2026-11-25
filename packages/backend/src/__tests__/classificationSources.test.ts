@@ -359,7 +359,7 @@ describe('the topReplies source', () => {
       .update(posts)
       .set({
         statsLikesCount: counts.likes ?? 0,
-        statsBoostsCount: counts.boosts ?? 0,
+        statsRepostsCount: counts.boosts ?? 0,
         statsCommentsCount: counts.comments ?? 0,
       })
       .where(eq(posts.id, postId));

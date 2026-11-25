@@ -69,7 +69,7 @@ async function seedPost(oxyUserId: string | null, seed: PostSeed = {}): Promise<
     visibility: seed.visibility ?? 'public',
     createdAt: seed.createdAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
     statsLikesCount: seed.likes ?? 0,
-    statsBoostsCount: seed.boosts ?? 0,
+    statsRepostsCount: seed.boosts ?? 0,
     statsCommentsCount: seed.comments ?? 0,
     statsViewsCount: seed.views ?? 0,
     statsSharesCount: seed.shares ?? 0,

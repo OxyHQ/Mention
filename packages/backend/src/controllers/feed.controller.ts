@@ -754,12 +754,7 @@ class FeedController {
          * it is the truthful one: by the time this request finished, that account
          * had boosted that post.
          */
-        // Until the contract step both unique indexes exist (the old one on repost_of, the new one on
-        // repost_of) and either can be the one that fires, so both names answer the same.
-        if (
-          isUniqueViolation(error, 'posts_one_repost_per_account_key') ||
-          isUniqueViolation(error, 'posts_one_boost_per_account_key')
-        ) {
+        if (isUniqueViolation(error, 'posts_one_repost_per_account_key')) {
           return res.status(400).json({ error: ALREADY_REPOSTED_ERROR });
         }
         throw error;

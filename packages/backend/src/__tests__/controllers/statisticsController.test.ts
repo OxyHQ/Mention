@@ -161,7 +161,7 @@ async function seedPost(options: SeedPostOptions = {}): Promise<string> {
       statsViewsCount: options.views ?? 0,
       statsLikesCount: options.likes ?? 0,
       statsCommentsCount: options.replies ?? 0,
-      statsBoostsCount: options.boosts ?? 0,
+      statsRepostsCount: options.boosts ?? 0,
       statsSharesCount: options.shares ?? 0,
       ...(options.createdAt === undefined ? {} : { createdAt: options.createdAt }),
       // A parent link forces `is_reply` — `posts_reply_discriminator_check`
@@ -171,7 +171,7 @@ async function seedPost(options: SeedPostOptions = {}): Promise<string> {
       ...(options.parentPostId === undefined
         ? {}
         : { parentPostId: options.parentPostId, isReply: true }),
-      ...(options.boostOf === undefined ? {} : { boostOf: options.boostOf }),
+      ...(options.boostOf === undefined ? {} : { repostOf: options.boostOf }),
       ...(options.quoteOf === undefined ? {} : { quoteOf: options.quoteOf }),
     })
     .returning({ id: posts.id, createdAt: posts.createdAt });

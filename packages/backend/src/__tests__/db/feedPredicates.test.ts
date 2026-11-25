@@ -181,8 +181,8 @@ describe('one engagement composite, and it dampens federated boosts', () => {
       .set({
         statsLikesCount: 0,
         statsCommentsCount: 0,
-        statsBoostsCount: 10,
-        statsFederatedBoostsCount: 10,
+        statsRepostsCount: 10,
+        statsFederatedRepostsCount: 10,
       })
       .where(eq(posts.id, post.id));
 
@@ -209,8 +209,8 @@ describe('one engagement composite, and it dampens federated boosts', () => {
       .set({
         statsLikesCount: 0,
         statsCommentsCount: 0,
-        statsBoostsCount: 10,
-        statsFederatedBoostsCount: 0,
+        statsRepostsCount: 10,
+        statsFederatedRepostsCount: 0,
       })
       .where(eq(posts.id, post.id));
 
@@ -232,8 +232,8 @@ describe('one engagement composite, and it dampens federated boosts', () => {
       .update(posts)
       .set({
         statsLikesCount: 3,
-        statsBoostsCount: 0,
-        statsFederatedBoostsCount: 0,
+        statsRepostsCount: 0,
+        statsFederatedRepostsCount: 0,
         statsCommentsCount: 0,
       })
       .where(eq(posts.id, post.id));

@@ -161,7 +161,7 @@ describe('the legacy filter fields, which are STILL READ', () => {
       title: 'Legacy',
       keywords: ['art'],
       includeReplies: false,
-      includeBoosts: false,
+      includeReposts: false,
       includeMedia: false,
       language: 'es',
       category: 'culture',

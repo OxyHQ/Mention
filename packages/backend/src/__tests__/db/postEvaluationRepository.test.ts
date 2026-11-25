@@ -642,7 +642,7 @@ describe('durable shadow evaluation ledger', () => {
     const repost = await fixture();
     await getDb()
       .update(posts)
-      .set({ type: 'boost', boostOf: original.id })
+      .set({ type: 'boost', repostOf: original.id })
       .where(eq(posts.id, repost.id));
     expect(await claimPostEvaluation(repost.id, release)).toBeNull();
     for (const patch of [

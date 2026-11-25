@@ -118,7 +118,7 @@ async function seedPost(options: SeedOptions = {}): Promise<string> {
     // A boost points at an original; the aggregation excludes anything that does.
     await db
       .update(posts)
-      .set({ boostOf: row.id })
+      .set({ repostOf: row.id })
       .where(inArray(posts.id, [row.id]));
   }
   return row.id;

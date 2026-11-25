@@ -240,7 +240,7 @@ describe('channel deletion cascade covers the real Postgres schema', () => {
     expect(quoteStep?.why).toMatch(/SET NULL/);
 
     const repostStep = CHANNEL_CASCADE.find(
-      (step) => step.table === 'posts' && step.column === 'boostOf',
+      (step) => step.table === 'posts' && step.column === 'repostOf',
     );
     expect(
       repostStep?.action,

@@ -165,8 +165,6 @@ export const userBehaviorAuthors = pgTable(
     lastInteractionAt: timestamptz().notNull().defaultNow(),
     likes: integer().notNull().default(0),
     reposts: integer().notNull().default(0),
-    /** @deprecated Old name of `reposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    boosts: integer().notNull().default(0),
     comments: integer().notNull().default(0),
     saves: integer().notNull().default(0),
     shares: integer().notNull().default(0),
@@ -361,8 +359,6 @@ export const userSettings = pgTable(
     notifyPushEnabled: boolean().notNull().default(true),
     notifyLikes: boolean().notNull().default(true),
     notifyReposts: boolean().notNull().default(true),
-    /** @deprecated Old name of `notifyReposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    notifyBoosts: boolean().notNull().default(true),
     notifyFollows: boolean().notNull().default(true),
     notifyMentions: boolean().notNull().default(true),
     notifyReplies: boolean().notNull().default(true),

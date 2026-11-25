@@ -306,8 +306,6 @@ export const blockedDomainPurges = pgTable(
     measuredPosts: integer(),
     measuredActors: integer(),
     measuredReposts: integer(),
-    /** @deprecated Old name of `measuredReposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    measuredBoosts: integer(),
     measuredLikes: integer(),
     measuredNotifications: integer(),
     measuredMediaCacheRows: integer(),
@@ -369,9 +367,7 @@ export const blockedDomainPurgeRuns = pgTable(
     // ── what this run REMOVED ──
     removedPosts: integer().notNull(),
     removedActors: integer().notNull(),
-    removedReposts: integer().notNull().default(0),
-    /** @deprecated Old name of `removedReposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    removedBoosts: integer().notNull(),
+    removedReposts: integer().notNull(),
     removedLikes: integer().notNull(),
     removedNotifications: integer().notNull(),
     removedMediaCacheRows: integer().notNull(),

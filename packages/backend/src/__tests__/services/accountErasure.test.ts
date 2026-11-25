@@ -213,7 +213,7 @@ async function seedEverything(): Promise<Seeded> {
     .where(eq(posts.id, otherPost.id));
   await db
     .update(posts)
-    .set({ statsBoostsCount: 1, statsDownvotesCount: 1 })
+    .set({ statsRepostsCount: 1, statsDownvotesCount: 1 })
     .where(eq(posts.id, otherPost2.id));
 
   await db.insert(likes).values([
@@ -738,7 +738,7 @@ describe('eraseOxyUser on real rows', () => {
       type: PostType.REPOST,
       visibility: PostVisibility.PUBLIC,
       status: 'published' as const,
-      boostOf: original.id,
+      repostOf: original.id,
     }));
     const reposts = await getDb().insert(posts).values(reposters).returning({ id: posts.id });
     // A boost of a boost: level two of the closure.
@@ -749,7 +749,7 @@ describe('eraseOxyUser on real rows', () => {
         type: PostType.REPOST,
         visibility: PostVisibility.PUBLIC,
         status: 'published',
-        boostOf: reposts[0].id,
+        repostOf: reposts[0].id,
       });
     await getDb()
       .insert(feedInteractions)

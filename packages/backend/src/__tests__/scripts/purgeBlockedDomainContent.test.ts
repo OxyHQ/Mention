@@ -322,8 +322,8 @@ async function seed(): Promise<void> {
       oxyUserId: 'oxy-local',
       type: 'text',
       statsLikesCount: 1,
-      statsBoostsCount: 1,
-      statsFederatedBoostsCount: 1,
+      statsRepostsCount: 1,
+      statsFederatedRepostsCount: 1,
     },
     {
       id: P.blockedPost,
@@ -362,7 +362,7 @@ async function seed(): Promise<void> {
        */
       id: P.blockedBoostOfLocal,
       type: 'boost',
-      boostOf: P.localPost,
+      repostOf: P.localPost,
       federationActorUri: BLOCKED_ACTOR_URI,
       federationActivityId: `https://${BLOCKED}/announce/1`,
     },
@@ -378,7 +378,7 @@ async function seed(): Promise<void> {
       threadId: P.blockedPost,
     },
     { id: P.localQuote, oxyUserId: 'oxy-local', type: 'text', quoteOf: P.blockedPost },
-    { id: P.localBoost, oxyUserId: 'oxy-local', type: 'boost', boostOf: P.blockedPost },
+    { id: P.localBoost, oxyUserId: 'oxy-local', type: 'boost', repostOf: P.blockedPost },
   ]);
 
   await db.insert(postAuthorships).values({
@@ -583,7 +583,7 @@ async function snapshotEverything(): Promise<string> {
     cursorRows(),
   ]);
   return JSON.stringify([
-    postRows.map((row) => `${row.id}|${row.statsBoostsCount}|${row.statsLikesCount}`).sort(),
+    postRows.map((row) => `${row.id}|${row.statsRepostsCount}|${row.statsLikesCount}`).sort(),
     likeRows.map((row) => `${row.userId}|${row.postId}`).sort(),
     notificationRows.map((row) => row.id).sort(),
     mediaRows.map((row) => row.remoteUrl).sort(),
@@ -928,8 +928,8 @@ describe('purgeBlockedDomainContent — the boost policy', () => {
 
     const [local] = await getDb()
       .select({
-        boosts: pgPosts.statsBoostsCount,
-        federatedBoosts: pgPosts.statsFederatedBoostsCount,
+        boosts: pgPosts.statsRepostsCount,
+        federatedBoosts: pgPosts.statsFederatedRepostsCount,
       })
       .from(pgPosts)
       .where(eq(pgPosts.id, P.localPost));
@@ -1118,9 +1118,12 @@ describe('purgeBlockedDomainContent — failing closed', () => {
     // survives with nothing behind it, the graph probe then refuses the batch,
     // and the actor stalls on every future run.
     const repostOfRepost = 'purge-test-boost-of-boost';
-    await getDb()
-      .insert(pgPosts)
-      .values({ id: repostOfRepost, oxyUserId: 'oxy-local', type: 'boost', boostOf: P.localBoost });
+    await getDb().insert(pgPosts).values({
+      id: repostOfRepost,
+      oxyUserId: 'oxy-local',
+      type: 'boost',
+      repostOf: P.localBoost,
+    });
 
     const report = await run();
 

@@ -169,7 +169,7 @@ async function clearScopePosts(): Promise<void> {
   }
   await db
     .update(posts)
-    .set({ boostOf: null, quoteOf: null, parentPostId: null, threadId: null })
+    .set({ repostOf: null, quoteOf: null, parentPostId: null, threadId: null })
     .where(owned);
   await db.delete(posts).where(owned);
 }

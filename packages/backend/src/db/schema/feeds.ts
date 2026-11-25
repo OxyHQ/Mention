@@ -102,8 +102,6 @@ export const customFeeds = pgTable(
     keywords: text().array(),
     includeReplies: boolean().notNull().default(true),
     includeReposts: boolean().notNull().default(true),
-    /** @deprecated Old name of `includeReposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
-    includeBoosts: boolean().notNull().default(true),
     includeMedia: boolean().notNull().default(true),
     language: text(),
 

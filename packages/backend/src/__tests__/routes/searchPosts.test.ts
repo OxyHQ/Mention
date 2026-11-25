@@ -167,7 +167,7 @@ async function setCounters(
     .update(posts)
     .set({
       ...(counters.likes === undefined ? {} : { statsLikesCount: counters.likes }),
-      ...(counters.boosts === undefined ? {} : { statsBoostsCount: counters.boosts }),
+      ...(counters.boosts === undefined ? {} : { statsRepostsCount: counters.boosts }),
     })
     .where(eq(posts.id, postId));
 }
