@@ -1,11 +1,9 @@
-import { Platform, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { LogoIcon } from '@/assets/logo';
 import { useWindowBreakpoint } from '@oxy.so/bloom/hooks';
-import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import {
   Embed,
   RawText,
@@ -13,15 +11,12 @@ import {
   toElement,
   Button as LButton,
   Text as LText,
-  toElement as LtoElement,
 } from '@oxy.so/bloom-language';
 
 export default function AuthScreen() {
   const { signIn } = useAuth();
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const ink = useInkStyles();
-  const insets = useSafeAreaInsets();
   const breakpoint = useWindowBreakpoint();
   const wide = breakpoint !== 'base' && breakpoint !== 'sm';
 
@@ -29,17 +24,24 @@ export default function AuthScreen() {
   // displayed: the desktop split-screen at >=md, the stacked mobile layout
   // below it. The window's breakpoint tier is Bloom's own (re-rendering only
   // when the window crosses one); the mobile layout's padding adds the safe
-  // area's insets, which no language modifier takes.
+  // area's insets to its own.
+  const signInButton = LButton(LText(t('auth.signIn.withOxy')))
+    .style('solid')
+    .tint('accent')
+    .size('lg')
+    .onPress(() => signIn().catch(() => {}))
+    .frame({ width: 'full' });
   return (
     <>
       {/* Desktop split-screen (>= md) */}
-      <View style={[styles.desktop, wide && styles.desktopShown]}>
-        {toElement(
+      {toElement(
+        VStack(
           VStack(
             VStack(
               Embed(<LogoIcon size={56} color="#fff" />),
-              Embed(<Text style={styles.wordmark}>Mention</Text>),
-              Embed(<Text style={styles.tagline}>{t('auth.signIn.subtitle')}</Text>),
+              // The wordmarks' sizes (42px, 28px) are numeric font tokens.
+              RawText('Mention').font('42').weight('bold').foreground('white').margin('top', 'sm'),
+              RawText(t('auth.signIn.subtitle')).font('xl').leading('28px').foreground('white/85'),
             )
               .frame({ maxWidth: '400' })
               .align('start')
@@ -50,8 +52,6 @@ export default function AuthScreen() {
             .flex('1')
             .justify('center')
             .align('center'),
-        )}
-        {toElement(
           VStack(
             VStack(
               RawText(t('auth.signIn.title'))
@@ -59,16 +59,7 @@ export default function AuthScreen() {
                 .leading('32px')
                 .weight('bold')
                 .foreground('foreground'),
-              Embed(
-                LtoElement(
-                  LButton(LText(t('auth.signIn.withOxy')))
-                    .style('solid')
-                    .tint('accent')
-                    .size('lg')
-                    .onPress(() => signIn().catch(() => {}))
-                    .frame({ width: 'full' }),
-                ),
-              ),
+              signInButton,
             )
               .frame({ width: 'full', maxWidth: '360' })
               .spacing('2xl'),
@@ -77,20 +68,22 @@ export default function AuthScreen() {
             .flex('1')
             .justify('center')
             .align('center'),
-        )}
-      </View>
+        )
+          .flex('1')
+          // A row only where it is shown: hidden, the split has no axis of its own.
+          .hidden()
+          .when(wide, (v) => v.axis('horizontal').hidden(false)),
+      )}
       {/* Stacked mobile layout (< md) */}
-      <View
-        style={[
-          styles.mobile,
-          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
-          wide && styles.hidden,
-        ]}
-      >
-        {toElement(
+      {toElement(
+        VStack(
           VStack(
             Embed(<LogoIcon size={48} color={colors.primary} />),
-            Embed(<Text style={[styles.mobileWordmark, ink.foreground]}>Mention</Text>),
+            RawText('Mention')
+              .font('28')
+              .weight('bold')
+              .foreground('foreground')
+              .margin('top', 'sm'),
             RawText(t('auth.signIn.subtitle'))
               .frame({ maxWidth: '280' })
               .font('16')
@@ -102,54 +95,16 @@ export default function AuthScreen() {
             .justify('center')
             .align('center')
             .spacing('lg'),
-        )}
-        {toElement(
-          VStack(
-            Embed(
-              LtoElement(
-                LButton(LText(t('auth.signIn.withOxy')))
-                  .style('solid')
-                  .tint('accent')
-                  .size('lg')
-                  .onPress(() => signIn().catch(() => {}))
-                  .frame({ width: 'full' }),
-              ),
-            ),
-          )
-            .padding('bottom', '3xl')
-            .frame({ width: 'full', maxWidth: '320' }),
-        )}
-      </View>
+          VStack(signInButton).padding('bottom', '3xl').frame({ width: 'full', maxWidth: '320' }),
+        )
+          .flex('1')
+          .justify('center')
+          .align('center')
+          .padding('horizontal', '2xl')
+          .safeAreaPadding('vertical')
+          .padding('vertical', '2xl')
+          .hidden(wide),
+      )}
     </>
   );
 }
-
-const useInkStyles = createTokenStyles((t) => ({ foreground: { color: t.foreground } }));
-
-const styles = StyleSheet.create({
-  signInButton: {
-    width: '100%',
-  },
-  // Tailwind's `flex-1` (grow, shrink, a 0% basis).
-  desktop: { display: 'none', flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
-  desktopShown: { display: 'flex', flexDirection: 'row' },
-  mobile: {
-    display: 'flex',
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: '0%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  hidden: { display: 'none' },
-  // The wordmarks' sizes (42px, 28px) are no type step or font token.
-  wordmark: { fontSize: 42, fontWeight: '700', color: '#fff', marginTop: 8 },
-  mobileWordmark: { fontSize: 28, fontWeight: '700', marginTop: 8 },
-  // White at 85%: NativeWind's 8-bit alpha natively, the colour mix on the web.
-  tagline: {
-    fontSize: 20,
-    lineHeight: 28,
-    color: Platform.OS === 'web' ? 'rgba(255, 255, 255, 0.85)' : '#ffffffd9',
-  },
-});

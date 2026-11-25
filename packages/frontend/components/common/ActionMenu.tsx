@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 
 import type { SurfaceControls, SurfaceRenderFn } from '@oxy.so/bloom/surfaces';
 import { buildMenuGroups, type ActionMenuAction } from '@/components/common/actionMenuGroups';
@@ -9,6 +8,7 @@ import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
 import {
   Embed,
   GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
@@ -22,21 +22,17 @@ const ActionMenuGroup = memo(function ActionMenuGroup({ actions }: ActionMenuGro
   if (actions.length === 0) return null;
 
   return toElement(
+    // Each row its own child of the section, which draws the gap between them.
     LGroupedSection(
-      Embed(
-        actions.map((action) => (
-          <GroupedSectionItem
-            key={action.label}
-            title={action.label}
-            titleNumberOfLines={0}
-            rightElement={action.icon}
-            showChevron={false}
-            destructive={Boolean(action.color)}
-            onPress={action.onPress}
-            accessibilityLabel={action.label}
-          />
-        )),
-      ),
+      ...actions.map((action) => {
+        const item = LGroupedSectionItem(action.label)
+          .lines(0)
+          .trailing(Embed(action.icon))
+          .chevron(false)
+          .onPress(action.onPress)
+          .label(action.label);
+        return action.color ? item.destructive() : item;
+      }),
     ),
   );
 });
