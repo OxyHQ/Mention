@@ -1,7 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import { ScrollView, TouchableOpacity, View, type ViewStyle } from 'react-native';
-import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
+import { ScrollView, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { REPORT_CATEGORIES } from '@/services/reportService';
@@ -14,6 +13,7 @@ import {
   Icon,
   RawText,
   VStack,
+  defineModifier,
   defineTokens,
   toElement,
   VStack as LVStack,
@@ -27,24 +27,11 @@ const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
 /** The close button: an 8pt target pad, above the centred title. */
 const CLOSE_STYLE: ViewStyle = { padding: 8, zIndex: 10 };
 const CONTENT_STYLE: ViewStyle = { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 };
-/** A category: 14pt by 16pt inside a 1.5pt outline, 12pt corners. */
-const CATEGORY_STYLE: ViewStyle = {
-  paddingVertical: 14,
-  paddingHorizontal: 16,
-  borderRadius: 12,
-  borderWidth: 1.5,
-};
-/** Cancel and Submit: halves of the row, centred, 12pt corners. */
-const ACTION_STYLE: ViewStyle = {
-  flexGrow: 1,
-  flexShrink: 1,
-  flexBasis: '0%',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: 12,
-  paddingVertical: 14,
-  minHeight: 50,
-};
+/** Cancel and Submit: halves of the row, centred, at least 50pt tall. */
+const reportTokens = defineTokens({ space: { actionMinHeight: 50 } });
+const actionButton = defineModifier((v) =>
+  v.padding('vertical', '14').frame({ minHeight: reportTokens.space.actionMinHeight }).flex('1'),
+);
 
 interface ReportModalProps {
   visible: boolean;
@@ -53,7 +40,6 @@ interface ReportModalProps {
 }
 
 export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSubmit }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [details, setDetails] = useState('');
@@ -134,30 +120,22 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
                 VStack(
                   REPORT_CATEGORIES.map((category) => {
                     const isSelected = selectedCategories.includes(category.id);
-                    return Embed(
-                      // The selected tint is the primary at 10% (`withAlpha`), never
-                      // `theme.colors.primary + '20'`: the token is an `rgb(...)` string,
-                      // so a hex-alpha suffix makes a malformed colour react-native-web
-                      // reads as fully opaque primary — a solid card behind the label.
-                      <View
-                        style={[
-                          CATEGORY_STYLE,
-                          {
-                            backgroundColor: isSelected
-                              ? withAlpha(theme.colors.primary, 0.1)
-                              : theme.colors.card,
-                            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-                          },
-                        ]}
-                      >
-                        {render(
-                          LCheckbox(
-                            [isSelected, () => toggleCategory(category.id)],
-                            category.label,
-                          ),
-                        )}
-                      </View>,
-                    ).id(category.id);
+                    // A category: 14pt by 16pt inside a 1.5pt outline, 12pt corners.
+                    return (
+                      VStack(
+                        LCheckbox([isSelected, () => toggleCategory(category.id)], category.label),
+                      )
+                        .padding('vertical', '14')
+                        .padding('horizontal', 'lg')
+                        // The selected tint is the primary at 10% (`withAlpha`), never
+                        // `theme.colors.primary + '20'`: the token is an `rgb(...)` string,
+                        // so a hex-alpha suffix makes a malformed colour react-native-web
+                        // reads as fully opaque primary — a solid card behind the label.
+                        .background(isSelected ? 'primary/10' : 'card')
+                        .border(isSelected ? 'primary' : 'border', '1.5')
+                        .corner('md')
+                        .id(category.id)
+                    );
                   }),
                 )
                   .spacing('sm')
@@ -186,50 +164,39 @@ export const ReportModal: React.FC<ReportModalProps> = ({ visible, onClose, onSu
           LEmbed(
             render(
               HStack(
-                Embed(
-                  <TouchableOpacity
-                    style={[
-                      ACTION_STYLE,
-                      {
-                        borderWidth: 1,
-                        borderColor: theme.colors.border,
-                        backgroundColor: theme.colors.card,
-                      },
-                    ]}
-                    accessibilityRole="button"
-                    onPress={handleCancel}
-                    activeOpacity={0.7}
-                  >
-                    {render(
-                      RawText('Cancel')
-                        .foreground('foreground')
-                        .font('16')
-                        .leading('normal')
-                        .weight('semibold'),
-                    )}
-                  </TouchableOpacity>,
-                ),
-                Embed(
-                  <TouchableOpacity
-                    style={[
-                      ACTION_STYLE,
-                      { backgroundColor: canSubmit ? theme.colors.error : theme.colors.border },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !canSubmit }}
-                    onPress={handleSubmit}
-                    disabled={!canSubmit}
-                    activeOpacity={0.7}
-                  >
-                    {render(
-                      RawText('Submit Report')
-                        .font('16')
-                        .leading('normal')
-                        .weight('semibold')
-                        .foreground(canSubmit ? appColors.color.hexFFFFFF : 'muted'),
-                    )}
-                  </TouchableOpacity>,
-                ),
+                VStack(
+                  RawText('Cancel')
+                    .foreground('foreground')
+                    .font('16')
+                    .leading('normal')
+                    .weight('semibold'),
+                )
+                  .align('center')
+                  .justify('center')
+                  .modifier(actionButton)
+                  .background('card')
+                  .border('border', 'thin')
+                  .corner('md')
+                  .role('button')
+                  .onPress(handleCancel)
+                  .pressFade('70'),
+                VStack(
+                  RawText('Submit Report')
+                    .font('16')
+                    .leading('normal')
+                    .weight('semibold')
+                    .foreground(canSubmit ? appColors.color.hexFFFFFF : 'muted'),
+                )
+                  .align('center')
+                  .justify('center')
+                  .modifier(actionButton)
+                  .background(canSubmit ? 'error' : 'border')
+                  .corner('md')
+                  .role('button')
+                  .accessibilityState({ disabled: !canSubmit })
+                  .disabled(!canSubmit)
+                  .onPress(handleSubmit)
+                  .pressFade('70'),
               )
                 .spacing('md')
                 .padding('horizontal', 'lg')

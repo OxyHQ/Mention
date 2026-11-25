@@ -1,6 +1,6 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, Text, type TextStyle, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, type TextStyle, View } from 'react-native';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
@@ -30,6 +30,8 @@ import {
 
 import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
+/** An action chip's 5pt vertical padding, off the space scale. */
+const labelerTokens = defineTokens({ space: { chipY: 5 } });
 
 /** A label's slug: 12/16, the platform's monospace on native (the web drew the inherited face). */
 const SLUG_STYLE: TextStyle = {
@@ -112,43 +114,37 @@ interface ActionChipsProps {
 
 const ActionChips = React.memo(
   ({ labelSlug, currentAction, isSubscribed, onActionChange }: ActionChipsProps) => {
-    const theme = useTheme();
     const { t } = useTranslation();
 
     if (!isSubscribed) return null;
 
     return toElement(
       HStack(
-        Embed((render) =>
-          ACTION_OPTIONS_CONFIG.map(({ value, labelKey }) => {
-            const isActive = currentAction === value;
-            return (
-              <TouchableOpacity
-                key={value}
-                // The active fill is the primary at 10% (`withAlpha`), NOT
-                // `${theme.colors.primary}18`: that token resolves to `rgb(0 98 157)`, so the
-                // hex-alpha suffix is a malformed colour react-native-web reads as fully
-                // opaque — the chip painted solid primary under its own primary label, so
-                // the selected action was the one word you could not read.
-                style={[
-                  styles.actionChip,
-                  { borderColor: isActive ? theme.colors.primary : theme.colors.border },
-                  isActive && { backgroundColor: withAlpha(theme.colors.primary, 0.1) },
-                ]}
-                onPress={() => onActionChange(labelSlug, value)}
-                activeOpacity={0.7}
-              >
-                {render(
-                  RawText(t(labelKey))
-                    .font('xs')
-                    .leading('16px')
-                    .weight('semibold')
-                    .foreground(isActive ? 'primary' : 'muted'),
-                )}
-              </TouchableOpacity>
-            );
-          }),
-        ),
+        ACTION_OPTIONS_CONFIG.map(({ value, labelKey }) => {
+          const isActive = currentAction === value;
+          return (
+            VStack(
+              RawText(t(labelKey))
+                .font('xs')
+                .leading('16px')
+                .weight('semibold')
+                .foreground(isActive ? 'primary' : 'muted'),
+            )
+              .padding('horizontal', 'md')
+              .padding('vertical', labelerTokens.space.chipY)
+              // The active fill is the primary at 10% (`withAlpha`), NOT
+              // `${theme.colors.primary}18`: that token resolves to `rgb(0 98 157)`, so the
+              // hex-alpha suffix is a malformed colour react-native-web reads as fully
+              // opaque — the chip painted solid primary under its own primary label, so
+              // the selected action was the one word you could not read.
+              .when(isActive, (v) => v.background('primary/10'))
+              .border(isActive ? 'primary' : 'border', 'thin')
+              .corner('xl')
+              .onPress(() => onActionChange(labelSlug, value))
+              .pressFade('70')
+              .id(value)
+          );
+        }),
       )
         .spacing('6')
         .margin('top', 'xs')
@@ -353,36 +349,28 @@ export default screen(function LabelerDetailScreen() {
           )
             .wrap()
             .spacing('md'),
-          Embed((render) => (
-            <TouchableOpacity
-              style={[
-                styles.subscribeBtn,
-                labeler.isSubscribed
-                  ? {
-                      borderColor: theme.colors.border,
-                      backgroundColor: 'transparent',
-                      borderWidth: 1,
-                    }
-                  : { backgroundColor: theme.colors.primary },
-              ]}
-              onPress={handleSubscribeToggle}
-              disabled={subscribing}
-              activeOpacity={0.7}
-            >
-              {render(
-                subscribing
-                  ? Loading().style('inline').size('sm')
-                  : RawText(
-                      labeler.isSubscribed
-                        ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
-                        : t('labelers.subscribe', { defaultValue: 'Subscribe' }),
-                    )
-                      .font('md')
-                      .weight('semibold')
-                      .foreground(labeler.isSubscribed ? 'foreground' : 'white'),
-              )}
-            </TouchableOpacity>
-          )),
+          VStack(
+            subscribing
+              ? Loading().style('inline').size('sm')
+              : RawText(
+                  labeler.isSubscribed
+                    ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
+                    : t('labelers.subscribe', { defaultValue: 'Subscribe' }),
+                )
+                  .font('md')
+                  .weight('semibold')
+                  .foreground(labeler.isSubscribed ? 'foreground' : 'white'),
+          )
+            .align('center')
+            .justify('center')
+            .padding('vertical', '10')
+            .frame({ minHeight: '4xl' })
+            .background(labeler.isSubscribed ? 'transparent' : 'primary')
+            .when(labeler.isSubscribed === true, (v) => v.border('border', 'thin'))
+            .corner('xl')
+            .disabled(subscribing)
+            .onPress(handleSubscribeToggle)
+            .pressFade('70'),
         )
           .padding('all', 'lg')
           .background('mutedFill')
@@ -516,13 +504,6 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
-  subscribeBtn: {
-    borderRadius: 20,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 40,
-  },
   badge: {
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -532,11 +513,5 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 11,
     fontWeight: '600',
-  },
-  actionChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
   },
 });
