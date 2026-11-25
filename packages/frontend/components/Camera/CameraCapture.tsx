@@ -1,6 +1,6 @@
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import {
   CameraView,
   useCameraPermissions,
@@ -12,7 +12,6 @@ import Animated, { useAnimatedProps, useSharedValue, withTiming } from 'react-na
 import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
-import type { BloomIconComponent } from '@oxy.so/bloom';
 import { RiCameraSwitchLine } from '@oxy.so/bloom/icons/RiCameraSwitchLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
@@ -40,6 +39,8 @@ import {
   Button as LButton,
   Embed,
   HStack,
+  Icon,
+  type IconComponent,
   Text as LText,
   VStack,
   defineTokens,
@@ -502,48 +503,40 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
       /* Every control sits on its own translucent disc rather than bare on the
          frame. A camera's chrome has to stay legible over whatever the lens
          happens to be pointing at, and white-on-white is the failure mode. */
-      Embed(
-        <RoundButton
-          style={styles.close}
-          onPress={onClose}
-          icon={RiCloseLine}
-          label={t('common.close', { defaultValue: 'Close' })}
-        />,
-      ),
+      roundButton({
+        onPress: onClose,
+        icon: RiCloseLine,
+        label: t('common.close', { defaultValue: 'Close' }),
+      }).position({ top: '56', left: 'xl' }),
       /* The modal controls, in a column where the thumb is not covering the
          frame. Each is a cycle rather than a menu: one target, one tap. */
       VStack(
-        Embed(
-          <RoundButton
-            onPress={() => setFlash(nextChoice(FLASH_CHOICES, flash))}
-            // One bolt for every setting: the colour says off or on, and the "A" is
-            // how every camera distinguishes automatic from on.
-            icon={RiFlashlightLine}
-            badge={flash === 'auto' ? 'A' : undefined}
-            active={flash !== 'off'}
-            label={t('camera.flash', { defaultValue: 'Flash' })}
-            // FLAT keys, not `camera.flash.<value>`: `camera.flash` is itself a
-            // string here, and i18next cannot have a key be both a leaf and a
-            // parent — the nested lookups would silently fall back to English.
-            value={
-              flash === 'off'
-                ? t('camera.flashOff', { defaultValue: 'Off' })
-                : flash === 'auto'
-                  ? t('camera.flashAuto', { defaultValue: 'Auto' })
-                  : t('camera.flashOn', { defaultValue: 'On' })
-            }
-          />,
-        ),
-        Embed(
-          <RoundButton
-            onPress={() => setTimer(nextChoice(TIMER_CHOICES, timer))}
-            icon={RiTimerLine}
-            badge={timer === 0 ? undefined : String(timer)}
-            active={timer !== 0}
-            label={t('camera.timer', { defaultValue: 'Timer' })}
-            value={timer === 0 ? t('camera.timerOff', { defaultValue: 'Off' }) : `${timer}s`}
-          />,
-        ),
+        roundButton({
+          onPress: () => setFlash(nextChoice(FLASH_CHOICES, flash)),
+          // One bolt for every setting: the colour says off or on, and the "A" is
+          // how every camera distinguishes automatic from on.
+          icon: RiFlashlightLine,
+          badge: flash === 'auto' ? 'A' : undefined,
+          active: flash !== 'off',
+          label: t('camera.flash', { defaultValue: 'Flash' }),
+          // FLAT keys, not `camera.flash.<value>`: `camera.flash` is itself a
+          // string here, and i18next cannot have a key be both a leaf and a
+          // parent — the nested lookups would silently fall back to English.
+          value:
+            flash === 'off'
+              ? t('camera.flashOff', { defaultValue: 'Off' })
+              : flash === 'auto'
+                ? t('camera.flashAuto', { defaultValue: 'Auto' })
+                : t('camera.flashOn', { defaultValue: 'On' }),
+        }),
+        roundButton({
+          onPress: () => setTimer(nextChoice(TIMER_CHOICES, timer)),
+          icon: RiTimerLine,
+          badge: timer === 0 ? undefined : String(timer),
+          active: timer !== 0,
+          label: t('camera.timer', { defaultValue: 'Timer' }),
+          value: timer === 0 ? t('camera.timerOff', { defaultValue: 'Off' }) : `${timer}s`,
+        }),
       )
         .spacing('10')
         .position({ top: cameraSpace.space.controlTop, right: 'lg' }),
@@ -684,15 +677,13 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
             </Animated.View>
           </GestureDetector>,
         ),
-        Embed(
-          <RoundButton
-            style={[styles.sideSlot, recording && styles.slotHidden]}
-            onPress={() => setFacing((current) => (current === 'back' ? 'front' : 'back'))}
-            disabled={recording}
-            icon={RiCameraSwitchLine}
-            label={t('camera.flip', { defaultValue: 'Switch camera' })}
-          />,
-        ),
+        roundButton({
+          onPress: () => setFacing((current) => (current === 'back' ? 'front' : 'back')),
+          disabled: recording,
+          slot: true,
+          icon: RiCameraSwitchLine,
+          label: t('camera.flip', { defaultValue: 'Switch camera' }),
+        }).when(recording, (v) => v.opacity('transparent')),
       )
         .padding('horizontal', '4xl')
         .align('center')
@@ -751,52 +742,59 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
 
 /**
  * One control on a translucent disc: an icon, optionally a small corner badge
- * carrying the value the icon alone cannot say.
+ * carrying the value the icon alone cannot say. `slot` is the shutter row's side
+ * slot, a 48pt disc beside the shutter (40pt elsewhere).
  */
-function RoundButton({
-  icon: Icon,
+function roundButton({
+  icon,
   label,
   value,
   badge,
   active,
-  disabled,
-  style,
+  disabled = false,
+  slot,
   onPress,
 }: {
-  icon: BloomIconComponent;
+  icon: IconComponent;
   label: string;
   /** The setting's current value, for the announced name. Omit for a plain action. */
   value?: string;
   badge?: string;
   active?: boolean;
   disabled?: boolean;
-  style?: StyleProp<ViewStyle>;
+  slot?: boolean;
   onPress: () => void;
 }) {
+  const side = slot ? '48' : '4xl';
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={[styles.roundButton, style]}
-      accessibilityRole="button"
+    VStack(
+      Icon(icon)
+        .size('md')
+        .foreground(active ? cameraColors.color.badge : cameraColors.color.shutter),
+      badge
+        ? VStack(LText(badge).font('9').weight('bold').foreground('black'))
+            .align('center')
+            .justify('center')
+            .padding('horizontal', '3')
+            .frame({ minWidth: '14', height: '14' })
+            .background(cameraColors.color.badge)
+            .corner('7')
+            .position({ top: '1', right: '1' })
+        : null,
+    )
+      .align('center')
+      .justify('center')
+      .frame({ width: side, height: side })
+      // Dark enough to carry a white icon over a bright frame, light enough that
+      // the preview still reads through it.
+      .background('black/40')
+      .corner('full')
+      .onPress(onPress)
+      .disabled(disabled)
+      .role('button')
       // The label alone would announce "Flash" whatever it is set to, which is
       // the one thing a reader who cannot see the icon needs to know.
-      accessibilityLabel={value ? `${label}: ${value}` : label}
-    >
-      <Icon width={20} height={20} fill={active ? '#facc15' : '#fff'} />
-      {badge
-        ? toElement(
-            VStack(LText(badge).font('9').weight('bold').foreground('black'))
-              .align('center')
-              .justify('center')
-              .padding('horizontal', '3')
-              .frame({ minWidth: '14', height: '14' })
-              .background(cameraColors.color.badge)
-              .corner('7')
-              .position({ top: '1', right: '1' }),
-          )
-        : null}
-    </Pressable>
+      .label(value ? `${label}: ${value}` : label)
   );
 }
 
@@ -807,19 +805,6 @@ function formatRemaining(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
-  close: { position: 'absolute', top: 56, left: 20 },
-  roundButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    // Dark enough to carry a white icon over a bright frame, light enough that
-    // the preview still reads through it.
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  sideSlot: { width: 48, height: 48, borderRadius: 24 },
-  slotHidden: { opacity: 0 },
   // The hit area is the RING's box, so the drag-to-zoom gesture and the press
   // start from the same place a thumb aims at.
   shutterHitArea: { alignItems: 'center', justifyContent: 'center' },
