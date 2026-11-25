@@ -36,6 +36,7 @@ import {
   Icon,
   Text,
   VStack,
+  defineModifier,
   toElement,
 } from '@oxy.so/bloom-language';
 
@@ -44,6 +45,8 @@ import {
 // avatar's collapse wrapper so the two stay pixel-identical during scroll.
 const PROFILE_AVATAR_COLLAPSE_MIN_SCALE = 0.45;
 const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
+/** The presence dot, pinned at the avatar's bottom-right corner. */
+const presencePlacement = defineModifier((v) => v.position({ bottom: 'xs', right: 'xs' }));
 
 /**
  * A PERSON's profile header: a 90px avatar overlapping the banner on the left,
@@ -177,15 +180,9 @@ export const ProfileHeader = memo(function ProfileHeader({
             />
           ),
         ),
-        Embed(
-          !isOwnProfile && profileId && (
-            <PresenceIndicator
-              userId={profileId}
-              size="medium"
-              style={{ position: 'absolute', bottom: 4, right: 4 }}
-            />
-          ),
-        ),
+        !isOwnProfile && profileId
+          ? PresenceIndicator({ userId: profileId, size: 'medium', look: presencePlacement })
+          : null,
       ),
       VStack(
         Embed(

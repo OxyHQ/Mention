@@ -1,31 +1,33 @@
-import { memo } from 'react';
-import { View, StyleSheet, type ViewStyle } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { usePresence } from '@/hooks/usePresence';
+
+import { VStack, type ViewModifier, defineTokens, view } from '@oxy.so/bloom-language';
 
 interface PresenceIndicatorProps {
   userId: string | undefined;
   size?: 'small' | 'medium' | 'large';
-  style?: ViewStyle;
+  /** Where the caller places the dot (a pinned edge over an avatar). */
+  look?: ViewModifier;
   showOffline?: boolean;
 }
 
+/** The dot's side: 8, 12 and 16pt. */
 const SIZES = {
-  small: 8,
-  medium: 12,
-  large: 16,
-};
+  small: 'sm',
+  medium: 'md',
+  large: 'lg',
+} as const;
+
+const presence = defineTokens({ color: { online: '#22c55e' } });
 
 /**
  * Presence indicator component that shows online/offline status
  */
-export const PresenceIndicator = memo(function PresenceIndicator({
+export const PresenceIndicator = view(function PresenceIndicator({
   userId,
   size = 'medium',
-  style,
+  look,
   showOffline = false,
 }: PresenceIndicatorProps) {
-  const theme = useTheme();
   const isOnline = usePresence(userId);
 
   // Don't render if user is offline and showOffline is false
@@ -33,28 +35,12 @@ export const PresenceIndicator = memo(function PresenceIndicator({
     return null;
   }
 
-  const indicatorSize = SIZES[size];
-
-  return (
-    <View
-      style={[
-        styles.indicator,
-        {
-          width: indicatorSize,
-          height: indicatorSize,
-          borderRadius: indicatorSize / 2,
-          backgroundColor: isOnline ? '#22c55e' : theme.colors.textSecondary,
-          borderColor: theme.colors.background,
-          borderWidth: size === 'small' ? 1 : 2,
-        },
-        style,
-      ]}
-    />
-  );
-});
-
-const styles = StyleSheet.create({
-  indicator: {
-    position: 'absolute',
-  },
+  const side = SIZES[size];
+  // A round dot ringed in the page's background.
+  return VStack()
+    .modifier(look)
+    .frame({ width: side, height: side })
+    .background(isOnline ? presence.color.online : 'muted')
+    .border('background', size === 'small' ? 'thin' : 'thick')
+    .corner('full');
 });
