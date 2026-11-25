@@ -9,7 +9,7 @@ export enum NotificationType {
   EVENT_UPDATED = 'event_updated',
   EVENT_CANCELLED = 'event_cancelled',
   LIKE = 'like',
-  REPOST = 'boost',
+  REPOST = 'repost',
   COMMENT = 'comment',
   REPLY = 'reply',
   FOLLOW = 'follow',

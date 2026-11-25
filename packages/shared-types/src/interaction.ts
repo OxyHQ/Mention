@@ -4,7 +4,7 @@
 
 export enum InteractionType {
   LIKE = 'like',
-  REPOST = 'boost',
+  REPOST = 'repost',
   COMMENT = 'comment',
   SHARE = 'share',
   SAVE = 'save',

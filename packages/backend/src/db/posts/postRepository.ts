@@ -1664,7 +1664,8 @@ async function writePostRecord(input: PostRecordInput, db: DatabaseOrTransaction
     if (input.parentPostId)
       await observeFederationImportReason([input.parentPostId], 'reply_dependency', tx);
     if (input.quoteOf) await observeFederationImportReason([input.quoteOf], 'quote_dependency', tx);
-    if (input.boostOf) await observeFederationImportReason([input.boostOf], 'boost_dependency', tx);
+    if (input.boostOf)
+      await observeFederationImportReason([input.boostOf], 'repost_dependency', tx);
 
     // A post reachable by a second road takes its source key IN THIS
     // TRANSACTION: a collision on `post_source_keys_source_key_key` rolls the

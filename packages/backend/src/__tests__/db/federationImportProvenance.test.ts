@@ -99,7 +99,7 @@ describe('private federation import evidence', () => {
     await seedPost(scope, { boostOf: repost.id });
     expect((await provenance(parent.id)).reasons).toContain('reply_dependency');
     expect((await provenance(quote.id)).reasons).toContain('quote_dependency');
-    expect((await provenance(repost.id)).reasons).toContain('boost_dependency');
+    expect((await provenance(repost.id)).reasons).toContain('repost_dependency');
   });
 
   it('rolls back evidence when creating the post fails, and cascades evidence with deletion', async () => {

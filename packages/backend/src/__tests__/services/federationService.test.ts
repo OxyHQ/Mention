@@ -1126,7 +1126,7 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
     // returned a fake document and never ran the guard at all.
     const repost = await rowByActivityId(announceId);
     expect(repost).toBeDefined();
-    expect(repost?.type).toBe('boost');
+    expect(repost?.type).toBe('repost');
     expect(repost?.oxyUserId).toBe(scope.user('bob'));
     expect(repost?.boostOf).toBe(postId);
     // The boost's date reflects when the boost happened, not the sync.

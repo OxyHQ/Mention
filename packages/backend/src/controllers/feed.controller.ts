@@ -688,7 +688,7 @@ class FeedController {
       }
 
       const originalPost = await loadPostRecord(originalPostId);
-      const shareValidation = validatePublicShareTarget(originalPost, { action: 'boost' });
+      const shareValidation = validatePublicShareTarget(originalPost, { action: 'repost' });
       if (!shareValidation.ok) {
         return res.status(shareValidation.status).json({ error: shareValidation.message });
       }
@@ -754,7 +754,12 @@ class FeedController {
          * it is the truthful one: by the time this request finished, that account
          * had boosted that post.
          */
-        if (isUniqueViolation(error, 'posts_one_repost_per_account_key')) {
+        // A row stored as 'repost' is covered by the _v2 index; one stored as 'boost' by the older one
+        // (docs/repost-rename.md). Either can be the one that fires, so both answer the same.
+        if (
+          isUniqueViolation(error, 'posts_one_repost_per_account_v2_key') ||
+          isUniqueViolation(error, 'posts_one_repost_per_account_key')
+        ) {
           return res.status(400).json({ error: ALREADY_REPOSTED_ERROR });
         }
         throw error;

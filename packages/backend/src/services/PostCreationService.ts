@@ -1060,7 +1060,7 @@ class PostCreationService {
           if (original) {
             await createPostAuthorNotifications(original.authorship, {
               actorId: oxyUserId,
-              type: 'boost',
+              type: 'repost',
               entityId: original.id,
               entityType: 'post',
             });

@@ -44,7 +44,7 @@ export type FeedType =
   | 'friends_popular'
   | 'friends_of_friends';
 
-export type PostAction = 'reply' | 'boost' | 'like' | 'share';
+export type PostAction = 'reply' | 'repost' | 'like' | 'share';
 
 export interface FeedResponse {
   items: HydratedPost[];

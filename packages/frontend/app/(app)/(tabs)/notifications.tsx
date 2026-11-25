@@ -105,7 +105,8 @@ type FilterableTab = Exclude<NotificationTab, 'all'>;
 const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
   mentions: ['mention', 'reply', 'private_mention'],
   follows: ['follow'],
-  likes: ['like', 'boost', 'quote'],
+  // 'boost' is the old name of 'repost' (docs/repost-rename.md); both are accepted.
+  likes: ['like', 'repost', 'boost', 'quote'],
   posts: ['post'],
   pokes: ['poke'],
 };

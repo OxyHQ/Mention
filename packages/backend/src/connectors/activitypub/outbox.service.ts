@@ -1663,7 +1663,7 @@ export class OutboxSyncService {
     // lets remote actors boost OUR posts (announcedUri = our AP note URI).
     const originalPostId =
       (await resolvePostIdFromObjectUri(announcedUri)) ??
-      (await this.ensureFederatedNote(announcedUri, 'boost_dependency'));
+      (await this.ensureFederatedNote(announcedUri, 'repost_dependency'));
     if (!originalPostId) {
       logger.info('[FedSync] skipped boost whose object could not be resolved');
       return false;
