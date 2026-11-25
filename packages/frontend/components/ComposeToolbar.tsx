@@ -1,12 +1,9 @@
 import { RiShoppingBag3Line } from '@oxy.so/bloom/icons/RiShoppingBag3Line';
-import type React from 'react';
 import { memo, useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import { Button } from '@oxy.so/bloom/button';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -21,7 +18,7 @@ import { RiLinksLine } from '@oxy.so/bloom/icons/RiLinksLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
-import { Loading, toElement } from '@oxy.so/bloom-language';
+import { Button, Group, Icon, Loading, toElement, type Child } from '@oxy.so/bloom-language';
 
 /**
  * The attachment row under ONE compose box.
@@ -170,176 +167,182 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
         style={styles.scroller}
         contentContainerStyle={contentContainerStyle}
       >
-        {onMediaPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.media', { defaultValue: 'Add photos or videos' })}
-            onPress={withHaptic(onMediaPress)}
-            disabled={disabled || hasPoll}
-          >
-            {(color) => <MediaAttachmentIcon width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
+        {toElement(
+          Group(
+            onMediaPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.media', { defaultValue: 'Add photos or videos' }),
+                    onPress: withHaptic(onMediaPress),
+                    disabled: disabled || hasPoll,
+                  },
+                  Group(Icon(MediaAttachmentIcon).size('md')),
+                )
+              : null,
+            onGifPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.gif', { defaultValue: 'Add a GIF' }),
+                    onPress: withHaptic(onGifPress),
+                    disabled,
+                  },
+                  Group(Icon(GifAttachmentIcon).size('md')),
+                )
+              : null,
+            onEmojiPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.emoji', { defaultValue: 'Add an emoji' }),
+                    onPress: withHaptic(onEmojiPress),
+                    disabled,
+                  },
+                  Group(Icon(RiEmotionHappyLine).size('md')),
+                )
+              : null,
+            onPollPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.poll', { defaultValue: 'Add a poll' }),
+                    onPress: withHaptic(onPollPress),
+                    disabled: disabled || hasMedia,
+                    active: hasPoll,
+                  },
+                  Group(Icon(RiBarChartHorizontalLine).size('md')),
+                )
+              : null,
+            onSourcesPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.sources', { defaultValue: 'Add sources' }),
+                    onPress: withHaptic(onSourcesPress),
+                    disabled,
+                    invalid: hasSourceErrors,
+                    active: hasSources,
+                  },
+                  Group(Icon(RiLinksLine).size('md')),
+                )
+              : null,
+            onArticlePress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.article', { defaultValue: 'Write an article' }),
+                    onPress: withHaptic(onArticlePress),
+                    disabled,
+                    active: hasArticle,
+                  },
+                  Group(Icon(RiFileList2Line).size('md')),
+                )
+              : null,
+            onEventPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.event', { defaultValue: 'Add an event' }),
+                    onPress: withHaptic(onEventPress),
+                    disabled,
+                    active: hasEvent,
+                  },
+                  Group(Icon(RiCalendarEventLine).size('md')),
+                )
+              : null,
+            onRoomPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.room', { defaultValue: 'Attach a live room' }),
+                    onPress: withHaptic(onRoomPress),
+                    disabled,
+                    active: hasRoom,
+                  },
+                  Group(Icon(RiBroadcastLine).size('md')),
+                )
+              : null,
+            onCommercePress
+              ? toolbarAction(
+                  {
+                    label: t('commerce.attach', { defaultValue: 'Add products or collections' }),
+                    onPress: withHaptic(onCommercePress),
+                    disabled,
+                  },
+                  Group(Icon(RiShoppingBag3Line).size('md')),
+                )
+              : null,
+            onPodcastPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.podcast', { defaultValue: 'Add a podcast' }),
+                    onPress: withHaptic(onPodcastPress),
+                    disabled,
+                    active: hasPodcast,
+                  },
+                  Group(Icon(RiMic2Line).size('md')),
+                )
+              : null,
+            onJobPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.job.add', { defaultValue: 'Attach a job' }),
+                    onPress: withHaptic(onJobPress),
+                    disabled,
+                    active: hasJob,
+                  },
+                  Group(Icon(RiBriefcase4Line).size('md')),
+                )
+              : null,
+            // The SAME glyph the collaborator picker already labels its
+            // rows with, in the two states this row uses everywhere
+            // else: filled once the post names someone, outline while
+            // it does not.
+            onCollaboratorsPress
+              ? toolbarAction(
+                  {
+                    label: t('collab.inviteCollaborators', {
+                      defaultValue: 'Invite collaborators',
+                    }),
+                    onPress: withHaptic(onCollaboratorsPress),
+                    disabled: disabled || !collaboratorsEnabled,
+                    active: hasCollaborators,
+                  },
+                  Group(Icon(CollaboratorsIcon).size('md')),
+                )
+              : null,
+            // WHO the post is by is not on this row. It is the box's own avatar
+            // — the thing that already shows the answer — so the control and
+            // what it changes are the same object, and every box in beast mode
+            // gets its own without a toolbar each.
 
-        {onGifPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.gif', { defaultValue: 'Add a GIF' })}
-            onPress={withHaptic(onGifPress)}
-            disabled={disabled}
-          >
-            {(color) => <GifAttachmentIcon width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onEmojiPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.emoji', { defaultValue: 'Add an emoji' })}
-            onPress={withHaptic(onEmojiPress)}
-            disabled={disabled}
-          >
-            {(color) => <RiEmotionHappyLine width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onPollPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.poll', { defaultValue: 'Add a poll' })}
-            onPress={withHaptic(onPollPress)}
-            disabled={disabled || hasMedia}
-            active={hasPoll}
-          >
-            {(color) => <RiBarChartHorizontalLine width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onSourcesPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.sources', { defaultValue: 'Add sources' })}
-            onPress={withHaptic(onSourcesPress)}
-            disabled={disabled}
-            invalid={hasSourceErrors}
-            active={hasSources}
-          >
-            {(color) => <RiLinksLine width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onArticlePress && (
-          <ToolbarAction
-            label={t('compose.toolbar.article', { defaultValue: 'Write an article' })}
-            onPress={withHaptic(onArticlePress)}
-            disabled={disabled}
-            active={hasArticle}
-          >
-            {(color) => <RiFileList2Line width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onEventPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.event', { defaultValue: 'Add an event' })}
-            onPress={withHaptic(onEventPress)}
-            disabled={disabled}
-            active={hasEvent}
-          >
-            {(color) => <RiCalendarEventLine width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onRoomPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.room', { defaultValue: 'Attach a live room' })}
-            onPress={withHaptic(onRoomPress)}
-            disabled={disabled}
-            active={hasRoom}
-          >
-            {(color) => <RiBroadcastLine size="md" fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onCommercePress && (
-          <ToolbarAction
-            label={t('commerce.attach', { defaultValue: 'Add products or collections' })}
-            onPress={withHaptic(onCommercePress)}
-            disabled={disabled}
-          >
-            {(color) => <RiShoppingBag3Line size="md" fill={color} />}
-          </ToolbarAction>
-        )}
-        {onPodcastPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.podcast', { defaultValue: 'Add a podcast' })}
-            onPress={withHaptic(onPodcastPress)}
-            disabled={disabled}
-            active={hasPodcast}
-          >
-            {(color) => <RiMic2Line size="md" fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onJobPress && (
-          <ToolbarAction
-            label={t('compose.job.add', { defaultValue: 'Attach a job' })}
-            onPress={withHaptic(onJobPress)}
-            disabled={disabled}
-            active={hasJob}
-          >
-            {(color) => <RiBriefcase4Line size="md" fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onCollaboratorsPress && (
-          <ToolbarAction
-            label={t('collab.inviteCollaborators', { defaultValue: 'Invite collaborators' })}
-            onPress={withHaptic(onCollaboratorsPress)}
-            disabled={disabled || !collaboratorsEnabled}
-            active={hasCollaborators}
-          >
-            {/* The SAME glyph the collaborator picker already labels its
-                        rows with, in the two states this row uses everywhere
-                        else: filled once the post names someone, outline while
-                        it does not. */}
-            {(color) => <CollaboratorsIcon size="md" fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {/* WHO the post is by is not on this row. It is the box's own avatar
-                — the thing that already shows the answer — so the control and
-                what it changes are the same object, and every box in beast mode
-                gets its own without a toolbar each. */}
-
-        {onLanePress && (
-          <ToolbarAction
-            label={t('lanes.compose.choose', { defaultValue: 'Choose a lane' })}
-            onPress={withHaptic(onLanePress)}
-            disabled={disabled}
-            active={hasLane}
-          >
-            {/* Parallel tracks, not a branch. A branch is a fork — one
-                        history splitting into divergent ones — and a lane forks
-                        nothing: the post's distribution, visibility, replies and
-                        federation are untouched by it. It is a track the post is
-                        filed on. The tint carries the on/off state, the way every
-                        other icon in this row signals its attachment. */}
-            {(color) => <RiNodeTree width={20} height={20} fill={color} />}
-          </ToolbarAction>
-        )}
-
-        {onLocationPress && (
-          <ToolbarAction
-            label={t('compose.toolbar.location', { defaultValue: 'Add your location' })}
-            onPress={withHaptic(onLocationPress)}
-            disabled={disabled}
-            busy={isGettingLocation}
-            active={hasLocation}
-          >
-            {(color) =>
-              isGettingLocation ? (
-                toElement(Loading().style('inline').size('sm'))
-              ) : (
-                <RiMapPinLine width={20} height={20} fill={color} />
-              )
-            }
-          </ToolbarAction>
+            // Parallel tracks, not a branch. A branch is a fork — one
+            // history splitting into divergent ones — and a lane forks
+            // nothing: the post's distribution, visibility, replies and
+            // federation are untouched by it. It is a track the post is
+            // filed on. The tint carries the on/off state, the way every
+            // other icon in this row signals its attachment.
+            onLanePress
+              ? toolbarAction(
+                  {
+                    label: t('lanes.compose.choose', { defaultValue: 'Choose a lane' }),
+                    onPress: withHaptic(onLanePress),
+                    disabled,
+                    active: hasLane,
+                  },
+                  Group(Icon(RiNodeTree).size('md')),
+                )
+              : null,
+            onLocationPress
+              ? toolbarAction(
+                  {
+                    label: t('compose.toolbar.location', { defaultValue: 'Add your location' }),
+                    onPress: withHaptic(onLocationPress),
+                    disabled,
+                    busy: isGettingLocation,
+                    active: hasLocation,
+                  },
+                  Group(
+                    isGettingLocation
+                      ? Loading().style('inline').size('sm')
+                      : Icon(RiMapPinLine).size('md'),
+                  ),
+                )
+              : null,
+          ),
         )}
       </ScrollView>
     );
@@ -364,42 +367,33 @@ interface ToolbarActionProps {
   active?: boolean;
   /** This attachment needs the author's attention (sources missing a title). */
   invalid?: boolean;
-  /** The glyph, painted in the colour the control's state resolves to. */
-  children: (color: string) => React.ReactNode;
 }
 
-const ToolbarAction = ({
-  label,
-  onPress,
-  disabled,
-  busy,
-  active = false,
-  invalid = false,
-  children,
-}: ToolbarActionProps) => {
-  const theme = useTheme();
-  const tint = invalid ? theme.colors.error : active ? theme.colors.primary : undefined;
+/**
+ * `glyph` is a bare glyph in a `Group`, painted in the colour the control's
+ * state resolves to (Bloom's render-function children).
+ */
+const toolbarAction = (
+  { label, onPress, disabled, busy = false, active = false, invalid = false }: ToolbarActionProps,
+  glyph: Child,
+) => {
+  const tint = invalid ? 'error' : active ? 'primary' : undefined;
   return (
-    <Button
-      appearance="plain"
-      tone="neutral"
-      iconOnly
-      iconSize={TOOLBAR_GLYPH_SIZE}
-      accessibilityLabel={label}
-      onPress={onPress}
-      disabled={disabled}
-      loading={busy}
-      loadingIndicator={null}
-      color={tint}
-      hoverColor={tint}
-    >
-      {children}
-    </Button>
+    Button(glyph)
+      .style('plain')
+      .tint('neutral')
+      .shape('circle')
+      // Custom glyphs retain their size inside the shared md interaction target.
+      .iconSize('md')
+      .label(label)
+      .onPress(onPress)
+      .disabled(disabled)
+      .loading(busy)
+      .loadingIndicator(null)
+      .foreground(tint)
+      .hoverForeground(tint)
   );
 };
-
-/** Custom glyphs retain their size inside the shared md interaction target. */
-const TOOLBAR_GLYPH_SIZE = 20;
 
 ComposeToolbar.displayName = 'ComposeToolbar';
 
