@@ -1,13 +1,6 @@
 import { useRef } from 'react';
 import { Image } from 'expo-image';
-import {
-  Linking,
-  Text,
-  View,
-  type StyleProp,
-  type ViewInstance,
-  type ViewStyle,
-} from 'react-native';
+import { Linking, View, type StyleProp, type ViewInstance, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
@@ -17,8 +10,7 @@ import { commerceCards, recordCommerceHandoff } from '@/lib/references/commerceC
 import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 // The card keeps its React Native view: its ref is the viewability target, which
-// a language stack does not hand out. Its loading line keeps React Native's Text
-// for `accessibilityLiveRegion`, which the language has no modifier for.
+// a language stack does not hand out.
 const useStyles = createTokenStyles((t) => ({
   card: {
     borderWidth: 1,
@@ -27,7 +19,6 @@ const useStyles = createTokenStyles((t) => ({
     borderRadius: 14,
     overflow: 'hidden',
   },
-  status: { color: t.mutedForeground },
 }));
 
 /** Price and availability disappear as soon as current hydration expires or fails. */
@@ -116,13 +107,17 @@ export function CommerceCard({
                 )}
               </>
             ) : (
-              <Text accessibilityLiveRegion="polite" style={styles.status}>
-                {state.status === 'loading'
-                  ? t('commerce.loading', { defaultValue: 'Checking current availability…' })
-                  : t('commerce.unavailable', {
-                      defaultValue: 'This item is currently unavailable',
-                    })}
-              </Text>
+              toElement(
+                RawText(
+                  state.status === 'loading'
+                    ? t('commerce.loading', { defaultValue: 'Checking current availability…' })
+                    : t('commerce.unavailable', {
+                        defaultValue: 'This item is currently unavailable',
+                      }),
+                )
+                  .foreground('muted')
+                  .liveRegion('polite'),
+              )
             ),
           ),
         )

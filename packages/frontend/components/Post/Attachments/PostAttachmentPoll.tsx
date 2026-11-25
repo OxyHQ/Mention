@@ -23,12 +23,12 @@ const styles = StyleSheet.create({
   cell: { width: 280 },
 });
 
-// The static fallbacks' frame (a 15pt corner, which no corner token has) and
+// The static fallbacks' frame (it takes the caller's style, the cell's size) and
 // their option rows: React Native's views over one token style, as the row-cost
-// harness mounts a poll row (a language stack per option is a component more).
+// harness mounts a poll row (as language stacks, its options cost the row one more
+// hook slot).
 const useFrameStyles = createTokenStyles((t) => ({
   frame: { borderWidth: 1, borderColor: t.border, borderRadius: 15, overflow: 'hidden' },
-  missing: { backgroundColor: t.muted, padding: 16, borderRadius: 15 },
   option: {
     backgroundColor: t.card,
     borderWidth: 1,
@@ -59,40 +59,41 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({
 
   return (
     <View style={[frameStyles.frame, webGrabCursorStyle, style]}>
-      {pollData ? (
-        toElement(
-          VStack(
-            RawText(pollData.question)
-              .foreground('foreground')
-              .font('16')
-              .leading('normal')
-              .weight('bold')
-              .margin('bottom', 'md'),
-            Embed(
-              pollData.options?.map((option: string, optIdx: number) => (
-                <View key={optIdx} style={frameStyles.option}>
-                  {toElement(RawText(option).foreground('foreground').font('14').leading('20px'))}
-                </View>
-              )),
-            ),
+      {pollData
+        ? toElement(
+            VStack(
+              RawText(pollData.question)
+                .foreground('foreground')
+                .font('16')
+                .leading('normal')
+                .weight('bold')
+                .margin('bottom', 'md'),
+              Embed(
+                pollData.options?.map((option: string, optIdx: number) => (
+                  <View key={optIdx} style={frameStyles.option}>
+                    {toElement(RawText(option).foreground('foreground').font('14').leading('20px'))}
+                  </View>
+                )),
+              ),
+            )
+              .padding('all', 'lg')
+              .background('mutedFill')
+              .flex('1'),
           )
-            .padding('all', 'lg')
-            .background('mutedFill')
-            .flex('1'),
-        )
-      ) : (
-        // Debug: Show what we received
-        <View style={frameStyles.missing}>
-          {toElement(
-            RawText(IS_DEVELOPMENT ? 'Poll data missing' : 'Poll unavailable')
-              .foreground('destructive')
-              .font('16')
-              .leading('normal')
-              .weight('bold')
-              .margin('bottom', 'md'),
+        : // Debug: Show what we received
+          toElement(
+            VStack(
+              RawText(IS_DEVELOPMENT ? 'Poll data missing' : 'Poll unavailable')
+                .foreground('destructive')
+                .font('16')
+                .leading('normal')
+                .weight('bold')
+                .margin('bottom', 'md'),
+            )
+              .padding('lg')
+              .background('mutedFill')
+              .corner('15'),
           )}
-        </View>
-      )}
     </View>
   );
 };

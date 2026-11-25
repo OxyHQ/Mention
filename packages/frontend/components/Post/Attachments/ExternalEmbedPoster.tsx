@@ -1,22 +1,15 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { feedLinkCover } from '@/utils/feedImages';
 
-import {
-  Icon,
-  VStack,
-  defineTokens,
-  toElement,
-  Embed,
-  VStack as LVStack,
-  toElement as LtoElement,
-  Embed as LEmbed,
-} from '@oxy.so/bloom-language';
-const posterTokens = defineTokens({ color: { white: 'white' } });
+import { Icon, SpinnerIcon, VStack, defineTokens, toElement, Embed } from '@oxy.so/bloom-language';
+const posterTokens = defineTokens({
+  color: { white: 'white', scrim: '#0000004d' },
+  iconSize: { spinner: 36 },
+});
 
 interface ExternalEmbedPosterProps {
   /** Thumbnail (link-preview image) shown behind the play button. */
@@ -64,10 +57,10 @@ export function ExternalEmbedPoster({
 
   if (active && !loading) return null;
 
-  // The frame and its scrim are pinned with React Native's `inset`, as the
-  // classes drew them; the language pins a view by its four edges instead.
-  return LtoElement(
-    LVStack(
+  // The frame and its scrim are pinned by their four edges (the classes drew
+  // React Native's `inset`).
+  return toElement(
+    VStack(
       Embed(
         thumb && !thumbErrored ? (
           <Image
@@ -80,50 +73,30 @@ export function ExternalEmbedPoster({
           />
         ) : null,
       ),
-      Embed(<View style={styles.scrim} />),
-      /* React Native's Pressable: while the player loads it has no press and
-        stays in the focus order, as it was; the language takes a press-less
-        stack out of it. */ Embed(
-        LtoElement(
-          LVStack(
-            LEmbed(
-              active ? (
-                <SpinnerIcon size={36} color="white" />
-              ) : (
-                toElement(
-                  VStack(Icon(RiPlayFill).size('2xl').foreground(posterTokens.color.white))
-                    .frame({ height: '64', width: '64' })
-                    .background('black/60')
-                    .corner('infinite')
-                    .align('center')
-                    .justify('center'),
-                )
-              ),
-            ),
-          )
-            .align('center')
-            .justify('center')
-            .flex('1')
-            .onPress(active ? undefined : onPressPlay)
-            .role('button'),
-        ),
-      ),
+      // Black at 30%, as NativeWind wrote `bg-black/30` (an 8-bit alpha).
+      VStack()
+        .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+        .background(posterTokens.color.scrim),
+      // React Native's Pressable: while the player loads it has no press and
+      // stays in the focus order, as it was; the language takes a press-less
+      // stack out of it.
+      VStack(
+        active
+          ? SpinnerIcon().size(posterTokens.iconSize.spinner).tint('white')
+          : VStack(Icon(RiPlayFill).size('2xl').foreground(posterTokens.color.white))
+              .frame({ height: '64', width: '64' })
+              .background('black/60')
+              .corner('infinite')
+              .align('center')
+              .justify('center'),
+      )
+        .align('center')
+        .justify('center')
+        .flex('1')
+        .onPress(active ? undefined : onPressPlay)
+        .role('button'),
     )
       .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
       .allowsHitTesting('children'),
   );
 }
-
-const styles = StyleSheet.create({
-  frame: { position: 'absolute', inset: 0 },
-  // Black at 30%, as NativeWind wrote `bg-black/30` (an 8-bit alpha).
-  scrim: { position: 'absolute', inset: 0, backgroundColor: '#0000004d' },
-  // Tailwind's `flex-1 items-center justify-center`.
-  play: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: '0%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

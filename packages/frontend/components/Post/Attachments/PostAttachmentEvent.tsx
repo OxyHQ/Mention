@@ -1,8 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
 
-import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Group, RawText, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+
+const eventColors = defineTokens({ color: { hexfff: '#fff' } });
 
 interface PostAttachmentEventProps {
   name: string;
@@ -17,8 +19,6 @@ interface PostAttachmentEventProps {
 // Card (a container with no stack layout) does not take: it keeps Bloom's Card.
 const styles = StyleSheet.create({
   card: { width: 200, minHeight: 140, flexDirection: 'row' },
-  // A 28pt day: no type step or numeric font token has that size.
-  day: { fontSize: 28, fontWeight: '700', color: '#fff', lineHeight: 32 },
 });
 
 const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
@@ -56,31 +56,31 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
     <Card radius="radius-16" style={[styles.card, style]} onPress={onPress} appearance="outline">
       {toElement(
         VStack(
-          Embed(
-            day !== null && (
-              <>
-                <Text style={styles.day}>{day}</Text>
-                {month &&
-                  toElement(
-                    RawText(month)
+          day !== null
+            ? Group(
+                RawText(day)
+                  .font('28')
+                  .leading('32px')
+                  .weight('bold')
+                  .foreground(eventColors.color.hexfff),
+                month
+                  ? RawText(month)
                       .font('11')
                       .weight('semibold')
                       .foreground('white')
                       .textCase('uppercase')
-                      .margin('top', '2xs'),
-                  )}
-                {year &&
-                  toElement(
-                    RawText(year)
+                      .margin('top', '2xs')
+                  : null,
+                year
+                  ? RawText(year)
                       .opacity('90')
                       .font('2xs')
                       .weight('medium')
                       .foreground('white')
-                      .margin('top', '2xs'),
-                  )}
-              </>
-            ),
-          ),
+                      .margin('top', '2xs')
+                  : null,
+              )
+            : null,
         )
           .padding('vertical', 'md')
           .padding('horizontal', 'sm')

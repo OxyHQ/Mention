@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Linking, Text, View, type DimensionValue, type ViewInstance } from 'react-native';
+import { Linking, View, type DimensionValue, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getEventUrl } from '@mention/shared-types/vibbr';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
@@ -7,11 +7,10 @@ import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { vibbrEvents } from '@/lib/references/vibbrEvents';
 
-import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 // The card keeps its React Native view: its ref is the viewability target, which
-// a language stack does not hand out. Its loading line keeps React Native's Text
-// for `accessibilityLiveRegion`, which the language has no modifier for.
+// a language stack does not hand out.
 const useStyles = createTokenStyles((t) => ({
   card: {
     borderRadius: 16,
@@ -21,7 +20,6 @@ const useStyles = createTokenStyles((t) => ({
     padding: 16,
     overflow: 'hidden',
   },
-  status: { color: t.mutedForeground },
 }));
 
 /** Every state occupies the same box, so a card never shifts the feed when it resolves. */
@@ -92,15 +90,15 @@ export function VibbrEventCard({
           )
         : toElement(
             VStack(
-              Embed(
-                <Text accessibilityLiveRegion="polite" style={styles.status}>
-                  {state.status === 'loading'
-                    ? t('vibbr.loading', { defaultValue: 'Loading Vibbr event…' })
-                    : t('vibbr.unavailable', {
-                        defaultValue: 'This Vibbr event is no longer available',
-                      })}
-                </Text>,
-              ),
+              RawText(
+                state.status === 'loading'
+                  ? t('vibbr.loading', { defaultValue: 'Loading Vibbr event…' })
+                  : t('vibbr.unavailable', {
+                      defaultValue: 'This Vibbr event is no longer available',
+                    }),
+              )
+                .foreground('muted')
+                .liveRegion('polite'),
             )
               .flex('1')
               .justify('center'),
