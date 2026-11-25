@@ -45,7 +45,7 @@ export async function readLikedPostIds(channelOxyUserId: string): Promise<string
  *    (the reply gate refuses a `channel` author at five sites) and a channel
  *    thread's continuations answer the channel's own posts, which are inside the
  *    removed set.
- *  - NOT `stats_federated_boosts_count`: it counts inbound Announces, and a
+ *  - NOT `stats_federated_reposts_count`: it counts inbound Announces, and a
  *    channel is a local author.
  *
  * Each decrement is guarded on `> 0`, mirroring the live `Undo(Announce)` /
@@ -83,7 +83,7 @@ async function decrementStat(
   dryRun: boolean,
 ): Promise<number> {
   if (postIds.length === 0) return 0;
-  const column = stat === 'boosts' ? posts.statsBoostsCount : posts.statsLikesCount;
+  const column = stat === 'boosts' ? posts.statsRepostsCount : posts.statsLikesCount;
   const where = and(inArray(posts.id, [...postIds]), sql`${column} > 0`);
   if (where === undefined) return 0;
   try {
@@ -94,7 +94,7 @@ async function decrementStat(
       .update(posts)
       .set(
         stat === 'boosts'
-          ? { statsBoostsCount: sql`${posts.statsBoostsCount} - 1` }
+          ? { statsBoostsCount: sql`${posts.statsRepostsCount} - 1` }
           : { statsLikesCount: sql`${posts.statsLikesCount} - 1` },
       )
       .where(where)

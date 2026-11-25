@@ -145,7 +145,7 @@ type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 const PUSH_PREFERENCE_COLUMN = {
   like: userSettings.notifyLikes,
   reply: userSettings.notifyReplies,
-  boost: userSettings.notifyBoosts,
+  boost: userSettings.notifyReposts,
   mention: userSettings.notifyMentions,
   private_mention: userSettings.notifyMentions,
   quote: userSettings.notifyQuotes,

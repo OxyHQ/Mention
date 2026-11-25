@@ -43,7 +43,7 @@
  * THE CASCADE IS SMALLER THAN THE MANIFEST, AND THAT IS THE POINT
  *
  * A large part of this inventory is now performed by POSTGRES: thirteen child
- * tables of `posts` are `ON DELETE CASCADE`, `posts.boost_of` is a SELF-cascade,
+ * tables of `posts` are `ON DELETE CASCADE`, `posts.repost_of` is a SELF-cascade,
  * and `quote_of` / `parent_post_id` / `thread_id` / `lane_id` are
  * `ON DELETE SET NULL`. Those entries carry the {@link CascadeAction}
  * `'database'` and there is no leg for them, deliberately: a leg would
@@ -110,7 +110,7 @@ export type CascadeScope =
   /**
    * Every post being destroyed: the channel's own posts PLUS other people's
    * boosts of them, which are captured into the set BEFORE any row is deleted —
-   * `posts.boost_of` is `ON DELETE CASCADE`, so the boosts and the only link
+   * `posts.repost_of` is `ON DELETE CASCADE`, so the boosts and the only link
    * that could find them vanish inside the `DELETE` itself.
    */
   | 'channel-posts'
@@ -153,7 +153,7 @@ export interface CascadeStep {
  * as two different `ON DELETE` actions, and this manifest records which
  * constraint does what:
  *
- *  - A BOOST is deleted — `posts.boost_of` is `ON DELETE CASCADE`. Its body is
+ *  - A BOOST is deleted — `posts.repost_of` is `ON DELETE CASCADE`. Its body is
  *    deliberately empty and it renders entirely from the original, so once that
  *    is gone it is not degraded content, it is a placeholder card with nothing
  *    behind it. Deleting it removes an amplification, never an authored thought.
@@ -453,7 +453,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-posts',
     action: 'database',
     why:
-      'The new name of `posts.boost_of` during the boost -> repost rename (expand phase). ' +
+      'The new name of `posts.repost_of` during the boost -> repost rename (expand phase). ' +
       '`posts_sync_repost_columns` keeps the two equal, and both are the same self `ON DELETE CASCADE`, ' +
       'so what the `boostOf` entry below says holds for this column unchanged.',
   },
@@ -464,7 +464,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     action: 'database',
     why:
       'A boost has an intentionally empty body and renders entirely from its original, so a surviving ' +
-      'one is a permanent "unavailable" placeholder — see the header note. `posts.boost_of` is a SELF ' +
+      'one is a permanent "unavailable" placeholder — see the header note. `posts.repost_of` is a SELF ' +
       '`ON DELETE CASCADE`, so a boost of a boost goes too, transitively, in one statement. THE CATCH: ' +
       'those rows and their links are gone before any later step could run, so the boosts are CAPTURED ' +
       'into `channel-posts` first, while the links are still live.',

@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *    unconditional escape letting an author answer their own post under
  *    `['nobody']`. Both of those are asserted here, not assumed.
  *  - `POST /posts` performs NO parent lookup of its own — it validates
- *    `quoted_post_id` and `boost_of` and nothing else — so its gate had to be
+ *    `quoted_post_id` and `repost_of` and nothing else — so its gate had to be
  *    added from scratch, and the assertion is that it exists at all.
  *
  * Every refusal is paired with a control: an ordinary parent, and a parent

@@ -101,9 +101,9 @@ export const customFeeds = pgTable(
     // ── Legacy filter fields. See the module docblock: still read. ──
     keywords: text().array(),
     includeReplies: boolean().notNull().default(true),
-    includeBoosts: boolean().notNull().default(true),
-    // Expand-phase twin of `includeBoosts` (docs/repost-rename.md); a trigger keeps the two equal.
     includeReposts: boolean().notNull().default(true),
+    /** @deprecated Old name of `includeReposts`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
+    includeBoosts: boolean().notNull().default(true),
     includeMedia: boolean().notNull().default(true),
     language: text(),
 

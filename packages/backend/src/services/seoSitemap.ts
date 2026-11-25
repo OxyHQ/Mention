@@ -479,7 +479,7 @@ async function buildPostSitemaps(
     .leftJoin(userSettings, eq(userSettings.oxyUserId, posts.oxyUserId))
     // A boost's page repeats its original and is `noindex`; the original is
     // the URL to list.
-    .where(and(publicSeoPost(), isNull(posts.boostOf)))
+    .where(and(publicSeoPost(), isNull(posts.repostOf)))
     .orderBy(asc(bucket), asc(posts.id))
     .toSQL();
 

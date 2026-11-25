@@ -16,7 +16,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *     inbox;
  *   - `federateUndoBoost` emitting the matching `Undo(Announce)`;
  *   - the REGRESSION GUARD: a bare boost routed through `federateNewPost` (the
- *     `POST /posts` `boost_of` path) produces an `Announce`, NEVER an empty
+ *     `POST /posts` `repost_of` path) produces an `Announce`, NEVER an empty
  *     `Create(Note)` — while a normal post still federates as a `Create(Note)`.
  *
  * The delivery/queue layer, the models, and the Oxy client are mocked so the
@@ -298,7 +298,7 @@ describe('federateUndoBoost — Undo(Announce)', () => {
   });
 });
 
-describe('federateNewPost — boost regression guard (POST /posts boost_of)', () => {
+describe('federateNewPost — boost regression guard (POST /posts repost_of)', () => {
   it('federates a bare boost as an Announce, NEVER an empty Create(Note)', async () => {
     const buildNoteSpy = vi.spyOn(followService, 'buildCreateNoteActivity');
     const original = await seedFederatedOriginal();

@@ -70,7 +70,7 @@ describe('backfillFederatedBoostCounts', () => {
 
   async function readRow(id: string): Promise<{ count: number; updatedAt: Date }> {
     const [row] = await getDb()
-      .select({ count: posts.statsFederatedBoostsCount, updatedAt: posts.updatedAt })
+      .select({ count: posts.statsFederatedRepostsCount, updatedAt: posts.updatedAt })
       .from(posts)
       .where(eq(posts.id, id));
     return row;
@@ -95,7 +95,7 @@ describe('backfillFederatedBoostCounts', () => {
     const original = await seed();
     await seedRepost(original, `https://remote.example/a/${randomUUID()}`);
     await seedRepost(original, `https://remote.example/a/${randomUUID()}`);
-    // A native repost: `boost_of` + `type = 'boost'` but no federation activity
+    // A native repost: `repost_of` + `type = 'boost'` but no federation activity
     // id. It must NOT be counted — that distinction is the whole script.
     await seedRepost(original);
 

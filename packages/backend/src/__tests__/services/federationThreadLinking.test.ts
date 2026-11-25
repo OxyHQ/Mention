@@ -151,7 +151,7 @@ async function rowByActivityId(activityId: string) {
  *
  * Both passes go through {@link withDeadlockRetry}, and that is not belt-and-
  * braces. `posts` self-references itself four times — `parent_post_id`,
- * `thread_id` and `quote_of` are `ON DELETE SET NULL`, `boost_of` cascades — so
+ * `thread_id` and `quote_of` are `ON DELETE SET NULL`, `repost_of` cascades — so
  * a bulk delete takes locks well beyond the rows it names, and ten suites write
  * and delete `posts` concurrently against one database. Measured here: a plain
  * delete lost a `40P01` on roughly one full run in three, and it surfaced as

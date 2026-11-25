@@ -245,7 +245,7 @@ describe('channel deletion cascade covers the real Postgres schema', () => {
     expect(
       repostStep?.action,
       'A boost has an intentionally empty body and renders entirely from its original, so a surviving one ' +
-        'is a placeholder card with nothing behind it. `posts.boost_of` is a SELF ON DELETE CASCADE.',
+        'is a placeholder card with nothing behind it. `posts.repost_of` is a SELF ON DELETE CASCADE.',
     ).toBe('database');
     expect(repostStep?.why).toMatch(/CASCADE/);
   });

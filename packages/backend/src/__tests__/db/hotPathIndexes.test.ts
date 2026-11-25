@@ -228,6 +228,17 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       "USING btree (created_at) WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (boost_of IS NULL))",
   },
   {
+    name: 'posts_public_originals_recent_v2_idx',
+    table: 'posts',
+    serves:
+      'the same window scan as `posts_public_originals_recent_idx`, over `repost_of`. Built beside it ' +
+      'for the boost -> repost rename; the old one is dropped and this one renamed at the contract ' +
+      'step (docs/repost-rename.md)',
+    definition:
+      'CREATE INDEX posts_public_originals_recent_v2_idx ON public.posts ' +
+      "USING btree (created_at) WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (repost_of IS NULL))",
+  },
+  {
     name: 'posts_thread_idx',
     table: 'posts',
     serves:
@@ -251,6 +262,16 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'CREATE INDEX posts_boost_of_idx ON public.posts USING btree (boost_of, created_at DESC NULLS LAST)',
   },
   {
+    name: 'posts_repost_of_idx',
+    table: 'posts',
+    serves:
+      '"who reposted this post" over `repost_of`, the new name of `boost_of`; same reasons as ' +
+      '`posts_boost_of_idx` (KEPT FULL: `notARepostSql()` runs on hot feed paths). The old index is ' +
+      'dropped at the contract step',
+    definition:
+      'CREATE INDEX posts_repost_of_idx ON public.posts USING btree (repost_of, created_at DESC NULLS LAST)',
+  },
+  {
     name: 'posts_one_boost_per_account_key',
     table: 'posts',
     serves:
@@ -260,6 +281,17 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     definition:
       'CREATE UNIQUE INDEX posts_one_boost_per_account_key ON public.posts USING btree (oxy_user_id, boost_of) ' +
       "WHERE ((type = 'boost'::text) AND (boost_of IS NOT NULL) AND (federation_activity_id IS NULL))",
+  },
+  {
+    name: 'posts_one_repost_per_account_key',
+    table: 'posts',
+    serves:
+      'one NATIVE repost per account per post over `repost_of` — the new name of ' +
+      '`posts_one_boost_per_account_key`, which stays beside it until the contract step. ' +
+      '`federation_activity_id is null` stays load-bearing for the same reason',
+    definition:
+      'CREATE UNIQUE INDEX posts_one_repost_per_account_key ON public.posts USING btree (oxy_user_id, repost_of) ' +
+      "WHERE ((type = 'boost'::text) AND (repost_of IS NOT NULL) AND (federation_activity_id IS NULL))",
   },
   {
     name: 'posts_quote_of_idx',
@@ -410,6 +442,23 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       '(((((((stats_likes_count)::double precision * (1)::double precision) + ' +
       '((GREATEST(0, (stats_boosts_count - stats_federated_boosts_count)))::double precision * ' +
       '(2.5)::double precision)) + ((stats_federated_boosts_count)::double precision * ' +
+      '(0.5)::double precision)) + ((stats_comments_count)::double precision * (2)::double precision))) ' +
+      'DESC, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
+      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
+  },
+  {
+    name: 'posts_engagement_rank_v2_idx',
+    table: 'posts',
+    serves:
+      'the discovery scans of `posts_engagement_rank_idx`, with the composite written over the repost ' +
+      'counters (`stats_reposts_count`, `stats_federated_reposts_count`). `engagementRankIndex.test.ts` ' +
+      'checks the expression still matches the query. The old index is dropped and this one renamed at ' +
+      'the contract step',
+    definition:
+      'CREATE INDEX posts_engagement_rank_v2_idx ON public.posts USING btree ' +
+      '(((((((stats_likes_count)::double precision * (1)::double precision) + ' +
+      '((GREATEST(0, (stats_reposts_count - stats_federated_reposts_count)))::double precision * ' +
+      '(2.5)::double precision)) + ((stats_federated_reposts_count)::double precision * ' +
       '(0.5)::double precision)) + ((stats_comments_count)::double precision * (2)::double precision))) ' +
       'DESC, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
       "WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",

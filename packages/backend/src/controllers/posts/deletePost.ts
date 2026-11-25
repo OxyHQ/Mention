@@ -71,7 +71,7 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
      * ONE TRANSACTION OWNS THE WHOLE SUBTREE, and the ORDER inside it is the
      * fix for a defect that shipped, not a stylistic preference.
      *
-     * `posts.parent_post_id` is `ON DELETE SET NULL` and `posts.boost_of` is
+     * `posts.parent_post_id` is `ON DELETE SET NULL` and `posts.repost_of` is
      * `ON DELETE CASCADE`, so the instant the post row goes:
      *
      *   - its direct replies stop being findable and are silently PROMOTED to

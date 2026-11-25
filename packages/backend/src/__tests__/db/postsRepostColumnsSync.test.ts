@@ -33,13 +33,13 @@ async function newPost(): Promise<string> {
 async function read(id: string) {
   const [row] = await db
     .select({
-      boostOf: posts.boostOf,
+      boostOf: posts.repostOf,
       repostOf: posts.repostOf,
-      boosts: posts.statsBoostsCount,
+      boosts: posts.statsRepostsCount,
       reposts: posts.statsRepostsCount,
-      federatedBoosts: posts.statsFederatedBoostsCount,
+      federatedBoosts: posts.statsFederatedRepostsCount,
       federatedReposts: posts.statsFederatedRepostsCount,
-      isBoosted: posts.metadataIsBoosted,
+      isBoosted: posts.metadataIsReposted,
       isReposted: posts.metadataIsReposted,
       likes: posts.statsLikesCount,
     })

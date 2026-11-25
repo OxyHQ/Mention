@@ -401,7 +401,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         !isNaN(effectiveMinReposts) &&
         effectiveMinReposts >= 0
       ) {
-        conditions.push(gte(posts.statsBoostsCount, effectiveMinReposts));
+        conditions.push(gte(posts.statsRepostsCount, effectiveMinReposts));
       }
 
       // Media filters - operators take precedence

@@ -114,7 +114,7 @@ const REPLY_COMMENT_WEIGHT = 1.5;
 
 const REPLY_ENGAGEMENT_SCORE = sql<number>`(
   ${postsTable.statsLikesCount}
-  + ${postsTable.statsBoostsCount} * ${rankingWeight(REPLY_BOOST_WEIGHT)}
+  + ${postsTable.statsRepostsCount} * ${rankingWeight(REPLY_BOOST_WEIGHT)}
   + ${postsTable.statsCommentsCount} * ${rankingWeight(REPLY_COMMENT_WEIGHT)}
 )`;
 
@@ -697,11 +697,11 @@ class FeedController {
        * The cheap answer for the overwhelmingly common case. It is NOT the
        * authority and must not be read as one: there is nothing between this
        * read and the insert below, so two concurrent boosts both see "no". The
-       * authority is `posts_one_boost_per_account_key`, whose violation is
+       * authority is `posts_one_repost_per_account_key`, whose violation is
        * caught at the insert and answered identically.
        */
       const [existingRepost] = await findPostRecords(
-        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, originalPostId)),
+        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.repostOf, originalPostId)),
         { orderBy: CHRONO_DESC, limit: 1 },
       );
 
@@ -754,7 +754,12 @@ class FeedController {
          * it is the truthful one: by the time this request finished, that account
          * had boosted that post.
          */
-        if (isUniqueViolation(error, 'posts_one_boost_per_account_key')) {
+        // Until the contract step both unique indexes exist (the old one on repost_of, the new one on
+        // repost_of) and either can be the one that fires, so both names answer the same.
+        if (
+          isUniqueViolation(error, 'posts_one_repost_per_account_key') ||
+          isUniqueViolation(error, 'posts_one_boost_per_account_key')
+        ) {
           return res.status(400).json({ error: ALREADY_REPOSTED_ERROR });
         }
         throw error;
@@ -861,7 +866,7 @@ class FeedController {
       // that reason. The delete is still conditioned on the owner, so a concurrent
       // unboost loses the race and 404s rather than deleting twice.
       const [existing] = await findPostRecords(
-        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, postId)),
+        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.repostOf, postId)),
         { orderBy: CHRONO_DESC, limit: 1 },
       );
       const repost = existing

@@ -10,7 +10,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  * other, so the user unboosts and the boost is still there, and
  * `stats.boosts_count` drifts by however many duplicates were made.
  *
- * `posts_one_boost_per_account_key` is the authority; the read is an
+ * `posts_one_repost_per_account_key` is the authority; the read is an
  * optimisation. So the tests below fire the requests CONCURRENTLY rather than in
  * sequence: a sequential pair is answered by the read and proves nothing about
  * the constraint, which is exactly how this survived being "checked" for as long
@@ -122,7 +122,7 @@ async function repostRows(original: string) {
   return db
     .select({ id: posts.id, oxyUserId: posts.oxyUserId })
     .from(posts)
-    .where(and(eq(posts.boostOf, original), eq(posts.type, 'boost')));
+    .where(and(eq(posts.repostOf, original), eq(posts.type, 'boost')));
 }
 
 beforeAll(async () => {
@@ -141,7 +141,7 @@ afterEach(async () => {
   const reposts = await db
     .select({ id: posts.id })
     .from(posts)
-    .where(inArray(posts.boostOf, originals));
+    .where(inArray(posts.repostOf, originals));
   const ids = [...reposts.map((row) => row.id), ...originals];
   await db.delete(postAuthorships).where(inArray(postAuthorships.postId, ids));
   await db.delete(posts).where(inArray(posts.id, ids));
@@ -249,18 +249,18 @@ describe('the constraint itself', () => {
      * made against the schema object while production kept making duplicates.
      *
      * The predicate is asserted too. Without it the index would still work — by
-     * accident, because `boost_of` is NULL on every non-boost and Postgres
+     * accident, because `repost_of` is NULL on every non-boost and Postgres
      * treats NULLs as distinct — and a later reader could not tell the rule from
      * the coincidence.
      */
     const rows = await db.execute<{ indexdef: string }>(sql`
       select indexdef from pg_indexes
-      where indexname = 'posts_one_boost_per_account_key'
+      where indexname = 'posts_one_repost_per_account_key'
     `);
     const [row] = [...rows];
 
     expect(row?.indexdef).toMatch(/CREATE UNIQUE INDEX/);
-    expect(row?.indexdef).toMatch(/\(oxy_user_id, boost_of\)/);
+    expect(row?.indexdef).toMatch(/\(oxy_user_id, repost_of\)/);
     expect(row?.indexdef).toMatch(/WHERE .*type = 'boost'/);
     // The half that keeps federation working: a remote re-Announce carries a new
     // activity id and MUST be allowed a second row. Without this clause the

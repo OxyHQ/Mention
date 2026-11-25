@@ -904,6 +904,27 @@
       "when": 1795558486702,
       "tag": "0128_user_settings_notify_reposts",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1795573374870,
+      "tag": "0129_posts_repost_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1795573375870,
+      "tag": "0130_blocklist_repost_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1795573376870,
+      "tag": "0131_validate_repost_constraints",
+      "breakpoints": true
     }
   ]
 }

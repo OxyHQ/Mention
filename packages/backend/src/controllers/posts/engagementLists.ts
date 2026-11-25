@@ -252,7 +252,7 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
     if (!excluded) return res.status(404).json({ message: 'Post not found' });
     const keyset = await chronoCursorSql(cursor);
     const conditions: SQL[] = [
-      eq(postsTable.boostOf, String(id)),
+      eq(postsTable.repostOf, String(id)),
       eq(postsTable.visibility, 'public'),
       eq(postsTable.status, 'published'),
     ];

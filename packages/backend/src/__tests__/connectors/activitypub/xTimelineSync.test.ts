@@ -154,7 +154,7 @@ describe('X timeline sync', () => {
     const reposts = await getDb()
       .select({ id: posts.id })
       .from(posts)
-      .where(and(eq(posts.boostOf, original.id), eq(posts.oxyUserId, REPOSTER)));
+      .where(and(eq(posts.repostOf, original.id), eq(posts.oxyUserId, REPOSTER)));
     expect(reposts).toHaveLength(1);
   });
 });

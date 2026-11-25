@@ -384,7 +384,7 @@ function buildAuthoredConditions(
       break;
     case 'reposts':
     case 'boosts':
-      conditions.push(sql`${posts.boostOf} is not null`);
+      conditions.push(sql`${posts.repostOf} is not null`);
       break;
     case 'media':
       conditions.push(hasMediaSql(), eq(posts.isReply, false), notARepostSql());

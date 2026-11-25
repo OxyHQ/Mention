@@ -244,7 +244,7 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     openAudienceAuthorSql(),
     // Boosts are an intentionally-empty mirror shape; the original is what
     // carries the terms, and counting both would double one post.
-    sql`${posts.boostOf} is null`,
+    sql`${posts.repostOf} is null`,
     sensitiveExcludeSql(),
     // The SAME threshold the discovery gate uses — one authority for "this is
     // junk in discovery", rather than a second number here that could drift.

@@ -35,7 +35,7 @@
  * ## THE CASCADE IS SMALLER THAN THE MANIFEST, AND THAT IS THE POINT
  *
  * Eighteen manifest entries are performed by POSTGRES: thirteen child tables of
- * `posts` are `ON DELETE CASCADE`, `posts.boost_of` is a SELF-cascade, and
+ * `posts` are `ON DELETE CASCADE`, `posts.repost_of` is a SELF-cascade, and
  * `quote_of` / `parent_post_id` / `thread_id` / `lane_id` are
  * `ON DELETE SET NULL`. **There is no leg here for any of them, deliberately.** A
  * leg would re-implement work the `DELETE` statement has already done, and it
@@ -51,12 +51,12 @@
  * service's primary key in a plain `text()` column with no constraint. Postgres
  * cascades none of it, so every channel-account-scoped step is a real leg.
  *
- * ## `posts.boost_of` CASCADES, SO THE CAPTURE COMES FIRST
+ * ## `posts.repost_of` CASCADES, SO THE CAPTURE COMES FIRST
  *
  * Deleting a channel post deletes every boost of it, transitively, inside the
  * same statement — which is main's whole `collectBoostClosure` / `MAX_BOOST_CLOSURE`
  * / "boost rows last" machinery performed by one constraint. But it means the
- * boost rows and their `boost_of` links are gone before any later step could run,
+ * boost rows and their `repost_of` links are gone before any later step could run,
  * and those boosts carry POLYMORPHIC references of their own (a notification, a
  * content label, a postgate, a feed interaction) with nothing left to find them
  * by. So each batch captures its boost closure BEFORE the delete, while the links
@@ -407,7 +407,7 @@ export async function deleteChannelContent(
  *
  * Returns the ids of SURVIVING posts that lost a boost to this run — a channel
  * post that boosted somebody else's post, collected per batch because that is the
- * only moment its `boost_of` is still readable.
+ * only moment its `repost_of` is still readable.
  */
 async function destroyChannelPosts(
   channelOxyUserId: string,
@@ -456,7 +456,7 @@ async function destroyChannelPosts(
         keptByPolicy: KEPT_BY_POLICY,
         // The graph probe would otherwise refuse the run for the quotes and
         // replies `ON DELETE SET NULL` clears — a strictly stronger disposition
-        // than the dangling pointer the allowance describes. `boost_of` stays
+        // than the dangling pointer the allowance describes. `repost_of` stays
         // covered, and the closure captured above is what keeps it satisfied.
         allowDanglingReplyReferences: true,
       },

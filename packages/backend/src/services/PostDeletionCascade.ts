@@ -32,12 +32,12 @@ import { eventAttendance } from '../db/schema/events';
  * They are exported as {@link POST_REFERENCES_REMOVED_BY_DATABASE} so an
  * administrative caller can acknowledge them under a name that says who did it.
  *
- * ## `posts.boost_of` is a SELF-cascade, which is why the CAPTURE comes first
+ * ## `posts.repost_of` is a SELF-cascade, which is why the CAPTURE comes first
  *
  * Deleting a post deletes every boost of it, transitively, because a boost of a
  * boost cascades from the boost. That is main's whole `collectBoostClosure` /
  * `MAX_BOOST_CLOSURE` / "boost rows last" machinery performed by one statement,
- * so none of it is ported. But it means **the boost rows and their `boost_of`
+ * so none of it is ported. But it means **the boost rows and their `repost_of`
  * links are gone before any leg here could run**, and those boosts carry
  * polymorphic references of their own with nothing left to find them by. The
  * caller therefore captures the closure BEFORE the delete; see
@@ -222,7 +222,7 @@ export const POST_REFERENCES_KEPT_BY_POLICY: readonly PostReferenceProbeName[] =
 /**
  * The fields the cascade reads off a post — every key it can be named BY.
  *
- * `boost_of`, a poll id and an article id are deliberately absent: each is
+ * `repost_of`, a poll id and an article id are deliberately absent: each is
  * `ON DELETE CASCADE` on `posts.id`, so the row goes with the post, and a field carried for a leg that does
  * not exist is a field somebody will later write a leg for.
  */
@@ -295,7 +295,7 @@ export function allDeletionTargets(targets: PostDeletionTargets): CascadedPostRo
  *   deleted its replies stop being findable and are silently PROMOTED to root
  *   posts. That is not hypothetical — it is what the live route did before this
  *   function existed.
- * - `posts.boost_of` is `ON DELETE CASCADE`, so the boosts are deleted with the
+ * - `posts.repost_of` is `ON DELETE CASCADE`, so the boosts are deleted with the
  *   post and their polymorphic references become unreachable.
  *
  * Same transaction, because a capture on one snapshot and a delete on another
@@ -314,7 +314,7 @@ export async function collectDeletionTargets(
     .where(eq(posts.parentPostId, postId))
     .limit(MAX_DELETION_TARGETS + 1);
 
-  // Transitive, because `boost_of` can name a boost. One level would leave a
+  // Transitive, because `repost_of` can name a boost. One level would leave a
   // boost of a boost pointing at a row the FK removed — the same blank card the
   // expansion exists to prevent.
   const seeds = [post.id, ...replies.map((reply) => reply.id)];
@@ -327,7 +327,7 @@ export async function collectDeletionTargets(
     const next = await tx
       .select(CASCADE_ROW_COLUMNS)
       .from(posts)
-      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.boostOf, frontier)))
+      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.repostOf, frontier)))
       .limit(MAX_DELETION_TARGETS + 1);
 
     frontier = [];
@@ -470,7 +470,7 @@ export interface DeletedPostSubtree {
  *
  * The ORDER inside the transaction is the fix and is not a preference:
  *
- *   1. CAPTURE the closure first. `posts.boost_of` is `ON DELETE CASCADE`, so
+ *   1. CAPTURE the closure first. `posts.repost_of` is `ON DELETE CASCADE`, so
  *      the instant the post row goes, every boost of it is removed by the
  *      database along with the only link that could have found the boosts' own
  *      polymorphic references.
@@ -632,8 +632,8 @@ export function recordDeletionSideEffectFailure(step: string, error: unknown): v
  * Only ONE counter can need repairing here, and the reason the boost counter
  * does not is structural rather than an omission. Every boost this deletion
  * removes boosted something inside the removed set BY CONSTRUCTION — the
- * closure is seeded from that set and expanded along `boost_of` — so its
- * target's `stats_boosts_count` is a counter on a row that is already gone.
+ * closure is seeded from that set and expanded along `repost_of` — so its
+ * target's `stats_reposts_count` is a counter on a row that is already gone.
  * What remains is the reply's contribution to its parent's
  * `stats_comments_count`, when that parent is not itself being deleted.
  *

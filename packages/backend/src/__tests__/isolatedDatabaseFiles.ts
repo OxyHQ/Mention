@@ -235,7 +235,7 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
      *     content variant, with no owner term in the `where` at all.
      *   - `classifyBatch` (`:213`) selects on the same unscoped `UNCLASSIFIED`
      *     predicate plus `hasVariantSql()` / `status='published'` /
-     *     `boost_of is null`, takes the `BATCH_SIZE` OLDEST rows across the whole
+     *     `repost_of is null`, takes the `BATCH_SIZE` OLDEST rows across the whole
      *     database, and writes classification results onto whatever it picked up.
      *
      * `markEmptyPosts` is `private`, so a gate keyed on ITS name would find zero

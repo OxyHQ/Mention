@@ -220,7 +220,7 @@ export async function findImportedCopyPairs(
       )})
         and f.oxy_user_id = ${params.oxyUserId}
         and f.status = 'published'
-        and f.boost_of is null
+        and f.repost_of is null
         and k.key is not null
     ), import_keys as (
       select pi.post_id, k.key
