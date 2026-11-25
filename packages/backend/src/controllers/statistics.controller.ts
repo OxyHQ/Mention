@@ -1,9 +1,9 @@
 import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getBaseLanguage, getPrimaryLanguage } from '@oxy.so/core';
-import { and, asc, desc, eq, gte, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { PostType, PostVisibility } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types';
 import { qualified } from '@oxy.so/db';
 import { getDb, type Transaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -22,6 +22,7 @@ import { postManagementRefusal } from '../services/postManagementAccess';
 import { canRequestReadPost } from '../services/postReadAccess';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 import { LocalTtlCache } from '../utils/localTtlCache';
+import { typeIsNotRepost } from '../utils/repostType';
 
 /**
  * Language the AI weekly summary is written in when the viewer's Oxy account
@@ -501,7 +502,7 @@ export const getUserActivity = async (req: AuthRequest, res: Response) => {
             eq(posts.oxyUserId, userId),
             eq(posts.visibility, PostVisibility.PUBLIC),
             eq(posts.status, 'published'),
-            ne(posts.type, PostType.REPOST),
+            typeIsNotRepost(posts.type),
             gte(posts.createdAt, startDate),
           ),
         )

@@ -56,6 +56,7 @@ export const FEED_INTERACTION_EVENTS = [
   'like',
   'reply',
   'boost',
+  'repost', // the new name of 'boost' (docs/repost-rename.md)
   'save',
   'report',
 ] as const;

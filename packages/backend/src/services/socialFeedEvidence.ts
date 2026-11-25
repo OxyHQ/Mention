@@ -5,6 +5,7 @@ import { getDb } from '../db/postgres';
 import { likes, posts, userSettings } from '../db/schema';
 import type { FeedEngineContext } from '../mtn/feed/engine/types';
 import { resolveUserSummaries } from './PostHydrationService';
+import { typeIsRepost } from '../utils/repostType';
 
 export const MAX_SOCIAL_ACTORS = 500;
 export const MAX_SOCIAL_POSTS = 200;
@@ -49,7 +50,7 @@ export function networkEngagementExistsSql(actorIds: string[], since: Date, asOf
     union
     select social_boost.repost_of from posts social_boost
       where social_boost.oxy_user_id = any(${sql.param(actorIds)}::text[])
-      and social_boost.type = 'boost' and social_boost.status = 'published'
+      and social_boost.type in ('boost', 'repost') and social_boost.status = 'published'
       and social_boost.visibility = 'public' and social_boost.repost_of is not null
       and social_boost.created_at >= ${since.toISOString()} and social_boost.created_at <= ${asOf.toISOString()}
   )`;
@@ -133,7 +134,7 @@ async function attachCurrentSocialFeedContext(
           and(
             inArray(posts.repostOf, withoutLikes),
             inArray(posts.oxyUserId, actorIds),
-            eq(posts.type, 'boost'),
+            typeIsRepost(posts.type),
             eq(posts.status, 'published'),
             eq(posts.visibility, 'public'),
             gte(posts.createdAt, since),

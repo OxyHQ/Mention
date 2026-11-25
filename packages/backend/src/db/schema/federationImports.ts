@@ -13,6 +13,7 @@ export const FEDERATION_IMPORT_REASONS = [
   'inbox_community',
   'inbox_announce',
   'boost_dependency',
+  'repost_dependency', // the new name of 'boost_dependency' (docs/repost-rename.md)
   'quote_dependency',
   'reply_dependency',
   'unknown_outbox',

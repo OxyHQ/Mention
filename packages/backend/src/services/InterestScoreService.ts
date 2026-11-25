@@ -18,7 +18,7 @@
  * correct — Oxy is last-write-wins — just less efficient).
  */
 
-import { and, eq, gte, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { config } from '../config';
 import { withStatementTimeout } from '../utils/withStatementTimeout';
 import { posts } from '../db/schema/posts';
@@ -26,6 +26,7 @@ import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import { oxySignalsClient, type OxySignalsClient, type InterestSignal } from './OxySignalsClient';
 import { chunk } from '@oxy.so/utils/text';
+import { typeIsNotRepost } from '../utils/repostType';
 
 /** Engagement window: posts created within this many days count toward the score. */
 const WINDOW_DAYS = 30;
@@ -121,7 +122,7 @@ export class InterestScoreService {
             eq(posts.status, 'published'),
             eq(posts.visibility, 'public'),
             // Exclude boosts: a boost carries no original engagement of its own.
-            ne(posts.type, 'boost'),
+            typeIsNotRepost(posts.type),
             gte(posts.createdAt, since),
           ),
         )

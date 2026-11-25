@@ -26,6 +26,7 @@ const INTERACTION_EVENTS: Record<FeedInteractionEventName, true> = {
   like: true,
   reply: true,
   boost: true,
+  repost: true,
   save: true,
   report: true,
 };

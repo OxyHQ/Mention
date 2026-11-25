@@ -27,6 +27,19 @@ export enum PostType {
   QUOTE = 'quote',
 }
 
+/**
+ * Every stored or wire value that means "a repost" while `'boost'` is being renamed to
+ * `'repost'` (docs/repost-rename.md). Readers test against this list, never against one
+ * value, so rows and payloads written under either name keep being understood; the old
+ * value is removed from it in the last release of the rename.
+ */
+export const REPOST_TYPE_VALUES = ['boost', 'repost'] as const;
+
+/** Whether a post, notification, interaction or slice-reason `type` means a repost. */
+export function isRepostType(type: unknown): boolean {
+  return type === 'boost' || type === 'repost';
+}
+
 export enum PostVisibility {
   PUBLIC = 'public',
   FOLLOWERS_ONLY = 'followers_only',

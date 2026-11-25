@@ -5,7 +5,7 @@
  * filtering logic — every rule mirrors a pre-existing feed behavior.
  */
 
-import { PostType, MtnConfig } from '@mention/shared-types';
+import { PostType, MtnConfig, isRepostType } from '@mention/shared-types';
 import type { ForYouFeedTuning, PostContent } from '@mention/shared-types';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { hasFederatedContentWarning, isSensitivePost } from '../../feedSafety';
@@ -548,7 +548,7 @@ export const originalOnlyFilter: FilterModule = {
     return (
       (repostOf === undefined || repostOf === null) &&
       (quoteOf === undefined || quoteOf === null) &&
-      type !== PostType.REPOST &&
+      !isRepostType(type) &&
       type !== PostType.QUOTE
     );
   },

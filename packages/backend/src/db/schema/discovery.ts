@@ -110,6 +110,7 @@ export const NOTIFICATION_TYPES = [
   'private_mention',
   'follow',
   'boost',
+  'repost', // the new name of 'boost' (docs/repost-rename.md)
   'quote',
   'welcome',
   'post',

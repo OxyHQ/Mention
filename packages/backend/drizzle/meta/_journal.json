@@ -946,6 +946,41 @@
       "when": 1795573379870,
       "tag": "0134_repost_contract_user_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1795573380870,
+      "tag": "0135_repost_value_small_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1795573381870,
+      "tag": "0136_posts_type_accepts_repost",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1795573382870,
+      "tag": "0137_posts_one_repost_v2_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795573383870,
+      "tag": "0138_notifications_type_accepts_repost",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795573384870,
+      "tag": "0139_validate_repost_value_checks",
+      "breakpoints": true
     }
   ]
 }

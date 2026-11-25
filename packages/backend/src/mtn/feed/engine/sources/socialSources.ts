@@ -15,7 +15,7 @@ import { viewerLanguageSql } from '../../feedLanguage';
  * engine can refuse to advance its cursor; older sources retain their fallbacks.
  */
 
-import { PostType, PostVisibility, MtnConfig } from '@mention/shared-types';
+import { PostVisibility, MtnConfig } from '@mention/shared-types';
 import {
   and,
   arrayOverlaps,
@@ -50,6 +50,7 @@ import {
 } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, SourceModule } from '../types';
 import { escapeRegExp } from '@oxy.so/utils/text';
+import { typeIsRepost } from '../../../../utils/repostType';
 
 /**
  * A "new voice" author must have at most this many recent posts to qualify as
@@ -229,7 +230,7 @@ export const repostsFromFollowsSource: SourceModule = {
 
     return fetchChrono(
       [
-        eq(posts.type, PostType.REPOST),
+        typeIsRepost(posts.type),
         inArray(posts.oxyUserId, followingIds),
         eq(posts.status, 'published'),
         notCollapsedCrosspostSql(),
