@@ -48,6 +48,7 @@ import {
   VStack as LVStack,
   toElement as LtoElement,
   Group,
+  defineTokens,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -64,6 +65,8 @@ const MODE_ICON: Record<LaneDisplayMode, BloomIcon> = {
 // A lane's name field stays React Native's TextInput (the language's TextField draws
 // Bloom's field shell); this draws its classes: `flex-1 text-[15px] text-foreground`.
 const laneNameInput: TextStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%', fontSize: 15 };
+/** The add-lane glyph is 26pt, off the icon scale. */
+const addLane = defineTokens({ iconSize: { glyph: 26 } });
 
 function ModeIcon({ mode, size, fill }: { mode: LaneDisplayMode; size: number; fill: string }) {
   const Glyph = MODE_ICON[mode];
@@ -342,28 +345,18 @@ export default screen(function LanesScreen() {
               editable={!createMutation.isPending && !atCap}
             />,
           ),
-          Embed(
-            createMutation.isPending
-              ? toElement(LLoading().style('inline').size('sm'))
-              : LtoElement(
-                  LVStack(
-                    LEmbed(
-                      <RiAddCircleLine
-                        width={26}
-                        height={26}
-                        fill={
-                          input.trim().length === 0 || atCap ? colors.textSecondary : colors.primary
-                        }
-                      />,
-                    ),
-                  )
-                    .role('button')
-                    .label(t('lanes.addLane', { defaultValue: 'New lane' }))
-                    .disabled(input.trim().length === 0 || atCap)
-                    .onPress(handleAdd)
-                    .pressFade('70'),
-                ),
-          ),
+          createMutation.isPending
+            ? LLoading().style('inline').size('sm')
+            : LVStack(
+                Icon(RiAddCircleLine)
+                  .size(addLane.iconSize.glyph)
+                  .foreground(input.trim().length === 0 || atCap ? 'muted' : 'primary'),
+              )
+                .role('button')
+                .label(t('lanes.addLane', { defaultValue: 'New lane' }))
+                .disabled(input.trim().length === 0 || atCap)
+                .onPress(handleAdd)
+                .pressFade('70'),
         )
           .padding('horizontal', 'lg')
           .padding('vertical', 'md')

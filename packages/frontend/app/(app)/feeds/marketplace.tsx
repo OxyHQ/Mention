@@ -10,7 +10,6 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -27,6 +26,7 @@ import type { CustomFeedListResponse } from '@mention/shared-types';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 import {
+  Button as LButton,
   Embed,
   HStack,
   Header,
@@ -504,23 +504,19 @@ const FeedMarketplaceScreen = Lscreen(function FeedMarketplaceScreen() {
         Header(t('marketplace.title', { defaultValue: 'Feed Marketplace' }))
           .backLabel(t('common.back', { defaultValue: 'Back' }))
           .toolbar(
-            Embed(
-              <Button
-                appearance="subtle"
-                tone="neutral"
-                iconOnly
-                leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
-                onPress={() => {
-                  setSearchVisible((v) => !v);
-                  if (searchVisible) handleSearchChange('');
-                }}
-                accessibilityLabel={
-                  searchVisible
-                    ? t('common.close', { defaultValue: 'Close' })
-                    : t('search.title', { defaultValue: 'Search' })
-                }
-              />,
-            ),
+            LButton(Icon(searchVisible ? RiCloseLine : RiSearchLine))
+              .style('subtle')
+              .tint('neutral')
+              .shape('circle')
+              .onPress(() => {
+                setSearchVisible((v) => !v);
+                if (searchVisible) handleSearchChange('');
+              })
+              .label(
+                searchVisible
+                  ? t('common.close', { defaultValue: 'Close' })
+                  : t('search.title', { defaultValue: 'Search' }),
+              ),
           )
           .inPage(),
       ),

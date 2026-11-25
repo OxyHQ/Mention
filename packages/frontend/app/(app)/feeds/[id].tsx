@@ -3,7 +3,6 @@ import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useState, useCallback, useMemo } from 'react';
 import { StyleSheet, Pressable, type ViewStyle } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@oxy.so/bloom/button';
 import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
@@ -191,18 +190,18 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
               onPress={onToggleSubscribe}
             />
 
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              icon={
-                isPinned
-                  ? LtoElement(LIcon(RiPushpinFill).size('md').foreground('primary'))
-                  : LtoElement(LIcon(RiPushpinLine).size('md').foreground('foreground'))
-              }
-              onPress={onTogglePin}
-              accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
-            />
+            {LtoElement(
+              LButton(
+                LIcon(isPinned ? RiPushpinFill : RiPushpinLine)
+                  .size('md')
+                  .foreground(isPinned ? 'primary' : 'foreground'),
+              )
+                .style('subtle')
+                .tint('neutral')
+                .shape('circle')
+                .onPress(onTogglePin)
+                .label(isPinned ? 'Unpin feed' : 'Pin feed'),
+            )}
           </>,
         ),
       )

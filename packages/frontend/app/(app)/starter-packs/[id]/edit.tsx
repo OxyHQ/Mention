@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Button } from '@oxy.so/bloom/button';
 import { Item } from '@oxy.so/bloom/item';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -23,6 +22,7 @@ import type { User } from '@oxy.so/core';
 
 import {
   Avatar as LAvatar,
+  Button as LButton,
   Card as LCard,
   Divider as LDivider,
   Embed,
@@ -36,6 +36,7 @@ import {
   SpinnerIcon,
   TextEditor,
   TextField,
+  Text as LText,
   toElement,
   VStack,
 } from '@oxy.so/bloom-language';
@@ -371,33 +372,23 @@ export default screen(function EditStarterPackScreen() {
                   accessibilityLabel={
                     already ? `${u.name.displayName} already added` : `Add ${u.name.displayName}`
                   }
-                  trailing={
-                    already ? (
-                      <Button
-                        appearance="subtle"
-                        tone="neutral"
-                        size="sm"
-                        disabled
-                        icon={toElement(Icon(RiCheckLine).size('xs').foreground('success'))}
-                        accessibilityLabel={`${u.name.displayName} added`}
-                      >
-                        Added
-                      </Button>
-                    ) : (
-                      <Button
-                        appearance="solid"
-                        tone="accent"
-                        size="sm"
-                        loading={busy}
-                        disabled={blockedByCap}
-                        icon={toElement(Icon(RiAddLine).size('xs').foreground('onPrimary'))}
-                        onPress={() => addMember(u)}
-                        accessibilityLabel={`Add ${u.name.displayName}`}
-                      >
-                        Add
-                      </Button>
-                    )
-                  }
+                  trailing={toElement(
+                    already
+                      ? LButton(Icon(RiCheckLine).size('xs').foreground('success'), LText('Added'))
+                          .style('subtle')
+                          .tint('neutral')
+                          .size('sm')
+                          .disabled(true)
+                          .label(`${u.name.displayName} added`)
+                      : LButton(Icon(RiAddLine).size('xs').foreground('onPrimary'), LText('Add'))
+                          .style('solid')
+                          .tint('accent')
+                          .size('sm')
+                          .loading(busy)
+                          .disabled(blockedByCap)
+                          .onPress(() => addMember(u))
+                          .label(`Add ${u.name.displayName}`),
+                  )}
                 />
               </React.Fragment>
             );
@@ -455,18 +446,14 @@ export default screen(function EditStarterPackScreen() {
                       )
                       .subtitle(`@${m.username}`)
                       .trailing(
-                        Embed(
-                          <Button
-                            appearance="plain"
-                            tone="neutral"
-                            size="sm"
-                            loading={busy}
-                            onPress={() => removeMember(m)}
-                            iconOnly
-                            icon={toElement(Icon(RiDeleteBinLine).size('sm').foreground('error'))}
-                            accessibilityLabel={`Remove ${m.name.displayName}`}
-                          />,
-                        ),
+                        LButton(Icon(RiDeleteBinLine).size('sm').foreground('error'))
+                          .style('plain')
+                          .tint('neutral')
+                          .size('sm')
+                          .loading(busy)
+                          .onPress(() => removeMember(m))
+                          .shape('circle')
+                          .label(`Remove ${m.name.displayName}`),
                       ),
                   )}
                 </React.Fragment>

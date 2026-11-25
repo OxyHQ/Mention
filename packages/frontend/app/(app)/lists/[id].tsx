@@ -14,7 +14,6 @@ import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
-import { Button } from '@oxy.so/bloom/button';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
@@ -334,31 +333,27 @@ const ListDetailScreen = screen(function ListDetailScreen() {
     [renderSubheader, TABS, listId],
   );
 
-  const headerActions = (
-    <>
-      <Button
-        appearance="subtle"
-        tone="neutral"
-        iconOnly
-        leadingIcon={Platform.OS === 'web' ? RiLinkM : RiShare2Line}
-        onPress={handleShare}
-        accessibilityLabel={
+  const headerActions = toElement(
+    Group(
+      LButton(Icon(Platform.OS === 'web' ? RiLinkM : RiShare2Line))
+        .shape('circle')
+        .style('subtle')
+        .tint('neutral')
+        .onPress(handleShare)
+        .label(
           Platform.OS === 'web'
             ? t('postActions.copyLink', { defaultValue: 'Copy link' })
-            : t('videos.share', { defaultValue: 'Share' })
-        }
-      />
-      {isOwnList
-        ? toElement(
-            LButton(Icon(RiEditBoxLine))
-              .shape('circle')
-              .style('subtle')
-              .tint('neutral')
-              .onPress(() => router.push(`/lists/${listId}/edit`))
-              .label(t('common.edit', { defaultValue: 'Edit' })),
-          )
-        : null}
-    </>
+            : t('videos.share', { defaultValue: 'Share' }),
+        ),
+      isOwnList
+        ? LButton(Icon(RiEditBoxLine))
+            .shape('circle')
+            .style('subtle')
+            .tint('neutral')
+            .onPress(() => router.push(`/lists/${listId}/edit`))
+            .label(t('common.edit', { defaultValue: 'Edit' }))
+        : null,
+    ),
   );
 
   // Loading state
