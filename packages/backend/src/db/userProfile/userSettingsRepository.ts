@@ -100,7 +100,7 @@ export const SETTINGS_COLUMN_BY_PATH: Readonly<Record<string, WritableColumn>> =
 
   'notificationPreferences.pushEnabled': 'notifyPushEnabled',
   'notificationPreferences.likes': 'notifyLikes',
-  'notificationPreferences.boosts': 'notifyBoosts',
+  'notificationPreferences.boosts': 'notifyReposts',
   'notificationPreferences.follows': 'notifyFollows',
   'notificationPreferences.mentions': 'notifyMentions',
   'notificationPreferences.replies': 'notifyReplies',
@@ -154,7 +154,7 @@ const UNSET_VALUE: Readonly<Partial<Record<WritableColumn, unknown>>> = Object.f
   feedFollowingSort: 'chronological',
   notifyPushEnabled: true,
   notifyLikes: true,
-  notifyBoosts: true,
+  notifyReposts: true,
   notifyFollows: true,
   notifyMentions: true,
   notifyReplies: true,
@@ -429,7 +429,7 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
     notificationPreferences: {
       pushEnabled: row.notifyPushEnabled,
       likes: row.notifyLikes,
-      boosts: row.notifyBoosts,
+      boosts: row.notifyReposts,
       follows: row.notifyFollows,
       mentions: row.notifyMentions,
       replies: row.notifyReplies,

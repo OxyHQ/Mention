@@ -171,7 +171,7 @@ async function recomputeFederatedEngagement(): Promise<void> {
               .update(posts)
               .set({
                 statsLikesCount: real.likesCount,
-                statsBoostsCount: real.boostsCount,
+                statsRepostsCount: real.boostsCount,
                 statsCommentsCount: real.commentsCount,
               })
               .where(eq(posts.id, post.id))

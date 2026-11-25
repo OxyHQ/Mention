@@ -94,7 +94,7 @@ async function decrementStat(
       .update(posts)
       .set(
         stat === 'boosts'
-          ? { statsBoostsCount: sql`${posts.statsRepostsCount} - 1` }
+          ? { statsRepostsCount: sql`${posts.statsRepostsCount} - 1` }
           : { statsLikesCount: sql`${posts.statsLikesCount} - 1` },
       )
       .where(where)

@@ -830,14 +830,14 @@ async function repairRepostCounters(
 
     const updated = await db
       .update(posts)
-      .set({ statsBoostsCount: sql`${posts.statsRepostsCount} - 1` })
+      .set({ statsRepostsCount: sql`${posts.statsRepostsCount} - 1` })
       .where(and(eq(posts.id, target.boostOf), gt(posts.statsRepostsCount, 0)))
       .returning({ id: posts.id });
     record(report, domain, 'boostCountersRepaired', updated.length);
     if (target.federated) {
       await db
         .update(posts)
-        .set({ statsFederatedBoostsCount: sql`${posts.statsFederatedRepostsCount} - 1` })
+        .set({ statsFederatedRepostsCount: sql`${posts.statsFederatedRepostsCount} - 1` })
         .where(and(eq(posts.id, target.boostOf), gt(posts.statsFederatedRepostsCount, 0)));
     }
   }

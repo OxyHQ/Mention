@@ -170,7 +170,7 @@ function serializeFeed(row: FeedRow, relations: FeedRelations) {
     keywords: row.keywords ?? [],
     topicIds: relations.topicIds,
     includeReplies: row.includeReplies,
-    includeBoosts: row.includeBoosts,
+    includeBoosts: row.includeReposts,
     includeMedia: row.includeMedia,
     ...(row.language === null ? {} : { language: row.language }),
     ...(row.category === null ? {} : { category: row.category }),
@@ -931,7 +931,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
       keywords: loaded.row.keywords ?? [],
       ...(loaded.row.language === null ? {} : { language: loaded.row.language }),
       includeReplies: loaded.row.includeReplies,
-      includeBoosts: loaded.row.includeBoosts,
+      includeBoosts: loaded.row.includeReposts,
       includeMedia: loaded.row.includeMedia,
       ...(stored === undefined ? {} : { definition: stored }),
     });
