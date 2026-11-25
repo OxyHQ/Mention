@@ -1,11 +1,9 @@
 import { useCommerceStorefront } from '@/hooks/useCommerceStorefront';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View, type ViewStyle } from 'react-native';
 import { useRouter, Redirect } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
@@ -54,6 +52,7 @@ import { SuggestedUsers } from './suggestions/SuggestedUsers';
 import {
   Button as LButton,
   Embed,
+  HStack,
   Icon,
   Item,
   TabItem,
@@ -61,13 +60,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** The tab strip on the screen's surface, ruled off below (`flex-row items-center border-b`). */
-const TAB_BAR = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderBottomWidth: 1,
-} satisfies ViewStyle;
 
 interface ChannelProfileProps {
   username: string;
@@ -127,10 +119,6 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   const { user: currentUser, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
   const { colors } = useTheme();
-  // The tab row pins over the scrolling channel feed, so it paints the colour
-  // of the column it is in rather than naming `card`.
-  const surfaceFill = useSurfaceFill();
-  const colorTokens = useColorTokens();
 
   const seoPolicy = useProfileSEOPolicy(
     profileData?.privacy?.profileVisibility,
@@ -419,9 +407,12 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   ]);
 
   const tabBar = useMemo(
-    () => (
-      <View style={[TAB_BAR, { borderColor: colorTokens.border, backgroundColor: surfaceFill }]}>
-        {toElement(
+    () =>
+      // The tab strip on the screen's surface, ruled off below. It pins over the
+      // scrolling channel feed, so it paints the colour of the column it is in
+      // rather than naming `card`.
+      toElement(
+        HStack(
           VStack(
             LTabs(
               [
@@ -440,10 +431,12 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           )
             .frame({ minWidth: 'none' })
             .flex('1'),
-        )}
-      </View>
-    ),
-    [activeDescriptor?.key, colorTokens, onTabPress, surfaceFill, tabDescriptors, username],
+        )
+          .align('center')
+          .background('surfaceFill')
+          .border('border', 'thin', 'bottom'),
+      ),
+    [activeDescriptor?.key, onTabPress, tabDescriptors, username],
   );
 
   const headerActions = (

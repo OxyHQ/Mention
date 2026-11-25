@@ -5,7 +5,6 @@ import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
@@ -40,6 +39,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import {
+  Avatar,
   Button as LButton,
   Card,
   Divider as LDivider,
@@ -63,6 +63,7 @@ import {
 import { screen } from '@oxy.so/bloom-language/router';
 
 const liveColors = defineTokens({ color: { LIVE_INDICATOR_COLOR } });
+const hostTokens = defineTokens({ avatarSize: { host: 48 } });
 
 /** The participant pile stays glanceable; the overflow collapses into Bloom's "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
@@ -119,7 +120,7 @@ const HostInfo = ({
     <ProfileHoverCard username={getNormalizedUserHandle(profile) ?? undefined}>
       {toElement(
         HStack(
-          Embed(<Avatar size={48} source={avatarUri} shape="squircle" />),
+          Avatar(avatarUri).size(hostTokens.avatarSize.host).shape('squircle'),
           VStack(
             LText(displayName)
               .foreground('foreground')

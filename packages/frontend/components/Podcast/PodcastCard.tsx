@@ -14,8 +14,6 @@ import { RiRadioLine } from '@oxy.so/bloom/icons/RiRadioLine';
 import { RiSpotifyFill } from '@oxy.so/bloom/icons/RiSpotifyFill';
 import { RiYoutubeFill } from '@oxy.so/bloom/icons/RiYoutubeFill';
 import { useTranslation } from 'react-i18next';
-import { Card } from '@oxy.so/bloom/card';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAppleFill } from '@oxy.so/bloom/icons/RiAppleFill';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
@@ -26,6 +24,7 @@ import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
 import {
+  Card,
   Embed,
   HStack,
   Icon,
@@ -89,7 +88,12 @@ interface PodcastCardProps {
 /** Provider glyph and fallback-mic tint — icons take a colour prop, not a class. */
 const WHITE_MUTED = 'rgba(255,255,255,0.72)';
 const appColors = defineTokens({
-  color: { WHITE_MUTED, white15: 'rgba(255,255,255,0.15)', white55: 'rgba(255,255,255,0.55)' },
+  color: {
+    WHITE_MUTED,
+    white15: 'rgba(255,255,255,0.15)',
+    white55: 'rgba(255,255,255,0.55)',
+    hairline: '#fff3',
+  },
 });
 const podcastTokens = defineTokens({
   space: { saveButton: 34 },
@@ -148,14 +152,13 @@ const artwork = (uri: string | undefined, size: 'card' | 'strip') => {
   return uri
     ? VStack(
         Embed(<Image source={{ uri }} style={styles.fill} contentFit="cover" transition={120} />),
-        /* Hairline so a cover the colour of the card still reads as its own square.
-        It stays a view: its classes pin it with `inset`, which the language's
-        position writes as four edges. */ Embed(
-          <View
-            pointerEvents="none"
-            style={card ? cardStyles.cardHairline : cardStyles.stripHairline}
-          />,
-        ),
+        // Hairline so a cover the colour of the card still reads as its own square.
+        VStack()
+          .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+          .frame({ width: side, height: side })
+          .border(appColors.color.hairline, 'thin')
+          .corner(corner)
+          .allowsHitTesting(false),
       )
         .frame({ width: side, height: side })
         .corner(corner)
@@ -199,7 +202,6 @@ export const PodcastCard = memo(function PodcastCard({
   style,
 }: PodcastCardProps) {
   const { t } = useTranslation();
-  const { colors } = useTheme();
   const accent = useArtworkAccent(variant === 'full' ? undefined : artworkUrl, accentColor, title);
   const provider = useMemo(() => providerFor(showUrl), [showUrl]);
 
@@ -222,14 +224,10 @@ export const PodcastCard = memo(function PodcastCard({
         accessibilityRole="button"
         accessibilityLabel={t('profile.media.openInSyra')}
       >
-        <Card
-          appearance="plain"
-          radius="radius-16"
-          style={[cardStyles.fullSurface, { backgroundColor: colors.contrast50 }]}
-        >
-          {artworkUrl
-            ? toElement(
-                VStack(
+        {toElement(
+          Card(
+            artworkUrl
+              ? VStack(
                   Embed(
                     <Image
                       source={{ uri: artworkUrl }}
@@ -241,18 +239,13 @@ export const PodcastCard = memo(function PodcastCard({
                 )
                   .frame({ width: '56', height: '56' })
                   .corner('md')
-                  .clipped(),
-              )
-            : toElement(
-                VStack(Icon(RiMic2Line).size('lg').foreground('muted'))
+                  .clipped()
+              : VStack(Icon(RiMic2Line).size('lg').foreground('muted'))
                   .frame({ width: '56', height: '56' })
                   .background('card')
                   .corner('md')
                   .align('center')
                   .justify('center'),
-              )}
-
-          {toElement(
             VStack(
               RawText(title).foreground('foreground').font('md').weight('bold').lines(2),
               HStack(
@@ -279,19 +272,23 @@ export const PodcastCard = memo(function PodcastCard({
             )
               .flex('1')
               .shrink('normal'),
-          )}
-
-          {isOwnProfile
-            ? toElement(
-                VStack(Icon(RiEditLine).size('sm').foreground('muted'))
+            isOwnProfile
+              ? VStack(Icon(RiEditLine).size('sm').foreground('muted'))
                   .padding('xs')
                   .onPress(onEdit)
                   .role('button')
                   .label(t('profile.media.edit'))
-                  .hitSlop('md'),
-              )
-            : toElement(Icon(RiExternalLinkLine).size('sm').foreground('muted'))}
-        </Card>
+                  .hitSlop('md')
+              : Icon(RiExternalLinkLine).size('sm').foreground('muted'),
+          )
+            .style('plain')
+            .radius('lg')
+            .axis('horizontal')
+            .align('center')
+            .spacing('md')
+            .padding('md')
+            .background('mutedFill'),
+        )}
       </Pressable>
     );
   }
@@ -423,23 +420,13 @@ const styles = StyleSheet.create({
   fill: { width: '100%', height: '100%' },
 });
 
-const HAIRLINE: ViewStyle = {
-  position: 'absolute',
-  inset: 0,
-  borderWidth: 1,
-  borderColor: '#fff3',
-};
-
 // The cards' outer boxes stay views: each takes a style handed down at runtime (the
 // row's width and height, the artwork's accent) and the video's ratio. These draw
 // what their classes drew.
 const cardStyles = {
   full: { marginBottom: 12 },
-  fullSurface: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   video: { alignSelf: 'flex-start', borderRadius: 16, overflow: 'hidden' },
   videoFrame: { width: '100%', backgroundColor: '#000000' },
   videoFrameInRow: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', minHeight: 0 },
   card: { alignSelf: 'flex-start', flexDirection: 'row', borderRadius: 16, overflow: 'hidden' },
-  cardHairline: { ...HAIRLINE, width: 96, height: 96, borderRadius: 10 },
-  stripHairline: { ...HAIRLINE, width: 48, height: 48, borderRadius: 16 },
 } satisfies Record<string, ViewStyle>;

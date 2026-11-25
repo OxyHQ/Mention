@@ -1,9 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
-import { Button } from '@oxy.so/bloom/button';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
-import { Embed, Group, Header, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
+import {
+  Button,
+  Embed,
+  Group,
+  Header,
+  Icon,
+  TabItem,
+  Tabs as LTabs,
+  toElement,
+} from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /**
@@ -66,16 +74,12 @@ export default screen(function ExploreLayout() {
       Header(t('explore.title'))
         .presentation('floating')
         .toolbar(
-          Embed(
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              iconOnly
-              icon={RiSearchLine}
-              onPress={() => router.push('/search')}
-              accessibilityLabel={t('common.search')}
-            />,
-          ),
+          Button(Icon(RiSearchLine))
+            .style('subtle')
+            .tint('neutral')
+            .shape('circle')
+            .onPress(() => router.push('/search'))
+            .label(t('common.search')),
         )
         .inPage(),
     );
