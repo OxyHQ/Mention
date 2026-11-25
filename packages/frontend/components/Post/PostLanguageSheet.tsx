@@ -1,11 +1,9 @@
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { languageLabel, translateTargets, type PostLanguageOption } from '@/utils/postLanguages';
 
-import { Embed, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { type Child, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface Props {
   /** The renditions this post can be read in right now. */
@@ -29,24 +27,22 @@ interface Props {
  * serving it costs a cache read or a model call. A reader is never shown a
  * shorter menu because a cache is cold.
  */
-// A language row: a touchable that dims under the finger (the language's press
-// variant has no timed opacity), on the surface fill.
-const useOptionStyles = createTokenStyles((t) => ({
-  option: {
-    backgroundColor: t.surface,
-    marginBottom: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-}));
+// A language row: a touchable that dims under the finger, on the surface fill.
+const languageRow = (key: string, onPress: () => void, ...content: Child[]) =>
+  HStack(...content)
+    .padding('horizontal', '14')
+    .padding('vertical', 'md')
+    .background('surface')
+    .corner('lg')
+    .justify('between')
+    .align('center')
+    .margin('bottom', 'xs')
+    .pressFade('70')
+    .onPress(onPress)
+    .id(key);
 
 const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) => {
   const { t } = useTranslation();
-  const styles = useOptionStyles();
 
   return toElement(
     VStack(
@@ -56,33 +52,26 @@ const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) =>
         .margin('bottom', 'sm')
         .font('md')
         .weight('semibold'),
-      Embed(
-        options.map((option) => (
-          <TouchableOpacity
-            key={option.tag}
-            style={styles.option}
-            activeOpacity={0.7}
-            onPress={() => onSelect(option.tag)}
-          >
-            {toElement(
-              VStack(
-                RawText(languageLabel(option.tag))
-                  .foreground('foreground')
-                  .font('16')
-                  .leading('normal')
-                  .weight('medium'),
-                option.source === 'machine'
-                  ? RawText(t('post.language.machine', { defaultValue: 'Translated' }))
-                      .foreground('muted')
-                      .font('sm')
-                  : null,
-              ),
-            )}
-            {option.tag === activeTag
-              ? toElement(Icon(RiCheckboxCircleFill).size('md').foreground('primary'))
-              : null}
-          </TouchableOpacity>
-        )),
+      options.map((option) =>
+        languageRow(
+          option.tag,
+          () => onSelect(option.tag),
+          VStack(
+            RawText(languageLabel(option.tag))
+              .foreground('foreground')
+              .font('16')
+              .leading('normal')
+              .weight('medium'),
+            option.source === 'machine'
+              ? RawText(t('post.language.machine', { defaultValue: 'Translated' }))
+                  .foreground('muted')
+                  .font('sm')
+              : null,
+          ),
+          option.tag === activeTag
+            ? Icon(RiCheckboxCircleFill).size('md').foreground('primary')
+            : null,
+        ),
       ),
       RawText(t('post.language.translateTo', { defaultValue: 'Translate to' }))
         .padding('horizontal', 'xs')
@@ -91,24 +80,17 @@ const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) =>
         .margin('top', 'lg')
         .font('sm')
         .weight('semibold'),
-      Embed(
-        translateTargets(options).map((language) => (
-          <TouchableOpacity
-            key={language.tag}
-            style={styles.option}
-            activeOpacity={0.7}
-            onPress={() => onSelect(language.tag)}
-          >
-            {toElement(
-              RawText(language.nativeName)
-                .foreground('foreground')
-                .font('16')
-                .leading('normal')
-                .weight('medium'),
-            )}
-            {toElement(RawText(language.englishName).foreground('muted').font('sm'))}
-          </TouchableOpacity>
-        )),
+      translateTargets(options).map((language) =>
+        languageRow(
+          language.tag,
+          () => onSelect(language.tag),
+          RawText(language.nativeName)
+            .foreground('foreground')
+            .font('16')
+            .leading('normal')
+            .weight('medium'),
+          RawText(language.englishName).foreground('muted').font('sm'),
+        ),
       ),
     )
       .padding('all', 'lg')

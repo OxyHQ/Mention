@@ -9,7 +9,6 @@ import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from './postContextRowLay
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiChat3Fill } from '@oxy.so/bloom/icons/RiChat3Fill';
 import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
@@ -32,9 +31,6 @@ import {
   toElement,
   type IconComponent,
 } from '@oxy.so/bloom-language';
-
-// Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
-const INDICATOR_ICON_SIZE = 14;
 
 /**
  * A marker after the time (edited, private mention): its 14pt glyph, pressed
@@ -272,7 +268,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   disableHoverCard,
   boostedBy,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const timeLabel = useTimeAgo(date);
@@ -617,15 +612,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           {laneSlot}
           {showBoost &&
             toElement(
-              VStack(
-                Embed(
-                  <RiRepeat2Line
-                    width={INDICATOR_ICON_SIZE}
-                    height={INDICATOR_ICON_SIZE}
-                    fill={theme.colors.textSecondary}
-                  />,
-                ),
-              )
+              // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
+              VStack(Icon(RiRepeat2Line).size('14').foreground('muted'))
                 .role('image')
                 .label('Reposted'),
             )}

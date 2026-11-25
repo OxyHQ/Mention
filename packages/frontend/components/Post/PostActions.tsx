@@ -2,7 +2,7 @@ import React from 'react';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import type { TFunction } from 'i18next';
 import type { AccessibilityActionEvent } from 'react-native';
-import { EngagementAction, EngagementBar, EngagementGroup } from '@oxy.so/bloom/engagement-bar';
+import { EngagementBar } from '@oxy.so/bloom/engagement-bar';
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
 import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiBarChartBoxLine } from '@oxy.so/bloom/icons/RiBarChartBoxLine';
@@ -19,12 +19,7 @@ import { ShareIcon } from '@oxy.so/bloom/icons/ShareIcon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
 
-import { Action, Button, Icon, Item, Menu, toElement } from '@oxy.so/bloom-language';
-
-// The two vote arrows are adjacent halves of ONE pill, so neither hit region
-// may grow toward the other or it swallows the other's taps.
-const UPVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 5, right: 0 };
-const DOWNVOTE_HIT_SLOP = { top: 5, bottom: 5, left: 0, right: 5 };
+import { Action, ActionGroup, Button, Icon, Item, Menu, toElement } from '@oxy.so/bloom-language';
 
 /** Only what the bar itself renders. Counts it does not show (quotes, views) live on <PostDetailStats>. */
 interface Engagement {
@@ -148,31 +143,32 @@ const PostActions: React.FC<Props> = ({
                 .active(!!isSaved)
                 .onPress(onSave),
             )}
-            {onTranslate ? (
-              <EngagementAction
-                icon={RiTranslate2}
-                accessibilityLabel={t('compose.languages.overwriteConfirm')}
-                active={!!isTranslated}
-                busy={isTranslating}
-                onPress={onTranslate}
-                // The icon's SECOND job — reading the post in some other language —
-                // hangs off a long press, which no screen reader performs, so the
-                // accessibility action carries the same call. Both arrive together
-                // or not at all: an advertised action that does nothing is worse
-                // than an absent one.
-                {...(onTranslateLongPress
-                  ? {
-                      onLongPress: onTranslateLongPress,
-                      accessibilityActions: [
-                        { name: 'translateTo', label: t('postActions.readInAnotherLanguage') },
-                      ],
-                      onAccessibilityAction: (event: AccessibilityActionEvent) => {
-                        if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
-                      },
-                    }
-                  : null)}
-              />
-            ) : null}
+            {onTranslate
+              ? toElement(
+                  Action(RiTranslate2, t('compose.languages.overwriteConfirm'), {
+                    busy: isTranslating,
+                    // The icon's SECOND job — reading the post in some other language —
+                    // hangs off a long press, which no screen reader performs, so the
+                    // accessibility action carries the same call. Both arrive together
+                    // or not at all: an advertised action that does nothing is worse
+                    // than an absent one.
+                    ...(onTranslateLongPress
+                      ? {
+                          accessibilityActions: [
+                            { name: 'translateTo', label: t('postActions.readInAnotherLanguage') },
+                          ],
+                          onAccessibilityAction: (event: AccessibilityActionEvent) => {
+                            if (event.nativeEvent.actionName === 'translateTo')
+                              onTranslateLongPress();
+                          },
+                        }
+                      : null),
+                  })
+                    .active(!!isTranslated)
+                    .onPress(onTranslate)
+                    .onLongPress(onTranslateLongPress),
+                )
+              : null}
             {onInsightsPress
               ? toElement(
                   Action(RiBarChartBoxLine, t('postActions.insights')).onPress(onInsightsPress),
@@ -182,39 +178,38 @@ const PostActions: React.FC<Props> = ({
         )
       }
     >
-      {!video && voteStyle === 'pill' && onDownvote ? (
-        <EngagementGroup>
-          <EngagementAction
-            icon={RiArrowUpSLine}
-            accessibilityLabel={t('postActions.upvote')}
-            count={likes - (engagement?.downvotes ?? 0)}
-            active={!!isLiked}
-            rollCount
-            hitSlop={UPVOTE_HIT_SLOP}
-            onPress={onLike}
-          />
-          <EngagementAction
-            icon={RiArrowDownSLine}
-            accessibilityLabel={t('postActions.downvote')}
-            active={!!isDownvoted}
-            tone="error"
-            hitSlop={DOWNVOTE_HIT_SLOP}
-            onPress={onDownvote}
-          />
-        </EngagementGroup>
-      ) : (
-        toElement(
-          Action(LikeIcon, t('videos.like'), {
-            activeIcon: LikeFillIcon,
-            pop: true,
-            rollCount: true,
-          })
-            .count(likes)
-            .active(!!isLiked)
-            .tint('error')
-            .onPress(onLike),
-        )
-      )}
+      {!video && voteStyle === 'pill' && onDownvote
+        ? toElement(
+            // The two vote arrows are adjacent halves of ONE pill, so neither hit region
+            // may grow toward the other or it swallows the other's taps.
+            ActionGroup(
+              Action(RiArrowUpSLine, t('postActions.upvote'), { rollCount: true })
+                .count(likes - (engagement?.downvotes ?? 0))
+                .active(!!isLiked)
+                .hitSlop('vertical', '5')
+                .hitSlop('left', '5')
+                .hitSlop('right', 'none')
+                .onPress(onLike),
+              Action(RiArrowDownSLine, t('postActions.downvote'))
+                .active(!!isDownvoted)
+                .tint('error')
+                .hitSlop('vertical', '5')
+                .hitSlop('left', 'none')
+                .hitSlop('right', '5')
+                .onPress(onDownvote),
+            ),
+          )
+        : toElement(
+            Action(LikeIcon, t('videos.like'), {
+              activeIcon: LikeFillIcon,
+              pop: true,
+              rollCount: true,
+            })
+              .count(likes)
+              .active(!!isLiked)
+              .tint('error')
+              .onPress(onLike),
+          )}
       {onReply
         ? toElement(
             Action(ReplyIcon, t('common.reply')).count(engagement?.replies).onPress(onReply),

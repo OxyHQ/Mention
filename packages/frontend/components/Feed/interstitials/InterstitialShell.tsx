@@ -1,13 +1,13 @@
 import { Button } from '@oxy.so/bloom/button';
 import type React from 'react';
 import { useCallback } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useRouter, type Href } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
 
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
-import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import {
   INTERSTITIAL_CARD_GAP,
@@ -17,7 +17,14 @@ import {
 } from './interstitialLayout';
 import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
 
-import { Button as LButton, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Embed,
+  Icon,
+  Text as LText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * The frame every recommendation band shares.
@@ -58,19 +65,6 @@ interface InterstitialShellProps<TItem> {
   report: ReportInterstitialEvent;
 }
 
-// The band keeps React Native's view: its ref is the impression target, which a
-// language stack does not hand out.
-const useBandStyles = createTokenStyles((t) => ({
-  band: {
-    backgroundColor: t.muted,
-    borderColor: t.border,
-    width: '100%',
-    borderBottomWidth: 1,
-    paddingBottom: 12,
-    paddingTop: 12,
-  },
-}));
-
 export function InterstitialShell<TItem>({
   title,
   seeMoreHref,
@@ -85,7 +79,6 @@ export function InterstitialShell<TItem>({
   const router = useRouter();
   const { t } = useTranslation();
   const isDesktop = useIsScreenNotMobile();
-  const bandStyles = useBandStyles();
 
   const handleSeeMore = useCallback(() => {
     report('seeMore');
@@ -110,66 +103,74 @@ export function InterstitialShell<TItem>({
       .lines(1),
   );
 
-  return (
-    <View ref={impressionRef} style={bandStyles.band}>
-      {/* Placeholders sit in the same carousel as the cards they stand in for, so
-          nothing shifts when the suggestions land; only the arrows and the
-          See-more card wait for real content. */}
-      <Carousel
-        accessibilityLabel={title}
-        header={header}
-        showArrows={isDesktop && !showSkeleton}
-        renderControls={({ previous, next }) => (
-          <Button.Group size="sm" accessibilityLabel={title}>
-            {toElement(LButton(LText(seeMoreLabel)).onPress(handleSeeMore).label(seeMoreLabel))}
-            {toElement(
-              LButton(Icon(previous.icon))
-                .shape('circle')
-                .disabled(previous.disabled)
-                .label(previous.accessibilityLabel)
-                .onPress(previous.onPress),
-            )}
-            {toElement(
-              LButton(Icon(next.icon))
-                .shape('circle')
-                .disabled(next.disabled)
-                .label(next.accessibilityLabel)
-                .onPress(next.onPress),
-            )}
-          </Button.Group>
-        )}
-        showDots={false}
-        gap={INTERSTITIAL_CARD_GAP}
-        inset={INTERSTITIAL_EDGE_PADDING}
-        previousLabel={t('feed.interstitial.previous')}
-        nextLabel={t('feed.interstitial.next')}
-        style={styles.carousel}
-      >
-        {showSkeleton && renderSkeleton
-          ? Array.from(
-              { length: INTERSTITIAL_SKELETON_ITEMS[isDesktop ? 'desktop' : 'mobile'] },
-              (_, index) => (
-                <CarouselItem key={index} width={cardWidth}>
-                  {renderSkeleton()}
-                </CarouselItem>
-              ),
-            )
-          : [
-              ...items.map((item, index) => (
-                <CarouselItem key={keyExtractor(item)} width={cardWidth}>
-                  {renderItem(item, index)}
-                </CarouselItem>
-              )),
-              <CarouselItem
-                key="see-more"
-                width={INTERSTITIAL_SEE_MORE_CARD_WIDTH}
-                accessibilityLabel={seeMoreLabel}
-              >
-                <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />
-              </CarouselItem>,
-            ]}
-      </Carousel>
-    </View>
+  return toElement(
+    // The band: its ref is the impression target.
+    VStack(
+      // Placeholders sit in the same carousel as the cards they stand in for, so
+      // nothing shifts when the suggestions land; only the arrows and the
+      // See-more card wait for real content.
+      Embed(
+        <Carousel
+          accessibilityLabel={title}
+          header={header}
+          showArrows={isDesktop && !showSkeleton}
+          renderControls={({ previous, next }) => (
+            <Button.Group size="sm" accessibilityLabel={title}>
+              {toElement(LButton(LText(seeMoreLabel)).onPress(handleSeeMore).label(seeMoreLabel))}
+              {toElement(
+                LButton(Icon(previous.icon))
+                  .shape('circle')
+                  .disabled(previous.disabled)
+                  .label(previous.accessibilityLabel)
+                  .onPress(previous.onPress),
+              )}
+              {toElement(
+                LButton(Icon(next.icon))
+                  .shape('circle')
+                  .disabled(next.disabled)
+                  .label(next.accessibilityLabel)
+                  .onPress(next.onPress),
+              )}
+            </Button.Group>
+          )}
+          showDots={false}
+          gap={INTERSTITIAL_CARD_GAP}
+          inset={INTERSTITIAL_EDGE_PADDING}
+          previousLabel={t('feed.interstitial.previous')}
+          nextLabel={t('feed.interstitial.next')}
+          style={styles.carousel}
+        >
+          {showSkeleton && renderSkeleton
+            ? Array.from(
+                { length: INTERSTITIAL_SKELETON_ITEMS[isDesktop ? 'desktop' : 'mobile'] },
+                (_, index) => (
+                  <CarouselItem key={index} width={cardWidth}>
+                    {renderSkeleton()}
+                  </CarouselItem>
+                ),
+              )
+            : [
+                ...items.map((item, index) => (
+                  <CarouselItem key={keyExtractor(item)} width={cardWidth}>
+                    {renderItem(item, index)}
+                  </CarouselItem>
+                )),
+                <CarouselItem
+                  key="see-more"
+                  width={INTERSTITIAL_SEE_MORE_CARD_WIDTH}
+                  accessibilityLabel={seeMoreLabel}
+                >
+                  <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />
+                </CarouselItem>,
+              ]}
+        </Carousel>,
+      ),
+    )
+      .padding('vertical', 'md')
+      .frame({ width: 'full' })
+      .background('mutedFill')
+      .border('border', 'thin', 'bottom')
+      .ref(impressionRef),
   );
 }
 

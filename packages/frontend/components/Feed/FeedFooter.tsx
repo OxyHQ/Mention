@@ -1,13 +1,12 @@
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
   Button as LButton,
+  HStack,
   Icon,
   RawText,
   Text as LText,
@@ -43,7 +42,6 @@ interface FeedFooterProps {
 export const FeedFooter = memo<FeedFooterProps>(
   ({ hasMore, isLoadingMore, hasItems, loadFailed, onRetryLoadMore, loadOnRequest, caughtUp }) => {
     const { t } = useTranslation();
-    const footerTokens = useFooterTokens();
     const { isAuthenticated, isAuthResolved, signIn } = useAuth();
 
     const handleSignIn = useCallback(() => {
@@ -54,23 +52,26 @@ export const FeedFooter = memo<FeedFooterProps>(
     // Gate on isAuthResolved so the prompt never appears during the cold-boot
     // restore window (when `isAuthenticated: false` is still UNDETERMINED).
     if (isAuthResolved && !isAuthenticated && hasItems) {
-      return (
-        <TouchableOpacity
-          style={[styles.signInFooter, footerTokens.rule]}
-          onPress={handleSignIn}
-          activeOpacity={0.7}
-        >
-          {toElement(Icon(RiLockLine).size('md').foreground('primary'))}
-          {toElement(
-            RawText('Sign in to see more')
-              .foreground('foreground')
-              .font('md')
-              .weight('medium')
-              .flex('1')
-              .margin('left', '10'),
-          )}
-          {toElement(Icon(RiArrowRightSLine).size('18').foreground('muted'))}
-        </TouchableOpacity>
+      return toElement(
+        HStack(
+          Icon(RiLockLine).size('md').foreground('primary'),
+          RawText('Sign in to see more')
+            .foreground('foreground')
+            .font('md')
+            .weight('medium')
+            .flex('1')
+            .margin('left', '10'),
+          Icon(RiArrowRightSLine).size('18').foreground('muted'),
+        )
+          .align('center')
+          .justify('center')
+          .padding('vertical', 'lg')
+          .padding('horizontal', 'xl')
+          .spacing('10')
+          .border('border', 'hairline', 'top')
+          // A touchable row: it dims under the finger.
+          .pressFade('70')
+          .onPress(handleSignIn),
       );
     }
 
@@ -117,19 +118,3 @@ export const FeedFooter = memo<FeedFooterProps>(
 );
 
 FeedFooter.displayName = 'FeedFooter';
-
-const styles = StyleSheet.create({
-  // A touchable row (it dims under the finger, which the language's press
-  // variant has no timed opacity for).
-  signInFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-});
-
-const useFooterTokens = createTokenStyles((t) => ({ rule: { borderColor: t.border } }));

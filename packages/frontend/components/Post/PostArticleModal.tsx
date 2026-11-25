@@ -3,7 +3,6 @@ import type React from 'react';
 import { useEffect, useMemo, useState, useCallback, memo } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   Modal,
@@ -25,10 +24,10 @@ import { Portal } from '@oxy.so/bloom/portal';
 import { logger } from '@oxy.so/core/logger';
 import {
   Embed,
+  HStack,
+  RawText,
   VStack,
   toElement,
-  VStack as LVStack,
-  toElement as LtoElement,
   Button as LButton,
   Icon,
 } from '@oxy.so/bloom-language';
@@ -130,8 +129,6 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   }, []);
 
   // Memoize style objects to prevent recreation
-  const headerStyle = useMemo(() => styles.header, []);
-
   const contentContainerStyle = useMemo(
     () => [
       styles.contentContainer,
@@ -142,11 +139,8 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     [insets.top],
   );
 
-  const headerTitleStyle = styles.headerTitle;
   const articleTitleStyle = styles.articleTitle;
   const articleBodyStyle = styles.articleBody;
-  const articleBodyPlaceholderStyle = styles.articleBodyPlaceholder;
-  const errorStyle = styles.articleBodyPlaceholder;
 
   // Early return if not visible (prevents unnecessary rendering)
   if (!visible) {
@@ -166,24 +160,29 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
       >
         {toElement(
           VStack(
-            Embed(
-              <View style={[headerStyle, ink.headerRule]}>
-                {LtoElement(
-                  LButton(Icon(RiCloseLine))
-                    .shape('circle')
-                    .style('subtle')
-                    .tint('neutral')
-                    .label(t('common.close', { defaultValue: 'Close' }))
-                    .onPress(onClose)
-                    .margin('right', '6')
-                    .zIndex('raised'),
-                )}
-                <Text style={[ink.foreground, headerTitleStyle, { pointerEvents: 'none' }]}>
-                  {titleText}
-                </Text>
-                {LtoElement(LVStack().frame({ width: '36', height: '36' }).margin('left', 'auto'))}
-              </View>,
-            ),
+            HStack(
+              LButton(Icon(RiCloseLine))
+                .shape('circle')
+                .style('subtle')
+                .tint('neutral')
+                .label(t('common.close', { defaultValue: 'Close' }))
+                .onPress(onClose)
+                .margin('right', '6')
+                .zIndex('raised'),
+              RawText(titleText)
+                .foreground('foreground')
+                .font('18')
+                .weight('bold')
+                .textAlign('center')
+                .position({ left: 'none', right: 'none' })
+                .allowsHitTesting(false),
+              VStack().frame({ width: '36', height: '36' }).margin('left', 'auto'),
+            )
+              .align('center')
+              .padding('horizontal', 'lg')
+              .padding('vertical', 'sm')
+              .frame({ minHeight: '48' })
+              .border('border', 'thin', 'bottom'),
             Embed(
               isLoading ? (
                 <ScrollView style={styles.scrollView}>
@@ -204,9 +203,9 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
                     {trimmedBody ? (
                       <LinkifiedText text={trimmedBody} style={[ink.muted, articleBodyStyle]} />
                     ) : loadError ? (
-                      <Text style={[ink.destructive, errorStyle]}>{loadError}</Text>
+                      toElement(RawText(loadError).foreground('destructive').font('14').italic())
                     ) : (
-                      <Text style={[ink.muted, articleBodyPlaceholderStyle]}>{emptyBodyText}</Text>
+                      toElement(RawText(emptyBodyText).foreground('muted').font('14').italic())
                     )}
                   </View>
                 </ScrollView>
@@ -253,10 +252,8 @@ const WEB_POSITION_FIXED = 'fixed' as ViewStyle['position'];
 // The reader's theme colours, painted before its own styles as the classes were.
 const useInkStyles = createTokenStyles((t) => ({
   surface: { backgroundColor: t.background },
-  headerRule: { borderBottomWidth: 1, borderColor: t.border },
   foreground: { color: t.foreground },
   muted: { color: t.mutedForeground },
-  destructive: { color: t.destructive },
 }));
 
 const styles = StyleSheet.create({
@@ -282,31 +279,6 @@ const styles = StyleSheet.create({
     boxShadow: '0px -2px 8px 0px rgba(0, 0, 0, 0.25)',
     elevation: 10,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-  },
-  closeButton: {
-    marginRight: 6,
-    zIndex: 1,
-  },
-  headerTitle: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none',
-  },
-  headerRight: {
-    width: 36,
-    height: 36,
-    marginLeft: 'auto',
-  },
   content: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -326,10 +298,6 @@ const styles = StyleSheet.create({
   articleBody: {
     fontSize: 15,
     lineHeight: 22,
-  },
-  articleBodyPlaceholder: {
-    fontSize: 14,
-    fontStyle: 'italic',
   },
   pressableContent: {
     flex: 1,
