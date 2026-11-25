@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { Link, type Href } from '@/lib/navigation/router';
 import { ProfileHoverCard } from '../ProfileHoverCard';
-import { CONTEXT_GLYPH_COLOR, contextRowTokens } from './postContextRowLayout';
-import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import { contextGlyphInk, contextRowTokens } from './postContextRowLayout';
+import { Embed, HStack, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * "in !technology@lemmy.world" — the community a federated post was written in.
@@ -39,14 +39,7 @@ const PostCommunityRow: React.FC<Props> = ({ handle, href }) => {
         {render(
           HStack(
             VStack(
-              Embed(
-                <RiGroupLine
-                  width={13}
-                  height={13}
-                  fill="currentColor"
-                  color={CONTEXT_GLYPH_COLOR}
-                />,
-              ),
+              Icon(RiGroupLine).size(contextRowTokens.iconSize.glyph).modifier(contextGlyphInk),
             )
               .margin('left', '-lg')
               .margin('right', contextRowTokens.space.iconGap),

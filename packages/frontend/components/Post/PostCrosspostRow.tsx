@@ -3,9 +3,9 @@ import type { GestureResponderEvent } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { RiExchangeLine } from '@oxy.so/bloom/icons/RiExchangeLine';
 import type { CrosspostProvenance } from '@mention/shared-types';
-import { CONTEXT_GLYPH_COLOR, contextRowTokens } from './postContextRowLayout';
+import { contextGlyphInk, contextRowTokens } from './postContextRowLayout';
 
-import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**
  * `Instagram · Threads` — one piece of writing that was published to two
@@ -64,11 +64,7 @@ const PostCrosspostRow: React.FC<Props> = ({ crosspost }) => {
 
   return toElement(
     HStack(
-      VStack(
-        Embed(
-          <RiExchangeLine width={13} height={13} fill="currentColor" color={CONTEXT_GLYPH_COLOR} />,
-        ),
-      )
+      VStack(Icon(RiExchangeLine).size(contextRowTokens.iconSize.glyph).modifier(contextGlyphInk))
         .margin('left', '-lg')
         .margin('right', contextRowTokens.space.iconGap),
       RawText(

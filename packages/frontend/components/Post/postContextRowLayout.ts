@@ -1,5 +1,4 @@
-import { defineTokens } from '@oxy.so/bloom-language';
-import { Platform } from 'react-native';
+import { defineModifier, defineTokens } from '@oxy.so/bloom-language';
 
 /**
  * The two measurements every post CONTEXT ROW shares — "Reposted by", "Pinned",
@@ -43,12 +42,12 @@ export const contextRowTokens = defineTokens({
 });
 
 /**
- * A context glyph's colour, as the owner's build drew it: its `currentColor`
+ * A context glyph's ink, as the owner's build drew it: its `currentColor`
  * fill took the muted ink from a class, which reached the glyph only on the web
  * (natively the class stays a raw prop of react-native-svg's Svg, so the glyph
- * keeps currentColor with no colour; an owner-build bug kept as it was, for the
- * owner to decide). On the web the muted ink is its CSS variable, handed to the
- * Svg as its `color`, which its currentColor reads.
+ * keeps currentColor with no colour, which paints black; an owner-build bug kept
+ * as it was, for the owner to decide). So: black natively, the muted ink on the web.
  */
-export const CONTEXT_GLYPH_COLOR: string | undefined =
-  Platform.OS === 'web' ? 'var(--muted-foreground)' : undefined;
+export const contextGlyphInk = defineModifier((v) =>
+  v.foreground('black').when('web', (w) => w.foreground('muted')),
+);
