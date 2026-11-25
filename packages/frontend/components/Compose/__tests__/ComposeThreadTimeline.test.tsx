@@ -78,14 +78,9 @@ jest.mock('@/components/Compose/VideoPreview', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { VideoPreview: RNView };
 });
-jest.mock('@/components/Compose/PollCreator', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { PollCreator: RNView };
-});
-jest.mock('@/components/Compose/LocationDisplay', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { LocationDisplay: RNView };
-});
+// Both are language views (node functions): a stub draws nothing.
+jest.mock('@/components/Compose/PollCreator', () => ({ PollCreator: () => null }));
+jest.mock('@/components/Compose/LocationDisplay', () => ({ LocationDisplay: () => null }));
 jest.mock('@/components/Compose/ComposeAltButton', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { ComposeAltButton: RNView };

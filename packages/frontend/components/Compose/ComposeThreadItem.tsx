@@ -34,6 +34,7 @@ import {
   attachmentCard,
   attachmentCardOnSurface,
   attachmentsRow,
+  bottomLeftInset,
   cardRemoveControl,
   composeSpace,
   timelineLineAbove,
@@ -298,7 +299,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
      */
     const showTimeline = postingMode === 'thread';
 
-    const pollMarginStyle = useMemo(() => ({ marginLeft: BOTTOM_LEFT_PAD }), []);
     const scrollPaddingStyle = useMemo(
       () => [styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }],
       [styles.mediaPreviewScroll],
@@ -571,27 +571,29 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                 )}
 
               {/* Thread item poll creator */}
-              {item.showPollCreator && (
-                <PollCreator
-                  pollTitle={item.pollTitle || ''}
-                  onTitleChange={handlePollTitleChange}
-                  pollOptions={item.pollOptions}
-                  onOptionChange={(index, value) => onPollOptionChange(threadId, index, value)}
-                  onAddOption={handlePollOptionAdd}
-                  onRemoveOption={(index) => onPollOptionRemove(threadId, index)}
-                  onRemove={handlePollRemove}
-                  style={pollMarginStyle}
-                />
-              )}
+              {item.showPollCreator &&
+                toElement(
+                  PollCreator({
+                    pollTitle: item.pollTitle || '',
+                    onTitleChange: handlePollTitleChange,
+                    pollOptions: item.pollOptions,
+                    onOptionChange: (index, value) => onPollOptionChange(threadId, index, value),
+                    onAddOption: handlePollOptionAdd,
+                    onRemoveOption: (index) => onPollOptionRemove(threadId, index),
+                    onRemove: handlePollRemove,
+                    look: bottomLeftInset,
+                  }),
+                )}
 
               {/* Thread item location display */}
-              {item.location && (
-                <LocationDisplay
-                  location={item.location}
-                  onRemove={handleLocationRemove}
-                  style={pollMarginStyle}
-                />
-              )}
+              {item.location &&
+                toElement(
+                  LocationDisplay({
+                    location: item.location,
+                    onRemove: handleLocationRemove,
+                    look: bottomLeftInset,
+                  }),
+                )}
 
               {/* Per-item interaction settings (beast mode only) */}
               {postingMode === 'beast' &&

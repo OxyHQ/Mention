@@ -215,6 +215,7 @@ import {
   BOTTOM_LEFT_PAD,
   attachmentCard,
   attachmentsRow,
+  bottomLeftInset,
   composeSpace,
   linkCard,
   mediaCard,
@@ -259,7 +260,6 @@ const CommercePickerSheet = lazy(() => import('@/components/Compose/CommercePick
 const JobPickerSheet = lazy(() => import('@/components/Compose/JobPickerSheet'));
 
 // Pre-computed stable style objects using layout constants
-const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
 const avatarMarginStyle = { marginRight: 12 };
 
 /** A posting mode beside the switch: its name (primary while chosen) over what it does. */
@@ -3873,18 +3873,19 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                             : null}
 
                                           {/* Poll Creator */}
-                                          {showPollCreator && (
-                                            <PollCreator
-                                              pollTitle={pollTitle}
-                                              onTitleChange={setPollTitle}
-                                              pollOptions={pollOptions}
-                                              onAddOption={addPollOption}
-                                              onOptionChange={updatePollOption}
-                                              onRemoveOption={removePollOption}
-                                              onRemove={removePoll}
-                                              style={bottomLeftPadStyle}
-                                            />
-                                          )}
+                                          {showPollCreator &&
+                                            toElement(
+                                              PollCreator({
+                                                pollTitle,
+                                                onTitleChange: setPollTitle,
+                                                pollOptions,
+                                                onAddOption: addPollOption,
+                                                onOptionChange: updatePollOption,
+                                                onRemoveOption: removePollOption,
+                                                onRemove: removePoll,
+                                                look: bottomLeftInset,
+                                              }),
+                                            )}
 
                                           {toElement(
                                             HStack(
@@ -3958,13 +3959,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                           )}
 
                                           {/* Location Display */}
-                                          {location && (
-                                            <LocationDisplay
-                                              location={location}
-                                              onRemove={removeLocation}
-                                              style={bottomLeftPadStyle}
-                                            />
-                                          )}
+                                          {location &&
+                                            toElement(
+                                              LocationDisplay({
+                                                location,
+                                                onRemove: removeLocation,
+                                                look: bottomLeftInset,
+                                              }),
+                                            )}
 
                                           {/* Quote prefill card */}
                                           {(quotedPost || quoteLoading) &&

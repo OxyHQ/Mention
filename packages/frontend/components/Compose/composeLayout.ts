@@ -60,6 +60,10 @@ export const mediaCard = defineModifier((v) =>
     .corner('15')
     .clipped(),
 );
+/** A block under the composer's text (a poll, a location), inset to line up with it. */
+export const bottomLeftInset = defineModifier((v) =>
+  v.margin('left', composeSpace.space.bottomLeftPad),
+);
 /** A link card's place: Bloom's LinkPreviewCard draws its own border, corner and surface. */
 export const linkCard = defineModifier((v) => v.alignSelf('start').frame({ width: '280' }));
 /** The attachments row under a post's text (`mt-3 w-full overflow-visible`), raised over the timeline with `z-[2]`. */
