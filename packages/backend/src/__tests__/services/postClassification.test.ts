@@ -1328,7 +1328,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
   });
 
   it('never queues a BOOST, even though a boost can carry a rendition', async () => {
-    // A boost has nothing of its own to classify. `boost_of IS NULL` is the
+    // A boost has nothing of its own to classify. `repost_of IS NULL` is the
     // discriminator, and `<> NULL` — the literal translation of the legacy store's
     // `$ne: null` — is NULL for every row, which would empty the queue entirely.
     const original = await seedSubject('the original everyone is boosting');

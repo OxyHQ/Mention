@@ -81,7 +81,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       hashtags,
       mentions,
       quoted_post_id,
-      boost_of: repost_of,
+      repost_of,
       in_reply_to_status_id,
       parentPostId,
       threadId,
@@ -479,7 +479,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // enforced from scratch. `POST /posts` will happily create a reply when the
     // body carries `parentPostId` / `in_reply_to_status_id`, and it looks the
     // parent up NOWHERE: the two validations above cover `quoted_post_id` and
-    // `boost_of` only. There is no reply-permission check on this route at all, so
+    // `repost_of` only. There is no reply-permission check on this route at all, so
     // there is nothing here to hang the gate off — it needs its own lookup, or the
     // refusal in `feed.controller.createReply` is a front door with the back one
     // open.

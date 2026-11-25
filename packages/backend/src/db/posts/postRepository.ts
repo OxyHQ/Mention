@@ -1935,8 +1935,8 @@ const POST_COUNTER_COLUMNS = {
   oxyUserId: posts.oxyUserId,
   likesCount: posts.statsLikesCount,
   downvotesCount: posts.statsDownvotesCount,
-  boostsCount: posts.statsBoostsCount,
-  federatedBoostsCount: posts.statsFederatedBoostsCount,
+  boostsCount: posts.statsRepostsCount,
+  federatedBoostsCount: posts.statsFederatedRepostsCount,
   commentsCount: posts.statsCommentsCount,
   viewsCount: posts.statsViewsCount,
   sharesCount: posts.statsSharesCount,
@@ -1956,11 +1956,11 @@ export async function bumpPostCounters(
       ? { statsCommentsCount: sql`greatest(0, ${posts.statsCommentsCount} + ${delta.comments})` }
       : {}),
     ...(delta.boosts
-      ? { statsBoostsCount: sql`greatest(0, ${posts.statsBoostsCount} + ${delta.boosts})` }
+      ? { statsBoostsCount: sql`greatest(0, ${posts.statsRepostsCount} + ${delta.boosts})` }
       : {}),
     ...(delta.federatedBoosts
       ? {
-          statsFederatedBoostsCount: sql`greatest(0, ${posts.statsFederatedBoostsCount} + ${delta.federatedBoosts})`,
+          statsFederatedBoostsCount: sql`greatest(0, ${posts.statsFederatedRepostsCount} + ${delta.federatedBoosts})`,
         }
       : {}),
     ...(delta.views
@@ -2507,9 +2507,9 @@ export async function findRepostedPostIds(
   if (postIds.length === 0) return reposted;
 
   const rows = await db
-    .select({ boostOf: posts.boostOf })
+    .select({ boostOf: posts.repostOf })
     .from(posts)
-    .where(and(eq(posts.oxyUserId, viewerId), inArray(posts.boostOf, [...postIds])));
+    .where(and(eq(posts.oxyUserId, viewerId), inArray(posts.repostOf, [...postIds])));
 
   for (const row of rows) {
     if (row.boostOf) reposted.add(row.boostOf);

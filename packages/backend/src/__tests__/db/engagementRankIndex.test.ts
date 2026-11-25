@@ -1,5 +1,5 @@
 /**
- * `posts_engagement_rank_idx` still MATCHES the query it exists for.
+ * `posts_engagement_rank_v2_idx` still MATCHES the query it exists for.
  *
  * `hotPathIndexes.test.ts` asserts the index exists and is spelled as declared.
  * That is not enough for this one, and the gap is the whole reason this file
@@ -109,7 +109,7 @@ async function popularScanPlan(): Promise<string> {
   });
 }
 
-describe('posts_engagement_rank_idx', () => {
+describe('posts_engagement_rank_v2_idx', () => {
   it('is the index the popular scan plans onto', async () => {
     // A row so the table is never empty for the planner; the assertion is about
     // the plan, not the result. See the file comment for why the plan is taken
@@ -118,11 +118,11 @@ describe('posts_engagement_rank_idx', () => {
 
     const plan = await popularScanPlan();
 
-    expect(plan).toContain('posts_engagement_rank_idx');
+    expect(plan).toContain('posts_engagement_rank_v2_idx');
     // An INDEX SCAN, specifically. A bitmap scan over the same index would name
     // it here while returning rows in physical order, leaving the sort in the
     // plan and the whole candidate set read — the cost this index removes.
-    expect(plan).toMatch(/Index Scan using posts_engagement_rank_idx/);
+    expect(plan).toMatch(/Index Scan using posts_engagement_rank_v2_idx/);
     expect(plan).not.toMatch(/\bSort\b/);
   });
 
@@ -138,7 +138,7 @@ describe('posts_engagement_rank_idx', () => {
      * change: the four weights, in order.
      */
     const [{ def }] = await getDb().execute<{ def: string }>(
-      sql`select pg_get_indexdef('posts_engagement_rank_idx'::regclass) as def`,
+      sql`select pg_get_indexdef('posts_engagement_rank_v2_idx'::regclass) as def`,
     );
 
     const queryWeights = getDb()

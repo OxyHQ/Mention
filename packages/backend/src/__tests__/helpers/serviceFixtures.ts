@@ -55,13 +55,13 @@ const seededIds = new Map<string, string[]>();
  *
  * Ten suites write and delete `posts` rows concurrently against one database,
  * and `posts` self-references itself four times (`parent_post_id`, `thread_id`
- * and `quote_of` are `ON DELETE SET NULL`, `boost_of` cascades), so a delete
+ * and `quote_of` are `ON DELETE SET NULL`, `repost_of` cascades), so a delete
  * takes locks beyond the rows it names. Observed under a mixed run of these
  * suites plus the feed suites: `40P01` on a bulk delete, taking down whichever
  * side the detector chose — sometimes a suite here, sometimes an unrelated one.
  * Every self-referencing column IS indexed on its own leading column
  * (`post_replies_chrono_v1`, `posts_thread_idx`, `posts_quote_of_idx`,
- * `posts_boost_of_idx`), so this is ordinary lock-order contention rather than a
+ * `posts_repost_of_idx`), so this is ordinary lock-order contention rather than a
  * missing index — which is why the answer is a retry and not a schema change.
  *
  * A losing transaction is told to retry, and that is all this does. It is

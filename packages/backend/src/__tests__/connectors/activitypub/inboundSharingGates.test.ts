@@ -201,8 +201,8 @@ async function seedRepost(announceId: string): Promise<PostRecord> {
 async function readCounters(postId: string): Promise<{ boosts: number; federatedBoosts: number }> {
   const [row] = await getDb()
     .select({
-      boosts: posts.statsBoostsCount,
-      federatedBoosts: posts.statsFederatedBoostsCount,
+      boosts: posts.statsRepostsCount,
+      federatedBoosts: posts.statsFederatedRepostsCount,
     })
     .from(posts)
     .where(eq(posts.id, postId));

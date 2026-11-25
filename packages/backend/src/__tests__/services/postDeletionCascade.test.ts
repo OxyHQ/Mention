@@ -38,7 +38,7 @@
  * when the rows are gone either way). What this file exercises is the seven that
  * a foreign key CANNOT express — polymorphic, URI-keyed, and the gate tables —
  * plus the boost closure, which has to be captured BEFORE the delete because
- * `posts.boost_of` cascades and takes the only link that could have found the
+ * `posts.repost_of` cascades and takes the only link that could have found the
  * boosts' own references.
  */
 
@@ -449,7 +449,7 @@ describe('the subtree the transaction owns', () => {
   });
 
   it('removes a boost of the post AND the boost’s own references', async () => {
-    // `posts.boost_of` is `ON DELETE CASCADE`, so the boost row goes with the
+    // `posts.repost_of` is `ON DELETE CASCADE`, so the boost row goes with the
     // post whatever this module does — but its polymorphic references have
     // nothing left to find them by unless the closure was captured FIRST.
     const post = await seedPost(scope, { oxyUserId: AUTHOR });

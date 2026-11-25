@@ -208,7 +208,7 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
       "The account's posts, replies, boosts, quotes, drafts and scheduled posts. Walked in keyset batches; " +
       'each batch sends `Delete(Note)`, runs `PostDeletionCascade.cascadePostReferences`, repairs counters ' +
       "on surviving posts and deletes the rows in one transaction. Other people's BOOSTS of these posts go " +
-      "with them (`boost_of` cascades; a boost is an empty card). Other people's REPLIES and QUOTES stay: " +
+      "with them (`repost_of` cascades; a boost is an empty card). Other people's REPLIES and QUOTES stay: " +
       'they wrote those words. `parent_post_id`/`quote_of` become NULL and `is_reply` stays true, so an ' +
       'orphaned reply is never promoted into a root feed.',
   },

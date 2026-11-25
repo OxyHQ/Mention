@@ -259,7 +259,7 @@ export function crosspostReconciliationPostSql(): SQL {
   return sql`(${or(
     and(
       eq(posts.status, 'published'),
-      isNull(posts.boostOf),
+      isNull(posts.repostOf),
       ne(posts.oxyUserId, ''),
       ne(posts.federationActorUri, ''),
       inArray(domain, ['instagram.com', 'threads.net']),
@@ -292,7 +292,7 @@ async function loadCandidate(postId: string): Promise<EquivalenceCandidate | nul
       federationUrl: posts.federationUrl,
       federationActivityId: posts.federationActivityId,
       status: posts.status,
-      boostOf: posts.boostOf,
+      boostOf: posts.repostOf,
       importSourceId: postImports.sourceId,
       importSourceUrl: postImports.sourceUrl,
     })
@@ -368,7 +368,7 @@ async function findSiblingIds(candidate: EquivalenceCandidate): Promise<string[]
         ne(posts.id, candidate.id),
         ne(networkDomainSql(), candidate.networkDomain),
         eq(posts.status, 'published'),
-        isNull(posts.boostOf),
+        isNull(posts.repostOf),
         gte(posts.createdAt, since),
         lte(posts.createdAt, until),
         isNull(postEquivalenceMembers.id),

@@ -654,7 +654,7 @@ const POST_CASCADE_COLUMNS = {
   id: posts.id,
   type: posts.type,
   oxyUserId: posts.oxyUserId,
-  boostOf: posts.boostOf,
+  boostOf: posts.repostOf,
   federationActivityId: posts.federationActivityId,
   federationUrl: posts.federationUrl,
   federationActorUri: posts.federationActorUri,
@@ -822,7 +822,7 @@ async function repairRepostCounters(
       const [row] = await db
         .select({ id: posts.id })
         .from(posts)
-        .where(and(eq(posts.id, target.boostOf), gt(posts.statsBoostsCount, 0)))
+        .where(and(eq(posts.id, target.boostOf), gt(posts.statsRepostsCount, 0)))
         .limit(1);
       record(report, domain, 'boostCountersRepaired', row ? 1 : 0);
       continue;
@@ -830,15 +830,15 @@ async function repairRepostCounters(
 
     const updated = await db
       .update(posts)
-      .set({ statsBoostsCount: sql`${posts.statsBoostsCount} - 1` })
-      .where(and(eq(posts.id, target.boostOf), gt(posts.statsBoostsCount, 0)))
+      .set({ statsBoostsCount: sql`${posts.statsRepostsCount} - 1` })
+      .where(and(eq(posts.id, target.boostOf), gt(posts.statsRepostsCount, 0)))
       .returning({ id: posts.id });
     record(report, domain, 'boostCountersRepaired', updated.length);
     if (target.federated) {
       await db
         .update(posts)
-        .set({ statsFederatedBoostsCount: sql`${posts.statsFederatedBoostsCount} - 1` })
-        .where(and(eq(posts.id, target.boostOf), gt(posts.statsFederatedBoostsCount, 0)));
+        .set({ statsFederatedBoostsCount: sql`${posts.statsFederatedRepostsCount} - 1` })
+        .where(and(eq(posts.id, target.boostOf), gt(posts.statsFederatedRepostsCount, 0)));
     }
   }
 }
@@ -911,7 +911,7 @@ async function collectRepostClosure(seeds: readonly PostRow[]): Promise<PostRow[
     const next = await getDb()
       .select(POST_CASCADE_COLUMNS)
       .from(posts)
-      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.boostOf, frontier)));
+      .where(and(eq(posts.type, PostType.REPOST), inArray(posts.repostOf, frontier)));
 
     frontier = [];
     for (const repost of next) {
@@ -1172,7 +1172,7 @@ async function purgePostBatch(
   );
 
   // Boosts before their originals: a boost outliving its target for even part of
-  // a run is the one shape that renders as a dead placeholder. (`posts.boost_of`
+  // a run is the one shape that renders as a dead placeholder. (`posts.repost_of`
   // is `ON DELETE CASCADE`, so the database would take them either way — but
   // then the run could not report how many, which is the same reason the side
   // tables above are deleted explicitly.)

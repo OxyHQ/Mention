@@ -145,7 +145,7 @@ describe('Jetstream engagement handlers', () => {
       getDb()
         .select({ activityId: posts.federationActivityId })
         .from(posts)
-        .where(and(eq(posts.boostOf, post.id), eq(posts.oxyUserId, scope.user('alice'))));
+        .where(and(eq(posts.repostOf, post.id), eq(posts.oxyUserId, scope.user('alice'))));
 
     await handler.handle([repost]);
     expect(await reposts()).toEqual([{ activityId: repost.uri }]);

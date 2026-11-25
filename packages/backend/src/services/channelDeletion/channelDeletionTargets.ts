@@ -6,7 +6,7 @@
  * will affect, which is why `previewChannelDeletion` and the dry run share
  * it unchanged.
  *
- * The batch is where `posts.boost_of`'s SELF-cascade is dealt with. Deleting a
+ * The batch is where `posts.repost_of`'s SELF-cascade is dealt with. Deleting a
  * channel post deletes every boost of it, transitively, inside the same
  * statement — so the closure is captured BEFORE the delete, while the links are
  * still live, and handed on whole.
@@ -57,7 +57,7 @@ const CHANNEL_ROW_COLUMNS = {
   ...CASCADE_ROW_COLUMNS,
   visibility: posts.visibility,
   status: posts.status,
-  boostOf: posts.boostOf,
+  boostOf: posts.repostOf,
   writtenByOxyUserId: posts.writtenByOxyUserId,
 } as const;
 
@@ -122,7 +122,7 @@ export interface DeletionTargets {
  * Read the channel's next batch of posts and the boost closure that dies with
  * them.
  *
- * The closure is expanded TRANSITIVELY, because `boost_of` can name a boost and a
+ * The closure is expanded TRANSITIVELY, because `repost_of` can name a boost and a
  * boost of a boost is still a card with nothing behind it — the database removes
  * it either way, which is exactly why it must be captured.
  */
@@ -152,7 +152,7 @@ export async function readPostBatch(
     const next = await db
       .select(CASCADE_ROW_COLUMNS)
       .from(posts)
-      .where(inArray(posts.boostOf, frontier))
+      .where(inArray(posts.repostOf, frontier))
       .limit(MAX_REPOST_CLOSURE_PER_BATCH + 1);
 
     frontier = [];
@@ -202,7 +202,7 @@ export async function resolveDeletionTargets(channelOxyUserId: string): Promise<
       db
         .select({ n: count() })
         .from(posts)
-        .where(and(inArray(posts.boostOf, channelPostIds), sql`not (${owned})`)),
+        .where(and(inArray(posts.repostOf, channelPostIds), sql`not (${owned})`)),
       db
         .select({ n: count() })
         .from(posts)

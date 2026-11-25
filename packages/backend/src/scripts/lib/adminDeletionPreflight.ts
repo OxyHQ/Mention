@@ -230,7 +230,7 @@ export interface PostDeletionAcknowledgements {
    * handle, a quote resolves `quotedPost` to null and drops the quote card, and
    * a thread context resolves to a root that no longer exists.
    *
-   * `boost_of` is NEVER covered by this. A boost has a deliberately empty body
+   * `repost_of` is NEVER covered by this. A boost has a deliberately empty body
    * and renders entirely from its original, so a dangling one is not degraded
    * content — it is a placeholder card with nothing behind it. A caller that
    * wants this allowance must still delete the boosts.
@@ -335,9 +335,9 @@ export async function assertPostsSafeToDelete(
   const referenceProbes = buildPostReferenceProbes(targets);
 
   const danglingReferences = options.allowDanglingReplyReferences
-    ? [inArray(posts.boostOf, idStrings)]
+    ? [inArray(posts.repostOf, idStrings)]
     : [
-        inArray(posts.boostOf, idStrings),
+        inArray(posts.repostOf, idStrings),
         inArray(posts.quoteOf, idStrings),
         inArray(posts.parentPostId, idStrings),
         inArray(posts.threadId, idStrings),
@@ -345,12 +345,12 @@ export async function assertPostsSafeToDelete(
 
   // The post graph is checked ALWAYS, and is the one probe no cascade may
   // acknowledge away — only `allowDanglingReplyReferences` narrows it, and only
-  // ever to leave `boost_of` covered.
+  // ever to leave `repost_of` covered.
   const probes: ReferenceProbe[] = [
     {
       name: options.allowDanglingReplyReferences
-        ? 'posts.boost_of'
-        : 'posts.boost_of/quote_of/parent_post_id/thread_id',
+        ? 'posts.repost_of'
+        : 'posts.repost_of/quote_of/parent_post_id/thread_id',
       hasReference: () =>
         postExists(and(notInArray(posts.id, idStrings), or(...danglingReferences))),
     },

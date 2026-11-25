@@ -27,7 +27,7 @@ export async function countAuthorPublicPosts(oxyUserId: string): Promise<AuthorP
   const [counts] = await getDb()
     .select({
       postsCount: authorPostCounts.postsCount,
-      boostsCount: authorPostCounts.boostsCount,
+      boostsCount: authorPostCounts.repostsCount,
       repliesCount: authorPostCounts.repliesCount,
     })
     .from(authorPostCounts)

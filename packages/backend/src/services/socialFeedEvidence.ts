@@ -47,10 +47,10 @@ export function networkEngagementExistsSql(actorIds: string[], since: Date, asOf
       where ${inArray(likes.userId, actorIds)} and ${publicPositiveLikeSql()}
       and ${likes.createdAt} >= ${since.toISOString()} and ${likes.createdAt} <= ${asOf.toISOString()}
     union
-    select social_boost.boost_of from posts social_boost
+    select social_boost.repost_of from posts social_boost
       where social_boost.oxy_user_id = any(${sql.param(actorIds)}::text[])
       and social_boost.type = 'boost' and social_boost.status = 'published'
-      and social_boost.visibility = 'public' and social_boost.boost_of is not null
+      and social_boost.visibility = 'public' and social_boost.repost_of is not null
       and social_boost.created_at >= ${since.toISOString()} and social_boost.created_at <= ${asOf.toISOString()}
   )`;
 }
@@ -122,7 +122,7 @@ async function attachCurrentSocialFeedContext(
   const repostRows = withoutLikes.length
     ? await getDb()
         .select({
-          postId: posts.boostOf,
+          postId: posts.repostOf,
           total: sql<number>`count(distinct ${posts.oxyUserId})::int`,
           actorIds: sql<
             string[]
@@ -131,17 +131,17 @@ async function attachCurrentSocialFeedContext(
         .from(posts)
         .where(
           and(
-            inArray(posts.boostOf, withoutLikes),
+            inArray(posts.repostOf, withoutLikes),
             inArray(posts.oxyUserId, actorIds),
             eq(posts.type, 'boost'),
             eq(posts.status, 'published'),
             eq(posts.visibility, 'public'),
             gte(posts.createdAt, since),
             lte(posts.createdAt, asOf),
-            sql`exists (select 1 from posts social_original where social_original.id = ${posts.boostOf} and social_original.status = 'published' and social_original.visibility = 'public')`,
+            sql`exists (select 1 from posts social_original where social_original.id = ${posts.repostOf} and social_original.status = 'published' and social_original.visibility = 'public')`,
           ),
         )
-        .groupBy(posts.boostOf)
+        .groupBy(posts.repostOf)
     : [];
   const evidenceRows = [
     ...rows.map((row) => ({ ...row, type: 'likedBy' as const })),

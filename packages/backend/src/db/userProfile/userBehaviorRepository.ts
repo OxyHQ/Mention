@@ -125,7 +125,7 @@ async function loadPreferences(
       lastInteractionAt: author.lastInteractionAt,
       interactionTypes: {
         likes: author.likes,
-        boosts: author.boosts,
+        boosts: author.reposts,
         comments: author.comments,
         saves: author.saves,
         shares: author.shares,

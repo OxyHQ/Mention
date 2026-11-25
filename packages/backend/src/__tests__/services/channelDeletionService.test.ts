@@ -170,7 +170,7 @@ describe('ChannelDeletionService — the manifest binding', () => {
   });
 
   it('leaves the constraint-performed entries to the database, with no leg of their own', async () => {
-    // The boundary this port exists to state. `posts.boost_of` and
+    // The boundary this port exists to state. `posts.repost_of` and
     // `posts.quote_of` must be reported as the DATABASE's work — if either ever
     // shows up under `steps`, somebody has written a leg that re-runs the
     // DELETE's own work and that no evidence could ever show had run.
@@ -485,7 +485,7 @@ describe('ChannelDeletionService — what happens to real rows', () => {
     await deleteChannelContent(CHANNEL, { dryRun: false });
 
     const [survivor] = await getDb()
-      .select({ n: posts.statsBoostsCount })
+      .select({ n: posts.statsRepostsCount })
       .from(posts)
       .where(eq(posts.id, strangersPost.id));
     expect(survivor.n).toBe(1);

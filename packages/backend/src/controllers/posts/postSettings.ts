@@ -194,7 +194,7 @@ export const updatePostLane = async (req: AuthRequest, res: Response) => {
       .select({
         id: postsTable.id,
         parentPostId: postsTable.parentPostId,
-        boostOf: postsTable.boostOf,
+        boostOf: postsTable.repostOf,
         laneId: postsTable.laneId,
         oxyUserId: postsTable.oxyUserId,
       })

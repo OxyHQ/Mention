@@ -150,8 +150,8 @@ const scoreColumn = () => doublePrecision().notNull().default(0);
 /** The four counters {@link engagementRankSql} weighs, as an index sees them. */
 interface EngagementRankColumns {
   statsLikesCount: AnyPgColumn;
-  statsBoostsCount: AnyPgColumn;
-  statsFederatedBoostsCount: AnyPgColumn;
+  statsRepostsCount: AnyPgColumn;
+  statsFederatedRepostsCount: AnyPgColumn;
   statsCommentsCount: AnyPgColumn;
 }
 
@@ -161,7 +161,7 @@ interface EngagementRankColumns {
  * It lives here, next to the index built over it, because those two are one
  * fact: Postgres matches an expression index to an `ORDER BY` by comparing
  * PARSED expressions, so the index is used only while the query spells the
- * composite exactly as `posts_engagement_rank_idx` declares it. Written twice —
+ * composite exactly as `posts_engagement_rank_v2_idx` declares it. Written twice —
  * once here, once in the feed source — the two would agree on the day they were
  * written and diverge on the day someone retunes a weight, and the failure is
  * silent: no error, no wrong rows, the popular scan just goes back to reading
@@ -185,8 +185,8 @@ export function engagementRankSql(t: EngagementRankColumns): SQL<number> {
   const cfg = MtnConfig.ranking.engagement;
   return sql<number>`(
     ${t.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
-    + greatest(0, ${t.statsBoostsCount} - ${t.statsFederatedBoostsCount}) * ${rankingWeight(cfg.boostWeight)}
-    + ${t.statsFederatedBoostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
+    + greatest(0, ${t.statsRepostsCount} - ${t.statsFederatedRepostsCount}) * ${rankingWeight(cfg.boostWeight)}
+    + ${t.statsFederatedRepostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
     + ${t.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
   )::double precision`;
 }
@@ -360,17 +360,9 @@ export const posts = pgTable(
      * original gone it can never render anything. Without CASCADE these would be left behind as
      * permanently blank cards.
      */
-    boostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
-
-    /**
-     * EXPAND phase of the boost -> repost rename: `repostOf`, `statsRepostsCount`,
-     * `statsFederatedRepostsCount` and `metadataIsReposted` are the new names of
-     * `boostOf` and the three columns below. `posts_sync_repost_columns` (0126)
-     * keeps each pair equal whichever name a writer used, so a pod running the
-     * old code and one running the new code see the same data; the old columns
-     * are dropped once nothing reads them.
-     */
     repostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
+    /** @deprecated Old name of `repostOf`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
+    boostOf: text().references((): AnyPgColumn => posts.id, { onDelete: 'cascade' }),
 
     /**
      * The quoted post. SET NULL: a quote has a body of its own and must survive
@@ -454,16 +446,17 @@ export const posts = pgTable(
     // ── `stats` subdocument (see the module docblock for why it is kept) ──
     statsLikesCount: integer().notNull().default(0),
     statsDownvotesCount: integer().notNull().default(0),
+    statsRepostsCount: integer().notNull().default(0),
+    /** @deprecated Old name of `statsRepostsCount`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
     statsBoostsCount: integer().notNull().default(0),
     /**
      * Of `statsBoostsCount`, the subset that arrived as inbound ActivityPub
      * Announces. `boosts - federatedBoosts` is the native count, and the
      * discovery ranking expression weights the two differently.
      */
-    statsFederatedBoostsCount: integer().notNull().default(0),
-    // Expand-phase twins of the two counters above; see `repostOf`.
-    statsRepostsCount: integer().notNull().default(0),
     statsFederatedRepostsCount: integer().notNull().default(0),
+    /** @deprecated Old name of `statsFederatedRepostsCount`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
+    statsFederatedBoostsCount: integer().notNull().default(0),
     statsCommentsCount: integer().notNull().default(0),
     statsViewsCount: integer().notNull().default(0),
     statsSharesCount: integer().notNull().default(0),
@@ -472,8 +465,9 @@ export const posts = pgTable(
     // ── `metadata` subdocument ──
     metadataIsSensitive: boolean().notNull().default(false),
     metadataIsPinned: boolean().notNull().default(false),
+    metadataIsReposted: boolean().notNull().default(false),
+    /** @deprecated Old name of `metadataIsReposted`; a trigger keeps the pair equal until the contract step (docs/repost-rename.md). */
     metadataIsBoosted: boolean().notNull().default(false),
-    metadataIsReposted: boolean().notNull().default(false), // twin of `metadataIsBoosted`
     metadataIsCommented: boolean().notNull().default(false),
     metadataIsFollowingAuthor: boolean().notNull().default(false),
     metadataAuthorBlocked: boolean().notNull().default(false),
@@ -863,20 +857,20 @@ export const posts = pgTable(
      * batch (`created_at >= now() - 48h`, public, published, not a boost).
      *
      * `post_public_chrono_v1` serves the first three predicates but cannot see
-     * `boost_of`, so the planner walks every boost in the window and discards it
+     * `repost_of`, so the planner walks every boost in the window and discards it
      * at the heap: 330k rows read to keep 60k, 169k blocks from disk, 31 s cold
      * against the 15 s statement timeout (EXPLAIN ANALYZE, production,
      * 2026-11-24) — the batch failed whenever the cache was cold. Boosts are
      * dominant in a window with a bridge posting them, and nothing about a
      * boost belongs in this read, so the predicate excludes them from the index.
      *
-     * `created_at` and `boost_of` are not written after a post is created, so
+     * `created_at` and `repost_of` are not written after a post is created, so
      * HOT updates of the engagement counters are unaffected.
      */
-    index('posts_public_originals_recent_idx')
+    index('posts_public_originals_recent_v2_idx')
       .on(t.createdAt)
       .where(
-        sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.boostOf} is null`,
+        sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.repostOf} is null`,
       ),
     /**
      * The self-thread spine — `(thread_id, author)`, oldest first.
@@ -892,7 +886,7 @@ export const posts = pgTable(
      * with `parent_post_id IS NOT NULL` still in the Index Cond.
      *
      * There is NO `thread_id is null` predicate anywhere in the tree, which is
-     * what makes the narrowing safe — see `posts_boost_of_idx` below for the
+     * what makes the narrowing safe — see `posts_repost_of_idx` below for the
      * case where there IS one and the index therefore stays full.
      */
     index('posts_thread_idx')
@@ -901,7 +895,7 @@ export const posts = pgTable(
     /**
      * DELIBERATELY NOT PARTIAL, unlike its three neighbours above and below.
      *
-     * `boost_of` is NULL on ~95% of rows, so `where boost_of is not null` would
+     * `repost_of` is NULL on ~95% of rows, so `where repost_of is not null` would
      * shrink this the way it shrank `posts_thread_idx` — and it is refused
      * anyway, because `notABoostSql()` (`utils/feedQueryBuilder.ts`) is
      * `isNull(posts.boostOf)` and runs on hot feed paths, with two more
@@ -915,7 +909,7 @@ export const posts = pgTable(
      * spells `isNull(posts.quoteOf)`. Both were measured and kept: the rule that
      * decides is "does anything ask for the NULL side", not the NULL fraction.
      */
-    index('posts_boost_of_idx').on(t.boostOf, t.createdAt.desc()),
+    index('posts_repost_of_idx').on(t.repostOf, t.createdAt.desc()),
     /**
      * One NATIVE boost per account per post — the constraint that makes "have
      * you already boosted this?" answerable.
@@ -943,15 +937,15 @@ export const posts = pgTable(
      * index was wrong.
      *
      * So this constrains Mention's OWN boost action, which is the only one
-     * Mention decides. `type = 'boost'` and `boost_of is not null` narrow it
-     * further: `boost_of` is NULL on every other post and Postgres treats NULLs
+     * Mention decides. `type = 'boost'` and `repost_of is not null` narrow it
+     * further: `repost_of` is NULL on every other post and Postgres treats NULLs
      * as distinct, so those two would work by accident — stating them says what
      * the rule IS and keeps the index the size of the native-boost set.
      */
-    uniqueIndex('posts_one_boost_per_account_key')
-      .on(t.oxyUserId, t.boostOf)
+    uniqueIndex('posts_one_repost_per_account_key')
+      .on(t.oxyUserId, t.repostOf)
       .where(
-        sql`${t.type} = 'boost' and ${t.boostOf} is not null and ${t.federationActivityId} is null`,
+        sql`${t.type} = 'boost' and ${t.repostOf} is not null and ${t.federationActivityId} is null`,
       ),
     index('posts_quote_of_idx').on(t.quoteOf, t.createdAt.desc()),
     index('posts_scheduled_idx').on(t.scheduledFor).where(sql`${t.status} = 'scheduled'`),
@@ -1105,7 +1099,7 @@ export const posts = pgTable(
      * took 737-844ms with it and 764-935ms without — no difference this bench can
      * resolve.
      */
-    index('posts_engagement_rank_idx')
+    index('posts_engagement_rank_v2_idx')
       .on(
         // The extra parentheses are not decoration: drizzle-kit compares index
         // expressions TEXTUALLY against the recorded snapshot, and
@@ -1298,7 +1292,7 @@ export const authorPostCounts = pgTable('author_post_counts', {
   /** Counted posts that are replies (`is_reply = true`). */
   repliesCount: integer().notNull().default(0),
   /** Counted posts of `type = 'boost'`; each is also in one of the two counts above. */
-  boostsCount: integer().notNull().default(0),
-  // Expand-phase twin of `boostsCount` (docs/repost-rename.md); a trigger keeps the two equal.
   repostsCount: integer().notNull().default(0),
+  /** @deprecated Old name of `repostsCount`; see docs/repost-rename.md. */
+  boostsCount: integer().notNull().default(0),
 });

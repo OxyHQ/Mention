@@ -1680,7 +1680,7 @@ export class OutboxSyncService {
         .from(posts)
         .where(
           and(
-            eq(posts.boostOf, originalPostId),
+            eq(posts.repostOf, originalPostId),
             eq(posts.oxyUserId, reposterOxyUserId),
             eq(posts.type, 'boost'),
           ),

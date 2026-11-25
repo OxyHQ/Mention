@@ -12,11 +12,11 @@
  *     `parent_post_id` is `ON DELETE SET NULL` and the stored `is_reply` stays
  *     true, so an orphaned reply never becomes a root post in any feed (every root
  *     feed filters on `is_reply`). Quotes stay the same way (`quote_of` → NULL).
- *     Boosts of the account's posts go (`boost_of` cascades): a boost is an empty
+ *     Boosts of the account's posts go (`repost_of` cascades): a boost is an empty
  *     card that renders only its original.
  *  2. COUNTERS on surviving posts are repaired INSIDE the batch transaction: a
  *     reply the account left takes one off its parent's `stats_comments_count`, a
- *     boost takes one off its original's `stats_boosts_count`. Inside, not after,
+ *     boost takes one off its original's `stats_reposts_count`. Inside, not after,
  *     so a crash can never apply a decrement twice or lose one.
  *  3. A HUGE boost closure is not refused. A popular post can have more boosts
  *     than one statement should carry; those are deleted deepest-first in bounded
@@ -69,7 +69,7 @@ const OWN_ROW = {
   type: posts.type,
   visibility: posts.visibility,
   status: posts.status,
-  boostOf: posts.boostOf,
+  boostOf: posts.repostOf,
   federationActorUri: posts.federationActorUri,
 } as const;
 
@@ -107,7 +107,7 @@ export function wasFederated(post: OwnPostRow): boolean {
 
 /**
  * The boosts that die with `seedIds`, by level: level 0 boosts a seed, level 1
- * boosts a level-0 boost, and so on. Captured while the `boost_of` links are live.
+ * boosts a level-0 boost, and so on. Captured while the `repost_of` links are live.
  */
 async function repostLevels(seedIds: readonly string[]): Promise<CascadedPostRow[][]> {
   const db = getDb();
@@ -118,7 +118,7 @@ async function repostLevels(seedIds: readonly string[]): Promise<CascadedPostRow
     const next: CascadedPostRow[] = [];
     for (let start = 0; start < frontier.length; start += ERASURE_REPOST_CHUNK) {
       const slice = frontier.slice(start, start + ERASURE_REPOST_CHUNK);
-      const rows = await db.select(CASCADE_ROW).from(posts).where(inArray(posts.boostOf, slice));
+      const rows = await db.select(CASCADE_ROW).from(posts).where(inArray(posts.repostOf, slice));
       for (const row of rows) {
         if (seen.has(row.id)) continue;
         seen.add(row.id);
@@ -183,7 +183,7 @@ async function pullDetachedQuoteUris(tx: Transaction, keys: readonly string[]): 
 /** Take `counts` (post id → n) off one counter column, never below zero. */
 async function decrement(
   tx: Transaction,
-  column: 'stats_comments_count' | 'stats_boosts_count',
+  column: 'stats_comments_count' | 'stats_reposts_count',
   counts: ReadonlyMap<string, number>,
 ): Promise<void> {
   if (counts.size === 0) return;
@@ -297,8 +297,8 @@ export async function eraseAccountPosts(
         ...new Set(rows.flatMap((row) => [row.id, ...postUris(row)])),
       ]);
       await decrement(tx, 'stats_comments_count', survivingParents);
-      await decrement(tx, 'stats_boosts_count', repostedOriginals);
-      // Boosts first by id, then the account's posts; `boost_of` would cascade
+      await decrement(tx, 'stats_reposts_count', repostedOriginals);
+      // Boosts first by id, then the account's posts; `repost_of` would cascade
       // them anyway, but naming them keeps the count honest.
       if (reposts.length > 0) {
         const gone = await tx

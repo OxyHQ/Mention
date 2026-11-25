@@ -469,7 +469,7 @@ export class InboxProcessingService {
       if (originalPostId && reposterOxyUserId) {
         [repost = null] = await findPostRecords(
           and(
-            eq(posts.boostOf, originalPostId),
+            eq(posts.repostOf, originalPostId),
             eq(posts.oxyUserId, reposterOxyUserId),
             eq(posts.federationActorUri, actorUri),
             eq(posts.type, 'boost'),

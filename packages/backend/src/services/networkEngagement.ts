@@ -70,7 +70,7 @@ export async function getNetworkEngagerCounts(
           ),
         ),
       getDb()
-        .select({ boostOf: posts.boostOf, oxyUserId: posts.oxyUserId })
+        .select({ boostOf: posts.repostOf, oxyUserId: posts.oxyUserId })
         .from(posts)
         .where(
           and(
@@ -79,7 +79,7 @@ export async function getNetworkEngagerCounts(
             eq(posts.visibility, 'public'),
             window ? gte(posts.createdAt, window.since) : undefined,
             window ? lte(posts.createdAt, window.asOf) : undefined,
-            inArray(posts.boostOf, boundedPostIds),
+            inArray(posts.repostOf, boundedPostIds),
             inArray(posts.oxyUserId, boundedEngagers),
           ),
         ),

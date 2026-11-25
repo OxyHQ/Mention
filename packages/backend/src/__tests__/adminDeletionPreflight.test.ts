@@ -493,7 +493,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
       );
       // The message has to NAME the reference, or an operator cannot act on it.
       await expect(assertPostsSafeToDelete('preflight-test', [{ id: target }])).rejects.toThrow(
-        /posts\.boost_of\/quote_of\/parent_post_id\/thread_id/,
+        /posts\.repost_of\/quote_of\/parent_post_id\/thread_id/,
       );
 
       for (const id of created.splice(0).reverse()) {
@@ -635,17 +635,17 @@ describe('assertPostsSafeToDelete — against real rows', () => {
       assertPostsSafeToDelete('preflight-test', [{ id: replied }], {
         removedByCascade: ['likes.post_id', 'bookmarks.post_id'],
       }),
-    ).rejects.toThrow(/posts\.boost_of/);
+    ).rejects.toThrow(/posts\.repost_of/);
   });
 
   /**
    * The post GRAPH probe is the one no cascade may acknowledge away, and
-   * `allowDanglingReplyReferences` narrows it to `boost_of` alone.
+   * `allowDanglingReplyReferences` narrows it to `repost_of` alone.
    *
    * The reply/quote/thread columns are `ON DELETE SET NULL`, so nothing DANGLES
    * in the referential sense — the reference is silently erased instead of
    * visibly broken, which is exactly why the option has to be stated rather than
-   * assumed. `boost_of` is never covered: a boost has a deliberately empty body
+   * assumed. `repost_of` is never covered: a boost has a deliberately empty body
    * and renders entirely from its original, so a dangling one is a placeholder
    * card with nothing behind it.
    */
@@ -667,7 +667,7 @@ describe('assertPostsSafeToDelete — against real rows', () => {
         allowDanglingReplyReferences: true,
         removedByCascade: ['likes.post_id', 'bookmarks.post_id'],
       }),
-    ).rejects.toThrow(/posts\.boost_of/);
+    ).rejects.toThrow(/posts\.repost_of/);
   });
 
   it('does not block on a reference from a post being deleted in the SAME batch', async () => {

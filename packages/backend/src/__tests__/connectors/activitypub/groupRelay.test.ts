@@ -110,7 +110,7 @@ async function storedPosts() {
     .select({
       oxyUserId: posts.oxyUserId,
       type: posts.type,
-      boostOf: posts.boostOf,
+      boostOf: posts.repostOf,
       actorUri: posts.federationActorUri,
       communityOxyUserId: posts.communityOxyUserId,
       title: posts.contentTitle,
