@@ -1,13 +1,11 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, type TextStyle } from 'react-native';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
+import React, { useCallback, useState } from 'react';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDuration } from '@/utils/formatDuration';
 
-import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
 interface VideoPosterCellProps {
   /**
@@ -46,68 +44,20 @@ interface VideoPosterCellProps {
 const SCRIM_PLACEHOLDER_ICON_SIZE = 32;
 const PLAIN_PLACEHOLDER_ICON_SIZE = 24;
 
-// Metadata row: the play glyph reads as a marker beside its count, so it is
-// sized to the text rather than to a tappable target.
-const META_PLAY_ICON_SIZE = 12;
-
-// Translucent overlay/scrim colors — functional alpha layers over the poster,
-// not theme/brand colors, so they live here as named constants.
-const SCRIM_BG = 'rgba(0, 0, 0, 0.2)';
-const META_TEXT_COLOR = 'white';
-
 /**
- * Legibility over an arbitrary poster frame, without a per-cell gradient view or
- * a pill that would eat a third of the width of a ~120px cell. Same values as
- * the reels screen uses over moving video; redeclared rather than imported,
- * because that module is a ROUTE and `components/common/` must not depend on
- * one. Only the text takes it: the play glyph is an SVG, which a text shadow
- * does not reach.
+ * The metadata's text: white at 12/16 semibold under a shadow (black at 80%, 1pt
+ * down, 3pt of blur), so it reads over any poster.
  */
-const META_TEXT_SHADOW: Pick<
-  TextStyle,
-  'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'
-> = {
-  textShadowColor: 'rgba(0, 0, 0, 0.8)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 3,
-};
-
-/**
- * A single static video grid cell: a paused poster image (no live decoder), a
- * play count and a duration — playback happens only in the fullscreen reels
- * screen on tap. Shared by the profile media + videos grids; `scrim` selects
- * whether the poster is darkened behind the metadata. Memoized so cells never
- * remount on parent re-render.
- *
- * The metadata row lives here rather than beside each grid's `renderCell` so the
- * two grids cannot drift apart pixel-wise, and so its z-order against the media
- * grid's carousel chip is defined in one place.
- *
- * The poster (especially the federated `/media/poster` frame) can 404 / fail to
- * load → falls back to the video-icon placeholder, never a broken image.
- */
-// The cell's muted fill behind its poster, from the theme.
-const useCellStyles = createTokenStyles((t) => ({ cell: { backgroundColor: t.muted } }));
-
-const styles = StyleSheet.create({
-  scrim: { position: 'absolute', inset: 0, backgroundColor: SCRIM_BG },
-  // The metadata's text is white at 12/16 semibold under its shadow, which no
-  // language modifier draws, so it keeps React Native's Text.
-  meta: {
-    color: '#fff',
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
-    ...META_TEXT_SHADOW,
-  },
-});
+const meta = (label: string) =>
+  RawText(label)
+    .foreground('white')
+    .font('xs')
+    .leading('16px')
+    .weight('semibold')
+    .textShadow('0 1px 3px rgb(0 0 0 / 0.8)');
 
 const VideoPosterCell = React.memo<VideoPosterCellProps>(
   ({ posterUri, size, placeholderColor, views, durationSec, scrim }) => {
-    const containerStyle = useMemo(
-      () => ({ width: size, height: size, overflow: 'hidden' as const }),
-      [size],
-    );
     const [posterFailed, setPosterFailed] = useState(false);
     // A new poster has not failed yet. Reset during render rather than in an
     // effect, so a new URI never renders one committed frame of the previous
@@ -119,7 +69,6 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
     }
 
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
-    const cellStyles = useCellStyles();
 
     const placeholderIconSize = scrim ? SCRIM_PLACEHOLDER_ICON_SIZE : PLAIN_PLACEHOLDER_ICON_SIZE;
     // Both guards are on the VALUE, not on its absence. A zero count is not
@@ -132,20 +81,22 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
     const durationLabel =
       typeof durationSec === 'number' && durationSec > 0 ? formatDuration(durationSec) : null;
 
-    return (
-      <View style={[cellStyles.cell, containerStyle]}>
-        {posterUri && !posterFailed ? (
-          <Image
-            source={{ uri: posterUri }}
-            style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
-            transition={150}
-            cachePolicy="memory-disk"
-            onError={handlePosterError}
-          />
-        ) : (
-          toElement(
-            VStack(
+    // One language root for the whole cell: its muted fill, the poster (or the
+    // placeholder glyph), the scrim and the metadata row.
+    return toElement(
+      VStack(
+        posterUri && !posterFailed
+          ? Embed(
+              <Image
+                source={{ uri: posterUri }}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="cover"
+                transition={150}
+                cachePolicy="memory-disk"
+                onError={handlePosterError}
+              />,
+            )
+          : VStack(
               Embed(
                 <RiFilmLine
                   width={placeholderIconSize}
@@ -158,43 +109,38 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
               .background('mutedFill')
               .align('center')
               .justify('center'),
-          )
-        )}
-        {scrim && <View style={styles.scrim} />}
-        {/*
-          Both grids wrap this cell in a TouchableOpacity, so the row must not
-          swallow the tap along the bottom strip.
-        */}
-        {toElement(
+        // The scrim: black at 20% over the poster.
+        scrim
+          ? VStack()
+              .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
+              .background('black/20')
+          : null,
+        // Both grids wrap this cell in a press, so the row must not swallow the tap
+        // along the bottom strip.
+        HStack(
+          // The play glyph is unconditional: it is the only video marker left after the
+          // centered/corner affordances were removed, and an invariant one means the
+          // layout never shifts as a cell is recycled onto a post with a different count.
+          // It reads as a marker beside its count, so it is sized to the text.
           HStack(
-            /*
-                    The play glyph is unconditional: it is the only video marker left
-                    after the centered/corner affordances were removed, and an invariant
-                    one means the layout never shifts as a cell is recycled onto a post
-                    with a different count.
-                  */ HStack(
-              Embed(
-                <RiPlayFill
-                  width={META_PLAY_ICON_SIZE}
-                  height={META_PLAY_ICON_SIZE}
-                  fill={META_TEXT_COLOR}
-                />,
-              ),
-              Embed(viewsLabel !== null && <Text style={styles.meta}>{viewsLabel}</Text>),
-            )
-              .align('center')
-              .spacing('2xs'),
-            Embed(durationLabel !== null && <Text style={styles.meta}>{durationLabel}</Text>),
+            Icon(RiPlayFill).size('xs').foreground('white'),
+            viewsLabel !== null ? meta(viewsLabel) : null,
           )
-            .padding('horizontal', 'xs')
-            .padding('bottom', 'xs')
             .align('center')
-            .justify('between')
-            .spacing('xs')
-            .position({ bottom: 'none', left: 'none', right: 'none' })
-            .allowsHitTesting(false),
-        )}
-      </View>
+            .spacing('2xs'),
+          durationLabel !== null ? meta(durationLabel) : null,
+        )
+          .padding('horizontal', 'xs')
+          .padding('bottom', 'xs')
+          .align('center')
+          .justify('between')
+          .spacing('xs')
+          .position({ bottom: 'none', left: 'none', right: 'none' })
+          .allowsHitTesting(false),
+      )
+        .frame({ width: size, height: size })
+        .background('mutedFill')
+        .clipped(),
     );
   },
 );
