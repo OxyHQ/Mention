@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
@@ -285,55 +285,43 @@ const NotificationPreview: React.FC<{ text: string }> = ({ text }) =>
       )
     : null;
 
-// The strip's overlap, and its "+N" count in a 9pt type no type step has.
-const useStripStyles = createTokenStyles((t) => ({
-  overlap: { marginLeft: -8 },
-  extra: { color: t.primaryForeground, fontSize: 9, fontWeight: '700' },
-}));
-
 /** Collapsed stacked-avatar strip (up to 3 + "+N") for grouped rows. */
 const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = ({
   actors,
   totalActors,
 }) => {
-  const stripStyles = useStripStyles();
   const shown = actors.slice(0, COLLAPSED_STRIP_LIMIT);
   const extra = totalActors - shown.length;
   return toElement(
     HStack(
-      Embed(
-        shown.map((actor, index) => (
-          // `zIndex` is the only per-item dynamic value (stack order), so the slot
-          // keeps React Native's view. Every avatar after the first overlaps the
-          // one before by 8px.
-          <View
-            // Position, not identity: an actor with no id shares `undefined` with
-            // every other, and two such actors in one strip would collide on the
-            // key. The strip is a fixed slice of a stable array, so the index IS
-            // the stable identity here.
-            key={actor.id ?? `slot-${index}`}
-            style={[index > 0 && stripStyles.overlap, { zIndex: shown.length - index }]}
-          >
-            {toElement(
-              VStack(
-                Embed(
-                  <AccountAvatar
-                    account={actor}
-                    source={actor.avatar}
-                    size={STACK_AVATAR_SIZE}
-                    variant={MEDIA_VARIANT_AVATAR}
-                  />,
-                ),
-              )
-                .border('background', 'thick')
-                .corner('infinite'),
-            )}
-          </View>
-        )),
+      shown.map((actor, index) =>
+        // The stack order (`zIndex`) is the only per-item computed value. Every
+        // avatar after the first overlaps the one before by 8px.
+        VStack(
+          VStack(
+            Embed(
+              <AccountAvatar
+                account={actor}
+                source={actor.avatar}
+                size={STACK_AVATAR_SIZE}
+                variant={MEDIA_VARIANT_AVATAR}
+              />,
+            ),
+          )
+            .border('background', 'thick')
+            .corner('infinite'),
+        )
+          .when(index > 0, (v) => v.margin('left', '-sm'))
+          .zIndex(shown.length - index)
+          // Position, not identity: an actor with no id shares `undefined` with
+          // every other, and two such actors in one strip would collide on the
+          // key. The strip is a fixed slice of a stable array, so the index IS
+          // the stable identity here.
+          .id(actor.id ?? `slot-${index}`),
       ),
       extra > 0
         ? VStack(
-            VStack(Embed(<Text style={stripStyles.extra}>+{extra}</Text>))
+            VStack(RawText('+', extra).foreground('onPrimary').font('9').weight('bold'))
               .frame({ width: '28', height: '28' })
               .background('primary')
               .border('background', 'thick')
@@ -345,8 +333,6 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
     ).align('center'),
   );
 };
-
-const ACTION_ICON_SIZE = 20;
 
 interface NotificationItemProps {
   item: GroupedNotification;
@@ -565,13 +551,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
           hasUnread
             ? [
                 {
-                  icon: (
-                    <RiCheckDoubleLine
-                      width={ACTION_ICON_SIZE}
-                      height={ACTION_ICON_SIZE}
-                      fill={theme.colors.textSecondary}
-                    />
-                  ),
+                  icon: toElement(Icon(RiCheckDoubleLine).size('md').foreground('muted')),
                   label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
                   onPress: () => onMarkAsRead(item.notificationIds, intent),
                 },
@@ -579,13 +559,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             : [],
           [
             {
-              icon: (
-                <RiDeleteBinLine
-                  width={ACTION_ICON_SIZE}
-                  height={ACTION_ICON_SIZE}
-                  fill={theme.colors.error}
-                />
-              ),
+              icon: toElement(Icon(RiDeleteBinLine).size('md').foreground('error')),
               label: t('notification.delete', { defaultValue: 'Delete' }),
               color: theme.colors.error,
               onPress: () => onDelete(item.notificationIds, intent),
@@ -596,7 +570,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
     );
   }, [
     hasUnread,
-    theme.colors.textSecondary,
     theme.colors.error,
     t,
     onMarkAsRead,

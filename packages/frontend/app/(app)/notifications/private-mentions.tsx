@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { List } from '@oxy.so/bloom/list';
 import { VirtualList } from '@oxy.so/bloom/list';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -9,10 +8,14 @@ import { SEO } from '@/components/SEO';
 import { PrivateMentionRow } from '@/components/privateMentions/PrivateMentionRow';
 import { usePrivateMentionConversations } from '@/hooks/usePrivateMentionConversations';
 
-import { Embed, Header, VStack, toElement, Group } from '@oxy.so/bloom-language';
+import { Embed, Header, List, VStack, toElement, Group } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 const ROW_HEIGHT = 72;
+
+// Bloom's List as its loading rows: the first page, then the next one under the list.
+const LOADING_ROWS = List([]).loading().loadingRows(8);
+const LOADING_MORE_ROWS = List([]).loading().loadingRows(2);
 
 const conversationKey = (item: PrivateMentionConversation) => item.rootId;
 
@@ -49,7 +52,7 @@ export default screen(function PrivateMentionsScreen() {
   // One list in every state, so Bloom pads each of them clear of the header.
   const renderEmpty = () => {
     if (!isAuthResolved || isPrivateApiPending || isLoading) {
-      return <List loading loadingCount={8} />;
+      return toElement(LOADING_ROWS);
     }
     if (!canUsePrivateApi) {
       return (
@@ -112,9 +115,7 @@ export default screen(function PrivateMentionsScreen() {
         refreshing={isRefetching}
         onRefresh={canUsePrivateApi ? handleRefresh : undefined}
         ListEmptyComponent={renderEmpty()}
-        ListFooterComponent={
-          isFetchingNextPage ? toElement(VStack(Embed(<List loading loadingCount={2} />))) : null
-        }
+        ListFooterComponent={isFetchingNextPage ? toElement(VStack(LOADING_MORE_ROWS)) : null}
       />,
     ),
   ).header(

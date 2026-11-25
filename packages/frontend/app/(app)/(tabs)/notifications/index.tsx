@@ -1,20 +1,18 @@
 import { useState, useCallback, useMemo } from 'react';
-import { TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
 import {
   Button,
   Embed,
+  HStack,
   Icon,
   type IconComponent,
   Embed as LEmbed,
-  Icon as LIcon,
   Text as LText,
   VStack,
   defineTokens,
   toElement,
-  VStack as LVStack,
   toElement as LtoElement,
   TabItem,
   Tabs as LTabs,
@@ -30,7 +28,6 @@ import { createLogger } from '@oxy.so/core/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { normalizeApiError } from '@/utils/apiError';
-import { useTheme } from '@oxy.so/bloom/theme';
 import {
   groupNotifications,
   type GroupedNotification,
@@ -190,7 +187,6 @@ const NotificationsScreen = screen(function NotificationsScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const { t } = useTranslation();
-  const theme = useTheme();
   const { activeTab, selectTab: handleTabPress } = useNotificationFilter();
 
   // The realtime socket is mounted app-wide via <RealtimeNotificationsBridge/>
@@ -825,49 +821,42 @@ const NotificationsScreen = screen(function NotificationsScreen() {
     }
 
     const pokesHeader =
-      activeTab === 'pokes' ? (
-        <TouchableOpacity
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: 16,
-            paddingVertical: 14,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.border,
-            gap: 12,
-          }}
-          onPress={() => router.push('/notifications/pokes')}
-          activeOpacity={0.7}
-        >
-          {LtoElement(
-            LVStack(LEmbed(toElement(LIcon(RiHand).size('18').foreground(appColors.color.hexfff))))
-              .frame({ width: '4xl', height: '4xl' })
-              .background('primary')
-              .corner('xl')
+      activeTab === 'pokes'
+        ? toElement(
+            HStack(
+              VStack(Icon(RiHand).size('18').foreground(appColors.color.hexfff))
+                .frame({ width: '4xl', height: '4xl' })
+                .background('primary')
+                .corner('xl')
+                .align('center')
+                .justify('center'),
+              VStack(
+                LText(t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' }))
+                  .foreground('foreground')
+                  .font('md')
+                  .weight('semibold')
+                  .leading('24px'),
+                LText(
+                  t('pokes.seeAllPokesSubtitle', {
+                    defaultValue: 'Suggested follows, poke history & more',
+                  }),
+                )
+                  .foreground('muted')
+                  .font('sm')
+                  .leading('24px')
+                  .margin('top', '1'),
+              ).grow(),
+              Icon(RiArrowRightSLine).size('md').foreground('muted'),
+            )
               .align('center')
-              .justify('center'),
-          )}
-          {toElement(
-            VStack(
-              LText(t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' }))
-                .foreground('foreground')
-                .font('md')
-                .weight('semibold')
-                .leading('24px'),
-              LText(
-                t('pokes.seeAllPokesSubtitle', {
-                  defaultValue: 'Suggested follows, poke history & more',
-                }),
-              )
-                .foreground('muted')
-                .font('sm')
-                .leading('24px')
-                .margin('top', '1'),
-            ).grow(),
-          )}
-          {toElement(LIcon(RiArrowRightSLine).size('md').foreground('muted'))}
-        </TouchableOpacity>
-      ) : null;
+              .padding('horizontal', 'lg')
+              .padding('vertical', '14')
+              .border('border', 'thin', 'bottom')
+              .spacing('md')
+              .pressFade('70')
+              .onPress(() => router.push('/notifications/pokes')),
+          )
+        : null;
 
     return (
       <NotificationsList

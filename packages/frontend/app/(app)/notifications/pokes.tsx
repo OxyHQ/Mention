@@ -1,7 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +20,7 @@ import {
   Embed,
   HStack,
   Header,
+  Icon,
   ScrollView,
   Text as LText,
   VStack,
@@ -29,8 +29,11 @@ import {
   VStack as LVStack,
   toElement as LtoElement,
   Group,
+  defineTokens,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
+
+const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
@@ -127,24 +130,25 @@ export default screen(function PokesScreen() {
   const renderPokeButton = useCallback(
     (userId: string, variant: 'poke' | 'pokeBack' | 'undo') => {
       const filled = variant !== 'poke';
-      return (
-        <TouchableOpacity
-          style={[
-            styles.pokeButton,
-            filled
-              ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }
-              : { borderColor: theme.colors.border },
-          ]}
-          onPress={() => (variant === 'undo' ? handleUnpoke(userId) : handlePoke(userId))}
-          disabled={isMutating}
-          activeOpacity={0.7}
-          accessibilityLabel={variant === 'undo' ? 'Unpoke' : 'Poke'}
-        >
-          <RiHand width={18} height={18} fill={filled ? '#fff' : theme.colors.text} />
-        </TouchableOpacity>
+      return toElement(
+        VStack(
+          Icon(RiHand)
+            .size('18')
+            .foreground(filled ? appColors.color.hexfff : 'foreground'),
+        )
+          .frame({ width: '4xl', height: '4xl' })
+          .when(filled, (v) => v.background('primary'))
+          .border(filled ? 'primary' : 'border', 'thin')
+          .corner('full')
+          .align('center')
+          .justify('center')
+          .pressFade('70')
+          .onPress(() => (variant === 'undo' ? handleUnpoke(userId) : handlePoke(userId)))
+          .disabled(isMutating)
+          .label(variant === 'undo' ? 'Unpoke' : 'Poke'),
       );
     },
-    [theme, handlePoke, handleUnpoke, isMutating],
+    [handlePoke, handleUnpoke, isMutating],
   );
 
   // The shared user row; `meta` carries the poke-specific line (when the poke
@@ -374,27 +378,4 @@ export default screen(function PokesScreen() {
       .backLabel(t('common.back', { defaultValue: 'Back' }))
       .inPage(),
   );
-});
-
-const styles = StyleSheet.create({
-  pokeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  seeAll: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
 });
