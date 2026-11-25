@@ -117,6 +117,13 @@ const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: STALE_TTL_SECONDS
 interface StoredAnonFeed {
   cachedAt: number;
   entry: AnonFeedEntry;
+  /**
+   * The page was built while Oxy could not resolve an author (it shows "Unknown
+   * user"). It is never served as fresh, only as the stale page of last resort:
+   * better than a 40 s wait or a 503 while Oxy recovers, replaced by the first
+   * clean build, and never written over a clean page.
+   */
+  degraded?: boolean;
 }
 
 class AnonFeedCache {
@@ -160,7 +167,7 @@ class AnonFeedCache {
     return this.readWhere(
       key,
       requestLanguages,
-      (stored) => Date.now() - stored.cachedAt < FRESH_MS,
+      (stored) => !stored.degraded && Date.now() - stored.cachedAt < FRESH_MS,
     );
   }
 
@@ -186,9 +193,20 @@ class AnonFeedCache {
     return revalidateAnonymousFeed(stored.entry, requestLanguages);
   }
 
-  /** Persist an anon page. Fail-soft: a write error is logged and swallowed. */
-  async write(key: string, entry: AnonFeedEntry): Promise<void> {
-    await cache.set<StoredAnonFeed>(key, { cachedAt: Date.now(), entry });
+  /**
+   * Persist an anon page. Fail-soft: a write error is logged and swallowed.
+   *
+   * A `degraded` page (see {@link StoredAnonFeed.degraded}) is only stored when
+   * nothing is kept yet, so a clean stale page is never replaced by a worse one.
+   */
+  async write(key: string, entry: AnonFeedEntry, options?: { degraded?: boolean }): Promise<void> {
+    const degraded = options?.degraded === true;
+    if (degraded && (await cache.get<StoredAnonFeed>(key))?.entry?.page) return;
+    await cache.set<StoredAnonFeed>(key, {
+      cachedAt: Date.now(),
+      entry,
+      ...(degraded ? { degraded } : {}),
+    });
   }
 
   /**

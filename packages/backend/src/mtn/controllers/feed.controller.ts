@@ -728,16 +728,21 @@ class MtnFeedController {
       // A `pending` page is NEVER cached: it is a transient "posts are still
       // importing" answer, and serving it from cache for the TTL would pin the
       // client in a poll loop against a profile whose posts have already landed.
-      // Neither is a page with an author Oxy could not resolve: it records an
-      // Oxy failure, and the next reader should get a real build.
-      if (anonCacheKey && !response.pending && !hasUnresolvedAuthor(response)) {
+      // A page with an author Oxy could not resolve records an Oxy failure, not
+      // the feed: it is not shared with joiners and never served as fresh (the
+      // next reader gets a real build), but it IS kept as the stale page of last
+      // resort, unless a clean one is already kept. While Oxy was unwell most
+      // builds came out like this, nothing was ever kept, and every anonymous
+      // reader waited for a build of their own.
+      if (anonCacheKey && !response.pending) {
         const entry: AnonFeedEntry = {
           page: response,
           revisions: hydrationRevisions?.revisions ?? {},
           unratedMaterialAllowed: hydrationRevisions?.unratedMaterialAllowed,
         };
-        settleAnonBuild?.(entry);
-        anonFeedCache.write(anonCacheKey, entry).catch((error) => {
+        const degraded = hasUnresolvedAuthor(response);
+        if (!degraded) settleAnonBuild?.(entry);
+        anonFeedCache.write(anonCacheKey, entry, { degraded }).catch((error) => {
           logger.warn('[MtnFeedController] Anonymous feed cache write failed', error);
         });
       }

@@ -112,6 +112,31 @@ describe('anonFeedCache.read', () => {
   });
 });
 
+describe('degraded pages (an author Oxy could not resolve)', () => {
+  const page = { items: [{ id: 'p1' }], hasMore: false, totalCount: 1 };
+  const entry = { page, revisions: {} };
+
+  it('are never served as fresh, only as the stale page of last resort', async () => {
+    mocks.redisGet.mockResolvedValue(
+      JSON.stringify({ cachedAt: Date.now(), entry, degraded: true }),
+    );
+
+    expect(await anonFeedCache.read('k')).toBeNull();
+    expect(await anonFeedCache.readStale('k')).toEqual(page);
+  });
+
+  it('are stored flagged, but never over a page that is already kept', async () => {
+    mocks.redisGet.mockResolvedValueOnce(null);
+    await anonFeedCache.write('k', entry, { degraded: true });
+    expect(JSON.parse(mocks.redisSetEx.mock.calls[0][2]).degraded).toBe(true);
+
+    mocks.redisSetEx.mockClear();
+    mocks.redisGet.mockResolvedValueOnce(JSON.stringify({ cachedAt: Date.now(), entry }));
+    await anonFeedCache.write('k', entry, { degraded: true });
+    expect(mocks.redisSetEx).not.toHaveBeenCalled();
+  });
+});
+
 describe('anonFeedCache.write', () => {
   it('persists the response with its build time, kept far longer than it is fresh', async () => {
     const payload = { page: { items: [], hasMore: false, totalCount: 0 }, revisions: {} };
