@@ -2,6 +2,7 @@ import type React from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { ProfileData } from '@/hooks/useProfileData';
 import UserName from '@/components/UserName';
+import { toElement } from '@oxy.so/bloom-language';
 
 /** The banner band's height. */
 export const PROFILE_BANNER_HEIGHT = 170;
@@ -35,7 +36,9 @@ export function ProfilePageHeader({
 }) {
   return (
     <PageHeader
-      title={<UserName name={profileData.design.displayName} verified={profileData.verified} />}
+      title={toElement(
+        UserName({ name: profileData.design.displayName, verified: profileData.verified }),
+      )}
       titleReveal="onDock"
       presentation="floating"
       testID="profile-page-header"

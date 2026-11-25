@@ -329,7 +329,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           isPrivate={isPrivate}
           privacySettings={profileData.privacy}
           accountCategories={profileData.accountCategories}
-          UserNameComponent={UserName}
+          UserNameView={UserName}
         />
         {/* The last element of the centred masthead, and the boundary
                     the left-aligned body starts after — so it gets an equal

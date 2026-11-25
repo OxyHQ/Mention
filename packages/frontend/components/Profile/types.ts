@@ -1,5 +1,5 @@
-import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
 import type { Href } from '@/lib/navigation/router';
+import type { ComposedView, SpaceName, ViewModifier } from '@oxy.so/bloom-language';
 import type { AccountKind } from '@oxy.so/core';
 import type { ProfileData } from '@/hooks/useProfileData';
 
@@ -384,11 +384,16 @@ export interface UserNameProps {
    * the profile About screen). Opt-in so all current callers are byte-unchanged.
    */
   align?: 'start' | 'center';
-  style?: {
-    name?: StyleProp<TextStyle>;
-    handle?: StyleProp<TextStyle>;
-    container?: StyleProp<ViewStyle>;
-  };
+  /**
+   * The caller's recipes, each a module-scope `defineModifier`: `look` for the
+   * column, `nameLook` for the name, `handleLook` for the `@handle` line (the
+   * row that holds it when a {@link handleTrailing} element sits beside it).
+   */
+  look?: ViewModifier;
+  nameLook?: ViewModifier;
+  handleLook?: ViewModifier;
+  /** The space between the name row and the handle line; none by default. */
+  lineSpacing?: SpaceName;
   /**
    * Makes the name a link to this destination — an expo-router `Link`, so a
    * real `<a href>` on web.
@@ -426,7 +431,8 @@ export interface UserNameProps {
   handleTrailing?: React.ReactNode;
 }
 
-type UserNameComponent = React.ComponentType<UserNameProps>;
+/** The name view a header draws (`UserName`), handed in so the header's tests can draw it alone. */
+type UserNameView = (props: UserNameProps) => ComposedView;
 
 // What both headers need to draw an account at all. Everything past this point
 // differs, which is why there are two headers rather than one with flags.
@@ -447,7 +453,7 @@ interface ProfileHeaderBaseProps {
 export interface ChannelHeaderProps extends ProfileHeaderBaseProps {
   displayName?: string;
   verified?: boolean;
-  UserNameComponent: UserNameComponent;
+  UserNameView: UserNameView;
   isPrivate: boolean;
   privacySettings?: ProfileData['privacy'];
   /**

@@ -57,7 +57,11 @@ import {
   toElement,
   VStack as LVStack,
   toElement as LtoElement,
+  defineModifier,
 } from '@oxy.so/bloom-language';
+
+/** The byline's name keeps its width; the handle beside it gives way. */
+const NAME_HOLDS_WIDTH = defineModifier((v) => v.shrink('never'));
 
 const logger = createLogger('NotificationItem');
 
@@ -730,13 +734,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             >
               {toElement(
                 HStack(
-                  Embed(
-                    <UserName
-                      name={bylineName}
-                      verified={isSingleActor && resolvedPrimary.verified}
-                      style={{ container: { flexShrink: 0 } }}
-                    />,
-                  ),
+                  UserName({
+                    name: bylineName,
+                    verified: isSingleActor && resolvedPrimary.verified,
+                    look: NAME_HOLDS_WIDTH,
+                  }),
                   showHandleLine
                     ? RawText(` @${resolvedPrimary.handle}`)
                         .foreground('muted')
@@ -884,9 +886,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                                             variant={MEDIA_VARIANT_AVATAR}
                                           />,
                                         ),
-                                        Embed(
-                                          <UserName name={actorLabel(actor, someone)} size="sm" />,
-                                        ),
+                                        UserName({ name: actorLabel(actor, someone), size: 'sm' }),
                                       )
                                         .align('center')
                                         .spacing('sm')

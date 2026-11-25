@@ -79,7 +79,12 @@ import {
   RawText,
   VStack,
   toElement,
+  defineModifier,
 } from '@oxy.so/bloom-language';
+
+/** The profile title's spacing, and the room under its handle line. */
+const PROFILE_NAME = defineModifier((v) => v.margin('top', '10').margin('bottom', 'xs'));
+const PROFILE_HANDLE = defineModifier((v) => v.margin('bottom', 'md'));
 
 /** Feed types cleared from the local store when a profile turns out to be private. */
 const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts', 'mentions'];
@@ -425,15 +430,6 @@ export function usePersonProfileView({
     if (profileData?.actorUri) openExternalLink(profileData.actorUri);
   }, [profileData?.actorUri]);
 
-  const userNameStyle = useMemo(
-    () => ({
-      name: { fontWeight: 'bold' as const, marginTop: 10, marginBottom: 4 },
-      handle: { fontSize: 15, marginBottom: 12 },
-      container: undefined,
-    }),
-    [],
-  );
-
   const identity = useMemo(() => {
     if (!profileData) return null;
     // Passive "Follows you" tag inline to the right of the @handle when this
@@ -509,24 +505,23 @@ export function usePersonProfileView({
         />
         {toElement(
           VStack(
-            Embed(
-              <UserName
-                name={profileData.design.displayName}
-                handle={profileData.username}
-                verified={profileData.verified}
-                isFederated={profileData.isFederated}
-                kind={profileData.kind}
-                // The profile is the ONE surface that opts the marker in: a reader
-                // here has room for the answer, and the identity line is not itself
-                // a link to somewhere else.
-                onExplainNetwork={showFediverseInfo}
-                copyableHandle
-                asHeading
-                size="xl"
-                style={userNameStyle}
-                handleTrailing={followsYouTag}
-              />,
-            ),
+            UserName({
+              name: profileData.design.displayName,
+              handle: profileData.username,
+              verified: profileData.verified,
+              isFederated: profileData.isFederated,
+              kind: profileData.kind,
+              // The profile is the ONE surface that opts the marker in: a reader
+              // here has room for the answer, and the identity line is not itself
+              // a link to somewhere else.
+              onExplainNetwork: showFediverseInfo,
+              copyableHandle: true,
+              asHeading: true,
+              size: 'xl',
+              nameLook: PROFILE_NAME,
+              handleLook: PROFILE_HANDLE,
+              handleTrailing: followsYouTag,
+            }),
             /* Non-personal accounts route here too — an organization, a project
                       or a bot is a `person`-FAMILY url (only `channel` gets `/c/`), and
                       all four kinds carry categories. A personal account never has any,
@@ -606,7 +601,6 @@ export function usePersonProfileView({
     isPrivate,
     avatarUri,
     currentUser,
-    userNameStyle,
     t,
     canUsePrivateApi,
     subscribed,

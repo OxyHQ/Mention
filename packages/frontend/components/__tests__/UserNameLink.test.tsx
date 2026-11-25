@@ -1,7 +1,11 @@
 import type React from 'react';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 
+import { defineModifier, toElement } from '@oxy.so/bloom-language';
+
 import UserName from '../UserName';
+
+const HEAVY_NAME = defineModifier((v) => v.font('xl').weight('extrabold'));
 
 /**
  * A name with an `href` carries an expo-router `Link` around its text — on web,
@@ -47,11 +51,7 @@ function textNode(
 describe('UserName as a link', () => {
   it('renders the name with a link to the profile inside it', () => {
     const renderer = render(
-      <UserName
-        name="Nate"
-        style={{ name: [{ fontSize: 20 }, { fontWeight: '800' }] }}
-        href="/@nate"
-      />,
+      toElement(UserName({ name: 'Nate', nameLook: HEAVY_NAME, href: '/@nate' })),
     );
 
     const link = textNode(renderer, (props) => props.href === '/@nate');
@@ -60,21 +60,23 @@ describe('UserName as a link', () => {
   });
 
   it('is plain text without an href', () => {
-    const renderer = render(<UserName name="Nate" />);
+    const renderer = render(toElement(UserName({ name: 'Nate' })));
 
     expect(renderer.root.findAll((node) => node.props.href !== undefined)).toHaveLength(0);
   });
 
   it('is the page heading when asked to be', () => {
-    const renderer = render(<UserName name="Nate" asHeading />);
+    const renderer = render(toElement(UserName({ name: 'Nate', asHeading: true })));
 
-    expect(textNode(renderer, (props) => props.role === 'heading').props.children).toBe('Nate');
+    expect(textNode(renderer, (props) => props.accessibilityRole === 'header').props.children).toBe(
+      'Nate',
+    );
   });
 
   it('is a heading that holds its link, when it is both', () => {
-    const renderer = render(<UserName name="Nate" asHeading href="/@nate" />);
+    const renderer = render(toElement(UserName({ name: 'Nate', asHeading: true, href: '/@nate' })));
 
-    const heading = textNode(renderer, (props) => props.role === 'heading');
+    const heading = textNode(renderer, (props) => props.accessibilityRole === 'header');
     expect(heading.props.href).toBeUndefined();
     expect(
       heading.find((node) => String(node.type) === 'Text' && node.props.href === '/@nate').props

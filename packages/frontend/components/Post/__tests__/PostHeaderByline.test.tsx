@@ -55,7 +55,16 @@ jest.mock('@oxy.so/bloom/icons', () => ({
 }));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
-jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
+jest.mock('../../UserName', () => {
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { Embed } =
+    jest.requireActual<typeof import('@oxy.so/bloom-language')>('@oxy.so/bloom-language');
+  // UserName is a language view: the stand-in is a node holding a host element of its name.
+  return {
+    __esModule: true,
+    default: (props: Record<string, unknown>) => Embed(createElement('UserName', props)),
+  };
+});
 
 jest.mock('@oxy.so/bloom/theme', () => ({
   ...jest.requireActual('@oxy.so/bloom/theme'),

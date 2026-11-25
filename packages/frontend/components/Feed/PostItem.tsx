@@ -40,6 +40,7 @@ import {
   RawText,
   VStack as LVStack,
   toElement as LtoElement,
+  defineModifier,
 } from '@oxy.so/bloom-language';
 import { toast } from '@oxy.so/bloom/toast';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -163,7 +164,8 @@ const MENU_GLYPH = Icon(RiMoreFill)
   .padding('horizontal', 'sm')
   .hitSlop('md');
 
-const NAME_STYLE = { container: { flexShrink: 1, minWidth: 0 } } as const;
+/** The name's column shrinks with the identity line, so a long name ellipsizes. */
+const NAME_COLUMN = defineModifier((v) => v.shrink('normal'));
 const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
 
 /** The row's inks that are not language chains, as Bloom paints its own: once per palette. */
@@ -1466,16 +1468,14 @@ function PostRow(props: PostItemProps): Child {
     onInsights: handleInsightsPress,
   });
 
-  const identityName = Embed(
-    <UserName
-      name={hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined}
-      verified={user.verified}
-      href={authorHref}
-      onPress={prefetchAuthorProfile}
-      asHeading={isDetailMain}
-      style={NAME_STYLE}
-    />,
-  );
+  const identityName = UserName({
+    name: hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined,
+    verified: user.verified,
+    href: authorHref,
+    onPress: prefetchAuthorProfile,
+    asHeading: isDetailMain,
+    look: NAME_COLUMN,
+  });
   const identityHandle =
     hasDisplayName && user.handle
       ? Text(`${detail ? '' : ' '}@${user.handle}`)

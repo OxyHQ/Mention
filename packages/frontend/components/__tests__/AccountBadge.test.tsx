@@ -426,7 +426,8 @@ describe('surfaces — only the profile arms the FEDIVERSE marker', () => {
     const profile = sources.find(
       (entry) => entry.rel === 'components/Profile/hooks/usePersonProfileView.tsx',
     );
-    expect(profile?.text).toMatch(/onExplainNetwork=\{/);
+    // As a JSX prop or a view's prop (`UserName({ onExplainNetwork: … })`).
+    expect(profile?.text).toMatch(/onExplainNetwork(=\{|: )/);
   });
 });
 
@@ -457,7 +458,7 @@ describe('surfaces — only a channel’s own page arms the CHANNEL marker', () 
 
   it('the opt-in reaches the badge rather than only being mentioned', () => {
     const header = sources.find((entry) => entry.rel === 'components/Profile/ChannelHeader.tsx');
-    expect(header?.text).toMatch(/onExplainChannel=\{/);
+    expect(header?.text).toMatch(/onExplainChannel(=\{|: )/);
   });
 
   it('is the only file outside the badge that opens the dialog', () => {

@@ -9,7 +9,7 @@ import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { useResolvedProfileIdentity, type ProfileCardData } from './ProfileCard';
 import UserName from './UserName';
 
-import { Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Text, VStack, toElement, defineModifier } from '@oxy.so/bloom-language';
 
 const AVATAR_SIZE = 64;
 
@@ -20,10 +20,14 @@ const AVATAR_SIZE = 64;
 const BIO_LINES = 2;
 const BIO_LINE_HEIGHT = 18;
 
-const IDENTITY_STYLE = StyleSheet.create({
+/** The tile's identity: the name on a 20pt line over a 13/18 handle, across the tile. */
+const IDENTITY_NAME = defineModifier((v) => v.leading('20px'));
+const IDENTITY_HANDLE = defineModifier((v) => v.font('sm').leading('18px'));
+const IDENTITY_COLUMN = defineModifier((v) => v.alignSelf('stretch'));
+/** The skeleton's lines, at the identity's type sizes. */
+const SKELETON_LINES = StyleSheet.create({
   name: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
   handle: { fontSize: 13, lineHeight: 18 },
-  container: { gap: 0, alignSelf: 'stretch' },
 });
 
 /** The tile, as `flex-1 items-center gap-2` drew it. */
@@ -91,17 +95,21 @@ export function SuggestedProfileCard({
             verified={resolved.verified}
             placeholderColor={getUserPlaceholderColor(resolved)}
           />
-          <UserName
-            name={nameLabel}
-            handle={handle || undefined}
-            verified={resolved.verified}
-            isFederated={resolved.isFederated}
-            kind={resolved.kind}
-            isAgent={resolved.isAgent}
-            isAutomated={resolved.isAutomated}
-            align="center"
-            style={IDENTITY_STYLE}
-          />
+          {render(
+            UserName({
+              name: nameLabel,
+              handle: handle || undefined,
+              verified: resolved.verified,
+              isFederated: resolved.isFederated,
+              kind: resolved.kind,
+              isAgent: resolved.isAgent,
+              isAutomated: resolved.isAutomated,
+              align: 'center',
+              look: IDENTITY_COLUMN,
+              nameLook: IDENTITY_NAME,
+              handleLook: IDENTITY_HANDLE,
+            }),
+          )}
           {render(
             // BIO_LINES lines of BIO_LINE_HEIGHT (18px), the box held at both (36) when shorter.
             Text(bio ?? '')
@@ -144,8 +152,8 @@ export function SuggestedProfileCardSkeleton() {
     VStack(
       VStack(
         Embed(<Skeleton.Circle size={AVATAR_SIZE} />),
-        Embed(<Skeleton.Text style={[IDENTITY_STYLE.name, { width: 110 }]} />),
-        Embed(<Skeleton.Text style={[IDENTITY_STYLE.handle, { width: 80 }]} />),
+        Embed(<Skeleton.Text style={[SKELETON_LINES.name, { width: 110 }]} />),
+        Embed(<Skeleton.Text style={[SKELETON_LINES.handle, { width: 80 }]} />),
         Embed(
           <Skeleton.Col
             style={{ gap: 0, alignItems: 'center', minHeight: BIO_LINES * BIO_LINE_HEIGHT }}

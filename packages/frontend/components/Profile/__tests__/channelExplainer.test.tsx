@@ -75,6 +75,7 @@ jest.mock('react-i18next', () => ({
 
 import { ChannelHeader } from '@/components/Profile/ChannelHeader';
 import UserName from '@/components/UserName';
+import { toElement } from '@oxy.so/bloom-language';
 import enStrings from '@/locales/en.json';
 
 const CHANNEL_LABEL = enStrings.channels.badge.a11yLabel;
@@ -114,7 +115,7 @@ describe('the channel page arms the marker beside the name', () => {
         displayName="The Daily"
         username="thedaily"
         isPrivate={false}
-        UserNameComponent={UserName}
+        UserNameView={UserName}
       />,
     );
 
@@ -134,7 +135,9 @@ describe('every other surface that names a channel leaves the marker alone', () 
   it('renders the SAME marker as a plain image with no handler', () => {
     // The `UserName` call a post header, a who-to-follow row and a search result
     // all make: the account's kind, no opt-in.
-    const renderer = render(<UserName name="The Daily" handle="thedaily" kind="channel" />);
+    const renderer = render(
+      toElement(UserName({ name: 'The Daily', handle: 'thedaily', kind: 'channel' })),
+    );
 
     const found = marker(renderer);
     // Positive control — inert is not "absent", and the whole point of this file

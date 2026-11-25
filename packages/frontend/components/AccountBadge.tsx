@@ -52,8 +52,8 @@ import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 interface IdentityBadgeVisualProps {
   /** Icon size in px. Defaults to 15 (inline-with-text size). */
   size?: number;
-  /** Icon fill. Defaults to the muted foreground tone. */
-  color?: string;
+  /** Icon ink: the theme's foreground, or (the default) its muted foreground. */
+  tone?: 'foreground' | 'muted';
   /** Style for the wrapper (e.g. the baseline-nudge transform in UserName). */
   style?: StyleProp<ViewStyle>;
 }
@@ -81,7 +81,7 @@ function IdentityMarker({
   a11yLabel,
   onExplain,
   size = 15,
-  color,
+  tone,
   style,
 }: IdentityMarkerProps) {
   const handlePress = useCallback(
@@ -96,7 +96,13 @@ function IdentityMarker({
   );
 
   const { colors } = useTheme();
-  const icon = <Icon width={size} height={size} fill={color ?? colors.textSecondary} />;
+  const icon = (
+    <Icon
+      width={size}
+      height={size}
+      fill={tone === 'foreground' ? colors.text : colors.textSecondary}
+    />
+  );
 
   if (!onExplain) {
     // `image` rather than no role: the marker carries meaning a sighted reader

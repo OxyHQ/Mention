@@ -50,7 +50,16 @@ jest.mock('expo-router', () => ({ Redirect: 'Redirect', useRouter: () => ({}) })
 jest.mock('@/hooks/useAccountCategoryLabel', () => ({
   useAccountCategoryLabel: () => (id: string) => id,
 }));
-jest.mock('@/components/UserName', () => ({ __esModule: true, default: 'UserName' }));
+jest.mock('@/components/UserName', () => {
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { Embed } =
+    jest.requireActual<typeof import('@oxy.so/bloom-language')>('@oxy.so/bloom-language');
+  // UserName is a language view: the stand-in is a node holding a host element of its name.
+  return {
+    __esModule: true,
+    default: (props: Record<string, unknown>) => Embed(createElement('UserName', props)),
+  };
+});
 jest.mock('@/components/settings/RowIcon', () => ({ RowIcon: 'RowIcon' }));
 jest.mock('@/components/Fediverse/FediverseInfoDialog', () => ({ showFediverseInfo: jest.fn() }));
 jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: jest.fn() }));

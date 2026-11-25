@@ -188,7 +188,12 @@ jest.mock('@oxy.so/core', () => ({
 
 jest.mock('@/components/UserName', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: ({ name }: { name?: string }) => <RNText>{name}</RNText> };
+  const { Embed } =
+    jest.requireActual<typeof import('@oxy.so/bloom-language')>('@oxy.so/bloom-language');
+  return {
+    __esModule: true,
+    default: ({ name }: { name?: string }) => Embed(<RNText>{name}</RNText>),
+  };
 });
 
 jest.mock('@/components/common/LinkifiedText', () => {

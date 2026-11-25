@@ -5,7 +5,10 @@ import { showChannelInfo } from '@/components/Channels/ChannelInfoDialog';
 import { AccountCategoryLine } from './AccountCategoryLine';
 import { PrivateBadge } from './PrivateBadge';
 import type { ChannelActionsProps, ChannelHeaderProps } from './types';
-import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, VStack, toElement, defineModifier } from '@oxy.so/bloom-language';
+
+/** The title's spacing, as the profile header draws it. */
+const TITLE_NAME = defineModifier((v) => v.margin('top', 'md').margin('bottom', 'xs'));
 
 /**
  * The avatar's edge-to-edge footprint.
@@ -70,7 +73,7 @@ export const ChannelHeader = memo(function ChannelHeader({
   isPrivate,
   privacySettings,
   accountCategories,
-  UserNameComponent,
+  UserNameView,
 }: ChannelHeaderProps) {
   const surfaceFill = useSurfaceFill();
   return toElement(
@@ -93,40 +96,34 @@ export const ChannelHeader = memo(function ChannelHeader({
           }}
         />,
       ),
-      Embed(
-        <UserNameComponent
-          name={displayName}
-          handle={username}
-          asHeading
-          // Inline, next to the name, rather than the corner badge this header
-          // used to pin to the avatar. That badge was positioned against the
-          // avatar's left edge — coherent only while the avatar sat at the right
-          // end of a row — and it drew `checkmark-circle` from Ionicons where
-          // every other identity surface in the app draws the shared
-          // `RiVerifiedBadgeFill` through `UserName`. Inline also puts it beside the
-          // channel marker below, so the two facts about this identity read as
-          // one cluster instead of two conventions.
-          verified={verified}
-          // Not a guess and not a conditional: this component only ever draws a
-          // channel (the route canonicalizes anything else away before it
-          // renders), so the marker states what the page is.
-          kind="channel"
-          // THE opt-in, and the only one. A channel is an unfamiliar kind of
-          // account, and this is the one screen where a reader who wants to know
-          // what it is has room for the answer — everywhere else the marker sits
-          // in a row that is already a tap going somewhere, so it stays inert
-          // there (see `AccountBadge`). The handler is channel-specific on
-          // purpose: it cannot reach the fediverse explainer, nor that one this.
-          onExplainChannel={showChannelInfo}
-          align="center"
-          size="xl"
-          style={{
-            name: { fontWeight: 'bold' as const, marginTop: 12, marginBottom: 4 },
-            handle: { fontSize: 15 },
-            container: undefined,
-          }}
-        />,
-      ),
+      UserNameView({
+        name: displayName,
+        handle: username,
+        asHeading: true,
+        // Inline, next to the name, rather than the corner badge this header
+        // used to pin to the avatar. That badge was positioned against the
+        // avatar's left edge — coherent only while the avatar sat at the right
+        // end of a row — and it drew `checkmark-circle` from Ionicons where
+        // every other identity surface in the app draws the shared
+        // `RiVerifiedBadgeFill` through `UserName`. Inline also puts it beside the
+        // channel marker below, so the two facts about this identity read as
+        // one cluster instead of two conventions.
+        verified,
+        // Not a guess and not a conditional: this component only ever draws a
+        // channel (the route canonicalizes anything else away before it
+        // renders), so the marker states what the page is.
+        kind: 'channel',
+        // THE opt-in, and the only one. A channel is an unfamiliar kind of
+        // account, and this is the one screen where a reader who wants to know
+        // what it is has room for the answer — everywhere else the marker sits
+        // in a row that is already a tap going somewhere, so it stays inert
+        // there (see `AccountBadge`). The handler is channel-specific on
+        // purpose: it cannot reach the fediverse explainer, nor that one this.
+        onExplainChannel: showChannelInfo,
+        align: 'center',
+        size: 'xl',
+        nameLook: TITLE_NAME,
+      }),
       /* What the channel IS, under its handle — one line of muted text, the
             last thing in the identity stack before the controls. It renders
             nothing at all when there is no primary category to name, so a channel

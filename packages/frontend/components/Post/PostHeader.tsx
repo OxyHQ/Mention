@@ -30,7 +30,11 @@ import {
   VStack,
   toElement,
   type IconComponent,
+  defineModifier,
 } from '@oxy.so/bloom-language';
+
+/** The name's column shrinks with the identity line, so a long name ellipsizes. */
+const NAME_COLUMN = defineModifier((v) => v.shrink('normal'));
 
 /**
  * A marker after the time (edited, private mention): its 14pt glyph, pressed
@@ -443,16 +447,14 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     </ProfileHoverCard>
   );
 
-  const identityName = (
-    <UserName
-      name={hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined}
-      verified={user.verified}
-      href={userHref}
-      onPress={onPressName}
-      asHeading={nameAsHeading}
-      style={{ container: { flexShrink: 1, minWidth: 0 } }}
-    />
-  );
+  const identityName = UserName({
+    name: hasDisplayName ? user.displayName : user.handle ? `@${user.handle}` : undefined,
+    verified: user.verified,
+    href: userHref,
+    onPress: onPressName,
+    asHeading: nameAsHeading,
+    look: NAME_COLUMN,
+  });
   const identityHandle =
     hasDisplayName && user.handle
       ? toElement(
@@ -547,12 +549,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               <View style={detail ? styles.identityDetail : styles.identity}>
                 {detail ? (
                   <>
-                    {toElement(HStack(Embed(identityName), Embed(identityBadge)).align('center'))}
+                    {toElement(HStack(identityName, Embed(identityBadge)).align('center'))}
                     {identityHandle}
                   </>
                 ) : (
                   <>
-                    {identityName}
+                    {toElement(identityName)}
                     {identityHandle}
                     {identityBadge}
                   </>

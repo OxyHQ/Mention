@@ -57,13 +57,17 @@ jest.mock('@oxy.so/bloom/avatar', () => {
 jest.mock('@/components/UserName', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
+  const { Embed } =
+    jest.requireActual<typeof import('@oxy.so/bloom-language')>('@oxy.so/bloom-language');
   return {
     __esModule: true,
     default: (props: { name?: string; handle?: string }) =>
-      ReactActual.createElement(
-        Text,
-        { testID: 'card-name' },
-        `${props.name ?? ''}|${props.handle ?? ''}`,
+      Embed(
+        ReactActual.createElement(
+          Text,
+          { testID: 'card-name' },
+          `${props.name ?? ''}|${props.handle ?? ''}`,
+        ),
       ),
   };
 });

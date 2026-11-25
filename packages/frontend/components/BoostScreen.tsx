@@ -29,8 +29,12 @@ import {
   ScrollView,
   VStack,
   defineTokens,
+  defineModifier,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
+
+/** The boosted post's handle, at 13pt. */
+const SMALL_HANDLE = defineModifier((v) => v.font('sm'));
 
 /** "Post not found" sits 100pt down the empty screen. */
 const boost = defineTokens({ space: { notFoundTop: 100 } });
@@ -170,15 +174,13 @@ export default screen(function BoostScreen() {
             />,
           ),
           VStack(
-            Embed(
-              <UserName
-                name={originalPost.user.name?.displayName}
-                handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
-                verified={originalPost.user.verified}
-                size="sm"
-                style={{ handle: { fontSize: 13 } }}
-              />,
-            ),
+            UserName({
+              name: originalPost.user.name?.displayName,
+              handle: getNormalizedUserHandle(originalPost.user) ?? undefined,
+              verified: originalPost.user.verified,
+              size: 'sm',
+              handleLook: SMALL_HANDLE,
+            }),
           ).flex('1'),
         )
           .align('center')

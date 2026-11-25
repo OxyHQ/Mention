@@ -1,9 +1,6 @@
-import React, { useCallback } from 'react';
-import { Text, StyleSheet, View, type TextStyle } from 'react-native';
 import { Link } from '@/lib/navigation/router';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiVerifiedBadgeFill } from '@oxy.so/bloom/icons/RiVerifiedBadgeFill';
@@ -13,10 +10,12 @@ import type { UserNameProps, UserNameSize } from '@/components/Profile/types';
 import {
   defineTokens,
   Embed,
+  HStack,
   Icon,
   RawText,
-  toElement,
+  view,
   VStack,
+  type FontSizeName,
   type IconSizeToken,
   type PaddingToken,
 } from '@oxy.so/bloom-language';
@@ -25,12 +24,14 @@ import {
 const BADGE = defineTokens({ color: { verified: VERIFIED_BADGE_COLOR } });
 
 interface NameSize {
-  /** The name's font size, and the side of every glyph beside it. */
-  font: number;
-  /** How far the glyphs sit below the row's centre, onto the text's baseline. */
+  /** The name's font size. */
+  font: FontSizeName;
+  /** The side of every glyph beside the name: the font size, in points and as a token. */
+  side: number;
+  glyph: IconSizeToken;
+  /** How far the glyphs sit below the row's centre, onto the text's baseline, in points and as a token. */
   nudge: number;
-  /** The verified badge's side and nudge, as tokens: the same `font` and `nudge` (native only, see below). */
-  badge: { size: IconSizeToken; nudge: PaddingToken };
+  nudgeToken: PaddingToken;
 }
 
 /**
@@ -38,13 +39,20 @@ interface NameSize {
  * of it (18% for the title size), rounded to a whole point.
  */
 const NAME_SIZES: Record<UserNameSize, NameSize> = {
-  sm: { font: 14, nudge: 1, badge: { size: '14', nudge: '1' } },
-  md: { font: 15, nudge: 1, badge: { size: '15', nudge: '1' } },
-  lg: { font: 16, nudge: 1, badge: { size: 'sm', nudge: '1' } },
-  xl: { font: 24, nudge: 4, badge: { size: 'lg', nudge: 'xs' } },
+  sm: { font: '14', side: 14, glyph: '14', nudge: 1, nudgeToken: '1' },
+  md: { font: 'md', side: 15, glyph: '15', nudge: 1, nudgeToken: '1' },
+  lg: { font: '16', side: 16, glyph: 'sm', nudge: 1, nudgeToken: '1' },
+  xl: { font: '24', side: 24, glyph: 'lg', nudge: 4, nudgeToken: 'xs' },
 };
 
-const UserName: React.FC<UserNameProps> = ({
+/**
+ * An account's name, its markers and its `@handle`, as one language view: placed
+ * in a language tree it costs one fiber and one read of the environment and the
+ * theme, and everything inside (the name's link, the badge, the glyphs) is part
+ * of that tree. A caller places it with `look` (the column), `nameLook` and
+ * `handleLook` (the handle's line), never a style object.
+ */
+const UserName = view(function UserName({
   name,
   handle,
   verified,
@@ -60,28 +68,24 @@ const UserName: React.FC<UserNameProps> = ({
   copyableHandle,
   size = 'md',
   align = 'start',
-  style,
+  look,
+  nameLook,
+  handleLook,
+  lineSpacing,
   handleTrailing,
-}) => {
-  const theme = useTheme();
-  const { font, nudge, badge } = NAME_SIZES[size];
-  const nameStyle = [{ color: theme.colors.text }, styles.name, { fontSize: font }, style?.name];
+}: UserNameProps) {
+  const { font, side, glyph, nudge, nudgeToken } = NAME_SIZES[size];
 
   // Opt-in centered layout (default `'start'` keeps every existing caller
   // byte-unchanged): center the name row + handle line for a stacked, centered
-  // profile header. What the classes drew comes first, the caller's style after.
+  // profile header.
   const isCentered = align === 'center';
-  const handleInk = { color: theme.colors.textSecondary };
-  const handleLook = isCentered ? [handleInk, styles.centeredText] : handleInk;
 
-  const handleCopyHandle = useCallback(async () => {
+  const copyHandle = async () => {
     if (!handle) return;
-    const text = `@${handle}`;
-    await Clipboard.setStringAsync(text);
+    await Clipboard.setStringAsync(`@${handle}`);
     toast('Copied to clipboard', { type: 'success' });
-  }, [handle]);
-
-  const glyphNudge = { transform: [{ translateY: nudge }] };
+  };
 
   // Single source of truth for the "display name else handle, once" rule:
   //  - a real display name owns the bold primary slot, with the muted `@handle`
@@ -94,72 +98,41 @@ const UserName: React.FC<UserNameProps> = ({
   const showHandleLine = hasName && !!handle;
 
   // Handle line: the muted `@handle`, optionally with a passive inline element
-  // (e.g. a "Follows you" tag) rendered to its right on the SAME line. When a
-  // trailing element is present the handle is wrapped in a row and the caller's
-  // bottom margin is relocated onto that row so the tag stays vertically
-  // centered with the handle text; the handle itself shrinks first so it stays
-  // primary. With no trailing element the original single-Text path is kept
-  // byte-for-byte, so every other caller is unaffected.
-  let handleLineNode: React.ReactNode = null;
+  // (e.g. a "Follows you" tag) rendered to its right on the SAME line. With a
+  // trailing element the handle sits in a row, which takes the caller's
+  // `handleLook` (its bottom margin keeps the tag centred with the handle text),
+  // and the handle shrinks first so it stays primary.
+  const handleRun = RawText('@', handle).foreground('muted');
+  const handleAligned = isCentered ? handleRun.textAlign('center') : handleRun;
+  const handleText = (
+    handleTrailing != null
+      ? handleAligned.frame({ maxWidth: 'full', minWidth: 'none' }).shrink('normal')
+      : handleAligned.frame({ maxWidth: 'full' })
+  )
+    .font('md')
+    .leading('20px')
+    .lines(1);
+  const handleCopies = isFederated && copyableHandle;
+  let handleLine = null;
   if (showHandleLine) {
     if (handleTrailing != null) {
-      const flatHandle = StyleSheet.flatten([styles.handle, style?.handle]) as TextStyle;
-      const { marginBottom: handleMarginBottom, ...handleTextStyle } = flatHandle;
-      const handleText = (
-        <Text
-          style={[handleLook, handleTextStyle, styles.handleShrink]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          @{handle}
-        </Text>
-      );
-      handleLineNode = (
-        <View
-          style={[
-            isCentered ? styles.trailingGapCentered : styles.trailingGap,
-            styles.handleTrailingRow,
-            handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null,
-          ]}
-        >
-          {isFederated && copyableHandle
-            ? toElement(
-                VStack(Embed(handleText))
-                  .frame({ minWidth: 'none' })
-                  .shrink('normal')
-                  .onPress(handleCopyHandle)
-                  .pressFade('70'),
-              )
-            : handleText}
-          {handleTrailing}
-        </View>
-      );
-    } else if (isFederated && copyableHandle) {
-      handleLineNode = toElement(
-        VStack(
-          Embed(
-            <Text
-              style={[handleLook, styles.handle, style?.handle]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              @{handle}
-            </Text>,
-          ),
-        )
-          .onPress(handleCopyHandle)
-          .pressFade('70'),
-      );
+      const row = HStack(
+        handleCopies
+          ? VStack(handleText)
+              .frame({ minWidth: 'none' })
+              .shrink('normal')
+              .onPress(copyHandle)
+              .pressFade('70')
+          : handleText,
+        Embed(handleTrailing),
+      ).spacing('sm');
+      handleLine = (isCentered ? row.justify('center') : row)
+        .align('center')
+        .frame({ minWidth: 'none' })
+        .modifier(handleLook);
     } else {
-      handleLineNode = (
-        <Text
-          style={[handleLook, styles.handle, style?.handle]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          @{handle}
-        </Text>
-      );
+      const text = handleText.modifier(handleLook);
+      handleLine = handleCopies ? VStack(text).onPress(copyHandle).pressFade('70') : text;
     }
   }
 
@@ -168,140 +141,91 @@ const UserName: React.FC<UserNameProps> = ({
   // the role's tag, and an `<h1 href>` is not a link). The link takes the
   // name's style from the Text around it. The click stops at the link: a
   // name inside a pressable row must not also press the row.
-  const nameText = (
-    <Text
-      style={nameStyle}
-      numberOfLines={1}
-      ellipsizeMode="tail"
-      role={asHeading ? 'heading' : undefined}
-    >
-      {href
-        ? // The link's child is the text's own host (Embed's render), so `asChild` hands it the
-          // href, role and press: a boundary component in between would drop them.
-          toElement(
-            Embed((render) => (
-              <Link
-                href={href}
-                push
-                asChild
-                onPress={(event) => {
-                  event.stopPropagation();
-                  onPress?.();
-                }}
-              >
-                {render(RawText(primaryText))}
-              </Link>
-            )),
-          )
-        : primaryText}
-    </Text>
-  );
+  const nameRun = RawText(
+    href
+      ? // The link's child is the text's own host (Embed's render), so `asChild` hands it the
+        // href, role and press: a boundary component in between would drop them.
+        Embed((render) => (
+          <Link
+            href={href}
+            push
+            asChild
+            onPress={(event) => {
+              event.stopPropagation();
+              onPress?.();
+            }}
+          >
+            {render(RawText(primaryText))}
+          </Link>
+        ))
+      : primaryText,
+  )
+    .foreground('foreground')
+    .weight('bold')
+    // Shrink (and ellipsize at one line) only when the parent constrains width;
+    // a no-op when there is room, so unconstrained callers keep the name's
+    // intrinsic width.
+    .shrink('normal')
+    .font(font)
+    .lines(1);
+  const nameText = (asHeading ? nameRun.role('header') : nameRun).modifier(nameLook);
 
-  const inner = (
-    <>
-      <View style={[isCentered ? styles.nameGapCentered : styles.nameGap, styles.nameRow]}>
-        {primaryText != null && nameText}
-        {/* The badge is always VERIFIED_BADGE_COLOR, never a theme role. It used to take
-                    `text-primary`, which a profile scopes to the PROFILE OWNER's
-                    colour preset — so the same seal was a different colour on
-                    every profile, and the compact scroll header opted out into
-                    `text-foreground` on top of that, drawing it black/white a
-                    few pixels above the very same badge in the identity line. */}
-        {verified &&
-          toElement(
-            Icon(RiVerifiedBadgeFill)
-              .size(badge.size)
-              .foreground(BADGE.color.verified)
-              // Natively only: the badge's nudge was its icon's own style, which a
-              // Bloom icon on the web drops (react-native-svg's web svg), so the web
-              // badge has always sat on the row's centre.
-              .when('native', (v) => v.offset({ y: badge.nudge })),
-          )}
-        {/* One marker for the account's whole identity state — remote or
-                    channel, never both, and nothing at all for an ordinary local
-                    account. Inert unless the caller passed the handler for the
-                    marker it draws; forwarded, never chosen between here. */}
-        <AccountBadge
-          isFederated={isFederated}
-          kind={kind}
-          onExplainNetwork={onExplainNetwork}
-          onExplainChannel={onExplainChannel}
-          size={font}
-          color={theme.colors.text}
-          style={glyphNudge}
-        />
+  const nameLine = HStack(
+    primaryText != null ? nameText : null,
+    // The badge is always VERIFIED_BADGE_COLOR, never a theme role. It used to take
+    // `text-primary`, which a profile scopes to the PROFILE OWNER's colour preset — so
+    // the same seal was a different colour on every profile, and the compact scroll
+    // header opted out into `text-foreground` on top of that, drawing it black/white a
+    // few pixels above the very same badge in the identity line.
+    verified
+      ? Icon(RiVerifiedBadgeFill)
+          .size(glyph)
+          .foreground(BADGE.color.verified)
+          // Natively only: a glyph's nudge was its icon's own style, which a Bloom
+          // icon on the web drops (react-native-svg's web svg), so the web glyphs
+          // have always sat on the row's centre.
+          .when('native', (v) => v.offset({ y: nudgeToken }))
+      : null,
+    // One marker for the account's whole identity state — remote or channel, never
+    // both, and nothing at all for an ordinary local account. Inert unless the
+    // caller passed the handler for the marker it draws; forwarded, never chosen
+    // between here.
+    Embed(
+      <AccountBadge
+        isFederated={isFederated}
+        kind={kind}
+        onExplainNetwork={onExplainNetwork}
+        onExplainChannel={onExplainChannel}
+        size={side}
+        tone="foreground"
+        style={{ transform: [{ translateY: nudge }] }}
+      />,
+    ),
+    isAgent
+      ? Icon(RiSparklingLine)
+          .size(glyph)
+          .foreground('muted')
+          .when('native', (v) => v.offset({ y: nudgeToken }))
+      : null,
+    isAutomated
+      ? Icon(RiRobot2Line)
+          .size(glyph)
+          .foreground('muted')
+          .when('native', (v) => v.offset({ y: nudgeToken }))
+      : null,
+  )
+    // Centered identity stacks still constrain the row before text ellipsizes, and
+    // the row may shrink below its content's width so the name can ellipsize.
+    .frame({ maxWidth: 'full', minWidth: 'none' })
+    .spacing('xs')
+    .align('center');
+  const nameRow = isCentered ? nameLine.justify('center') : nameLine;
 
-        {isAgent && (
-          <RiSparklingLine
-            width={font}
-            height={font}
-            fill={theme.colors.textSecondary}
-            style={glyphNudge}
-          />
-        )}
-        {isAutomated && (
-          <RiRobot2Line
-            width={font}
-            height={font}
-            fill={theme.colors.textSecondary}
-            style={glyphNudge}
-          />
-        )}
-      </View>
-      {handleLineNode}
-    </>
-  );
-
-  return (
-    <View style={[isCentered && styles.centered, styles.container, style?.container]}>{inner}</View>
-  );
-};
-
-const styles = StyleSheet.create({
-  // What the alignment classes drew (`items-center`, `gap-1`, `gap-2`, `justify-center`, `text-center`).
-  centered: { alignItems: 'center' },
-  centeredText: { textAlign: 'center' },
-  nameGap: { gap: 4 },
-  nameGapCentered: { gap: 4, justifyContent: 'center' },
-  trailingGap: { gap: 8 },
-  trailingGapCentered: { gap: 8, justifyContent: 'center' },
-  container: {
-    flexDirection: 'column',
-    minWidth: 0,
-    maxWidth: '100%',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    // Centered identity stacks still constrain the row before text ellipsizes.
-    maxWidth: '100%',
-    alignItems: 'center',
-    // Allow the row to shrink below its content's intrinsic width when a
-    // constraining parent requests it, so the name Text can ellipsize.
-    minWidth: 0,
-  },
-  name: {
-    fontWeight: '700',
-    // Shrink (and ellipsize via numberOfLines=1) only when the parent
-    // constrains width; a no-op when there is room, so unconstrained
-    // callers keep the name's intrinsic width.
-    flexShrink: 1,
-  },
-  handle: {
-    maxWidth: '100%',
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  // Row that holds the `@handle` plus an inline trailing tag; the handle keeps
-  // the flexible space and shrinks first so the tag never pushes it offscreen.
-  handleTrailingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 0,
-  },
-  handleShrink: {
-    flexShrink: 1,
-    minWidth: 0,
-  },
+  const stack = VStack(nameRow, handleLine);
+  const column = lineSpacing ? stack.spacing(lineSpacing) : stack;
+  return (isCentered ? column.align('center') : column)
+    .frame({ minWidth: 'none', maxWidth: 'full' })
+    .modifier(look);
 });
 
-export default React.memo(UserName);
+export default UserName;

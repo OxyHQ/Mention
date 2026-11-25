@@ -1,5 +1,4 @@
 import { useMemo, type ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@/components/FollowButton';
@@ -14,7 +13,14 @@ import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
-import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Text as LText,
+  VStack,
+  toElement,
+  defineModifier,
+} from '@oxy.so/bloom-language';
 
 /**
  * The identity line is the shared {@link UserName} — display name plus the
@@ -23,17 +29,9 @@ import { Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-l
  * semibold name, text-sm muted `@handle`). Defined at module scope so the
  * memoized `UserName` keeps a stable `style` reference across renders.
  */
-const IDENTITY_TEXT_STYLES = StyleSheet.create({
-  name: { fontSize: 16, fontWeight: '600', lineHeight: 20 },
-  handle: { fontSize: 14, lineHeight: 18 },
-  column: { gap: 2 },
-});
-
-const IDENTITY_STYLE = {
-  name: IDENTITY_TEXT_STYLES.name,
-  handle: IDENTITY_TEXT_STYLES.handle,
-  container: IDENTITY_TEXT_STYLES.column,
-};
+/** The row's identity: a semibold 16/20 name over a 14/18 handle, 2pt apart. */
+const IDENTITY_NAME = defineModifier((v) => v.font('16').weight('semibold').leading('20px'));
+const IDENTITY_HANDLE = defineModifier((v) => v.font('14').leading('18px'));
 
 /**
  * ProfileCard — THE user row.
@@ -207,19 +205,19 @@ export function ProfileCard({
             VStack(
               /* Identity line via the shared UserName: the name + verified /
                         federated / agent / automated markers and the muted @handle line,
-                        consistent with every other user surface. */ Embed(
-                <UserName
-                  name={nameLabel}
-                  handle={handle || undefined}
-                  verified={resolved.verified}
-                  isFederated={resolved.isFederated}
-                  kind={resolved.kind}
-                  isAgent={resolved.isAgent}
-                  isAutomated={resolved.isAutomated}
-                  size="lg"
-                  style={IDENTITY_STYLE}
-                />,
-              ),
+                        consistent with every other user surface. */ UserName({
+                name: nameLabel,
+                handle: handle || undefined,
+                verified: resolved.verified,
+                isFederated: resolved.isFederated,
+                kind: resolved.kind,
+                isAgent: resolved.isAgent,
+                isAutomated: resolved.isAutomated,
+                size: 'lg',
+                lineSpacing: '2xs',
+                nameLook: IDENTITY_NAME,
+                handleLook: IDENTITY_HANDLE,
+              }),
               // A meta line may be an element (a poke's time and count): a run as it is.
               meta
                 ? LText(Embed(meta)).font('14').leading('18px').foreground('muted').lines(1)

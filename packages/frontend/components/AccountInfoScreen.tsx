@@ -47,8 +47,12 @@ import {
   VStack,
   defineTokens,
   toElement,
+  defineModifier,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
+
+/** The title's spacing, as the profile header draws it. */
+const TITLE_NAME = defineModifier((v) => v.margin('top', 'md').margin('bottom', 'xs'));
 
 const ABOUT_AVATAR_SIZE = 80;
 /** The verified badge is always VERIFIED_BADGE_COLOR, never a theme role. */
@@ -261,29 +265,24 @@ function AccountInfoContent({
             }}
           />,
         ),
-        Embed(
-          <UserName
-            name={profileData.design.displayName ?? profileData.name?.displayName}
-            handle={profileData.username}
-            verified={profileData.verified}
-            isFederated={profileData.isFederated}
-            kind={profileData.kind}
-            // Deliberately NOT opted in: this screen already carries an explicit
-            // "Learn more about the fediverse" row below, which is a better
-            // affordance than a 15px glyph. Two doors to one dialog on one
-            // screen is one more than the screen needs.
-            isAgent={profileData.isAgent}
-            isAutomated={profileData.isAutomated}
-            copyableHandle
-            align="center"
-            // The profile header's title size and spacing, matched here for parity.
-            size="xl"
-            style={{
-              name: { fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
-              handle: { fontSize: 15 },
-            }}
-          />,
-        ),
+        UserName({
+          name: profileData.design.displayName ?? profileData.name?.displayName,
+          handle: profileData.username,
+          verified: profileData.verified,
+          isFederated: profileData.isFederated,
+          kind: profileData.kind,
+          // Deliberately NOT opted in: this screen already carries an explicit
+          // "Learn more about the fediverse" row below, which is a better
+          // affordance than a 15px glyph. Two doors to one dialog on one
+          // screen is one more than the screen needs.
+          isAgent: profileData.isAgent,
+          isAutomated: profileData.isAutomated,
+          copyableHandle: true,
+          align: 'center',
+          // The profile header's title size and spacing, matched here for parity.
+          size: 'xl',
+          nameLook: TITLE_NAME,
+        }),
       )
         .padding('horizontal', 'lg')
         .padding('top', 'lg')
