@@ -1,7 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { SupervisedFeatureGate } from '@/components/SupervisedFeatureGate';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, TouchableOpacity, ScrollView, Platform, type ViewStyle } from 'react-native';
+import { StyleSheet, ScrollView, Platform, type ViewStyle } from 'react-native';
 import {
   useInfiniteQuery,
   useQuery,
@@ -38,6 +38,7 @@ import {
   VirtualList,
   toElement,
   Embed as LEmbed,
+  defineTokens,
 } from '@oxy.so/bloom-language';
 
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
@@ -154,7 +155,6 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
 });
 
 const FeedMarketplaceScreen = Lscreen(function FeedMarketplaceScreen() {
-  const theme = useTheme();
   const colors = useColorTokens();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -354,26 +354,22 @@ const FeedMarketplaceScreen = Lscreen(function FeedMarketplaceScreen() {
             >
               {categoryPills.map((cat) => {
                 const active = cat === activeCategory;
-                return (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.pill,
-                      active
-                        ? { backgroundColor: theme.colors.primary }
-                        : { borderWidth: 1, borderColor: theme.colors.border },
-                    ]}
-                    onPress={() => handleCategoryPress(cat)}
-                    activeOpacity={0.7}
-                  >
-                    {toElement(
-                      RawText(cat)
-                        .font('14')
-                        .leading('20px')
-                        .weight('medium')
-                        .foreground(active ? 'white' : 'foreground'),
-                    )}
-                  </TouchableOpacity>
+                return toElement(
+                  VStack(
+                    RawText(cat)
+                      .font('14')
+                      .leading('20px')
+                      .weight('medium')
+                      .foreground(active ? 'white' : 'foreground'),
+                  )
+                    .padding('horizontal', '14')
+                    .padding('vertical', marketTokens.space.pillY)
+                    .when(active, (v) => v.background('primary'))
+                    .when(!active, (v) => v.border('border', 'thin'))
+                    .corner('xl')
+                    .onPress(() => handleCategoryPress(cat))
+                    .pressFade('70'),
+                  cat,
                 );
               })}
             </ScrollView>,
@@ -425,7 +421,6 @@ const FeedMarketplaceScreen = Lscreen(function FeedMarketplaceScreen() {
       handleCategoryPress,
       sortBy,
       handleSortPress,
-      theme,
       colors.primary,
       t,
     ],
@@ -448,7 +443,7 @@ const FeedMarketplaceScreen = Lscreen(function FeedMarketplaceScreen() {
         sticker="feedStore"
       />
     );
-  }, [loading, debouncedSearch, theme, t]);
+  }, [loading, debouncedSearch, t]);
 
   const ListFooter = useMemo(
     () => (loadingMore ? <ListSkeleton count={2} /> : toElement(VStack().frame({ height: '3xl' }))),
@@ -530,15 +525,13 @@ const classStyles = {
   pills: { marginTop: 12 },
 } satisfies Record<string, ViewStyle>;
 
+/** A category pill's 7pt vertical padding, off the space scale. */
+const marketTokens = defineTokens({ space: { pillY: 7 } });
+
 const styles = StyleSheet.create({
   pillsContent: {
     paddingHorizontal: 16,
     gap: 8,
-  },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
   },
 });
 
