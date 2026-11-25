@@ -3,7 +3,6 @@ import { Suspense, lazy, useCallback, useEffect, useRef } from 'react';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Avatar } from '@oxy.so/bloom/avatar';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
@@ -19,6 +18,7 @@ import { presentSheet } from '@/utils/sheet';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 import {
+  Avatar as LAvatar,
   Badge as LBadge,
   Button as LButton,
   Chip as LChip,
@@ -29,9 +29,13 @@ import {
   ScrollView,
   Text as LText,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
+
+/** The employer's avatar beside its name, 28pt, off the avatar scale. */
+const jobTokens = defineTokens({ avatarSize: { employer: 28 } });
 
 const ReportModal = lazy(() =>
   import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })),
@@ -222,8 +226,8 @@ export default screen(function JobDetailScreen() {
       .weight('bold')
       .margin('top', 'sm'),
     HStack(
-      Embed(
-        <Avatar source={employerQuery.data?.avatar} size={28} variant={MEDIA_VARIANT_AVATAR} />,
+      LAvatar(employerQuery.data?.avatar, { variant: MEDIA_VARIANT_AVATAR }).size(
+        jobTokens.avatarSize.employer,
       ),
       RawText(employerName)
         .foreground('primary')

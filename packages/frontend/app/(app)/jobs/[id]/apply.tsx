@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Chip } from '@oxy.so/bloom/chip';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -15,6 +14,7 @@ import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
 import {
   Button as LButton,
+  Chip as LChip,
   Embed,
   Field as LField,
   HStack,
@@ -411,12 +411,10 @@ export default Lscreen(function JobApplyScreen() {
       ),
       portfolioLinks.length > 0
         ? HStack(
-            Embed(
-              portfolioLinks.map((link) => (
-                <Chip key={link} onClose={() => removePortfolioLink(link)}>
-                  {link}
-                </Chip>
-              )),
+            portfolioLinks.map((link) =>
+              LChip(LText(link))
+                .onClose(() => removePortfolioLink(link))
+                .id(link),
             ),
           )
             .wrap()

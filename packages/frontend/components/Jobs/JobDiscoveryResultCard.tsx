@@ -2,7 +2,6 @@ import type { Href } from '@/lib/navigation/router';
 import { memo, useCallback, useState } from 'react';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { Divider } from '@oxy.so/bloom/divider';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
@@ -28,6 +27,7 @@ import { useJobVocabulary } from '@/utils/jobVocabulary';
 import {
   Badge as LBadge,
   Card as LCard,
+  Divider as LDivider,
   Embed,
   HStack,
   Icon,
@@ -292,7 +292,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
         : null,
       // Clear source/canonical attribution — never presented as a Mention
       // listing unless it genuinely resolves to one of this app's own routes.
-      Embed(<Divider style={{ marginTop: 12 }} />),
+      LDivider().margin('top', 'md'),
       HStack(
         HStack(
           appPath
