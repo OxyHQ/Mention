@@ -78,7 +78,7 @@ const podcast = {
 function render(props: Record<string, unknown>): Captured[] {
   captured.length = 0;
   act(() => {
-    // The language cards (article, job) are views: their roots paint from Bloom's theme.
+    // The language cards (article, job, poll) are views: their roots paint from Bloom's theme.
     TestRenderer.create(
       <BloomThemeProvider fonts={false}>
         <PostAttachmentsRow postId="post-1" renderNestedPost={renderNestedPost} {...props} />
@@ -140,7 +140,7 @@ describe('several items share one height', () => {
       pollData: { question: 'Q', options: ['a', 'b'] },
     });
     expect(of(withPoll, 'media').tallRow).toBe(true);
-    expect(heightOf(of(withPoll, 'poll'))).toBe(264);
+    expect(frameOf(of(withPoll, 'poll'))?.height).toMatchObject({ value: 264 });
     expect(heightOf(of(withPoll, 'link'))).toBe(264);
   });
 
