@@ -6,7 +6,6 @@ import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { Item } from '@oxy.so/bloom/item';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 
 import {
@@ -62,7 +61,6 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
   onClose,
 }: ComposeLanguageSheetProps) {
   const { t } = useTranslation();
-  const theme = useTheme();
 
   /**
    * Only a SWITCH closes this sheet.
@@ -147,9 +145,11 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
                   defaultValue: 'This post already holds every language it can',
                 })
           }
-          leading={
-            <RiAddLine size="md" fill={canAdd ? theme.colors.text : theme.colors.textTertiary} />
-          }
+          leading={toElement(
+            Icon(RiAddLine)
+              .size('md')
+              .foreground(canAdd ? 'foreground' : 'textTertiary'),
+          )}
         />,
       ),
     )
