@@ -95,6 +95,7 @@ vi.mock('../services/UserPreferenceService', () => ({
 // (existing tests unaffected); individual tests override to assert hit/gating.
 const anonCache = vi.hoisted(() => ({
   read: vi.fn(async (): Promise<unknown> => null),
+  readStale: vi.fn(async (): Promise<unknown> => null),
   write: vi.fn(async (): Promise<void> => undefined),
   buildKey: vi.fn((): string => 'anon-key'),
   // Every request leads its own build unless a test says otherwise.
@@ -116,6 +117,9 @@ import { mtnFeedController } from '../mtn/controllers/feed.controller';
 interface MockRes {
   statusCode: number;
   body: unknown;
+  /** How many times a body was sent: a second answer on one request is a bug. */
+  sent: number;
+  headersSent: boolean;
   status: (c: number) => MockRes;
   json: (b: unknown) => MockRes;
 }
@@ -123,12 +127,16 @@ function makeRes(): MockRes {
   const res: MockRes = {
     statusCode: 200,
     body: undefined,
+    sent: 0,
+    headersSent: false,
     status(c) {
       this.statusCode = c;
       return this;
     },
     json(b) {
       this.body = b;
+      this.sent += 1;
+      this.headersSent = true;
       return this;
     },
   };
@@ -522,6 +530,58 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     expect(engineRun).not.toHaveBeenCalled();
     expect(anonCache.write).not.toHaveBeenCalled();
     expect(res.body).toEqual({ success: true, data: cached });
+  });
+
+  describe('a page past its freshness is served at once and refreshed by one request', () => {
+    const stale = { slices: [], items: [{ id: 'stalePost' }], hasMore: false, totalCount: 1 };
+    const anon = { query: { descriptor: 'for_you' }, user: undefined } as never;
+
+    it('answers with the stale page, then rebuilds and writes without a second answer', async () => {
+      anonCache.read.mockResolvedValueOnce(null);
+      anonCache.readStale.mockResolvedValueOnce(stale);
+      const settle = vi.fn();
+      anonCache.claimBuild.mockReturnValueOnce({ role: 'lead', settle });
+      const res = makeRes();
+
+      await mtnFeedController.getFeed(anon, res as never);
+
+      expect(res.body).toEqual({ success: true, data: stale });
+      expect(res.sent).toBe(1);
+      expect(engineRun).toHaveBeenCalledOnce();
+      expect(anonCache.write).toHaveBeenCalledOnce();
+      expect(settle).toHaveBeenCalledWith(expect.objectContaining({ page: expect.any(Object) }));
+    });
+
+    it('does not build a second copy while another request is refreshing', async () => {
+      anonCache.read.mockResolvedValueOnce(null);
+      anonCache.readStale.mockResolvedValueOnce(stale);
+      anonCache.claimBuild.mockReturnValueOnce({
+        role: 'join',
+        result: new Promise(() => {}),
+      } as never);
+      const res = makeRes();
+
+      await mtnFeedController.getFeed(anon, res as never);
+
+      expect(res.body).toEqual({ success: true, data: stale });
+      expect(res.sent).toBe(1);
+      expect(engineRun).not.toHaveBeenCalled();
+    });
+
+    it('keeps the stale page and answers once when the refresh fails', async () => {
+      anonCache.read.mockResolvedValueOnce(null);
+      anonCache.readStale.mockResolvedValueOnce(stale);
+      anonCache.claimBuild.mockReturnValueOnce({ role: 'lead', settle: vi.fn() });
+      engineRun.mockRejectedValueOnce(new Error('statement timeout'));
+      const res = makeRes();
+
+      await mtnFeedController.getFeed(anon, res as never);
+
+      expect(res.body).toEqual({ success: true, data: stale });
+      expect(res.sent).toBe(1);
+      expect(res.statusCode).toBe(200);
+      expect(anonCache.write).not.toHaveBeenCalled();
+    });
   });
 
   it('settles the build it leads with the page it built', async () => {

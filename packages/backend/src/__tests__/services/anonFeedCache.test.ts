@@ -68,7 +68,7 @@ describe('anonFeedCache.buildKey', () => {
   it('uses a stable "none" fingerprint when there are no filters', () => {
     const key = anonFeedCache.buildKey({ type: 'mixed', limit: 20 });
     expect(key).toContain(':none');
-    expect(key.startsWith('anonfeed:v2:mixed:default:20:first:')).toBe(true);
+    expect(key.startsWith('anonfeed:v3:mixed:default:20:first:')).toBe(true);
   });
 
   it('isolates keyspaces by namespace so overlapping type names never collide', () => {
@@ -76,8 +76,8 @@ describe('anonFeedCache.buildKey', () => {
     const mtn = anonFeedCache.buildKey({ namespace: 'mtn', type: 'for_you', limit: 20 });
 
     expect(legacy).not.toBe(mtn);
-    expect(legacy.startsWith('anonfeed:v2:for_you:')).toBe(true);
-    expect(mtn.startsWith('anonfeed:v2:mtn:for_you:')).toBe(true);
+    expect(legacy.startsWith('anonfeed:v3:for_you:')).toBe(true);
+    expect(mtn.startsWith('anonfeed:v3:mtn:for_you:')).toBe(true);
   });
 });
 
@@ -85,11 +85,20 @@ describe('anonFeedCache.read', () => {
   it('returns the revalidated page on a hit', async () => {
     const payload = { items: [{ id: 'p1' }], hasMore: false, totalCount: 1 };
     const entry = { page: payload, revisions: { p1: 'r1' }, unratedMaterialAllowed: true };
-    mocks.redisGet.mockResolvedValue(JSON.stringify(entry));
+    mocks.redisGet.mockResolvedValue(JSON.stringify({ cachedAt: Date.now(), entry }));
 
     const result = await anonFeedCache.read('k');
     expect(mocks.revalidate).toHaveBeenCalledWith(entry, undefined);
     expect(result).toEqual(payload);
+  });
+
+  it('does not serve a page older than the freshness window from read, but readStale does', async () => {
+    const entry = { page: { items: [{ id: 'p1' }], hasMore: false, totalCount: 1 }, revisions: {} };
+    mocks.redisGet.mockResolvedValue(JSON.stringify({ cachedAt: Date.now() - 60_000, entry }));
+
+    expect(await anonFeedCache.read('k')).toBeNull();
+    expect(await anonFeedCache.readStale('k')).toEqual(entry.page);
+    expect(mocks.revalidate).toHaveBeenCalledTimes(1);
   });
 
   it('returns null on a miss', async () => {
@@ -104,15 +113,17 @@ describe('anonFeedCache.read', () => {
 });
 
 describe('anonFeedCache.write', () => {
-  it('persists the response with the short TTL', async () => {
+  it('persists the response with its build time, kept far longer than it is fresh', async () => {
     const payload = { page: { items: [], hasMore: false, totalCount: 0 }, revisions: {} };
     await anonFeedCache.write('k', payload);
 
     expect(mocks.redisSetEx).toHaveBeenCalledTimes(1);
     const [key, ttl, body] = mocks.redisSetEx.mock.calls[0];
     expect(key).toBe('k');
-    expect(ttl).toBe(45);
-    expect(JSON.parse(body)).toEqual(payload);
+    expect(ttl).toBe(15 * 60);
+    const stored = JSON.parse(body);
+    expect(stored.entry).toEqual(payload);
+    expect(Math.abs(stored.cachedAt - Date.now())).toBeLessThan(5_000);
   });
 
   it('does not throw (fail-soft) when Redis write fails', async () => {

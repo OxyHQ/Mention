@@ -60,6 +60,7 @@ vi.mock('../services/UserPreferenceService', () => ({
 vi.mock('../services/anonFeedCache', () => ({
   anonFeedCache: {
     read: vi.fn(async () => null),
+    readStale: vi.fn(async () => null),
     write: vi.fn(async () => undefined),
     buildKey: vi.fn(() => 'anon-key'),
     claimBuild: vi.fn(() => ({ role: 'lead' as const, settle: vi.fn() })),
