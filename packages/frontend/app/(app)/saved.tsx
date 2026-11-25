@@ -4,7 +4,7 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
+import { useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { toast } from '@oxy.so/bloom/toast';
@@ -379,12 +379,8 @@ const SavedPostsScreen: React.FC = () => {
           />
         </Screen>
       </HeaderDockProvider>
-      <Dialog
-        control={newFolderControl}
-        title={t('saved.createFolder', 'Create folder')}
-        label={t('saved.createFolder', 'Create folder')}
-      >
-        {toElement(
+      {LtoElement(
+        LDialog(
           VStack(
             LTextField([newFolderName, setNewFolderName], t('saved.folderName', 'Folder name'))
               .onSubmit(handleCreateFolder)
@@ -408,8 +404,11 @@ const SavedPostsScreen: React.FC = () => {
               .justify('end')
               .spacing('sm'),
           ).spacing('lg'),
-        )}
-      </Dialog>
+        )
+          .title(t('saved.createFolder', 'Create folder'))
+          .label(t('saved.createFolder', 'Create folder'))
+          .control(newFolderControl),
+      )}
       {toElement(
         LDialog(
           VStack(

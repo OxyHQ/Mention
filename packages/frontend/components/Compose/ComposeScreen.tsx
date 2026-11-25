@@ -25,7 +25,7 @@ import {
   Suspense,
 } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { View, TextInput, ScrollView, type TextStyle, type ViewStyle } from 'react-native';
+import { TextInput, ScrollView, type TextStyle, type ViewStyle } from 'react-native';
 // Imported under the name every call site in this file already uses, because
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
@@ -81,7 +81,7 @@ import { AudienceMenu, type ComposeAudience } from '@/components/Compose/Audienc
 import { isPrivateMention } from '@/utils/postReplies';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { SEO } from '@/components/SEO';
-import { Chip, ChipRow } from '@oxy.so/bloom/chip';
+import { ChipRow } from '@oxy.so/bloom/chip';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
@@ -93,7 +93,7 @@ import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { presentSheet } from '@/utils/sheet';
-import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
+import { useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/replyPermission';
 import { ReplySettingsMenu } from '@/components/Compose/ReplySettingsMenu';
@@ -4792,26 +4792,29 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             while an autosaved draft already exists). */
           draftConflict
             ? Embed(
-                <Dialog
-                  control={intentConflictControl}
-                  title={t('compose.intent.conflictTitle', 'Use shared content?')}
-                  description={t(
-                    'compose.intent.conflictDescription',
-                    'You have a saved draft. Replace it with the shared content or keep editing your draft?',
-                  )}
-                  actions={[
-                    {
-                      label: t('compose.intent.useShared', 'Use shared content'),
-                      color: 'default',
-                      onPress: () => acceptIntent(),
-                    },
-                    {
-                      label: t('compose.intent.keepDraft', 'Keep draft'),
-                      color: 'cancel',
-                      onPress: () => discardIntent(),
-                    },
-                  ]}
-                />,
+                LtoElement(
+                  LDialog()
+                    .title(t('compose.intent.conflictTitle', 'Use shared content?'))
+                    .message(
+                      t(
+                        'compose.intent.conflictDescription',
+                        'You have a saved draft. Replace it with the shared content or keep editing your draft?',
+                      ),
+                    )
+                    .buttons([
+                      {
+                        label: t('compose.intent.useShared', 'Use shared content'),
+                        color: 'default',
+                        onPress: () => acceptIntent(),
+                      },
+                      {
+                        label: t('compose.intent.keepDraft', 'Keep draft'),
+                        color: 'cancel',
+                        onPress: () => discardIntent(),
+                      },
+                    ])
+                    .control(intentConflictControl),
+                ),
               )
             : null,
         )

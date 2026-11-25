@@ -1,7 +1,6 @@
 import { recoverChunkError } from '@/lib/chunkReload';
 import type React from 'react';
 import { Component, type ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
@@ -28,11 +27,7 @@ class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError:
 }
 
 function WidgetSlot({ children }: { children: ReactNode }) {
-  return (
-    <View style={styles.slot} collapsable={false}>
-      {children}
-    </View>
-  );
+  return toElement(VStack(Embed(children)).frame({ width: 'full' }).collapsable(false));
 }
 
 // Define screen IDs for social network
@@ -122,9 +117,3 @@ export function WidgetManager({ screenId, customWidgets = [], topicTerm }: Widge
     ),
   );
 }
-
-const styles = StyleSheet.create({
-  slot: {
-    width: '100%',
-  },
-});

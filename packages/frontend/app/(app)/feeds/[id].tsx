@@ -12,7 +12,7 @@ import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { ScreenScrollView, useScreenBack } from '@oxy.so/bloom/screen';
+import { useScreenBack } from '@oxy.so/bloom/screen';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -50,6 +50,7 @@ import {
   toElement as LtoElement,
   Header as LHeader,
   Group,
+  ScrollView,
 } from '@oxy.so/bloom-language';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -770,12 +771,14 @@ const CustomFeedTimelineScreen = screen(function CustomFeedTimelineScreen() {
         // NON-feed content in the screen's own scroller.
         <Feed type="custom" filters={{ customFeedId: feedId }} listHeaderComponent={listHeader} />
       ) : (
-        <ScreenScrollView stickyHeaderIndices={[0]}>
-          {tabBar}
-          {activeTab === 'profiles' && <ProfilesTab members={members} />}
-          {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
-          {activeTab === 'reviews' && <ReviewsTab feedId={feedId} />}
-        </ScreenScrollView>
+        LtoElement(
+          ScrollView(
+            LEmbed(tabBar),
+            activeTab === 'profiles' ? LEmbed(<ProfilesTab members={members} />) : null,
+            activeTab === 'topics' ? LEmbed(<TopicsTab keywords={keywords} />) : null,
+            activeTab === 'reviews' ? LEmbed(<ReviewsTab feedId={feedId} />) : null,
+          ).stickyIndices([0]),
+        )
       ),
     ),
     // Feed info

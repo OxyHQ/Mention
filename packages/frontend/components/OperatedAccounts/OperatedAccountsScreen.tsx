@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
-import { Item } from '@oxy.so/bloom/item';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { accountNameMaxLength, getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountNode } from '@oxy.so/core';
@@ -181,15 +180,19 @@ export const OperatedAccountsScreen = screen(function OperatedAccountsScreen({
               .placeholder(copy.titleLabel)
               .maxLength(accountNameMaxLength(kind)),
             Embed(
-              <Item
-                onPress={canCreate && !createMutation.isPending ? createMutation.mutate : undefined}
-                disabled={!canCreate || createMutation.isPending}
-                title={
+              toElement(
+                Row(
                   createMutation.isPending
                     ? t('channels.creating', { defaultValue: 'Creating…' })
-                    : copy.create
-                }
-              />,
+                    : copy.create,
+                )
+                  .onPress(
+                    canCreate && !createMutation.isPending
+                      ? () => createMutation.mutate()
+                      : undefined,
+                  )
+                  .disabled(!canCreate || createMutation.isPending),
+              ),
             ),
           )
             .padding('horizontal', 'lg')

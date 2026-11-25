@@ -3,13 +3,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Item } from '@oxy.so/bloom/item';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
-import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -39,6 +37,7 @@ import {
   Text as LText,
   toElement,
   VStack,
+  Search as LSearch,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -323,13 +322,12 @@ export default screen(function EditStarterPackScreen() {
                 replaces it and says why the field no longer accepts input. */ LField(
         'Add accounts',
         Embed(
-          <Search
-            label="Search people"
-            value={search}
-            onChangeText={runSearch}
-            onClearText={clearSearch}
-            editable={!atCapacity}
-          />,
+          toElement(
+            LSearch([search, runSearch])
+              .label('Search people')
+              .onClearText(clearSearch)
+              .editable(!atCapacity),
+          ),
         ),
       )
         .description(`${members.length}/${MAX_MEMBERS}`)
@@ -359,37 +357,40 @@ export default screen(function EditStarterPackScreen() {
             return (
               <React.Fragment key={u.id}>
                 {index > 0 && toElement(LDivider())}
-                <Item
-                  leading={toElement(
-                    LAvatar(u.avatar, {
-                      variant: MEDIA_VARIANT_AVATAR,
-                      name: u.name.displayName,
-                    }).size('xl'),
-                  )}
-                  title={u.name.displayName}
-                  subtitle={`@${u.username}`}
-                  onPress={blockedByCap || already || busy ? undefined : () => addMember(u)}
-                  accessibilityLabel={
-                    already ? `${u.name.displayName} already added` : `Add ${u.name.displayName}`
-                  }
-                  trailing={toElement(
-                    already
-                      ? LButton(Icon(RiCheckLine).size('xs').foreground('success'), LText('Added'))
-                          .style('subtle')
-                          .tint('neutral')
-                          .size('sm')
-                          .disabled(true)
-                          .label(`${u.name.displayName} added`)
-                      : LButton(Icon(RiAddLine).size('xs').foreground('onPrimary'), LText('Add'))
-                          .style('solid')
-                          .tint('accent')
-                          .size('sm')
-                          .loading(busy)
-                          .disabled(blockedByCap)
-                          .onPress(() => addMember(u))
-                          .label(`Add ${u.name.displayName}`),
-                  )}
-                />
+                {toElement(
+                  Row(u.name.displayName)
+                    .leadingView(
+                      LAvatar(u.avatar, {
+                        variant: MEDIA_VARIANT_AVATAR,
+                        name: u.name.displayName,
+                      }).size('xl'),
+                    )
+                    .subtitle(`@${u.username}`)
+                    .onPress(blockedByCap || already || busy ? undefined : () => addMember(u))
+                    .label(
+                      already ? `${u.name.displayName} already added` : `Add ${u.name.displayName}`,
+                    )
+                    .trailing(
+                      already
+                        ? LButton(
+                            Icon(RiCheckLine).size('xs').foreground('success'),
+                            LText('Added'),
+                          )
+                            .style('subtle')
+                            .tint('neutral')
+                            .size('sm')
+                            .disabled(true)
+                            .label(`${u.name.displayName} added`)
+                        : LButton(Icon(RiAddLine).size('xs').foreground('onPrimary'), LText('Add'))
+                            .style('solid')
+                            .tint('accent')
+                            .size('sm')
+                            .loading(busy)
+                            .disabled(blockedByCap)
+                            .onPress(() => addMember(u))
+                            .label(`Add ${u.name.displayName}`),
+                    ),
+                )}
               </React.Fragment>
             );
           }),

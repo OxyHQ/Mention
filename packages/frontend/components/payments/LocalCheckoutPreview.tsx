@@ -13,7 +13,6 @@ import { EmptyStateSticker } from '@/components/common/EmptyStateSticker';
 import { EMPTY_STATE_STICKERS } from '@/lib/stickers';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image as ShapeImage } from '@oxy.so/bloom/shapes';
-import { Dialog } from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
 import { usePlusOffer } from '@/hooks/usePlusOffer';
 import type { PlusCadence } from '@/lib/payments/plusCheckout';
@@ -34,8 +33,7 @@ import type {
   PreviewOutcome,
 } from '@/lib/payments/checkoutPreview';
 import { LocalCheckoutCardEntry } from './LocalCheckoutCardEntry';
-
-import { Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Text as LText, VStack, toElement, Dialog as LDialog, } from '@oxy.so/bloom-language';
 
 /** Local memory-only adapter. This file deliberately has no payment, storage or entitlement APIs. */
 export function LocalCheckoutPreview({
@@ -240,24 +238,22 @@ export function LocalCheckoutPreview({
         }
       : reviewedOffer;
   if (!displayOffer?.price && scenario !== 'physical')
-    return (
-      <Dialog open onClose={close} placement="bottom" detached panelStyle={{ maxWidth: 540 }}>
-        {toElement(
-          VStack(
-            LText(
-              t(
-                loading
-                  ? 'common.loading'
-                  : failed
-                    ? 'plus.payment.failed'
-                    : 'plus.payment.notReady',
-              ),
+    return toElement(
+      LDialog(
+        VStack(
+          LText(
+            t(
+              loading ? 'common.loading' : failed ? 'plus.payment.failed' : 'plus.payment.notReady',
             ),
-          )
-            .padding('all', 'xl')
-            .spacing('lg'),
-        )}
-      </Dialog>
+          ),
+        )
+          .padding('all', 'xl')
+          .spacing('lg'),
+      )
+        .presentAt('bottom')
+        .detached()
+        .panelFrame({ maxWidth: '540' })
+        .presented([true, () => close()]),
     );
   const price = displayOffer?.price;
 

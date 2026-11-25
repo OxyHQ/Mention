@@ -6,7 +6,6 @@ import { Card } from '@oxy.so/bloom/card';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -184,19 +183,20 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                           LField(
                             undefined,
                             Embed(
-                              <TextFieldInput
-                                label={t('compose.sources.urlPlaceholder', {
-                                  defaultValue: 'https://example.com/article',
-                                })}
-                                value={source.url}
-                                onChangeText={(value) => onUpdate(source.id, 'url', value)}
-                                invalid={isUrlInvalid}
-                                keyboardType="url"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                textContentType="URL"
-                                returnKeyType="done"
-                              />,
+                              toElement(
+                                TextField(
+                                  [source.url, (value) => onUpdate(source.id, 'url', value)],
+                                  t('compose.sources.urlPlaceholder', {
+                                    defaultValue: 'https://example.com/article',
+                                  }),
+                                )
+                                  .invalid(isUrlInvalid)
+                                  .keyboard('url')
+                                  .autocapitalize('none')
+                                  .autocorrect(false)
+                                  .textContentType('URL')
+                                  .submitLabel('done'),
+                              ),
                             ),
                           ).error(
                             isUrlInvalid

@@ -1,9 +1,7 @@
 import { useRouter } from '@/lib/navigation/router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { Search as LSearch, toElement } from '@oxy.so/bloom-language';
+import { Search as LSearch, toElement, VStack } from '@oxy.so/bloom-language';
 
 /**
  * Right-rail search box — the same Bloom `Search` field the search screen uses, so
@@ -14,8 +12,8 @@ import { Search as LSearch, toElement } from '@oxy.so/bloom-language';
  * syncs into its own state — so the rail seeds a search from any route, and
  * submitting again while already on `/search` re-runs it.
  *
- * WEB pins the bar with `web:sticky` (react-native-web resolves `position:
- * sticky`); on native the class is inert and the bar simply sits in flow. The
+ * WEB pins the bar with `.sticky('top')` (react-native-web resolves `position:
+ * sticky`); on native the bar simply sits in flow. The
  * rail holds its children with margins rather than a column `gap`, so the bar
  * carries its own bottom margin — wrapping it in a spacing `View` instead would
  * make that wrapper the sticky containing block and leave it nothing to travel.
@@ -24,11 +22,6 @@ export const SearchBar = () => {
   const router = useRouter();
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
-  // The sticky bar has to be opaque in the RAIL's colour, and the rail is not
-  // the centre panel — it sits on the shell background. `bg-card` named the
-  // panel's colour from outside the panel; this asks the surface it is
-  // actually on.
-  const surfaceFill = useSurfaceFill();
 
   // Same declarative `{pathname, params}` navigation the `/search/<query>` deep
   // link uses (`app/(app)/search/[query].tsx`) — expo-router owns the encoding.
@@ -38,17 +31,21 @@ export const SearchBar = () => {
     router.push(term ? { pathname: '/search', params: { q: term } } : '/search');
   };
 
-  return (
-    <View
-      className="w-full mb-4 z-10 web:sticky web:top-0"
-      style={{ backgroundColor: surfaceFill }}
-    >
-      {toElement(
-        LSearch([query, setQuery])
-          .label(t('searchBar.placeholder'))
-          .onClearText(() => setQuery(''))
-          .onSubmit(handleSubmit),
-      )}
-    </View>
+  return toElement(
+    VStack(
+      LSearch([query, setQuery])
+        .label(t('searchBar.placeholder'))
+        .onClearText(() => setQuery(''))
+        .onSubmit(handleSubmit),
+    )
+      .frame({ width: 'full' })
+      // The sticky bar has to be opaque in the RAIL's colour, and the rail is not
+      // the centre panel — it sits on the shell background. `bg-card` named the
+      // panel's colour from outside the panel; this asks the surface it is
+      // actually on.
+      .background('surfaceFill')
+      .sticky('top')
+      .margin('bottom', 'lg')
+      .zIndex('floating'),
   );
 };

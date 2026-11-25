@@ -5,7 +5,7 @@ import { useQueries } from '@tanstack/react-query';
 import { queryKeys } from '@oxy.so/services/ui/client';
 import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
-import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
@@ -19,7 +19,6 @@ import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { useScreenBack } from '@oxy.so/bloom/screen';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
-import { useTheme } from '@oxy.so/bloom/theme';
 
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
@@ -58,6 +57,7 @@ import {
   toElement,
   Group,
   PageFooter as LPageFooter,
+  AvatarGroup as LAvatarGroup,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -102,7 +102,7 @@ function openRoomMember(router: ReturnType<typeof useRouter>, item: AvatarGroupI
 
 /** The hover card's action — the same follow control the profile preview carries. */
 function renderFollowAction(item: AvatarGroupItem) {
-  return item.id ? <FollowButton userId={item.id} size="sm" /> : null;
+  return item.id ? Embed(<FollowButton userId={item.id} size="sm" />) : null;
 }
 
 const HostInfo = ({
@@ -156,7 +156,6 @@ const sectionHeading = (...runs: TextRun[]) =>
 
 const RoomDetailScreen = screen(function RoomDetailScreen() {
   const router = useRouter();
-  const theme = useTheme();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, oxyServices } = useAuth();
@@ -431,22 +430,23 @@ const RoomDetailScreen = screen(function RoomDetailScreen() {
               VStack(
                 sectionHeading('Participants (', participants.length, ')'),
                 Embed(
-                  participantItems.length > 0 ? (
-                    <AvatarGroup
-                      items={participantItems}
-                      size={32}
-                      max={MAX_PARTICIPANT_AVATARS}
-                      total={participants.length}
-                      ringColor={theme.colors.background}
-                      hoverCard
-                      renderItemAction={renderFollowAction}
-                      onPressItem={(item) => openRoomMember(router, item)}
-                    />
-                  ) : (
-                    toElement(
-                      RawText('No participants yet').font('14').leading('20px').foreground('muted'),
-                    )
-                  ),
+                  participantItems.length > 0
+                    ? toElement(
+                        LAvatarGroup(participantItems)
+                          .size('md')
+                          .max(MAX_PARTICIPANT_AVATARS)
+                          .total(participants.length)
+                          .ringColor('background')
+                          .hoverCard()
+                          .itemAction(renderFollowAction)
+                          .onPressItem((item) => openRoomMember(router, item)),
+                      )
+                    : toElement(
+                        RawText('No participants yet')
+                          .font('14')
+                          .leading('20px')
+                          .foreground('muted'),
+                      ),
                 ),
               )
                 .padding('horizontal', 'lg')
@@ -459,16 +459,16 @@ const RoomDetailScreen = screen(function RoomDetailScreen() {
                 VStack(
                   sectionHeading('Speakers'),
                   Embed(
-                    <AvatarGroup
-                      items={speakerItems}
-                      size={32}
-                      max={MAX_PARTICIPANT_AVATARS}
-                      total={speakers.length}
-                      ringColor={theme.colors.background}
-                      hoverCard
-                      renderItemAction={renderFollowAction}
-                      onPressItem={(item) => openRoomMember(router, item)}
-                    />,
+                    toElement(
+                      LAvatarGroup(speakerItems)
+                        .size('md')
+                        .max(MAX_PARTICIPANT_AVATARS)
+                        .total(speakers.length)
+                        .ringColor('background')
+                        .hoverCard()
+                        .itemAction(renderFollowAction)
+                        .onPressItem((item) => openRoomMember(router, item)),
+                    ),
                   ),
                 )
                   .padding('horizontal', 'lg')

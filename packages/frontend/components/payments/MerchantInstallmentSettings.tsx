@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { Dialog } from '@oxy.so/bloom/dialog';
 import { useTranslation } from 'react-i18next';
 import {
   INSTALLMENT_CAPABILITY_FIXTURES,
   validMerchantInstallmentPreferences,
   type MerchantInstallmentPreferences,
 } from '@/lib/payments/merchantInstallmentPreview';
-
 import {
   Button as LButton,
   Embed,
@@ -18,6 +16,7 @@ import {
   Toggle,
   VStack,
   toElement,
+  Dialog as LDialog,
 } from '@oxy.so/bloom-language';
 
 function toggle<T>(values: readonly T[], value: T, enabled: boolean): readonly T[] {
@@ -63,17 +62,9 @@ export function MerchantInstallmentSettings({
             setOpen(true);
           }),
       )}
-      {open && (
-        <Dialog
-          open
-          onClose={() => setOpen(false)}
-          placement="bottom"
-          detached
-          contentPadding={0}
-          panelStyle={{ maxWidth: 540 }}
-          header={{ title: label('title'), showClose: true, largeTitle: false }}
-        >
-          {toElement(
+      {open &&
+        toElement(
+          LDialog(
             VStack(
               LGroupedSection(
                 LGroupedSectionItem(label('enabled')).trailing(
@@ -214,9 +205,14 @@ export function MerchantInstallmentSettings({
               .padding('horizontal', 'xl')
               .padding('bottom', 'xl')
               .spacing('lg'),
-          )}
-        </Dialog>
-      )}
+          )
+            .presentAt('bottom')
+            .detached()
+            .padding('none')
+            .panelFrame({ maxWidth: '540' })
+            .header({ title: label('title'), showClose: true, largeTitle: false })
+            .presented([true, () => setOpen(false)]),
+        )}
     </>
   );
 }

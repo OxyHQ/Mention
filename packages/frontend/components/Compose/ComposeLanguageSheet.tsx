@@ -132,25 +132,23 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
           : null,
       ),
       Embed(
-        <Item
-          // Item forwards the native press event. Keep the component's callback
-          // contract argument-free so ADD can never be mistaken for EDIT.
-          onPress={canAdd ? () => onAdd() : undefined}
-          disabled={!canAdd}
-          title={t('compose.languages.add', { defaultValue: 'Add language' })}
-          subtitle={
-            canAdd
-              ? undefined
-              : t('compose.languages.addFull', {
-                  defaultValue: 'This post already holds every language it can',
-                })
-          }
-          leading={toElement(
-            Icon(RiAddLine)
-              .size('md')
-              .foreground(canAdd ? 'foreground' : 'textTertiary'),
-          )}
-        />,
+        toElement(
+          Row(t('compose.languages.add', { defaultValue: 'Add language' }))
+            .onPress(canAdd ? () => onAdd() : undefined)
+            .disabled(!canAdd)
+            .subtitle(
+              canAdd
+                ? undefined
+                : t('compose.languages.addFull', {
+                    defaultValue: 'This post already holds every language it can',
+                  }),
+            )
+            .leadingView(
+              Icon(RiAddLine)
+                .size('md')
+                .foreground(canAdd ? 'foreground' : 'textTertiary'),
+            ),
+        ),
       ),
     )
       .padding('bottom', '2xl')
