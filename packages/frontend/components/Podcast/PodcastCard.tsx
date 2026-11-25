@@ -1,7 +1,7 @@
 import { clamp } from '@oxy.so/utils/text';
 import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
-import { Pressable, StyleSheet, View, type ViewStyle, type DimensionValue } from 'react-native';
+import { StyleSheet, View, type ViewStyle, type DimensionValue } from 'react-native';
 import { Image } from 'expo-image';
 import { RiRadioLine } from '@oxy.so/bloom/icons/RiRadioLine';
 import { RiSpotifyFill } from '@oxy.so/bloom/icons/RiSpotifyFill';
@@ -204,83 +204,80 @@ export const PodcastCard = memo(function PodcastCard({
   const handlePress = onPress ?? (showUrl ? openShow : undefined);
 
   if (variant === 'full') {
-    // The press (tap to open, long-press to edit) stays a `Pressable`, since
-    // `Card` has no long-press; the surface inside it is Bloom's `Card`, painted
-    // the muted fill (`contrast50`) this profile card has always sat on.
-    return (
-      <Pressable
-        style={cardStyles.full}
-        onPress={handlePress}
-        onLongPress={isOwnProfile ? onEdit : undefined}
-        accessibilityRole="button"
-        accessibilityLabel={t('profile.media.openInSyra')}
-      >
-        {toElement(
-          Card(
-            artworkUrl
-              ? VStack(
-                  Embed(
-                    <Image
-                      source={{ uri: artworkUrl }}
-                      style={styles.fill}
-                      contentFit="cover"
-                      transition={120}
-                    />,
-                  ),
-                )
-                  .frame({ width: '56', height: '56' })
-                  .corner('md')
-                  .clipped()
-              : VStack(Icon(RiMic2Line).size('lg').foreground('muted'))
-                  .frame({ width: '56', height: '56' })
-                  .background('card')
-                  .corner('md')
-                  .align('center')
-                  .justify('center'),
-            VStack(
-              RawText(title).foreground('foreground').font('md').weight('bold').lines(2),
-              HStack(
-                RawText(t('profile.media.podcastLabel'))
-                  .foreground('muted')
-                  .font('11')
-                  .weight('semibold')
-                  .textCase('uppercase')
-                  .tracking('wide'),
+    // The press (tap to open, long-press to edit) is the stack around the card,
+    // since `Card` has no long-press; the surface inside it is Bloom's `Card`,
+    // painted the muted fill (`contrast50`) this profile card has always sat on.
+    return toElement(
+      VStack(
+        Card(
+          artworkUrl
+            ? VStack(
                 Embed(
-                  author ? (
-                    <>
-                      {toElement(RawText('·').foreground('muted').font('11'))}
-                      {toElement(
-                        RawText(author).foreground('muted').font('sm').shrink('normal').lines(1),
-                      )}
-                    </>
-                  ) : null,
+                  <Image
+                    source={{ uri: artworkUrl }}
+                    style={styles.fill}
+                    contentFit="cover"
+                    transition={120}
+                  />,
                 ),
               )
+                .frame({ width: '56', height: '56' })
+                .corner('md')
+                .clipped()
+            : VStack(Icon(RiMic2Line).size('lg').foreground('muted'))
+                .frame({ width: '56', height: '56' })
+                .background('card')
+                .corner('md')
                 .align('center')
-                .spacing('6')
-                .margin('top', '2xs'),
+                .justify('center'),
+          VStack(
+            RawText(title).foreground('foreground').font('md').weight('bold').lines(2),
+            HStack(
+              RawText(t('profile.media.podcastLabel'))
+                .foreground('muted')
+                .font('11')
+                .weight('semibold')
+                .textCase('uppercase')
+                .tracking('wide'),
+              Embed(
+                author ? (
+                  <>
+                    {toElement(RawText('·').foreground('muted').font('11'))}
+                    {toElement(
+                      RawText(author).foreground('muted').font('sm').shrink('normal').lines(1),
+                    )}
+                  </>
+                ) : null,
+              ),
             )
-              .flex('1')
-              .shrink('normal'),
-            isOwnProfile
-              ? VStack(Icon(RiEditLine).size('sm').foreground('muted'))
-                  .padding('xs')
-                  .onPress(onEdit)
-                  .role('button')
-                  .label(t('profile.media.edit'))
-                  .hitSlop('md')
-              : Icon(RiExternalLinkLine).size('sm').foreground('muted'),
+              .align('center')
+              .spacing('6')
+              .margin('top', '2xs'),
           )
-            .style('plain')
-            .radius('lg')
-            .axis('horizontal')
-            .align('center')
-            .spacing('md')
-            .padding('md')
-            .background('mutedFill'),
-        )}
-      </Pressable>
+            .flex('1')
+            .shrink('normal'),
+          isOwnProfile
+            ? VStack(Icon(RiEditLine).size('sm').foreground('muted'))
+                .padding('xs')
+                .onPress(onEdit)
+                .role('button')
+                .label(t('profile.media.edit'))
+                .hitSlop('md')
+            : Icon(RiExternalLinkLine).size('sm').foreground('muted'),
+        )
+          .style('plain')
+          .radius('lg')
+          .axis('horizontal')
+          .align('center')
+          .spacing('md')
+          .padding('md')
+          .background('mutedFill'),
+      )
+        .margin('bottom', 'md')
+        .onPress(handlePress)
+        .onLongPress(isOwnProfile ? onEdit : undefined)
+        .role('button')
+        .label(t('profile.media.openInSyra')),
     );
   }
 
@@ -409,7 +406,6 @@ const styles = StyleSheet.create({
 // row's width and height, the artwork's accent) and the video's ratio. These draw
 // what their classes drew.
 const cardStyles = {
-  full: { marginBottom: 12 },
   video: { alignSelf: 'flex-start', borderRadius: 16, overflow: 'hidden' },
   videoFrame: { width: '100%', backgroundColor: '#000000' },
   videoFrameInRow: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', minHeight: 0 },
