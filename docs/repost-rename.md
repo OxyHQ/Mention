@@ -5,6 +5,15 @@ meant _repost_ in code, on the wire and in the database. Code and wire names mov
 first; this is the storage half. It runs as expand / contract, so a deploy that
 rolls (old and new pods side by side) never meets a name it cannot read.
 
+## Status
+
+The storage columns are done: expand (0126-0128), backfill, validation and indexes (0129-0131),
+switch of every read and write, and contract (0132-0134, which drop the old columns, their sync
+triggers and the old indexes, and give the `_v2` indexes back their names). What remains is the
+stored VALUE `'boost'` of `posts.type`, `notifications.type`, `feed_interactions.event` and the
+federation import reasons, which are renamed the same way (widen the CHECK, write the new value,
+backfill, narrow).
+
 ## Phases
 
 1. **Expand** (migration 0126). `posts` gains `repost_of`, `stats_reposts_count`,
