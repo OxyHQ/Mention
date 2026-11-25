@@ -1,8 +1,7 @@
 import type React from 'react';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { ProfileData } from '@/hooks/useProfileData';
 import UserName from '@/components/UserName';
-import { toElement } from '@oxy.so/bloom-language';
+import { Embed, Header, toElement } from '@oxy.so/bloom-language';
 
 /** The banner band's height. */
 export const PROFILE_BANNER_HEIGHT = 170;
@@ -29,21 +28,19 @@ export function ProfilePageHeader({
   actions: React.ReactNode;
   overMedia?: boolean;
   /**
-   * `false` on a root tab. Bloom's `PageHeader` draws Back whenever it is handed
-   * an `onBack`, and a root tab has nowhere to go back to.
+   * `false` on a root tab: a root tab has nowhere to go back to, so its header
+   * draws no Back.
    */
   showBack?: boolean;
 }) {
-  return (
-    <PageHeader
-      title={toElement(
-        UserName({ name: profileData.design.displayName, verified: profileData.verified }),
-      )}
-      titleReveal="onDock"
-      presentation="floating"
-      testID="profile-page-header"
-      onBack={showBack ? undefined : null}
-      actions={actions}
-    />
+  return toElement(
+    Header(UserName({ name: profileData.design.displayName, verified: profileData.verified }))
+      .titleReveal('onDock')
+      .presentation('floating')
+      .testID('profile-page-header')
+      // Bloom's own back on a pushed screen (`undefined`), none on a root tab (`null`).
+      .onBack(showBack ? undefined : null)
+      .toolbar(Embed(actions))
+      .inPage(),
   );
 }

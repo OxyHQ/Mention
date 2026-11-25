@@ -66,9 +66,9 @@ jest.mock('@oxy.so/bloom/layout', () => ({
     return props.children;
   },
 }));
-jest.mock('@oxy.so/bloom/page-header', () => ({
-  ...jest.requireActual('@oxy.so/bloom/page-header'),
-  PageHeader: (props: object) => {
+jest.mock('../ProfilePageHeader', () => ({
+  ...jest.requireActual('../ProfilePageHeader'),
+  ProfilePageHeader: (props: object) => {
     mockHeader(props);
     return null;
   },
