@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { TextFieldHint } from '@oxy.so/bloom/text-field';
 import type { HydratedPostSummary } from '@mention/shared-types';
 import PostItem from '@/components/Feed/PostItem';
 import { NoteSheetHeader } from './NoteSheetHeader';
@@ -12,6 +12,7 @@ import {
   RawText,
   Text as LText,
   TextEditor,
+  TextField,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
@@ -85,20 +86,15 @@ export function WriteNoteSheet({ post, onSubmit, onClose }: WriteNoteSheetProps)
           )}
           {toElement(
             VStack(
-              Embed(
-                <TextField isInvalid={sourceInvalid}>
-                  <TextFieldInput
-                    label={t('communityNotes.write.sourceLabel', { defaultValue: 'Source' })}
-                    placeholder="https://"
-                    value={sourceUrl}
-                    onChangeText={setSourceUrl}
-                    isInvalid={sourceInvalid}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                  />
-                </TextField>,
-              ),
+              TextField(
+                [sourceUrl, setSourceUrl],
+                t('communityNotes.write.sourceLabel', { defaultValue: 'Source' }),
+              )
+                .placeholder('https://')
+                .invalid(sourceInvalid)
+                .autocapitalize('none')
+                .autocorrect(false)
+                .keyboard('url'),
               Embed(
                 <TextFieldHint isInvalid={sourceInvalid}>
                   {sourceInvalid
