@@ -14,7 +14,7 @@ import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
 
 interface MediaGridProps {
   userId?: string;
@@ -50,7 +50,8 @@ interface MediaGridEntry extends ProfileGridEntry {
   durationSec?: number;
 }
 
-const CAROUSEL_ICON_SIZE = 12;
+/** The carousel marker's glyph is white over the photo, as written (`fill="white"`). */
+const gridColors = defineTokens({ color: { glyph: 'white' } });
 // What the image's classes drew, as a plain object: expo-image takes one style object, not a list.
 const FILL: ImageStyle = { width: '100%', height: '100%' };
 const INITIAL_RENDER_COUNT = 18;
@@ -201,15 +202,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
           ),
           // The carousel mark: 4pt in from the top right corner, on black at 50%.
           item.isCarousel
-            ? VStack(
-                Embed(
-                  <RiStackLine
-                    width={CAROUSEL_ICON_SIZE}
-                    height={CAROUSEL_ICON_SIZE}
-                    fill="white"
-                  />,
-                ),
-              )
+            ? VStack(Icon(RiStackLine).size('xs').foreground(gridColors.color.glyph))
                 .padding('2xs')
                 .background('black/half')
                 .corner('xs')
