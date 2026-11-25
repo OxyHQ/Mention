@@ -143,13 +143,28 @@ afterAll(async () => {
 it('uses floating-point decay in the executed PostgreSQL plan', async () => {
   await create({}, { likes: 10 });
   const client = getPostgresClient();
-  const statements = vi.spyOn(client, 'unsafe');
-  let sourceQuery: (typeof statements.mock.calls)[number] | undefined;
+  // The source query runs in a transaction (it carries its own statement budget,
+  // see `EXPLORE_STATEMENT_BUDGET_MS`), so its statements go through the
+  // transaction's connection, not `client.unsafe`: record them from there.
+  const executed: Array<[string, unknown[]]> = [];
+  const realBegin = client.begin.bind(client) as (...args: unknown[]) => Promise<unknown>;
+  const begin = vi.spyOn(client, 'begin').mockImplementation(((...args: unknown[]) => {
+    const work = args[args.length - 1] as (tx: typeof client) => Promise<unknown>;
+    return realBegin(...args.slice(0, -1), (tx: typeof client) => {
+      const realUnsafe = tx.unsafe.bind(tx) as (text: string, params?: unknown[]) => unknown;
+      vi.spyOn(tx, 'unsafe').mockImplementation(((text: string, params?: unknown[]) => {
+        executed.push([text, params ?? []]);
+        return realUnsafe(text, params);
+      }) as never);
+      return work(tx);
+    });
+  }) as never);
+  let sourceQuery: [string, unknown[]] | undefined;
   try {
     await gatherMine(context());
-    sourceQuery = statements.mock.calls.find(([text]) => text.includes('power('));
+    sourceQuery = executed.find(([text]) => text.includes('power('));
   } finally {
-    statements.mockRestore();
+    begin.mockRestore();
   }
   if (!sourceQuery) throw new Error('Explore did not execute its scoring query');
   // Rows and final-score types alone cannot expose numeric power: the outer
