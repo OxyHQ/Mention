@@ -1,9 +1,8 @@
 import { memo, useCallback, type ReactNode, type Ref } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import type { AvatarProps } from '@oxy.so/bloom/avatar';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { useColorTokens } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -11,18 +10,21 @@ import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { describeContentLanguage } from '@/constants/contentLanguages';
-import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/utils/composeUtils';
+import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
-import {
-  AVATAR_SIZE,
-  BOTTOM_LEFT_PAD,
-  HPAD,
-  cardRemoveControl,
-  composeSpace,
-} from './composeLayout';
+import { AVATAR_SIZE, BOTTOM_LEFT_PAD, cardRemoveControl, composeSpace } from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
-import { Embed, HStack, Icon, Loading, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  Group,
+  HStack,
+  Icon,
+  Loading,
+  RawText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface VariantEditorProps {
   /** `MAIN_ITEM_ID` for the main post, or the thread item's id. */
@@ -104,7 +106,6 @@ const VariantEditor = memo(function VariantEditor({
   toolbar,
 }: VariantEditorProps) {
   const { t } = useTranslation();
-  const colorTokens = useColorTokens();
   const language = describeContentLanguage(tag);
 
   const handleMentionValueChange = useCallback(
@@ -124,197 +125,192 @@ const VariantEditor = memo(function VariantEditor({
   const ownMedia = item.media.mode === 'override' ? item.media.media : null;
   const canTranslate = primaryText.trim().length > 0 && !isTranslating && !isPosting;
 
-  return (
-    <View style={[styles.container, !isFocused && styles.unfocused]}>
-      <View style={styles.headerRow}>
-        <AccountAvatar
-          account={account}
-          source={userAvatar}
-          size={AVATAR_SIZE}
-          variant={MEDIA_VARIANT_AVATAR}
-          verified={userVerified}
-          style={styles.avatar}
-        />
-        {toElement(
-          VStack(
+  return toElement(
+    VStack(
+      HStack(
+        Embed(
+          <AccountAvatar
+            account={account}
+            source={userAvatar}
+            size={AVATAR_SIZE}
+            variant={MEDIA_VARIANT_AVATAR}
+            verified={userVerified}
+            style={styles.avatar}
+          />,
+        ),
+        VStack(
+          Embed(
+            <MentionTextInput
+              ref={textInputRef}
+              style={styles.textInput}
+              placeholder={t('compose.languages.variantPlaceholder', {
+                defaultValue: 'Write this post in {{language}}',
+                language: language.nativeName,
+              })}
+              value={item.text}
+              mentions={mentions}
+              onValueChange={handleMentionValueChange}
+              onFocus={handleFocus}
+              multiline
+            />,
+          ),
+          primaryText.trim().length > 0
+            ? VStack(RawText(primaryText).foreground('muted').font('sm').lines(3))
+                .padding('left', '10')
+                .border('border', 'thick', 'left')
+                .margin('top', 'sm')
+            : null,
+          HStack(
+            isTranslating ? Loading().style('inline').size('sm') : null,
+            RawText(t('compose.languages.translate', { defaultValue: 'Translate with AI' }))
+              .font('sm')
+              .weight('semibold')
+              .foreground('primary'),
+          )
+            .align('center')
+            .spacing('6')
+            .padding('horizontal', 'md')
+            .padding('vertical', '6')
+            .border('border', 'thin')
+            .corner('infinite')
+            .opacity(canTranslate ? 'opaque' : 'half')
+            .margin('top', 'sm')
+            .alignSelf('start')
+            .onPress(handleTranslate)
+            .disabled(!canTranslate)
+            .pressFade('75'),
+        )
+          .padding('top', '2xs')
+          .grow(),
+      )
+        .align('start')
+        .padding('horizontal', 'lg'),
+      Embed(toolbar),
+      sharedMedia.length > 0
+        ? VStack(
             Embed(
-              <MentionTextInput
-                ref={textInputRef}
-                style={styles.textInput}
-                placeholder={t('compose.languages.variantPlaceholder', {
-                  defaultValue: 'Write this post in {{language}}',
-                  language: language.nativeName,
-                })}
-                value={item.text}
-                mentions={mentions}
-                onValueChange={handleMentionValueChange}
-                onFocus={handleFocus}
-                multiline
-              />,
-            ),
-            primaryText.trim().length > 0
-              ? VStack(RawText(primaryText).foreground('muted').font('sm').lines(3))
-                  .padding('left', '10')
-                  .border('border', 'thick', 'left')
-                  .margin('top', 'sm')
-              : null,
-            HStack(
-              isTranslating ? Loading().style('inline').size('sm') : null,
-              RawText(t('compose.languages.translate', { defaultValue: 'Translate with AI' }))
-                .font('sm')
-                .weight('semibold')
-                .foreground('primary'),
-            )
-              .align('center')
-              .spacing('6')
-              .padding('horizontal', 'md')
-              .padding('vertical', '6')
-              .border('border', 'thin')
-              .corner('infinite')
-              .opacity(canTranslate ? 'opaque' : 'half')
-              .margin('top', 'sm')
-              .alignSelf('start')
-              .onPress(handleTranslate)
-              .disabled(!canTranslate)
-              .pressFade('75'),
-          )
-            .padding('top', '2xs')
-            .grow(),
-        )}
-      </View>
-      {toolbar}
-      {sharedMedia.length > 0
-        ? toElement(
-            VStack(
-              Embed(
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.mediaScroll}
-                >
-                  {(ownMedia ?? sharedMedia).map((media) =>
-                    toElement(
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.mediaScroll}
+              >
+                {(ownMedia ?? sharedMedia).map((media) =>
+                  toElement(
+                    VStack(
+                      Embed(
+                        <ComposeMediaPreview
+                          type={media.type}
+                          uri={getFileDownloadUrl(media.id)}
+                          imageStyle={styles.mediaImage}
+                        />,
+                      ),
+                      media.type === 'image'
+                        ? Embed(
+                            <ComposeAltButton
+                              hasAlt={
+                                ownMedia
+                                  ? Boolean(media.alt?.trim())
+                                  : item.media.mode === 'inherit' &&
+                                    Boolean(item.media.alt[media.id]?.trim())
+                              }
+                              onPress={() =>
+                                ownMedia
+                                  ? onOwnAltPress(itemId, media)
+                                  : onSharedAltPress(itemId, media)
+                              }
+                            />,
+                          )
+                        : null,
+                      ownMedia
+                        ? cardRemoveControl(() => onRemoveOwnMedia(itemId, media.id)).hitSlop('sm')
+                        : null,
+                    )
+                      .frame({ width: '280', height: composeSpace.space.cardHeight })
+                      .background('mutedFill')
+                      .border('border', 'thin')
+                      .corner('15')
+                      .clipped(),
+                    media.id,
+                  ),
+                )}
+                {ownMedia
+                  ? toElement(
+                      /* Add an image: a dashed slot beside the images, half a card wide. */
                       VStack(
-                        Embed(
-                          <ComposeMediaPreview
-                            type={media.type}
-                            uri={getFileDownloadUrl(media.id)}
-                            imageStyle={styles.mediaImage}
-                          />,
-                        ),
-                        media.type === 'image'
-                          ? Embed(
-                              <ComposeAltButton
-                                hasAlt={
-                                  ownMedia
-                                    ? Boolean(media.alt?.trim())
-                                    : item.media.mode === 'inherit' &&
-                                      Boolean(item.media.alt[media.id]?.trim())
-                                }
-                                onPress={() =>
-                                  ownMedia
-                                    ? onOwnAltPress(itemId, media)
-                                    : onSharedAltPress(itemId, media)
-                                }
-                              />,
-                            )
-                          : null,
-                        ownMedia
-                          ? cardRemoveControl(() => onRemoveOwnMedia(itemId, media.id)).hitSlop(
-                              'sm',
-                            )
-                          : null,
+                        Icon(RiAddLine).size('md').foreground('muted'),
+                        RawText(t('compose.languages.addImage', { defaultValue: 'Add image' }))
+                          .font('sm')
+                          .margin('top', 'xs')
+                          .foreground('muted'),
                       )
-                        .frame({ width: '280', height: composeSpace.space.cardHeight })
-                        .background('mutedFill')
+                        .align('center')
+                        .justify('center')
+                        .frame({ width: '140', height: composeSpace.space.cardHeight })
                         .border('border', 'thin')
+                        .borderStyle('dashed')
                         .corner('15')
-                        .clipped(),
-                      media.id,
-                    ),
-                  )}
-                  {ownMedia
-                    ? toElement(
-                        /* Add an image: a dashed slot beside the images, half a card wide. */
-                        VStack(
-                          Icon(RiAddLine).size('md').foreground('muted'),
-                          RawText(t('compose.languages.addImage', { defaultValue: 'Add image' }))
-                            .font('sm')
-                            .margin('top', 'xs')
-                            .foreground('muted'),
-                        )
-                          .align('center')
-                          .justify('center')
-                          .frame({ width: '140', height: composeSpace.space.cardHeight })
-                          .border('border', 'thin')
-                          .borderStyle('dashed')
-                          .corner('15')
-                          .onPress(handlePickOwnMedia)
-                          .pressFade('75'),
-                      )
-                    : null}
-                </ScrollView>,
-              ),
-              mediaModeButton(
-                ownMedia
-                  ? t('compose.languages.useSharedMedia', {
-                      defaultValue: 'Use the original images',
-                    })
-                  : t('compose.languages.useOwnMedia', {
-                      defaultValue: 'Use different images for {{language}}',
-                      language: language.nativeName,
-                    }),
-                ownMedia ? handleUseSharedMedia : handlePickOwnMedia,
-              ),
-            ).margin('top', 'xs'),
-          )
-        : null}
-      {hasArticle
-        ? toElement(
-            VStack(
-              Embed(
-                item.article ? (
-                  <>
-                    <TouchableOpacity
-                      style={[
-                        { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
-                        styles.articleCard,
-                      ]}
-                      activeOpacity={0.85}
-                      onPress={handleArticlePress}
-                    >
+                        .onPress(handlePickOwnMedia)
+                        .pressFade('75'),
+                    )
+                  : null}
+              </ScrollView>,
+            ),
+            mediaModeButton(
+              ownMedia
+                ? t('compose.languages.useSharedMedia', {
+                    defaultValue: 'Use the original images',
+                  })
+                : t('compose.languages.useOwnMedia', {
+                    defaultValue: 'Use different images for {{language}}',
+                    language: language.nativeName,
+                  }),
+              ownMedia ? handleUseSharedMedia : handlePickOwnMedia,
+            ),
+          ).margin('top', 'xs')
+        : null,
+      hasArticle
+        ? VStack(
+            item.article
+              ? Group(
+                  VStack(
+                    Embed(
                       <PostArticlePreview
                         title={item.article.title}
                         body={item.article.body}
                         onPress={handleArticlePress}
                         style={styles.articlePreview}
-                      />
-                    </TouchableOpacity>
-                    {toElement(
-                      mediaModeButton(
-                        t('compose.languages.useSharedArticle', {
-                          defaultValue: 'Use the original article',
-                        }),
-                        handleArticleReset,
-                      ),
-                    )}
-                  </>
-                ) : (
-                  toElement(
-                    mediaModeButton(
-                      t('compose.languages.localizeArticle', {
-                        defaultValue: 'Write the article in {{language}}',
-                        language: language.nativeName,
-                      }),
-                      handleArticlePress,
+                      />,
                     ),
                   )
+                    .frame({ width: '280', height: composeSpace.space.cardHeight })
+                    .background('mutedFill')
+                    .border('border', 'thin')
+                    .corner('15')
+                    .clipped()
+                    .margin('horizontal', 'lg')
+                    .margin('left', composeSpace.space.bottomLeftPad)
+                    .onPress(handleArticlePress)
+                    .pressFade('85'),
+                  mediaModeButton(
+                    t('compose.languages.useSharedArticle', {
+                      defaultValue: 'Use the original article',
+                    }),
+                    handleArticleReset,
+                  ),
+                )
+              : mediaModeButton(
+                  t('compose.languages.localizeArticle', {
+                    defaultValue: 'Write the article in {{language}}',
+                    language: language.nativeName,
+                  }),
+                  handleArticlePress,
                 ),
-              ),
-            ).margin('top', 'xs'),
-          )
-        : null}
-    </View>
+          ).margin('top', 'xs')
+        : null,
+    )
+      .spacing('md')
+      .padding('vertical', 'md')
+      .when(!isFocused, (v) => v.opacity('40')),
   );
 });
 
@@ -329,19 +325,6 @@ const mediaModeButton = (label: string, onPress: () => void) =>
     .pressFade('75');
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'column',
-    gap: 12,
-    paddingVertical: 12,
-  },
-  unfocused: {
-    opacity: 0.4,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: HPAD,
-  },
   avatar: {
     marginRight: 12,
   },
@@ -368,15 +351,6 @@ const styles = StyleSheet.create({
   },
   articleSection: {
     marginTop: 4,
-  },
-  articleCard: {
-    marginLeft: BOTTOM_LEFT_PAD,
-    marginHorizontal: HPAD,
-    width: MEDIA_CARD_WIDTH,
-    height: MEDIA_CARD_HEIGHT,
-    borderRadius: 15,
-    borderWidth: 1,
-    overflow: 'hidden',
   },
   articlePreview: {
     flex: 1,

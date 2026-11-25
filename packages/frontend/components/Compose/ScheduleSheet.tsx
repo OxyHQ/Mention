@@ -1,10 +1,8 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, ScrollView, type ViewStyle } from 'react-native';
-import { tokens } from '@oxy.so/bloom/styles';
+import { StyleSheet, ScrollView } from 'react-native';
 
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
-import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
@@ -19,6 +17,8 @@ import {
   toElement,
   Text,
   Card as LCard,
+  Field as LField,
+  defineTokens,
 } from '@oxy.so/bloom-language';
 
 export type ScheduleOption = {
@@ -127,31 +127,38 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               .margin('bottom', 'lg'),
           )}
 
-          {scheduledAt && (
-            <Card appearance="subtle" border="hairline" radius="radius-16" style={CURRENT_STYLE}>
-              {toElement(
-                VStack(
-                  RawText(t('compose.schedule.current', { defaultValue: 'Currently scheduled' }))
-                    .font('sm')
-                    .foreground('muted')
-                    .margin('bottom', 'xs'),
-                  RawText(formatLabel(scheduledAt))
-                    .font('16')
-                    .leading('normal')
-                    .weight('medium')
-                    .foreground('foreground'),
-                ).flex('1'),
-              )}
-              {toElement(
-                LButton(LText(t('compose.schedule.clear', { defaultValue: 'Clear' })))
+          {scheduledAt
+            ? toElement(
+                // The current schedule: its text and Clear in one row (`flex-row items-center py-3 px-3.5 mb-4.5`).
+                LCard(
+                  VStack(
+                    RawText(t('compose.schedule.current', { defaultValue: 'Currently scheduled' }))
+                      .font('sm')
+                      .foreground('muted')
+                      .margin('bottom', 'xs'),
+                    RawText(formatLabel(scheduledAt))
+                      .font('16')
+                      .leading('normal')
+                      .weight('medium')
+                      .foreground('foreground'),
+                  ).flex('1'),
+                  LButton(LText(t('compose.schedule.clear', { defaultValue: 'Clear' })))
+                    .style('subtle')
+                    .tint('danger')
+                    .size('sm')
+                    .onPress(handleClear)
+                    .testID('scheduleSheetClear'),
+                )
                   .style('subtle')
-                  .tint('danger')
-                  .size('sm')
-                  .onPress(handleClear)
-                  .testID('scheduleSheetClear'),
-              )}
-            </Card>
-          )}
+                  .outline('hairline')
+                  .radius('lg')
+                  .axis('horizontal')
+                  .align('center')
+                  .padding('vertical', 'md')
+                  .padding('horizontal', '14')
+                  .margin('bottom', scheduleTokens.space.currentBottom),
+              )
+            : null}
 
           {toElement(
             RawText(t('compose.schedule.quickPick', { defaultValue: 'Quick picks' }))
@@ -228,18 +235,19 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
                   />
                 </Field>,
               ),
-              Embed(
-                <Field
-                  label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
-                  style={styles.timeField}
-                >
+              // The time keeps the width of its box (`Field` is full-width by default).
+              LField(
+                t('compose.schedule.timeLabel', { defaultValue: 'Time' }),
+                Embed(
                   <TimeField
                     value={customTime}
                     onChange={setCustomTime}
                     testID="scheduleSheetTimeField"
-                  />
-                </Field>,
-              ),
+                  />,
+                ),
+              )
+                .shrink('never')
+                .frame({ width: scheduleTokens.space.timeWidth }),
             )
               .margin('bottom', 'xl')
               .spacing('md'),
@@ -270,18 +278,8 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   );
 };
 
-// Inline objects, not a StyleSheet: what Tailwind's classes drew here, its
-// off-scale steps named once (`px-3.5`, `mb-4.5`).
-const CURRENT_PADDING_X = 14;
-const CURRENT_MARGIN_BOTTOM = 18;
-/** The current schedule: its text and Clear in one row (`flex-row items-center py-3 px-3.5 mb-4.5`). */
-const CURRENT_STYLE = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingVertical: tokens.space.md,
-  paddingHorizontal: CURRENT_PADDING_X,
-  marginBottom: CURRENT_MARGIN_BOTTOM,
-} satisfies ViewStyle;
+/** The off-scale steps, named once: the current schedule's `mb-4.5`, the time field's 112pt. */
+const scheduleTokens = defineTokens({ space: { currentBottom: 18, timeWidth: 112 } });
 
 const styles = StyleSheet.create({
   // `Field` is full-width by default, so two of them in a row fight over the same
@@ -290,10 +288,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     width: 'auto',
-  },
-  timeField: {
-    flexShrink: 0,
-    width: 112,
   },
 });
 
