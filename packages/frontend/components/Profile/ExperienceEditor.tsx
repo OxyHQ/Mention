@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@oxy.so/bloom/select';
-import { TextField, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
+import { TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import {
   EXPERIENCE_EMPLOYMENT_TYPES,
@@ -31,6 +31,7 @@ import {
   HStack,
   RawText,
   Text as LText,
+  TextField,
   Toggle,
   VStack,
   toElement,
@@ -128,27 +129,23 @@ export function ExperienceEditor({
     maxLength: number,
   ) {
     const invalid = errors.includes(key);
+    const input = TextField(
+      [
+        draft[key] ?? '',
+        (value) =>
+          field(key, (key === 'location' || key === 'description') && !value.trim() ? null : value),
+      ],
+      t(`profile.experience.fields.${key}`),
+    )
+      .invalid(invalid)
+      .disabled(busy)
+      .maxLength(maxLength)
+      .multiline(key === 'description')
+      .autocapitalize(key.endsWith('Date') ? 'none' : 'sentences');
     return toElement(
       VStack(
         Embed(<TextFieldLabel>{t(`profile.experience.fields.${key}`)}</TextFieldLabel>),
-        Embed(
-          <TextField invalid={invalid} disabled={busy}>
-            <TextFieldInput
-              label={t(`profile.experience.fields.${key}`)}
-              value={draft[key] ?? ''}
-              onChangeText={(value) =>
-                field(
-                  key,
-                  (key === 'location' || key === 'description') && !value.trim() ? null : value,
-                )
-              }
-              maxLength={maxLength}
-              multiline={key === 'description'}
-              autoCapitalize={key.endsWith('Date') ? 'none' : 'sentences'}
-              placeholder={key.endsWith('Date') ? 'YYYY-MM' : undefined}
-            />
-          </TextField>,
-        ),
+        key.endsWith('Date') ? input.placeholder('YYYY-MM') : input,
         invalid ? alertText(t(`profile.experience.validation.${key}`)) : null,
       ).spacing('xs'),
     );
