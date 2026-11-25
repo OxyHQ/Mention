@@ -1,19 +1,21 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Image, ScrollView, type ImageStyle } from 'react-native';
+import { ScrollView } from 'react-native';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from 'react-i18next';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import {
   Button as LButton,
   Card as LCard,
   Embed,
+  Group,
   HStack,
   Header,
   Icon,
+  Image,
   RawText,
   Text as LText,
+  TextEditor,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
@@ -108,90 +110,89 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
           showsVerticalScrollIndicator={false}
         >
           {toElement(
-            RawText(
-              t('compose.altText.help', {
-                defaultValue:
-                  'Describe this image for people who are blind or have low vision, and to add context for everyone.',
-              }),
-            )
-              .font('sm')
-              .foreground('muted')
-              .margin('top', 'md')
-              .margin('bottom', 'md')
-              .padding('horizontal', 'lg')
-              .leading('18px'),
-          )}
-
-          {imageUrl
-            ? toElement(
-                LCard(
-                  Embed(
-                    <Image source={{ uri: imageUrl }} style={previewStyle} resizeMode="cover" />,
-                  ),
-                )
-                  .style('outline')
-                  .elevation('none')
-                  .radius('lg')
-                  .margin('horizontal', 'lg')
-                  .margin('bottom', 'md'),
+            Group(
+              RawText(
+                t('compose.altText.help', {
+                  defaultValue:
+                    'Describe this image for people who are blind or have low vision, and to add context for everyone.',
+                }),
               )
-            : null}
-
-          {tags.length > 1 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={tabsContentStyle}
-            >
-              {tags.map((tag) => {
-                const isActive = tag === activeTag;
-                const hasAlt = (values[tag] ?? '').trim().length > 0;
-                return toElement(
-                  HStack(
-                    RawText(describeContentLanguage(tag).nativeName)
-                      .font('sm')
-                      .weight('semibold')
-                      .foreground(isActive ? 'primary' : 'muted'),
-                    hasAlt
-                      ? VStack()
-                          .frame({ width: '6', height: '6' })
-                          .background('primary')
-                          .corner('infinite')
-                      : null,
+                .font('sm')
+                .foreground('muted')
+                .margin('top', 'md')
+                .margin('bottom', 'md')
+                .padding('horizontal', 'lg')
+                .leading('18px'),
+              imageUrl
+                ? LCard(
+                    // Tailwind's `w-full` on the preview, at the picture's own ratio.
+                    Image(imageUrl)
+                      .frame({ width: 'full' })
+                      .aspectRatio(16 / 9)
+                      .contentFit('cover'),
                   )
-                    .align('center')
-                    .spacing('6')
-                    .padding('horizontal', 'md')
-                    .padding('vertical', '6')
-                    .when(isActive, (v) => v.background('primary/10'))
-                    .border(isActive ? 'primary' : 'border', 'thin')
-                    .corner('infinite')
-                    .onPress(() => setActiveTag(tag))
-                    .role('tab')
-                    .accessibilityState({ selected: isActive })
-                    .pressFade('75'),
-                  tag,
-                );
-              })}
-            </ScrollView>
-          ) : null}
-
-          <Textarea
-            accessibilityLabel={t('compose.altText.heading', { defaultValue: 'Alt text' })}
-            placeholder={t('compose.altText.placeholder', { defaultValue: 'Describe this image…' })}
-            value={value}
-            onChangeText={handleChange}
-            maxLength={ALT_MAX_LENGTH}
-            showCount
-            rows={5}
-            autoResize
-            maxRows={12}
-            autoFocus
-            autoCapitalize="sentences"
-            autoCorrect
-            style={textareaStyle}
-          />
+                    .style('outline')
+                    .elevation('none')
+                    .radius('lg')
+                    .margin('horizontal', 'lg')
+                    .margin('bottom', 'md')
+                : null,
+              tags.length > 1
+                ? Embed(
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={tabsContentStyle}
+                    >
+                      {tags.map((tag) => {
+                        const isActive = tag === activeTag;
+                        const hasAlt = (values[tag] ?? '').trim().length > 0;
+                        return toElement(
+                          HStack(
+                            RawText(describeContentLanguage(tag).nativeName)
+                              .font('sm')
+                              .weight('semibold')
+                              .foreground(isActive ? 'primary' : 'muted'),
+                            hasAlt
+                              ? VStack()
+                                  .frame({ width: '6', height: '6' })
+                                  .background('primary')
+                                  .corner('infinite')
+                              : null,
+                          )
+                            .align('center')
+                            .spacing('6')
+                            .padding('horizontal', 'md')
+                            .padding('vertical', '6')
+                            .when(isActive, (v) => v.background('primary/10'))
+                            .border(isActive ? 'primary' : 'border', 'thin')
+                            .corner('infinite')
+                            .onPress(() => setActiveTag(tag))
+                            .role('tab')
+                            .accessibilityState({ selected: isActive })
+                            .pressFade('75'),
+                          tag,
+                        );
+                      })}
+                    </ScrollView>,
+                  )
+                : null,
+              TextEditor([value, handleChange])
+                .label(t('compose.altText.heading', { defaultValue: 'Alt text' }))
+                .placeholder(
+                  t('compose.altText.placeholder', { defaultValue: 'Describe this image…' }),
+                )
+                .maxLength(ALT_MAX_LENGTH)
+                .showCount()
+                .rows(5)
+                .autoResize(12)
+                .autoFocus()
+                .autocapitalize('sentences')
+                .autocorrect(true)
+                .margin('horizontal', 'lg'),
+            ),
+          )}
         </ScrollView>,
       ),
       LButton(LText(t('common.done', { defaultValue: 'Done' })))
@@ -208,9 +209,6 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
 };
 
 const scrollContentStyle = { paddingBottom: 24 };
-/** Tailwind's `w-full` on the preview, at the picture's own ratio. */
-const previewStyle = { width: '100%', aspectRatio: 16 / 9 } satisfies ImageStyle;
-const textareaStyle = { marginHorizontal: 16 };
 const tabsContentStyle = { gap: 8, paddingHorizontal: 16, paddingBottom: 12 };
 
 export default AltTextSheet;
