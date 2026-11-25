@@ -223,7 +223,7 @@ async function writeAuthorPreferences(
           interactionCount: sql`excluded.interaction_count`,
           lastInteractionAt: sql`excluded.last_interaction_at`,
           likes: sql`excluded.likes`,
-          boosts: sql`excluded.boosts`,
+          reposts: sql`excluded.reposts`,
           comments: sql`excluded.comments`,
           saves: sql`excluded.saves`,
           shares: sql`excluded.shares`,

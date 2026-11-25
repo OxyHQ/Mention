@@ -245,7 +245,7 @@ export async function loadCustomFeedSource(
     // carrying them would widen `CustomFeedSource` with fields no resolver
     // consults.
     includeReplies: row.includeReplies,
-    includeBoosts: row.includeBoosts,
+    includeBoosts: row.includeReposts,
     includeMedia: row.includeMedia,
     ...(row.language === null ? {} : { language: row.language }),
   };

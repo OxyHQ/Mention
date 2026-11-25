@@ -125,7 +125,7 @@ export async function backfillFederatedRepostCounts(
 
         await db
           .update(posts)
-          .set({ statsFederatedBoostsCount: federatedReposts })
+          .set({ statsFederatedRepostsCount: federatedReposts })
           .where(eq(posts.id, post.id));
       } catch (error) {
         failed += 1;

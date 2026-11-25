@@ -635,7 +635,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     correctionCount: row.correctionCount,
     lastCorrectedAt: row.lastCorrectedAt,
 
-    boostOf: row.boostOf,
+    boostOf: row.repostOf,
     writtenByOxyUserId: row.writtenByOxyUserId,
     laneId: row.laneId,
     communityOxyUserId: row.communityOxyUserId,
@@ -651,8 +651,8 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     stats: {
       likesCount: row.statsLikesCount,
       downvotesCount: row.statsDownvotesCount,
-      boostsCount: row.statsBoostsCount,
-      federatedBoostsCount: row.statsFederatedBoostsCount,
+      boostsCount: row.statsRepostsCount,
+      federatedBoostsCount: row.statsFederatedRepostsCount,
       commentsCount: row.statsCommentsCount,
       viewsCount: row.statsViewsCount,
       sharesCount: row.statsSharesCount,
@@ -662,7 +662,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     metadata: compact({
       isSensitive: row.metadataIsSensitive,
       isPinned: row.metadataIsPinned,
-      isBoosted: row.metadataIsBoosted,
+      isBoosted: row.metadataIsReposted,
       isCommented: row.metadataIsCommented,
       isFollowingAuthor: row.metadataIsFollowingAuthor,
       authorBlocked: row.metadataAuthorBlocked,
@@ -1125,7 +1125,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     correctionCount: 0,
     lastCorrectedAt: null,
 
-    boostOf: input.boostOf ?? null,
+    repostOf: input.boostOf ?? null,
     // Ordinary nullable values. `post_lane_chrono_v1`'s filter is
     // `where lane_id is not null`, so NULL is exactly the state that stays out
     // of it: "absent" and "null" are one state rather than two that can
@@ -1140,7 +1140,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
 
     metadataIsSensitive: metadata.isSensitive ?? false,
     metadataIsPinned: metadata.isPinned ?? false,
-    metadataIsBoosted: metadata.isBoosted ?? false,
+    metadataIsReposted: metadata.isBoosted ?? false,
     metadataIsCommented: metadata.isCommented ?? false,
     metadataIsFollowingAuthor: metadata.isFollowingAuthor ?? false,
     metadataAuthorBlocked: metadata.authorBlocked ?? false,
@@ -1764,7 +1764,7 @@ export async function updatePostRecord(
 
     metadataIsSensitive: metadata?.isSensitive,
     metadataIsPinned: metadata?.isPinned,
-    metadataIsBoosted: metadata?.isBoosted,
+    metadataIsReposted: metadata?.isBoosted,
     metadataIsCommented: metadata?.isCommented,
     metadataIsFollowingAuthor: metadata?.isFollowingAuthor,
     metadataAuthorBlocked: metadata?.authorBlocked,
@@ -1956,11 +1956,11 @@ export async function bumpPostCounters(
       ? { statsCommentsCount: sql`greatest(0, ${posts.statsCommentsCount} + ${delta.comments})` }
       : {}),
     ...(delta.boosts
-      ? { statsBoostsCount: sql`greatest(0, ${posts.statsRepostsCount} + ${delta.boosts})` }
+      ? { statsRepostsCount: sql`greatest(0, ${posts.statsRepostsCount} + ${delta.boosts})` }
       : {}),
     ...(delta.federatedBoosts
       ? {
-          statsFederatedBoostsCount: sql`greatest(0, ${posts.statsFederatedRepostsCount} + ${delta.federatedBoosts})`,
+          statsFederatedRepostsCount: sql`greatest(0, ${posts.statsFederatedRepostsCount} + ${delta.federatedBoosts})`,
         }
       : {}),
     ...(delta.views
