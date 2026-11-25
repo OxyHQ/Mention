@@ -142,7 +142,7 @@ function buildResponse() {
 
 /** The one row this scope's accounts own that answers `match`, as stored. */
 async function writtenPost(
-  match: (row: { parentPostId: string | null; boostOf: string | null }) => boolean,
+  match: (row: { parentPostId: string | null; repostOf: string | null }) => boolean,
 ): Promise<{ mentions: string[]; text: string }> {
   const rows = (await readScopePosts(scope)).filter(match);
   expect(rows).toHaveLength(1);
@@ -259,7 +259,7 @@ describe('createBoost — the comment on a boost is a body like any other', () =
     );
 
     expect(captured.status).toBe(201);
-    expect(await writtenPost((row) => row.boostOf === original.id)).toEqual({
+    expect(await writtenPost((row) => row.repostOf === original.id)).toEqual({
       mentions: [ALICE_OXY_ID],
       text: `look, [mention:${ALICE_OXY_ID}]`,
     });

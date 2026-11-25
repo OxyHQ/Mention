@@ -189,7 +189,7 @@ async function seedFeed(options: SeedOptions): Promise<string> {
       ratingsCount: options.ratingsCount ?? 0,
       language: options.language ?? null,
       ...(options.includeReplies === undefined ? {} : { includeReplies: options.includeReplies }),
-      ...(options.includeBoosts === undefined ? {} : { includeBoosts: options.includeBoosts }),
+      ...(options.includeBoosts === undefined ? {} : { includeReposts: options.includeBoosts }),
       ...(options.includeMedia === undefined ? {} : { includeMedia: options.includeMedia }),
       ...(options.createdAt === undefined ? {} : { createdAt: options.createdAt }),
       ...(options.updatedAt === undefined ? {} : { updatedAt: options.updatedAt }),

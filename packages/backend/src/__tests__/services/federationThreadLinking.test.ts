@@ -164,7 +164,7 @@ async function clearScopePosts(): Promise<void> {
   await withDeadlockRetry(() =>
     db
       .update(posts)
-      .set({ parentPostId: null, threadId: null, boostOf: null, quoteOf: null })
+      .set({ parentPostId: null, threadId: null, repostOf: null, quoteOf: null })
       .where(like(posts.federationActivityId, `${scope.origin}%`)),
   );
   await withDeadlockRetry(() =>

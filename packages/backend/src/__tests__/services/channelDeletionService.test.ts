@@ -176,9 +176,9 @@ describe('ChannelDeletionService — the manifest binding', () => {
     // DELETE's own work and that no evidence could ever show had run.
     const result = await deleteChannelContent(CHANNEL, { dryRun: true });
 
-    expect(result.performedByDatabase).toContain('posts.boostOf');
+    expect(result.performedByDatabase).toContain('posts.repostOf');
     expect(result.performedByDatabase).toContain('posts.quoteOf');
-    expect(Object.keys(result.steps)).not.toContain('posts.boostOf');
+    expect(Object.keys(result.steps)).not.toContain('posts.repostOf');
     expect(Object.keys(result.steps)).not.toContain('posts.quoteOf');
   });
 
@@ -479,7 +479,7 @@ describe('ChannelDeletionService — what happens to real rows', () => {
 
   it('repairs the counter on a surviving post the channel had boosted', async () => {
     const strangersPost = await seedPost(scope, { oxyUserId: STRANGER });
-    await getDb().update(posts).set({ statsBoostsCount: 2 }).where(eq(posts.id, strangersPost.id));
+    await getDb().update(posts).set({ statsRepostsCount: 2 }).where(eq(posts.id, strangersPost.id));
     await seedChannelPost({ type: 'boost', boostOf: strangersPost.id });
 
     await deleteChannelContent(CHANNEL, { dryRun: false });

@@ -110,7 +110,7 @@ it('keeps every eligible Meta network spelling with detector precedence and excl
   }
   const ig = await actor('instagram.com');
   await post(ig, { status: 'draft' });
-  await post(ig, { boostOf: expected[0] });
+  await post(ig, { repostOf: expected[0] });
   await post(ig, { oxyUserId: '' });
   await post(null);
   expect(await selected()).toEqual(expected.sort());

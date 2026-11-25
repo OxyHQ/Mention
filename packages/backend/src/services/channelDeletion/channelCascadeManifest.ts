@@ -453,16 +453,6 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-posts',
     action: 'database',
     why:
-      'The new name of `posts.repost_of` during the boost -> repost rename (expand phase). ' +
-      '`posts_sync_repost_columns` keeps the two equal, and both are the same self `ON DELETE CASCADE`, ' +
-      'so what the `boostOf` entry below says holds for this column unchanged.',
-  },
-  {
-    table: 'posts',
-    column: 'boostOf',
-    scope: 'channel-posts',
-    action: 'database',
-    why:
       'A boost has an intentionally empty body and renders entirely from its original, so a surviving ' +
       'one is a permanent "unavailable" placeholder — see the header note. `posts.repost_of` is a SELF ' +
       '`ON DELETE CASCADE`, so a boost of a boost goes too, transitively, in one statement. THE CATCH: ' +

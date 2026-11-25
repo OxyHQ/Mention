@@ -248,7 +248,7 @@ describe('post self-references', () => {
     const original = await createPost();
     const [repost] = await db
       .insert(posts)
-      .values({ oxyUserId: 'booster', type: 'boost', boostOf: original })
+      .values({ oxyUserId: 'booster', type: 'boost', repostOf: original })
       .returning({ id: posts.id });
 
     await db.delete(posts).where(eq(posts.id, original));

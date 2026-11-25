@@ -360,8 +360,6 @@ export async function recordPurgeRun(
         removedPosts: record.removed.posts,
         removedActors: record.removed.actors,
         removedReposts: record.removed.boosts,
-        // The old column is still NOT NULL and required by the insert type until the contract step.
-        removedBoosts: record.removed.boosts,
         removedLikes: record.removed.likes,
         removedNotifications: record.removed.notifications,
         removedMediaCacheRows: record.removed.mediaCacheRows,

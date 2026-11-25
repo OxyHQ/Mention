@@ -220,22 +220,11 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     table: 'posts',
     serves:
       'the window scan of ORIGINAL public posts the trending batch reads every run. ' +
-      '`post_public_chrono_v1` cannot see `boost_of`, so it walks every boost in the window and ' +
-      'discards it at the heap (330k rows read to keep 60k, 31 s cold against a 15 s timeout). ' +
-      'Neither key column is written after insert, so it costs the engagement counters no HOT update',
+      '`post_public_chrono_v1` cannot see `repost_of`, so it walks every repost in the window and ' +
+      'discards it at the heap. Neither key column is written after insert, so it costs the ' +
+      'engagement counters no HOT update',
     definition:
       'CREATE INDEX posts_public_originals_recent_idx ON public.posts ' +
-      "USING btree (created_at) WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (boost_of IS NULL))",
-  },
-  {
-    name: 'posts_public_originals_recent_v2_idx',
-    table: 'posts',
-    serves:
-      'the same window scan as `posts_public_originals_recent_idx`, over `repost_of`. Built beside it ' +
-      'for the boost -> repost rename; the old one is dropped and this one renamed at the contract ' +
-      'step (docs/repost-rename.md)',
-    definition:
-      'CREATE INDEX posts_public_originals_recent_v2_idx ON public.posts ' +
       "USING btree (created_at) WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (repost_of IS NULL))",
   },
   {
@@ -251,44 +240,23 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'USING btree (thread_id, oxy_user_id, parent_post_id, created_at) WHERE (thread_id IS NOT NULL)',
   },
   {
-    name: 'posts_boost_of_idx',
-    table: 'posts',
-    serves:
-      '"who boosted this post" — `inArray(posts.boostOf, ids)` in the deletion cascade, engagement ' +
-      'recompute and the AP inbox. KEPT FULL although `boost_of` is NULL on ~95% of rows: ' +
-      '`notABoostSql()` is `isNull(posts.boostOf)` and runs on hot feed paths, so a partial index ' +
-      'excluding NULLs would silently stop being available to them',
-    definition:
-      'CREATE INDEX posts_boost_of_idx ON public.posts USING btree (boost_of, created_at DESC NULLS LAST)',
-  },
-  {
     name: 'posts_repost_of_idx',
     table: 'posts',
     serves:
-      '"who reposted this post" over `repost_of`, the new name of `boost_of`; same reasons as ' +
-      '`posts_boost_of_idx` (KEPT FULL: `notARepostSql()` runs on hot feed paths). The old index is ' +
-      'dropped at the contract step',
+      '"who reposted this post" — `inArray(posts.repostOf, ids)` in the deletion cascade, engagement ' +
+      'recompute and the AP inbox. KEPT FULL although `repost_of` is NULL on ~95% of rows: ' +
+      '`notARepostSql()` is `isNull(posts.repostOf)` and runs on hot feed paths, so a partial index ' +
+      'excluding NULLs would silently stop being available to them',
     definition:
       'CREATE INDEX posts_repost_of_idx ON public.posts USING btree (repost_of, created_at DESC NULLS LAST)',
-  },
-  {
-    name: 'posts_one_boost_per_account_key',
-    table: 'posts',
-    serves:
-      'one NATIVE boost per account per post — a CONSTRAINT. `federation_activity_id is null` in the ' +
-      'predicate is load-bearing: widen it and a re-Announced remote boost 23505s inside the inbox ' +
-      'worker, which retries forever',
-    definition:
-      'CREATE UNIQUE INDEX posts_one_boost_per_account_key ON public.posts USING btree (oxy_user_id, boost_of) ' +
-      "WHERE ((type = 'boost'::text) AND (boost_of IS NOT NULL) AND (federation_activity_id IS NULL))",
   },
   {
     name: 'posts_one_repost_per_account_key',
     table: 'posts',
     serves:
-      'one NATIVE repost per account per post over `repost_of` — the new name of ' +
-      '`posts_one_boost_per_account_key`, which stays beside it until the contract step. ' +
-      '`federation_activity_id is null` stays load-bearing for the same reason',
+      'one NATIVE repost per account per post — a CONSTRAINT. `federation_activity_id is null` in the ' +
+      'predicate is load-bearing: widen it and a re-Announced remote repost 23505s inside the inbox ' +
+      'worker, which retries forever',
     definition:
       'CREATE UNIQUE INDEX posts_one_repost_per_account_key ON public.posts USING btree (oxy_user_id, repost_of) ' +
       "WHERE ((type = 'boost'::text) AND (repost_of IS NOT NULL) AND (federation_activity_id IS NULL))",
@@ -297,7 +265,7 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     name: 'posts_quote_of_idx',
     table: 'posts',
     serves:
-      'quotes of a given post. KEPT FULL for the same reason as `posts_boost_of_idx` — ' +
+      'quotes of a given post. KEPT FULL for the same reason as `posts_repost_of_idx` — ' +
       '`scripts/backfillQuotedPosts.ts` spells `isNull(posts.quoteOf)`',
     definition:
       'CREATE INDEX posts_quote_of_idx ON public.posts USING btree (quote_of, created_at DESC NULLS LAST)',
@@ -430,32 +398,11 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     name: 'posts_engagement_rank_idx',
     table: 'posts',
     serves:
-      'the popular / never-blank discovery scans, whose ORDER BY is a COMPUTED engagement composite. ' +
-      'Without it the planner has one option — read every candidate row and top-N sort it — so the cost ' +
-      'is bounded by the TABLE while the answer stays 60 rows, and the unbounded pass of ' +
-      '`fetchWithRecencyFallback` (reached on every page by a reader whose languages underfill 7d and 30d) ' +
-      'sorted the whole archive: 17.25s in production, 77-89ms against 275k posts here, 0.11-0.26ms with ' +
-      'this index. `engagementRankIndex.test.ts` is the half that checks the EXPRESSION still matches the ' +
-      'query, which is what actually decides whether the planner can use it',
+      'the popular / never-blank discovery scans, whose ORDER BY is a COMPUTED engagement composite over ' +
+      'the repost counters. `engagementRankIndex.test.ts` checks the expression still matches the query, ' +
+      'which is what actually decides whether the planner can use it',
     definition:
       'CREATE INDEX posts_engagement_rank_idx ON public.posts USING btree ' +
-      '(((((((stats_likes_count)::double precision * (1)::double precision) + ' +
-      '((GREATEST(0, (stats_boosts_count - stats_federated_boosts_count)))::double precision * ' +
-      '(2.5)::double precision)) + ((stats_federated_boosts_count)::double precision * ' +
-      '(0.5)::double precision)) + ((stats_comments_count)::double precision * (2)::double precision))) ' +
-      'DESC, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
-      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
-  },
-  {
-    name: 'posts_engagement_rank_v2_idx',
-    table: 'posts',
-    serves:
-      'the discovery scans of `posts_engagement_rank_idx`, with the composite written over the repost ' +
-      'counters (`stats_reposts_count`, `stats_federated_reposts_count`). `engagementRankIndex.test.ts` ' +
-      'checks the expression still matches the query. The old index is dropped and this one renamed at ' +
-      'the contract step',
-    definition:
-      'CREATE INDEX posts_engagement_rank_v2_idx ON public.posts USING btree ' +
       '(((((((stats_likes_count)::double precision * (1)::double precision) + ' +
       '((GREATEST(0, (stats_reposts_count - stats_federated_reposts_count)))::double precision * ' +
       '(2.5)::double precision)) + ((stats_federated_reposts_count)::double precision * ' +

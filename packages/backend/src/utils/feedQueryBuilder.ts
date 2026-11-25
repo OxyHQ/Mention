@@ -220,7 +220,7 @@ export class FeedQueryBuilder {
    * `post_media` through {@link FeedQueryBuilder.videoMediaConditions}, because
    * only that direction can reach `post_media_video_chrono_idx`.
    * `popularVideosSource` still does, and should: it orders by the ENGAGEMENT
-   * composite, so it reaches its rows through `posts_engagement_rank_v2_idx` and
+   * composite, so it reaches its rows through `posts_engagement_rank_idx` and
    * needs exactly what this returns — a cheap yes/no about qualifying media, with
    * set semantics free. Rewriting that one to drive from `post_media` would trade
    * an index it uses for one it cannot order by.
@@ -276,7 +276,7 @@ export class FeedQueryBuilder {
    *
    * `buildVideosQuery` states the rule as a predicate over `posts`, which is what
    * a query ordering by ENGAGEMENT needs: `popularVideosSource` sorts on the
-   * engagement composite, reaches its rows through `posts_engagement_rank_v2_idx`,
+   * engagement composite, reaches its rows through `posts_engagement_rank_idx`,
    * and only wants a yes/no about whether each candidate has qualifying media. An
    * `EXISTS` also gives it set semantics for free — a post carrying two matching
    * media rows is one post, with no `DISTINCT` anywhere.

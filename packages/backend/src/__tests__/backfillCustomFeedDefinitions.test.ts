@@ -54,7 +54,7 @@ async function seedLegacyFeed(options: {
       // The three toggles are NOT NULL DEFAULT true, so an unset one is omitted
       // rather than written as null — which is also the legacy "include" state.
       ...(options.includeReplies === undefined ? {} : { includeReplies: options.includeReplies }),
-      ...(options.includeBoosts === undefined ? {} : { includeBoosts: options.includeBoosts }),
+      ...(options.includeBoosts === undefined ? {} : { includeReposts: options.includeBoosts }),
       ...(options.includeMedia === undefined ? {} : { includeMedia: options.includeMedia }),
     })
     .returning({ id: customFeeds.id });
