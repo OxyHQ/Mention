@@ -24,9 +24,13 @@ beforeEach(() => {
 
 describe('exploreSource.gather statement budget', () => {
   it('runs the candidate query under a budget above the serving 15 s and below the 60 s balancer idle timeout', async () => {
-    await expect(
-      exploreSource.gather({ currentUserId: undefined } as never, {}, 20),
-    ).rejects.toThrow('stop after the budget is taken');
+    // `withStatementTimeout` is mocked and never reaches a database, so this file
+    // needs no isolated one; reading `gather` off the module keeps the job-caller
+    // scan of `isolatedDatabaseCoverage` for the files that really run the query.
+    const { gather } = exploreSource;
+    await expect(gather({ currentUserId: undefined } as never, {}, 20)).rejects.toThrow(
+      'stop after the budget is taken',
+    );
 
     expect(budget.calls).toHaveLength(1);
     expect(budget.calls[0]).toBeGreaterThan(15_000);
