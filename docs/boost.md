@@ -61,3 +61,17 @@ Not done, and not Mention's to decide alone:
 3. the prices of the tiers.
 
 No checkout, charge or test payment is created by this code while the switch is off.
+
+## What can never be boosted
+
+By the owner's rule a post about politics, gambling and casinos, or animal sales is not eligible, and neither is
+anything else against Oxy's ethical standards. Payment never widens a gate, so the refusal is Mention's, decided
+in `services/promotion/contentExclusions.ts` and applied by `promotionIneligibility` (`category-excluded`).
+
+- **Politics** comes from the Stage-A classifier's own `politics` topic.
+- **Gambling/casinos and animal sales** are not topics the classifier emits, so they are matched on the hashtags
+  and the words of the post (English, Spanish, French, German, Italian). The matchers are conservative: a wrongful
+  refusal costs the buyer a clearer post, a wrongful acceptance costs the product its standards.
+- A post whose classification is still `pending` is refused (`not-classified`) rather than guessed.
+- A matcher is a first line, not the last: a post that slips through is reportable, and a report pauses its promotion.
+- Extending a category means adding words or a classifier topic; a new category is a new `ExcludedCategory`.
