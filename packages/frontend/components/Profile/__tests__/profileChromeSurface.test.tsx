@@ -32,10 +32,14 @@ jest.mock('@oxy.so/bloom/styles', () => ({
   useSurfaceFill: () => '#0f1e2d',
 }));
 
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: { textSecondary: '#666666' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { textSecondary: '#666666' } };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 
 jest.mock('@oxy.so/bloom/icons', () => ({ RiGitMergeLine: () => null }));
 

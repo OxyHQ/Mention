@@ -44,10 +44,14 @@ jest.mock('@/components/Profile/PrivateBadge', () => ({ PrivateBadge: () => null
 jest.mock('@/hooks/useAccountCategoryLabel', () => ({
   useAccountCategoryLabel: () => (id: string) => id,
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: { text: '#000000', primary: '#0000ff' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { text: '#000000', primary: '#0000ff' } };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 jest.mock('@oxy.so/bloom/toast', () => ({
   ...jest.requireActual('@oxy.so/bloom/toast'),
   toast: jest.fn(),

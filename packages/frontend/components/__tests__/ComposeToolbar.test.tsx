@@ -44,8 +44,8 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = {
     colors: {
       border: '#333',
       card: '#fff',
@@ -55,8 +55,12 @@ jest.mock('@oxy.so/bloom/theme', () => ({
       textSecondary: '#666',
       textTertiary: '#999',
     },
-  }),
-}));
+  };
+  return {
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));

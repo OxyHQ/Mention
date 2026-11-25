@@ -29,7 +29,10 @@ jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => ({ Tabs: () => null, TabsTrigger: () => null }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: {} };
+  return { useTheme: () => theme, readThemePaint: () => ({ theme, paint: theme.colors }) };
+});
 jest.mock('@/components/ProfileCard', () => ({
   ProfileCard: () => null,
   ProfileCardSkeletonList: () => null,

@@ -173,11 +173,15 @@ jest.mock('@oxy.so/bloom/tabs', () => ({
   Tabs: () => null,
   TabsTrigger: () => null,
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
-  useTheme: () => ({ colors: { card: '#fff', textSecondary: '#666' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { card: '#fff', textSecondary: '#666' } };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 jest.mock('@oxy.so/bloom/list', () => {
   const { Text: RNText, View: RNView } =
     jest.requireActual<typeof import('react-native')>('react-native');

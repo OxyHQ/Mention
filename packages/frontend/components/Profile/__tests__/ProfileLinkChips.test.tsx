@@ -41,10 +41,14 @@ jest.mock('@oxy.so/bloom/item', () => ({
 }));
 jest.mock('@oxy.so/bloom/icons/RiExternalLinkLine', () => ({ RiExternalLinkLine: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiLink', () => ({ RiLink: () => null }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: { textSecondary: '#000' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { textSecondary: '#000' } };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),

@@ -22,10 +22,14 @@ const HEAVY_NAME = defineModifier((v) => v.font('xl').weight('extrabold'));
  * one sees either.
  */
 
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  useTheme: () => ({ colors: { text: '#000' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { text: '#000' } };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 jest.mock('@oxy.so/bloom/toast', () => ({
   ...jest.requireActual('@oxy.so/bloom/toast'),
   toast: jest.fn(),

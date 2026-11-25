@@ -48,9 +48,13 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   Screen: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  useTheme: () => ({ colors: { textSecondary: '#666' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { textSecondary: '#666' } };
+  return {
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: 'EmptyState' }));
 jest.mock('@oxy.so/bloom/list', () => ({

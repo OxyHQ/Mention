@@ -36,11 +36,15 @@ jest.mock('@oxy.so/bloom/grouped-section', () => ({
   GroupedSection: 'GroupedSection',
   GroupedSectionItem: 'GroupedSectionItem',
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({
-  ...jest.requireActual('@oxy.so/bloom/theme'),
-  BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
-  useTheme: () => ({ colors: { textSecondary: '#666' } }),
-}));
+jest.mock('@oxy.so/bloom/theme', () => {
+  const theme = { colors: { textSecondary: '#666' } };
+  return {
+    ...jest.requireActual('@oxy.so/bloom/theme'),
+    BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
+    useTheme: () => theme,
+    readThemePaint: () => ({ theme, paint: theme.colors }),
+  };
+});
 jest.mock('@oxy.so/bloom/loading', () => ({
   ...jest.requireActual('@oxy.so/bloom/loading'),
   Loading: 'Loading',
