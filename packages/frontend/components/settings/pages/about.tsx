@@ -19,13 +19,13 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
-import { Image, type ImageStyle } from 'react-native';
 
 import {
   Button as LButton,
   Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
+  Image,
   RawText,
   SettingsSection as LSettingsSection,
   SettingsValue,
@@ -33,9 +33,6 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-
-/** The instance's logo (`w-12 h-12`). */
-const LOGO = { width: 48, height: 48 } satisfies ImageStyle;
 
 export default function AboutScreen() {
   const { t } = useTranslation();
@@ -93,18 +90,13 @@ export default function AboutScreen() {
       VStack(
         /* App identity */ VStack(
           VStack(
-            Embed(
-              INSTANCE_LOGO_URL ? (
-                <Image
-                  source={{ uri: INSTANCE_LOGO_URL }}
-                  style={LOGO}
-                  resizeMode="contain"
-                  accessibilityLabel={INSTANCE_NAME}
-                />
-              ) : (
-                <LogoIcon size={32} color={colors.primary} />
-              ),
-            ),
+            INSTANCE_LOGO_URL
+              ? // The instance's logo (`w-12 h-12`).
+                Image(INSTANCE_LOGO_URL)
+                  .label(INSTANCE_NAME)
+                  .frame({ width: '48', height: '48' })
+                  .contentFit('contain')
+              : Embed(<LogoIcon size={32} color={colors.primary} />),
           )
             .frame({ width: '64', height: '64' })
             .background('primary/10')

@@ -1,20 +1,20 @@
 import { memo, useCallback } from 'react';
-import { Image, type ImageStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCommunitiesProps, Community } from './types';
 
-import { Embed, HStack, RawText, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Image,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** A community's icon is a 100pt square. */
 const card = defineTokens({ space: { icon: 100 } });
-// What the classes drew, as plain objects (inline, as the classes were).
-const ICON_IMAGE_STYLE: ImageStyle = {
-  flexGrow: 1,
-  flexShrink: 1,
-  flexBasis: '0%',
-  overflow: 'hidden',
-};
 
 /**
  * Profile communities section
@@ -60,15 +60,7 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
     VStack(
       HStack(
         community.icon
-          ? VStack(
-              Embed(
-                <Image
-                  source={{ uri: community.icon }}
-                  resizeMode="cover"
-                  style={ICON_IMAGE_STYLE}
-                />,
-              ),
-            )
+          ? VStack(Image(community.icon).contentFit('cover').flex('1').clipped())
               .frame({ width: card.space.icon, height: card.space.icon })
               .corner('lg')
               .clipped()

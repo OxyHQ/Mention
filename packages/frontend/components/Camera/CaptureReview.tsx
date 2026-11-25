@@ -1,13 +1,24 @@
 import { useCallback, useEffect } from 'react';
 import type { AssetUploadStageProgress } from '@oxy.so/core';
-import { Image, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useVideoPlayer } from 'expo-video';
 import { VideoView } from '@oxy.so/bloom/video-view';
 
 import type { LocalCapture } from './useCaptureUpload';
-import { Loading } from '@oxy.so/bloom/loading';
-import { Button as LButton, Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import {
+  Button as LButton,
+  Embed,
+  Image,
+  Loading,
+  Text as LText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
+
+/** The spinner's white over the capture. */
+const captureColors = defineTokens({ color: { white: '#fff' } });
 
 interface CaptureReviewProps {
   capture: LocalCapture;
@@ -80,13 +91,13 @@ export function CaptureReview({
 
   return toElement(
     VStack(
-      Embed(
-        capture.kind === 'video' ? (
-          <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={false} />
-        ) : (
-          <Image source={{ uri: capture.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ),
-      ),
+      capture.kind === 'video'
+        ? Embed(
+            <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={false} />,
+          )
+        : Image(capture.uri)
+            .contentFit('cover')
+            .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' }),
       VStack(LText('×').foreground('white').font('24').leading('32px'))
         .padding('all', 'md')
         .position({ top: '56', left: 'xl' })
@@ -124,8 +135,8 @@ export function CaptureReview({
           : null,
         busy
           ? VStack(
-              // The language's Loading takes a tone, not a fixed colour: white over the capture.
-              Embed(<Loading size="sm" color="#fff" />),
+              // White over the capture: an app colour, not a tone.
+              Loading().size('sm').tint(captureColors.color.white),
               LText(
                 progressLabel,
                 percentage !== null && uploadProgress?.phase !== 'verify' ? ` ${percentage}%` : '',
