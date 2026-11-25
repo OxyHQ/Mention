@@ -1,7 +1,6 @@
 import React, { useRef } from 'react';
 import type { TextInputInstance } from 'react-native';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from 'react-i18next';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
@@ -12,6 +11,7 @@ import {
   HStack,
   Icon,
   RawText,
+  TextEditor,
   TextField,
   VStack,
   type ViewModifier,
@@ -71,21 +71,15 @@ export const PollCreator = view(function PollCreator({
       .justify('between')
       .align('center')
       .margin('bottom', '10'),
-    Embed(
-      <Textarea
-        inputRef={pollTitleInputRef}
-        accessibilityLabel={t('compose.poll.question')}
-        placeholder={t('compose.poll.question')}
-        value={pollTitle}
-        onChangeText={onTitleChange}
-        maxLength={200}
-        showCount
-        rows={1}
-        autoResize
-        maxRows={4}
-        style={{ marginBottom: 10 }}
-      />,
-    ),
+    TextEditor([pollTitle, onTitleChange])
+      .inputRef(pollTitleInputRef)
+      .label(t('compose.poll.question'))
+      .placeholder(t('compose.poll.question'))
+      .maxLength(200)
+      .showCount()
+      .rows(1)
+      .autoResize(4)
+      .margin('bottom', '10'),
     VStack(
       Embed(
         pollOptions.map((option, index) => (

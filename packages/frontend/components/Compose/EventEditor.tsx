@@ -1,6 +1,6 @@
 import React from 'react';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
-import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { TextFieldHint } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import { formatTimeInput } from '@/utils/dateUtils';
 import {
@@ -190,20 +190,14 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             ),
           ),
           VStack(
-            Embed(
-              <TextField>
-                <TextFieldInput
-                  label={t('compose.event.time', { defaultValue: 'Time' })}
-                  value={timeDraft}
-                  onChangeText={handleTimeChange}
-                  placeholder="HH:mm"
-                  inputMode="numeric"
-                  maxLength={5}
-                  aria-invalid={timeInvalid || undefined}
-                  testID="eventEditorTimeField"
-                />
-              </TextField>,
-            ),
+            LTextField(
+              [timeDraft, handleTimeChange],
+              t('compose.event.time', { defaultValue: 'Time' }),
+            )
+              .placeholder('HH:mm')
+              .inputMode('numeric')
+              .maxLength(5)
+              .testID('eventEditorTimeField'),
           ).frame({ width: '120' }),
         ).spacing('md'),
         timeInvalid
