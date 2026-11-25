@@ -1005,8 +1005,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             key={item.referenceId}
             referenceId={item.referenceId}
             postId={postId}
+            width={isSingleItem ? '100%' : 280}
             height={rowHeight}
-            style={isSingleItem ? FULL_CELL : cells.card}
           />
         );
       }

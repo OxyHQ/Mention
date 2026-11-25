@@ -243,7 +243,7 @@ import {
 } from '@oxy.so/bloom-language';
 
 /** A commerce attachment's card in the attachment row (`w-[280px]`). */
-const COMMERCE_CARD = { width: 280 } satisfies ViewStyle;
+const COMMERCE_CARD_WIDTH = 280;
 // Lazy load sheets - only loaded when user opens them
 const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
@@ -3727,7 +3727,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                             >
                                                               <CommerceCard
                                                                 referenceId={key}
-                                                                style={COMMERCE_CARD}
+                                                                width={COMMERCE_CARD_WIDTH}
                                                               />
                                                             </AttachmentCarouselItem>
                                                           );

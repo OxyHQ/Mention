@@ -44,7 +44,7 @@ import {
 import { Embed, HStack, Icon, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
 
 /** A commerce attachment's card in the attachment row (`w-[280px]`). */
-const COMMERCE_CARD = { width: 280 } satisfies ViewStyle;
+const COMMERCE_CARD_WIDTH = 280;
 const appColors = defineTokens({ color: { hex5e5e5e: '#5e5e5e' } });
 
 /**
@@ -504,7 +504,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                               Embed(
                                 <CommerceCard
                                   referenceId={commerceReferenceKey(ref)}
-                                  style={COMMERCE_CARD}
+                                  width={COMMERCE_CARD_WIDTH}
                                 />,
                               ),
                               cardRemoveControl(() =>
