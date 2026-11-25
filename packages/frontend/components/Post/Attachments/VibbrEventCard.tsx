@@ -1,26 +1,12 @@
 import { useRef } from 'react';
-import { Linking, View, type DimensionValue, type ViewInstance } from 'react-native';
+import { Linking, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { getEventUrl } from '@mention/shared-types/vibbr';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
 import { useVisibleReference } from '@/hooks/useVisibleReference';
 import { vibbrEvents } from '@/lib/references/vibbrEvents';
 
 import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
-
-// The card keeps its React Native view: its ref is the viewability target, which
-// a language stack does not hand out.
-const useStyles = createTokenStyles((t) => ({
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: t.border,
-    backgroundColor: t.card,
-    padding: 16,
-    overflow: 'hidden',
-  },
-}));
 
 /** Every state occupies the same box, so a card never shifts the feed when it resolves. */
 export function VibbrEventCard({
@@ -31,10 +17,10 @@ export function VibbrEventCard({
 }: {
   eventId: string;
   postId?: string;
-  width?: DimensionValue;
+  /** Points beside other cards; the row's full width ('100%', the default) alone. */
+  width?: number | '100%';
   height?: number;
 }) {
-  const styles = useStyles();
   const { t, i18n } = useTranslation();
   const cardRef = useRef<ViewInstance>(null);
   const visible = useViewableVisible({ viewabilityKey: postId, target: cardRef });
@@ -47,62 +33,65 @@ export function VibbrEventCard({
         timeZone: value.timeZone,
       }).format(new Date(value.startsAt))
     : undefined;
-  return (
-    <View ref={cardRef} testID="vibbr-event-card" style={[styles.card, { width, height }]}>
-      {toElement(RawText('Vibbr').foreground('muted').font('14').leading('20px'))}
-      {value
-        ? toElement(
-            VStack(
-              RawText(value.title).foreground('foreground').weight('semibold').lines(2),
-              RawText(
-                [value.venueName, value.city].filter(Boolean).join(' · ') || value.organizerName,
-              )
-                .foreground('muted')
-                .lines(1),
-              RawText(when).foreground('muted'),
-              RawText(
-                value.status === 'cancelled'
-                  ? t('vibbr.cancelled', { defaultValue: 'Cancelled' })
-                  : value.soldOut
-                    ? t('vibbr.soldOut', { defaultValue: 'Sold out' })
-                    : value.free
-                      ? t('vibbr.free', { defaultValue: 'Free' })
-                      : value.priceFrom
-                        ? new Intl.NumberFormat(i18n.language, {
-                            style: 'currency',
-                            currency: value.priceFrom.currency,
-                          }).format(Number(value.priceFrom.amount) / 100)
-                        : '',
-              ).foreground('muted'),
-              RawText(t('vibbr.open', { defaultValue: 'Open event in Vibbr' })).foreground(
-                'primary',
-              ),
+  // One root: the card's own view is the viewability target (its ref).
+  return toElement(
+    VStack(
+      RawText('Vibbr').foreground('muted').font('14').leading('20px'),
+      value
+        ? VStack(
+            RawText(value.title).foreground('foreground').weight('semibold').lines(2),
+            RawText(
+              [value.venueName, value.city].filter(Boolean).join(' · ') || value.organizerName,
             )
-              .flex('1')
-              .justify('center')
-              .spacing('xs')
-              .role('link')
-              .label(t('vibbr.open', { defaultValue: 'Open event in Vibbr' }))
-              .onPress((event) => {
-                event.stopPropagation();
-                void Linking.openURL(getEventUrl(eventId));
-              }),
+              .foreground('muted')
+              .lines(1),
+            RawText(when).foreground('muted'),
+            RawText(
+              value.status === 'cancelled'
+                ? t('vibbr.cancelled', { defaultValue: 'Cancelled' })
+                : value.soldOut
+                  ? t('vibbr.soldOut', { defaultValue: 'Sold out' })
+                  : value.free
+                    ? t('vibbr.free', { defaultValue: 'Free' })
+                    : value.priceFrom
+                      ? new Intl.NumberFormat(i18n.language, {
+                          style: 'currency',
+                          currency: value.priceFrom.currency,
+                        }).format(Number(value.priceFrom.amount) / 100)
+                      : '',
+            ).foreground('muted'),
+            RawText(t('vibbr.open', { defaultValue: 'Open event in Vibbr' })).foreground('primary'),
           )
-        : toElement(
-            VStack(
-              RawText(
-                state.status === 'loading'
-                  ? t('vibbr.loading', { defaultValue: 'Loading Vibbr event…' })
-                  : t('vibbr.unavailable', {
-                      defaultValue: 'This Vibbr event is no longer available',
-                    }),
-              )
-                .foreground('muted')
-                .liveRegion('polite'),
+            .flex('1')
+            .justify('center')
+            .spacing('xs')
+            .role('link')
+            .label(t('vibbr.open', { defaultValue: 'Open event in Vibbr' }))
+            .onPress((event) => {
+              event.stopPropagation();
+              void Linking.openURL(getEventUrl(eventId));
+            })
+        : VStack(
+            RawText(
+              state.status === 'loading'
+                ? t('vibbr.loading', { defaultValue: 'Loading Vibbr event…' })
+                : t('vibbr.unavailable', {
+                    defaultValue: 'This Vibbr event is no longer available',
+                  }),
             )
-              .flex('1')
-              .justify('center'),
-          )}
-    </View>
+              .foreground('muted')
+              .liveRegion('polite'),
+          )
+            .flex('1')
+            .justify('center'),
+    )
+      .padding('lg')
+      .frame({ width: width === '100%' ? 'full' : width, height })
+      .background('card')
+      .border('border', 'thin')
+      .corner('lg')
+      .clipped()
+      .ref(cardRef)
+      .testID('vibbr-event-card'),
   );
 }
