@@ -1,8 +1,7 @@
 import { memo, useCallback } from 'react';
 
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Icon, VStack, toElement } from '@oxy.so/bloom-language';
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 
@@ -35,7 +34,6 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   onDismiss,
   hideDismiss,
 }: SuggestedUserCardProps) {
-  const theme = useTheme();
   const cachedUser = useCachedUserSnapshot(user.id);
 
   const handleDismiss = useCallback(() => {
@@ -64,7 +62,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
         hideDismiss
           ? undefined
           : toElement(
-              VStack(Embed(<RiCloseLine width={14} fill={theme.colors.textSecondary} />))
+              VStack(Icon(RiCloseLine).size('14').foreground('muted'))
                 .padding('all', 'xs')
                 .onPress(handleDismiss)
                 .hitSlop('md')

@@ -6,7 +6,6 @@ import { CappedChipRow } from '@oxy.so/bloom/chip';
 import { RiArrowRightUpLine } from '@oxy.so/bloom/icons/RiArrowRightUpLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { supportProviderOf, type ProfileLink } from '@oxy.so/core';
 import { applePodcastCollectionId } from '@mention/shared-types/applePodcast';
 import { api } from '@/utils/api';
@@ -31,20 +30,6 @@ interface ProfileLinkChipsProps {
 /** What a link is called on its pill: the owner's title, else the bare address. */
 function chipLabel(link: ProfileLink): string {
   return link.title?.trim() || prettifyUrl(link.url);
-}
-
-/**
- * The outbound arrow after a pill's label, drawn at Bluesky's 12px so it sits
- * with the label instead of at the pill's own icon size.
- */
-function OutboundArrow({ support }: { support: boolean }) {
-  const { colors } = useTheme();
-  return (
-    <RiArrowRightUpLine
-      size="xs"
-      fill={support ? colors.primaryForeground : colors.textSecondary}
-    />
-  );
 }
 
 /**
@@ -157,7 +142,11 @@ export const ProfileLinkChips = memo(function ProfileLinkChips({
               LChip(
                 Embed(<LinkIcon link={link} />),
                 Text(label),
-                Embed(<OutboundArrow support={support !== null} />),
+                // The outbound arrow after the label, drawn at Bluesky's 12px so it sits
+                // with the label instead of at the pill's own icon size.
+                Icon(RiArrowRightUpLine)
+                  .size('xs')
+                  .foreground(support !== null ? 'onPrimary' : 'muted'),
               )
                 .size('md')
                 .style(support ? 'solid' : 'subtle')

@@ -73,6 +73,7 @@ import {
   Badge as LBadge,
   Button as LButton,
   Embed,
+  Group,
   HStack,
   Icon,
   RawText,
@@ -472,40 +473,38 @@ export function usePersonProfileView({
           FollowButtonComponent={OxyFollowButton}
           followVerb={followVerbForAccountKind(profileData.kind)}
           interactionActions={
-            canUsePrivateApi && !isOwnProfile ? (
-              <>
-                <Button
-                  iconOnly
-                  leadingIcon={subscribed ? RiNotification3Fill : RiNotification3Line}
-                  onPress={toggleSubscription}
-                  disabled={subLoading}
-                  accessibilityLabel={
-                    subscribed
-                      ? t('profile.actions.unsubscribe', {
-                          handle,
-                          defaultValue: 'Stop notifying me about new posts from @{{handle}}',
-                        })
-                      : t('profile.actions.subscribe', {
-                          handle,
-                          defaultValue: 'Notify me about new posts from @{{handle}}',
-                        })
-                  }
-                />
-                {!isFederated && (
-                  <Button
-                    iconOnly
-                    renderLeadingIcon={({ size, color }) => (
-                      <RiSendPlaneFill width={size} height={size} fill={color} />
-                    )}
-                    onPress={handleDM}
-                    accessibilityLabel={t('profile.actions.messageInAllo', {
-                      handle,
-                      defaultValue: 'Message @{{handle}} in Allo',
-                    })}
-                  />
-                )}
-              </>
-            ) : undefined
+            canUsePrivateApi && !isOwnProfile
+              ? toElement(
+                  Group(
+                    LButton(Icon(subscribed ? RiNotification3Fill : RiNotification3Line))
+                      .shape('circle')
+                      .disabled(subLoading)
+                      .onPress(toggleSubscription)
+                      .label(
+                        subscribed
+                          ? t('profile.actions.unsubscribe', {
+                              handle,
+                              defaultValue: 'Stop notifying me about new posts from @{{handle}}',
+                            })
+                          : t('profile.actions.subscribe', {
+                              handle,
+                              defaultValue: 'Notify me about new posts from @{{handle}}',
+                            }),
+                      ),
+                    isFederated
+                      ? null
+                      : LButton(Icon(RiSendPlaneFill))
+                          .shape('circle')
+                          .onPress(handleDM)
+                          .label(
+                            t('profile.actions.messageInAllo', {
+                              handle,
+                              defaultValue: 'Message @{{handle}} in Allo',
+                            }),
+                          ),
+                  ),
+                )
+              : undefined
           }
         />
         {toElement(

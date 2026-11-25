@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import {
@@ -102,7 +101,6 @@ function ProfileDiscoveryList({
 }: ProfileDiscoveryListProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
-  const theme = useTheme();
 
   const {
     recommendations,
@@ -165,7 +163,7 @@ function ProfileDiscoveryList({
         {showInviteBanner
           ? toElement(
               HStack(
-                VStack(Embed(<RiGroupFill width={18} fill={theme.colors.card} />))
+                VStack(Icon(RiGroupFill).size('18').foreground('card'))
                   .frame({ width: invite.space.icon, height: invite.space.icon })
                   .background('primary')
                   .corner('full')
@@ -201,7 +199,7 @@ function ProfileDiscoveryList({
           : null}
       </>
     ),
-    [listHeaderComponent, showInviteBanner, handleInviteFriends, theme.colors.card, t],
+    [listHeaderComponent, showInviteBanner, handleInviteFriends, t],
   );
 
   // The first load paints the row skeletons (the list header stays put), so the

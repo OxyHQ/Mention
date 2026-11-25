@@ -45,11 +45,14 @@ import {
   ScrollView,
   type ScrollViewNode,
   VStack,
+  defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 const ABOUT_AVATAR_SIZE = 80;
+/** The verified badge is always VERIFIED_BADGE_COLOR, never a theme role. */
+const badge = defineTokens({ color: { verified: VERIFIED_BADGE_COLOR } });
 
 /** The pronoun pairs a person account can name, as they read on the About page. */
 const PRONOUN_LABELS: Record<string, string> = {
@@ -396,9 +399,7 @@ function AccountInfoContent({
           toElement(
             LGroupedSection(
               LGroupedSectionItem(t('profile.fields.verified', { defaultValue: 'Verified' }))
-                .leadingView(
-                  Embed(<RiVerifiedBadgeFill width={20} height={20} fill={VERIFIED_BADGE_COLOR} />),
-                )
+                .leadingView(Icon(RiVerifiedBadgeFill).size('md').foreground(badge.color.verified))
                 .value(
                   verifiedDate
                     ? t('profile.about.since', {

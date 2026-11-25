@@ -1,10 +1,9 @@
 import type React from 'react';
 import { useCallback } from 'react';
-import { Pressable, View, type ViewStyle } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -12,7 +11,15 @@ import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 
-import { Embed, HStack, RawText, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+import {
+  Embed,
+  HStack,
+  Icon,
+  RawText,
+  VStack,
+  defineTokens,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Profile banner picker/preview. Self-contained: reads/writes
@@ -27,8 +34,11 @@ import { Embed, HStack, RawText, VStack, defineTokens, toElement } from '@oxy.so
  */
 const BANNER_PREVIEW_STYLE = { width: '100%', aspectRatio: 3 } as const;
 
-/** The hint lines up under the title, past its 22pt glyph and the 12pt gap. */
-const banner = defineTokens({ space: { hintInset: 34 } });
+/**
+ * The hint lines up under the title, past its 22pt glyph and the 12pt gap; the
+ * empty banner is at least 112pt tall.
+ */
+const banner = defineTokens({ space: { hintInset: 34, emptyMinHeight: 112 } });
 // What the classes drew, as plain objects (inline, as the classes were).
 /** The edit bar along the preview's bottom: black at 60% under the glyphs. */
 const EDIT_BAR_STYLE: ViewStyle = {
@@ -42,21 +52,8 @@ const EDIT_BAR_STYLE: ViewStyle = {
   paddingHorizontal: 12,
   paddingVertical: 8,
 };
-/** The empty banner: a 3:1 drop target at least 112pt tall, its outline dashed. */
-const EMPTY_BANNER_STYLE: ViewStyle = {
-  aspectRatio: 3,
-  minHeight: 112,
-  borderRadius: 16,
-  borderWidth: 1.5,
-  borderStyle: 'dashed',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-};
 export const BannerSection: React.FC = () => {
   const { t } = useTranslation();
-  const { colors } = useTheme();
-  const colorTokens = useColorTokens();
   const { showBottomSheet, oxyServices } = useAuth();
   const headerImageRef = useAppearanceStore((state) => state.mySettings?.profileHeaderImage ?? '');
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
@@ -100,7 +97,7 @@ export const BannerSection: React.FC = () => {
     VStack(
       VStack(
         HStack(
-          Embed(<RiImageLine width={22} fill={colors.text} />),
+          Icon(RiImageLine).size('22').foreground('foreground'),
           RawText(t('settings.profileHeader', 'Profile header'))
             .font('16')
             .weight('semibold')
@@ -114,93 +111,87 @@ export const BannerSection: React.FC = () => {
           .foreground('muted')
           .padding('left', banner.space.hintInset),
       ).spacing('xs'),
-      Embed(
-        headerImageRef ? (
-          toElement(
-            VStack(
-              Embed(
-                <Image
-                  source={{
-                    // Same variant the profile banner asks for, so this preview and
-                    // the profile share ONE cache entry instead of pulling two
-                    // differently-sized copies of the picked image.
-                    uri: oxyServices.assets.renderUrl(headerImageRef, MEDIA_VARIANT_BANNER),
-                  }}
-                  // expo-image is not a react-native core view, so a className does
-                  // not size it on native; the frame is the image's own style.
-                  style={BANNER_PREVIEW_STYLE}
-                  contentFit="cover"
-                />,
-              ),
-              // A View: the bar spans the preview by its inline insets, which no modifier says.
-              Embed((render) => (
-                <View style={EDIT_BAR_STYLE}>
-                  {render(
-                    HStack(
-                      Embed(<RiCameraLine width={17} fill={colors.primaryForeground} />),
-                      RawText(t('common.edit'))
-                        .foreground('white')
-                        .font('14')
-                        .leading('20px')
-                        .weight('semibold'),
-                    )
-                      .align('center')
-                      .spacing('sm'),
-                  )}
-                  {render(
-                    VStack(Embed(<RiDeleteBinLine width={17} fill={colors.primaryForeground} />))
-                      .frame({ width: '36', height: '36' })
-                      .background('black/40')
-                      .corner('infinite')
-                      .align('center')
-                      .justify('center')
-                      .onPress((event) => {
-                        event.stopPropagation();
-                        void removeHeaderImage();
-                      })
-                      .role('button')
-                      .label(`${t('common.remove')} ${t('settings.profileHeader')}`),
-                  )}
-                </View>
-              )),
-            )
-              .background('mutedFill')
-              .border('border', 'thin')
-              .corner('lg')
-              .clipped()
-              .onPress(openHeaderPicker)
-              .role('button')
-              .label(`${t('common.edit')} ${t('settings.profileHeader')}`),
+      headerImageRef
+        ? VStack(
+            Embed(
+              <Image
+                source={{
+                  // Same variant the profile banner asks for, so this preview and
+                  // the profile share ONE cache entry instead of pulling two
+                  // differently-sized copies of the picked image.
+                  uri: oxyServices.assets.renderUrl(headerImageRef, MEDIA_VARIANT_BANNER),
+                }}
+                // expo-image is not a react-native core view, so a className does
+                // not size it on native; the frame is the image's own style.
+                style={BANNER_PREVIEW_STYLE}
+                contentFit="cover"
+              />,
+            ),
+            // A View: the bar spans the preview by its inline insets, which no modifier says.
+            Embed((render) => (
+              <View style={EDIT_BAR_STYLE}>
+                {render(
+                  HStack(
+                    Icon(RiCameraLine).size('17').foreground('onPrimary'),
+                    RawText(t('common.edit'))
+                      .foreground('white')
+                      .font('14')
+                      .leading('20px')
+                      .weight('semibold'),
+                  )
+                    .align('center')
+                    .spacing('sm'),
+                )}
+                {render(
+                  VStack(Icon(RiDeleteBinLine).size('17').foreground('onPrimary'))
+                    .frame({ width: '36', height: '36' })
+                    .background('black/40')
+                    .corner('infinite')
+                    .align('center')
+                    .justify('center')
+                    .onPress((event) => {
+                      event.stopPropagation();
+                      void removeHeaderImage();
+                    })
+                    .role('button')
+                    .label(`${t('common.remove')} ${t('settings.profileHeader')}`),
+                )}
+              </View>
+            )),
           )
-        ) : (
-          // A Pressable: its 1.5pt dashed outline has no modifier.
-          <Pressable
-            style={[
-              EMPTY_BANNER_STYLE,
-              { borderColor: colorTokens.border, backgroundColor: colorTokens.muted },
-            ]}
-            onPress={openHeaderPicker}
-            accessibilityRole="button"
-            accessibilityLabel={t('settings.uploadHeader', 'Upload header image')}
-          >
-            {toElement(
-              VStack(Embed(<RiCameraLine width={21} fill={colors.primary} />))
-                .frame({ width: '44', height: '44' })
-                .background('primary/10')
-                .corner('infinite')
-                .align('center')
-                .justify('center'),
-            )}
-            {toElement(
-              RawText(t('settings.uploadHeader', 'Upload header image'))
-                .font('14')
-                .leading('20px')
-                .weight('semibold')
-                .foreground('foreground'),
-            )}
-          </Pressable>
-        ),
-      ),
+            .background('mutedFill')
+            .border('border', 'thin')
+            .corner('lg')
+            .clipped()
+            .onPress(openHeaderPicker)
+            .role('button')
+            .label(`${t('common.edit')} ${t('settings.profileHeader')}`)
+        : // The empty banner: a 3:1 drop target at least 112pt tall, its outline dashed.
+          VStack(
+            VStack(Icon(RiCameraLine).size('21').foreground('primary'))
+              .frame({ width: '44', height: '44' })
+              .background('primary/10')
+              .corner('infinite')
+              .align('center')
+              .justify('center'),
+            RawText(t('settings.uploadHeader', 'Upload header image'))
+              .font('14')
+              .leading('20px')
+              .weight('semibold')
+              .foreground('foreground'),
+          )
+            .align('center')
+            .justify('center')
+            .spacing('sm')
+            .aspectRatio(3)
+            .frame({ minHeight: banner.space.emptyMinHeight })
+            .background('mutedFill')
+            .border('border', '1.5')
+            .borderStyle('dashed')
+            .corner('lg')
+            .onPress(openHeaderPicker)
+            .role('button')
+            .label(t('settings.uploadHeader', 'Upload header image')),
     )
       .padding('horizontal', 'xl')
       .padding('vertical', 'lg')
