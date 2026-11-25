@@ -438,7 +438,7 @@ export function feedRowType(row: FeedRow): string {
   if (row.isThreadParent) return 'threadParent';
   if (row.isThreadChild) return 'threadChild';
   const item = row.item;
-  if (item.repost) return 'boost';
+  if (item.repost) return 'repost';
   if (item.quotedPost) return 'quote';
   if (item.parentPostId) return 'reply';
   return 'post';

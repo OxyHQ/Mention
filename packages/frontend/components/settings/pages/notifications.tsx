@@ -196,10 +196,10 @@ export default function NotificationSettingsScreen() {
             />
             <GroupedSectionItem
               wrapControl
-              title={t('settings.notifications.boosts', {
+              title={t('settings.notifications.reposts', {
                 defaultValue: 'Boosts',
               })}
-              description={t('settings.notifications.boostsDesc', {
+              description={t('settings.notifications.repostsDesc', {
                 defaultValue: 'When someone boosts your post',
               })}
               rightElement={
@@ -208,7 +208,7 @@ export default function NotificationSettingsScreen() {
                     <Switch
                       checked={prefs.boosts}
                       onCheckedChange={(v) => updatePreference('boosts', v)}
-                      accessibilityLabel={t('settings.notifications.boosts', {
+                      accessibilityLabel={t('settings.notifications.reposts', {
                         defaultValue: 'Boosts',
                       })}
                     />

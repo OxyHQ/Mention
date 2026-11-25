@@ -25,7 +25,7 @@ describe('emptySticker', () => {
     ['media', 'profileMedia'],
     ['videos', 'profileVideos'],
     ['likes', 'profileLikes'],
-    ['boosts', 'profileBoosts'],
+    ['reposts', 'profileBoosts'],
     ['mentions', 'profileMentions'],
     ['saved', 'saved'],
   ])('%s shows %s', (type, name) => {

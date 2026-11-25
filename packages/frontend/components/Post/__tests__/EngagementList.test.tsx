@@ -185,7 +185,7 @@ describe('EngagementList — canonical PostUser rendering', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <EngagementList postId="post-1" type="boosts" onClose={jest.fn()} />,
+        <EngagementList postId="post-1" type="reposts" onClose={jest.fn()} />,
       );
     });
     await flush();

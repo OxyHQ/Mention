@@ -43,7 +43,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * feed deciding whether its held read is still good; neither subsumes the
  * other.
  */
-export type EngagementKind = 'like' | 'boost' | 'save';
+export type EngagementKind = 'like' | 'repost' | 'save';
 
 /**
  * When each kind of engagement last changed a list, in `Date.now()` terms. A
@@ -52,7 +52,7 @@ export type EngagementKind = 'like' | 'boost' | 'save';
  */
 const changedAt: Record<EngagementKind, number> = {
   like: 0,
-  boost: 0,
+  repost: 0,
   save: 0,
 };
 
@@ -74,7 +74,7 @@ export function engagementKindForFeed(
   const isOwnList = Boolean(viewerId) && userId === viewerId;
   if (!isOwnList) return null;
   if (type === 'likes') return 'like';
-  if (type === 'boosts') return 'boost';
+  if (type === 'reposts') return 'repost';
   return null;
 }
 
@@ -126,6 +126,6 @@ export function invalidateEngagementLists(kind: EngagementKind): void {
 /** Drop the recorded writes. For tests, and for a viewer switch that clears both caches. */
 export function resetEngagementInvalidation(): void {
   changedAt.like = 0;
-  changedAt.boost = 0;
+  changedAt.repost = 0;
   changedAt.save = 0;
 }

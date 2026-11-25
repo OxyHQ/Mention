@@ -41,7 +41,8 @@ export function WeeklyRecapContent({ stats, summary, topPosts }: WeeklyRecapCont
     .sort(([, a], [, b]) => b - a);
   const leadingFormat = formats[0]?.[0];
   const interactions = (['likes', 'replies', 'boosts', 'shares'] as const).map((kind) => ({
-    label: t(`insights.post.${kind}`),
+    // `boosts` is still the name of the counter in the statistics payload.
+    label: t(`insights.post.${kind === 'boosts' ? 'reposts' : kind}`),
     value: stats.interactions[kind],
   }));
   const calendarDays = publishing.weekdays.total + publishing.weekends.total;

@@ -143,10 +143,10 @@ describe('postsStore reports every engagement it lands', () => {
     mockFeedService.unrepostItem.mockResolvedValue(accepted);
 
     await usePostsStore.getState().repostPost({ postId: POST_ID });
-    expect(mockInvalidate).toHaveBeenLastCalledWith('boost');
+    expect(mockInvalidate).toHaveBeenLastCalledWith('repost');
 
     await usePostsStore.getState().unrepostPost({ postId: POST_ID });
-    expect(mockInvalidate).toHaveBeenLastCalledWith('boost');
+    expect(mockInvalidate).toHaveBeenLastCalledWith('repost');
 
     expect(mockInvalidate).toHaveBeenCalledTimes(2);
   });

@@ -141,7 +141,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
               items={[
                 { label: t('insights.post.likes'), value: insights.stats.likes },
                 { label: t('insights.post.replies'), value: insights.stats.replies },
-                { label: t('insights.post.boosts'), value: insights.stats.boosts },
+                { label: t('insights.post.reposts'), value: insights.stats.boosts },
                 { label: t('insights.post.shares'), value: insights.stats.shares },
                 { label: t('insights.post.quotes'), value: insights.stats.quotes },
               ]}

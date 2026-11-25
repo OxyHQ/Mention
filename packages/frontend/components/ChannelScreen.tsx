@@ -160,7 +160,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
           media: t('profile.tabs.media'),
           videos: t('profile.tabs.videos'),
           likes: t('profile.tabs.likes'),
-          boosts: t('profile.tabs.boosts'),
+          reposts: t('profile.tabs.reposts'),
           mentions: t('profile.tabs.mentions'),
           feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
           starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
@@ -247,7 +247,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
   );
 
   const handlePostsPress = useCallback(() => scrollOrSwitch('posts'), [scrollOrSwitch]);
-  const handleRepostsPress = useCallback(() => scrollOrSwitch('boosts'), [scrollOrSwitch]);
+  const handleRepostsPress = useCallback(() => scrollOrSwitch('reposts'), [scrollOrSwitch]);
   // A channel has no replies tab, so the replies stat is never rendered and
   // this can never fire — `ProfileContent` still requires the handler, so it
   // jumps to `posts` rather than to a tab that is not there.

@@ -140,12 +140,12 @@ function createController(): Controller {
       const store = usePostsStore.getState();
       const isReposted = currentPost(post).viewerState?.isReposted ?? false;
       return guarded(
-        `${post.id}:boost`,
+        `${post.id}:repost`,
         () =>
           isReposted
             ? store.unrepostPost({ postId: post.id })
             : store.repostPost({ postId: post.id }, source),
-        'boost',
+        'repost',
       );
     },
     share: (post) => {

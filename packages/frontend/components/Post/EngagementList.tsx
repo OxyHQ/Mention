@@ -22,7 +22,7 @@ const SKELETON_ROW_COUNT = 8;
 
 interface EngagementListProps {
   postId: string;
-  type: 'likes' | 'boosts';
+  type: 'likes' | 'reposts';
   onClose: () => void;
   onNavigate?: (href: Href) => void;
 }
@@ -42,7 +42,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose, 
   const title =
     type === 'likes'
       ? t('post.likesTitle', { defaultValue: 'Likes' })
-      : t('post.boostsTitle', { defaultValue: 'Reposts' });
+      : t('post.repostsTitle', { defaultValue: 'Reposts' });
 
   const loadUsers = useCallback(
     async (cursor?: string) => {
@@ -174,7 +174,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose, 
               title={
                 type === 'likes'
                   ? t('post.engagement.noLikes', { defaultValue: 'No likes yet' })
-                  : t('post.engagement.noBoosts', { defaultValue: 'No reposts yet' })
+                  : t('post.engagement.noReposts', { defaultValue: 'No reposts yet' })
               }
               sticker="postNoEngagement"
             />

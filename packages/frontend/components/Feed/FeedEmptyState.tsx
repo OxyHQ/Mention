@@ -108,7 +108,7 @@ export function emptySticker(
       return 'profileVideos';
     case 'replies':
       return isThread ? 'threadNoReplies' : 'profileReplies';
-    case 'boosts':
+    case 'reposts':
       return 'profileBoosts';
     case 'mentions':
       return 'profileMentions';
@@ -167,10 +167,10 @@ export function emptyCopy(
             title: t('feed.emptyState.replies.title'),
             subtitle: t('feed.emptyState.replies.subtitle'),
           };
-    case 'boosts':
+    case 'reposts':
       return {
-        title: t('feed.emptyState.boosts.title'),
-        subtitle: t('feed.emptyState.boosts.subtitle'),
+        title: t('feed.emptyState.reposts.title'),
+        subtitle: t('feed.emptyState.reposts.subtitle'),
       };
     case 'mentions':
       return {

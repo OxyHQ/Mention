@@ -1279,7 +1279,7 @@ export const usePostsStore = create<PostsStoreState>()(
       let previousPost: FeedItem | null = null;
 
       try {
-        markLocalAction(postId, 'boost');
+        markLocalAction(postId, 'repost');
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
@@ -1299,7 +1299,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to boost');
         }
-        invalidateEngagementLists('boost');
+        invalidateEngagementLists('repost');
         invalidateProfileCounts(queryClient);
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
@@ -1337,7 +1337,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to unboost');
         }
-        invalidateEngagementLists('boost');
+        invalidateEngagementLists('repost');
         invalidateProfileCounts(queryClient);
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;

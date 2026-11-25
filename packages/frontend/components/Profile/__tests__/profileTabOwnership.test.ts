@@ -7,7 +7,7 @@ import {
 } from '@/components/Profile/types';
 
 describe('profile tab scroll ownership', () => {
-  it.each(['posts', 'replies', 'likes', 'boosts'] as const)(
+  it.each(['posts', 'replies', 'likes', 'reposts'] as const)(
     'lets the %s Feed own the native virtualized scroll',
     (tab) => {
       expect(isVirtualizedProfileFeedTab(tab)).toBe(true);

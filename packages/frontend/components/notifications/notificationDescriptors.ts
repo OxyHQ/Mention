@@ -88,7 +88,7 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
     icon: RiRepeat2Line,
     colorToken: 'success',
     hasPreview: true,
-    actionPhrase: (t) => t('notification.action.boost', { defaultValue: 'reposted your post' }),
+    actionPhrase: (t) => t('notification.action.repost', { defaultValue: 'reposted your post' }),
   },
   // The old name of `repost` (docs/repost-rename.md): notifications stored before the rename still
   // carry it until they are rewritten.
@@ -96,7 +96,7 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
     icon: RiRepeat2Line,
     colorToken: 'success',
     hasPreview: true,
-    actionPhrase: (t) => t('notification.action.boost', { defaultValue: 'reposted your post' }),
+    actionPhrase: (t) => t('notification.action.repost', { defaultValue: 'reposted your post' }),
   },
   reply: {
     icon: RiChat3Line,

@@ -673,14 +673,14 @@
     "stats": {
       "likes_one": "m'agrada",
       "likes_other": "m'agrada",
-      "boosts_one": "impuls",
-      "boosts_other": "impulsos",
+      "reposts_one": "republicació",
+      "reposts_other": "republicacions",
       "quotes_one": "cita",
       "quotes_other": "cites",
       "saves_one": "desada",
       "saves_other": "desades",
       "likes_many": "de m'agrada",
-      "boosts_many": "d'impulsos",
+      "reposts_many": "de republicacions",
       "quotes_many": "de cites",
       "saves_many": "de desades"
     },
@@ -703,7 +703,7 @@
     "contentWarning": "Advertiment de contingut",
     "contentWarningShow": "Mostra",
     "contentWarningHide": "Amaga",
-    "boostUnavailable": "Aquesta publicació ja no està disponible",
+    "repostUnavailable": "Aquesta publicació ja no està disponible",
     "quoteUnavailable": "Aquesta publicació citada no està disponible",
     "articleSheet": {
       "emptyBody": "No s'ha proporcionat cap contingut.",
@@ -711,12 +711,12 @@
       "title": "Article",
       "untitled": "Article sense títol"
     },
-    "boostsTitle": "Impulsos",
+    "repostsTitle": "Republicacions",
     "likesTitle": "M'agrada",
     "engagement": {
       "loadError": "No s'ha pogut carregar la llista",
       "loadErrorMessage": "Comprova la connexió i torna-ho a provar.",
-      "noBoosts": "Encara no hi ha impulsos",
+      "noReposts": "Encara no hi ha republicacions",
       "noLikes": "Encara no hi ha m'agrada"
     },
     "pinned": "Fixada",
@@ -778,7 +778,7 @@
     },
     "action": {
       "like": "ha fet m'agrada a la teva publicació",
-      "boost": "ha impulsat la teva publicació",
+      "repost": "ha republicat la teva publicació",
       "reply": "ha respost la teva publicació",
       "mention": "t'ha mencionat",
       "quote": "ha citat la teva publicació",
@@ -807,7 +807,7 @@
         "title": "Cap seguidor nou"
       },
       "likes": {
-        "subtitle": "Quan algú faci m'agrada o impulsi el teu contingut, apareixerà aquí.",
+        "subtitle": "Quan algú marca amb m'agrada o republica el teu contingut, apareixerà aquí.",
         "title": "Encara no hi ha m'agrada"
       },
       "mentions": {
@@ -889,7 +889,7 @@
       "media": "Multimèdia",
       "videos": "Vídeos",
       "likes": "M'agrada",
-      "boosts": "Impulsos",
+      "reposts": "Republicacions",
       "mentions": "Mencions",
       "writers": "Autors",
       "feeds": "Fluxos",
@@ -901,13 +901,13 @@
     "stats": {
       "posts_one": "Publicació",
       "posts_other": "Publicacions",
-      "boosts_one": "Impuls",
-      "boosts_other": "Impulsos",
+      "reposts_one": "Republicació",
+      "reposts_other": "Republicacions",
       "replies_one": "Resposta",
       "replies_other": "Respostes",
       "reputation": "Reputació",
       "posts_many": "Publicacions",
-      "boosts_many": "Impulsos",
+      "reposts_many": "Republicacions",
       "replies_many": "Respostes"
     },
     "joined": "S'hi va unir el",
@@ -1262,7 +1262,7 @@
       "hiddenWordsDesc": "Filtra les publicacions que contenen paraules concretes",
       "hideCounts": {
         "signInRequired": "Inicia la sessió per amagar els recomptes d'interacció",
-        "signInRequiredDesc": "Amaga els m'agrada, els impulsos, les respostes i les desades de les teves publicacions."
+        "signInRequiredDesc": "Amaga els m'agrada, les republicacions, les respostes i els desats de les teves publicacions."
       },
       "hideLikeShareCountsDesc": "Amaga els recomptes d'interacció a les publicacions",
       "onlineStatus": {
@@ -1446,8 +1446,8 @@
       "description": "Els temes que segueixes donen forma al teu flux i t'acompanyen a totes les aplicacions d'Oxy."
     },
     "notifications": {
-      "boosts": "Impulsos",
-      "boostsDesc": "Quan algú impulsa la teva publicació",
+      "reposts": "Republicacions",
+      "repostsDesc": "Quan algú republica la teva publicació",
       "follows": "Seguidors nous",
       "followsDesc": "Quan algú et segueix",
       "likes": "M'agrada",
@@ -1949,8 +1949,8 @@
         "description": "Amaga les respostes."
       },
       "noBoosts": {
-        "label": "Sense impulsos",
-        "description": "Amaga els impulsos."
+        "label": "Sense republicacions",
+        "description": "Amaga les republicacions."
       },
       "linksOnly": {
         "label": "Només enllaços",
@@ -1966,7 +1966,7 @@
       },
       "minEngagement": {
         "label": "Interacció mínima",
-        "description": "Exigeix un mínim de m'agrada, impulsos, etc."
+        "description": "Exigeix un mínim de m'agrada, republicacions, etc."
       },
       "recencyWindow": {
         "label": "Finestra d'actualitat",
@@ -2112,10 +2112,6 @@
         "title": "Encara no hi ha respostes",
         "subtitle": "Sigues el primer a respondre!"
       },
-      "boosts": {
-        "title": "Encara no hi ha impulsos",
-        "subtitle": "Les publicacions impulsades apareixeran aquí."
-      },
       "likes": {
         "title": "Encara no hi ha m'agrada",
         "subtitle": "Les publicacions que t'agradin apareixeran aquí."
@@ -2139,6 +2135,10 @@
       "following": {
         "title": "Encara no hi ha publicacions",
         "subtitle": "Comença a seguir gent per veure les seves publicacions."
+      },
+      "reposts": {
+        "title": "Encara no hi ha republicacions",
+        "subtitle": "Les publicacions republicades apareixeran aquí."
       }
     },
     "tuning": {
@@ -2256,8 +2256,8 @@
       "deleteConfirmPosts_one": "Això destrueix {{count}} publicació publicada per aquest canal, juntament amb tots els m'agrada i les desades que té.",
       "deleteConfirmPosts_other": "Això destrueix {{count}} publicacions publicades per aquest canal, juntament amb tots els m'agrada i les desades que tenen.",
       "deleteConfirmEmpty": "Aquest canal no ha publicat res, així que no hi ha publicacions per destruir.",
-      "deleteConfirmBoosts_one": "També desapareix {{count}} impuls que n'ha fet una altra persona.",
-      "deleteConfirmBoosts_other": "També desapareixen {{count}} impulsos que n'ha fet altra gent.",
+      "deleteConfirmReposts_one": "{{count}} republicació d'elles feta per una altra persona també s'elimina.",
+      "deleteConfirmReposts_other": "{{count}} republicacions d'elles fetes per altres persones també s'eliminen.",
       "deleteConfirmFediverse": "Es demana a tots els servidors que n'hagin rebut una còpia que l'eliminin. Enviem aquesta petició; no els podem obligar a complir-la.",
       "deleteConfirmAccount": "El compte del canal s'arxiva al final, de manera que ningú no el pot tornar a seguir ni publicar-hi.",
       "deleteConfirmAction_one": "Suprimeix {{count}} publicació",
@@ -2265,7 +2265,7 @@
       "deleteConfirmActionEmpty": "Suprimeix aquest canal",
       "deleted": "Canal suprimit",
       "deleteConfirmPosts_many": "Això destrueix {{count}} de publicacions publicades per aquest canal, juntament amb tots els m'agrada i les desades que tenen.",
-      "deleteConfirmBoosts_many": "També desapareixen {{count}} d'impulsos que n'ha fet altra gent.",
+      "deleteConfirmReposts_many": "També desapareixen {{count}} de republicacions que n'ha fet altra gent.",
       "deleteConfirmAction_many": "Suprimeix {{count}} de publicacions"
     },
     "insights": {
@@ -2285,7 +2285,7 @@
       },
       "step2": {
         "title": "Publica, no respon",
-        "body": "Les publicacions d'un canal són publicacions normals: arriben als fluxos, a la cerca i al Fediverse com les de qualsevol altre, i en pots impulsar una al teu propi perfil. El que no hi trobaràs és una casella de resposta. Un canal no accepta mai respostes, i així és com estan fets els canals: no és cap opció que algú hagi desactivat."
+        "body": "Les publicacions d'un canal són publicacions normals: arriben als fluxos, a la cerca i al Fediverse com les de qualsevol altre, i en pots republicar una al teu propi perfil. El que no hi trobaràs és una casella de resposta. Un canal no accepta mai respostes, i així és com estan fets els canals: no és cap opció que algú hagi desactivat."
       },
       "step3": {
         "title": "Qui ho ha escrit?",
@@ -2802,8 +2802,8 @@
     "like": "M'agrada",
     "unlike": "Ja no m'agrada",
     "comment": "Comenta",
-    "boost": "Impulsa",
-    "unboost": "Desfés l'impuls",
+    "repost": "Republica",
+    "unrepost": "Desfés la republicació",
     "save": "Desa",
     "unsave": "Treu dels desats",
     "share": "Comparteix",
@@ -2880,13 +2880,14 @@
       "image": "Imatge",
       "video": "Vídeo",
       "poll": "Enquesta",
-      "boost": "Impuls"
+      "boost": "Republicació",
+      "repost": "Republicació"
     },
     "engagementRatios": "Proporcions d'interacció",
     "ofViews": "de les visualitzacions",
     "likeRate": "Taxa de m'agrada",
     "replyRate": "Taxa de respostes",
-    "boostRate": "Taxa d'impulsos",
+    "repostRate": "Taxa de republicacions",
     "shareRate": "Taxa de comparticions",
     "viewsPerPost": "Visualitzacions per publicació",
     "engagementPerPost": "Interacció per publicació",
@@ -2905,7 +2906,7 @@
       "totalInteractions": "Interaccions totals",
       "reach": "Abast",
       "replies": "Respostes",
-      "boosts": "Impulsos",
+      "reposts": "Republicacions",
       "shares": "Comparticions",
       "quotes": "Cites",
       "totalQuotes": "Cites totals"
@@ -2931,7 +2932,7 @@
       "since": "Publicacions posteriors a una data",
       "until": "Publicacions anteriors a una data",
       "min_likes": "Mínim de m'agrada",
-      "min_reposts": "Mínim d'impulsos",
+      "min_reposts": "Mínim de republicacions",
       "fromMe": "Les teves publicacions",
       "to": "Publicacions que mencionen un usuari concret",
       "toMe": "Publicacions que et mencionen",
@@ -3047,7 +3048,7 @@
     "introSource": "Aquesta pàgina llista totes les instàncies amb què Mention es nega a intercanviar contingut, i per què. Es genera a partir de la mateixa llista que aplica el servidor, així que no pot quedar desactualitzada en silenci.",
     "whatItDoes": {
       "title": "Què fa un bloqueig",
-      "body": "Res d'una instància bloquejada no arriba a Mention. Les publicacions, els seguiments, els m'agrada i els impulsos que envia es rebutgen en arribar, deixem d'obtenir-ne els comptes i les cronologies, i els seus comptes ja no es poden trobar ni seguir des d'aquí.",
+      "body": "Res d'una instància bloquejada no arriba a Mention. Les publicacions, els seguiments, els m'agrada i els republicacions que envia es rebutgen en arribar, deixem d'obtenir-ne els comptes i les cronologies, i els seus comptes ja no es poden trobar ni seguir des d'aquí.",
       "bluntness": "S'aplica a tot un lloc, no a les persones concretes que hi ha. És una eina poc precisa, així que preferim fer-la servir poques vegades i explicar-la sempre.",
       "scope": "Cada entrada anomena un servidor i cobreix exactament aquest nom. Un subdomini és un servidor diferent —un bloqueig a exemple.com no s'estén a social.exemple.com—, així que cadascun es decideix pel seu compte i apareix aquí per dret propi.",
       "limits": "Val la pena saber-ho: un bloqueig regula què arriba a Mention. Tot el que publiquis públicament aquí continua sent públic i es pot llegir des de qualsevol lloc, incloses les instàncies d'aquesta llista."

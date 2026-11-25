@@ -196,7 +196,7 @@ describe('a channel', () => {
     const [options] = mockConfirmDialog.mock.calls[0];
     expect(options.title).toBe('Delete Daily Digest?');
     expect(options.message).toContain('42 posts');
-    expect(options.message).toContain('7 boosts of them by other people go as well');
+    expect(options.message).toContain('7 reposts of them by other people go as well');
     expect(options.message).toContain('cannot make them');
     expect(options.okText).toBe('Delete 42 posts');
     expect(options.destructive).toBe(true);

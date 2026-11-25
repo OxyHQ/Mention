@@ -390,7 +390,7 @@ describe('feedRowType', () => {
     };
 
     const rows = build({ items: [repost, quote, reply] });
-    expect(rows.map(feedRowType)).toEqual(['boost', 'quote', 'reply']);
+    expect(rows.map(feedRowType)).toEqual(['repost', 'quote', 'reply']);
   });
 
   it('gives each interstitial kind its own recycle bucket, distinct from any post bucket', () => {

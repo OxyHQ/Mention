@@ -668,8 +668,8 @@
     "stats": {
       "likes_one": "like",
       "likes_other": "likes",
-      "boosts_one": "boost",
-      "boosts_other": "boosts",
+      "reposts_one": "repost",
+      "reposts_other": "reposts",
       "quotes_one": "quote",
       "quotes_other": "quotes",
       "saves_one": "save",
@@ -693,7 +693,7 @@
     "contentWarning": "Content warning",
     "contentWarningShow": "Show",
     "contentWarningHide": "Hide",
-    "boostUnavailable": "This post is no longer available",
+    "repostUnavailable": "This post is no longer available",
     "quoteUnavailable": "This quoted post is unavailable",
     "articleSheet": {
       "emptyBody": "No content provided.",
@@ -701,12 +701,12 @@
       "title": "Article",
       "untitled": "Untitled article"
     },
-    "boostsTitle": "Reposts",
+    "repostsTitle": "Reposts",
     "likesTitle": "Likes",
     "engagement": {
       "loadError": "Couldn't load this list",
       "loadErrorMessage": "Check your connection and try again.",
-      "noBoosts": "No reposts yet",
+      "noReposts": "No reposts yet",
       "noLikes": "No likes yet"
     },
     "pinned": "Pinned",
@@ -766,7 +766,7 @@
     },
     "action": {
       "like": "liked your post",
-      "boost": "boosted your post",
+      "repost": "reposted your post",
       "reply": "replied to your post",
       "mention": "mentioned you",
       "quote": "quoted your post",
@@ -795,7 +795,7 @@
         "title": "No new followers"
       },
       "likes": {
-        "subtitle": "When someone likes or boosts your content, it will appear here.",
+        "subtitle": "When someone likes or reposts your content, it will appear here.",
         "title": "No likes yet"
       },
       "mentions": {
@@ -877,7 +877,7 @@
       "media": "Media",
       "videos": "Videos",
       "likes": "Likes",
-      "boosts": "Boosts",
+      "reposts": "Reposts",
       "mentions": "Mentions",
       "writers": "Writers",
       "feeds": "Feeds",
@@ -889,8 +889,8 @@
     "stats": {
       "posts_one": "Post",
       "posts_other": "Posts",
-      "boosts_one": "Boost",
-      "boosts_other": "Boosts",
+      "reposts_one": "Repost",
+      "reposts_other": "Reposts",
       "replies_one": "Reply",
       "replies_other": "Replies",
       "reputation": "Reputation"
@@ -1244,7 +1244,7 @@
       "hiddenWordsDesc": "Filter posts containing specific words",
       "hideCounts": {
         "signInRequired": "Sign in to hide engagement counts",
-        "signInRequiredDesc": "Hide likes, boosts, replies, and saves on your posts."
+        "signInRequiredDesc": "Hide likes, reposts, replies, and saves on your posts."
       },
       "hideLikeShareCountsDesc": "Hide engagement counts on posts",
       "onlineStatus": {
@@ -1428,8 +1428,8 @@
       "description": "Topics you follow shape your feed, and come with you to every Oxy app."
     },
     "notifications": {
-      "boosts": "Boosts",
-      "boostsDesc": "When someone boosts your post",
+      "reposts": "Reposts",
+      "repostsDesc": "When someone reposts your post",
       "follows": "New followers",
       "followsDesc": "When someone follows you",
       "likes": "Likes",
@@ -1931,8 +1931,8 @@
         "description": "Hide replies."
       },
       "noBoosts": {
-        "label": "No boosts",
-        "description": "Hide boosts."
+        "label": "No reposts",
+        "description": "Hide reposts."
       },
       "linksOnly": {
         "label": "Links only",
@@ -1948,7 +1948,7 @@
       },
       "minEngagement": {
         "label": "Minimum engagement",
-        "description": "Require a minimum of likes, boosts, etc."
+        "description": "Require a minimum of likes, reposts, etc."
       },
       "recencyWindow": {
         "label": "Recency window",
@@ -2092,10 +2092,6 @@
         "title": "No replies yet",
         "subtitle": "Be the first to reply!"
       },
-      "boosts": {
-        "title": "No boosts yet",
-        "subtitle": "Boosted posts will show up here."
-      },
       "likes": {
         "title": "No likes yet",
         "subtitle": "Liked posts will show up here."
@@ -2119,6 +2115,10 @@
       "following": {
         "title": "No posts yet",
         "subtitle": "Start following people to see their posts."
+      },
+      "reposts": {
+        "title": "No reposts yet",
+        "subtitle": "Reposted posts will show up here."
       }
     },
     "tuning": {
@@ -2236,8 +2236,8 @@
       "deleteConfirmPosts_one": "This destroys {{count}} post published by this channel, along with every like and save on it.",
       "deleteConfirmPosts_other": "This destroys {{count}} posts published by this channel, along with every like and save on them.",
       "deleteConfirmEmpty": "This channel has published nothing, so there are no posts to destroy.",
-      "deleteConfirmBoosts_one": "{{count}} boost of them by somebody else goes as well.",
-      "deleteConfirmBoosts_other": "{{count}} boosts of them by other people go as well.",
+      "deleteConfirmReposts_one": "{{count}} repost of them by somebody else goes as well.",
+      "deleteConfirmReposts_other": "{{count}} reposts of them by other people go as well.",
       "deleteConfirmFediverse": "Every server that received a copy is asked to remove it. We send that request; we cannot make them honour it.",
       "deleteConfirmAccount": "The channel account is archived at the end, so nobody can follow it or publish as it again.",
       "deleteConfirmAction_one": "Delete {{count}} post",
@@ -2262,7 +2262,7 @@
       },
       "step2": {
         "title": "It publishes, it doesn’t reply",
-        "body": "A channel’s posts are ordinary posts: they reach feeds, search and the fediverse like anyone else’s, and you can boost one to your own profile. What you will not find is a reply box. A channel never takes replies, and that is how channels are built rather than a setting someone switched off."
+        "body": "A channel’s posts are ordinary posts: they reach feeds, search and the fediverse like anyone else’s, and you can repost one to your own profile. What you will not find is a reply box. A channel never takes replies, and that is how channels are built rather than a setting someone switched off."
       },
       "step3": {
         "title": "Who wrote this?",
@@ -2779,8 +2779,8 @@
     "like": "Like",
     "unlike": "Unlike",
     "comment": "Comment",
-    "boost": "Boost",
-    "unboost": "Undo boost",
+    "repost": "Repost",
+    "unrepost": "Undo repost",
     "save": "Save",
     "unsave": "Remove from saved",
     "share": "Share",
@@ -2857,13 +2857,14 @@
       "image": "Image",
       "video": "Video",
       "poll": "Poll",
-      "boost": "Boost"
+      "boost": "Repost",
+      "repost": "Repost"
     },
     "engagementRatios": "Engagement Ratios",
     "ofViews": "of views",
     "likeRate": "Like Rate",
     "replyRate": "Reply Rate",
-    "boostRate": "Boost Rate",
+    "repostRate": "Repost Rate",
     "shareRate": "Share Rate",
     "viewsPerPost": "Views per Post",
     "engagementPerPost": "Engagement per Post",
@@ -2882,7 +2883,7 @@
       "totalInteractions": "Total interactions",
       "reach": "Reach",
       "replies": "Replies",
-      "boosts": "Boosts",
+      "reposts": "Reposts",
       "shares": "Shares",
       "quotes": "Quotes",
       "totalQuotes": "Total quotes"
@@ -2907,7 +2908,7 @@
       "since": "Posts after a date",
       "until": "Posts before a date",
       "min_likes": "Minimum likes",
-      "min_reposts": "Minimum boosts",
+      "min_reposts": "Minimum reposts",
       "fromMe": "Your own posts",
       "to": "Posts mentioning a specific user",
       "toMe": "Posts mentioning you",
@@ -3023,7 +3024,7 @@
     "introSource": "This page lists every instance Mention refuses to exchange with, and why. It is rendered from the same list the server enforces, so it cannot quietly fall out of date.",
     "whatItDoes": {
       "title": "What a block does",
-      "body": "Nothing from a blocked instance reaches Mention. Posts, follows, likes and boosts it sends are refused as they arrive, we stop fetching its accounts and timelines, and its accounts can no longer be found or followed from here.",
+      "body": "Nothing from a blocked instance reaches Mention. Posts, follows, likes and reposts it sends are refused as they arrive, we stop fetching its accounts and timelines, and its accounts can no longer be found or followed from here.",
       "bluntness": "It applies to a whole site, not to the individual people on it. That is a blunt instrument, so we would rather use it rarely and explain it every time.",
       "scope": "Each entry names one server and covers exactly that name. A subdomain is a different server — a block on example.com does not extend to social.example.com — so each one is decided on its own and appears here in its own right.",
       "limits": "Worth knowing: a block governs what reaches Mention. Anything you post publicly here stays public and can still be read from anywhere, including the instances on this list."

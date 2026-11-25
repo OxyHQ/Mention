@@ -668,8 +668,8 @@
     "stats": {
       "likes_one": "beğeni",
       "likes_other": "beğeni",
-      "boosts_one": "yeniden paylaşım",
-      "boosts_other": "yeniden paylaşım",
+      "reposts_one": "yeniden paylaşım",
+      "reposts_other": "yeniden paylaşım",
       "quotes_one": "alıntı",
       "quotes_other": "alıntı",
       "saves_one": "kaydetme",
@@ -693,7 +693,7 @@
     "contentWarning": "İçerik uyarısı",
     "contentWarningShow": "Göster",
     "contentWarningHide": "Gizle",
-    "boostUnavailable": "Bu gönderi artık kullanılamıyor",
+    "repostUnavailable": "Bu gönderi artık kullanılamıyor",
     "quoteUnavailable": "Alıntılanan bu gönderi kullanılamıyor",
     "articleSheet": {
       "emptyBody": "İçerik yok.",
@@ -701,12 +701,12 @@
       "title": "Makale",
       "untitled": "Adsız makale"
     },
-    "boostsTitle": "Yeniden paylaşımlar",
+    "repostsTitle": "Yeniden paylaşımlar",
     "likesTitle": "Beğeniler",
     "engagement": {
       "loadError": "Liste yüklenemedi",
       "loadErrorMessage": "Bağlantını kontrol edip tekrar dene.",
-      "noBoosts": "Henüz yeniden paylaşım yok",
+      "noReposts": "Henüz yeniden paylaşım yok",
       "noLikes": "Henüz beğeni yok"
     },
     "pinned": "Sabitlenmiş",
@@ -766,7 +766,7 @@
     },
     "action": {
       "like": "gönderini beğendi",
-      "boost": "gönderini yeniden paylaştı",
+      "repost": "gönderini yeniden paylaştı",
       "reply": "gönderini yanıtladı",
       "mention": "senden bahsetti",
       "quote": "gönderini alıntıladı",
@@ -877,7 +877,7 @@
       "media": "Medya",
       "videos": "Videolar",
       "likes": "Beğeniler",
-      "boosts": "Yeniden paylaşımlar",
+      "reposts": "Yeniden paylaşımlar",
       "mentions": "Bahsetmeler",
       "writers": "Yazarlar",
       "feeds": "Akışlar",
@@ -889,8 +889,8 @@
     "stats": {
       "posts_one": "Gönderi",
       "posts_other": "Gönderi",
-      "boosts_one": "Yeniden paylaşım",
-      "boosts_other": "Yeniden paylaşım",
+      "reposts_one": "Yeniden paylaşım",
+      "reposts_other": "Yeniden paylaşım",
       "replies_one": "Yanıt",
       "replies_other": "Yanıt",
       "reputation": "İtibar"
@@ -1428,8 +1428,8 @@
       "description": "Takip ettiğin konular akışını şekillendirir ve her Oxy uygulamasında seninle gelir."
     },
     "notifications": {
-      "boosts": "Yeniden paylaşımlar",
-      "boostsDesc": "Biri gönderini yeniden paylaştığında",
+      "reposts": "Yeniden paylaşımlar",
+      "repostsDesc": "Biri gönderini yeniden paylaştığında",
       "follows": "Yeni takipçiler",
       "followsDesc": "Biri seni takip ettiğinde",
       "likes": "Beğeniler",
@@ -2092,10 +2092,6 @@
         "title": "Henüz yanıt yok",
         "subtitle": "İlk yanıtlayan sen ol!"
       },
-      "boosts": {
-        "title": "Henüz yeniden paylaşım yok",
-        "subtitle": "Yeniden paylaşılan gönderiler burada görünür."
-      },
       "likes": {
         "title": "Henüz beğeni yok",
         "subtitle": "Beğendiğin gönderiler burada görünür."
@@ -2119,6 +2115,10 @@
       "following": {
         "title": "Henüz gönderi yok",
         "subtitle": "Gönderilerini görmek için insanları takip etmeye başla."
+      },
+      "reposts": {
+        "title": "Henüz yeniden paylaşım yok",
+        "subtitle": "Yeniden paylaşılan gönderiler burada görünür."
       }
     },
     "tuning": {
@@ -2236,8 +2236,8 @@
       "deleteConfirmPosts_one": "Bu işlem, kanalın yayınladığı {{count}} gönderiyi ve üzerindeki her beğeni ve kaydetmeyi yok eder.",
       "deleteConfirmPosts_other": "Bu işlem, kanalın yayınladığı {{count}} gönderiyi ve üzerlerindeki her beğeni ve kaydetmeyi yok eder.",
       "deleteConfirmEmpty": "Bu kanal hiçbir şey yayınlamadı, yani yok edilecek gönderi yok.",
-      "deleteConfirmBoosts_one": "Başkalarının yaptığı {{count}} yeniden paylaşım da gider.",
-      "deleteConfirmBoosts_other": "Başkalarının yaptığı {{count}} yeniden paylaşım da gider.",
+      "deleteConfirmReposts_one": "Başkalarının yaptığı {{count}} yeniden paylaşım da gider.",
+      "deleteConfirmReposts_other": "Başkalarının yaptığı {{count}} yeniden paylaşım da gider.",
       "deleteConfirmFediverse": "Kopyasını alan her sunucudan onu kaldırması istenir. Bu isteği göndeririz; buna uymalarını sağlayamayız.",
       "deleteConfirmAccount": "Kanal hesabı en sonunda arşivlenir, böylece kimse onu takip edemez veya onun adına yayın yapamaz.",
       "deleteConfirmAction_one": "{{count}} gönderiyi sil",
@@ -2779,8 +2779,8 @@
     "like": "Beğen",
     "unlike": "Beğenmekten vazgeç",
     "comment": "Yorum yap",
-    "boost": "Yeniden paylaş",
-    "unboost": "Yeniden paylaşımı geri al",
+    "repost": "Yeniden paylaş",
+    "unrepost": "Yeniden paylaşımı geri al",
     "save": "Kaydet",
     "unsave": "Kaydedilenlerden çıkar",
     "share": "Paylaş",
@@ -2857,13 +2857,14 @@
       "image": "Görsel",
       "video": "Video",
       "poll": "Anket",
-      "boost": "Yeniden paylaşım"
+      "boost": "Yeniden paylaşım",
+      "repost": "Yeniden paylaşım"
     },
     "engagementRatios": "Etkileşim oranları",
     "ofViews": "görüntülenmelere göre",
     "likeRate": "Beğeni oranı",
     "replyRate": "Yanıt oranı",
-    "boostRate": "Yeniden paylaşım oranı",
+    "repostRate": "Yeniden paylaşım oranı",
     "shareRate": "Paylaşım oranı",
     "viewsPerPost": "Gönderi başına görüntülenme",
     "engagementPerPost": "Gönderi başına etkileşim",
@@ -2882,7 +2883,7 @@
       "totalInteractions": "Toplam etkileşim",
       "reach": "Erişim",
       "replies": "Yanıt",
-      "boosts": "Yeniden paylaşım",
+      "reposts": "Yeniden paylaşım",
       "shares": "Paylaşım",
       "quotes": "Alıntı",
       "totalQuotes": "Toplam alıntı"

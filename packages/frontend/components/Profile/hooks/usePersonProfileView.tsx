@@ -72,7 +72,7 @@ import { useSubscription } from './useSubscription';
 import { schemaOrgEntityType } from '@/lib/profileSchemaOrg';
 
 /** Feed types cleared from the local store when a profile turns out to be private. */
-const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'boosts', 'mentions'];
+const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts', 'mentions'];
 
 export interface PersonProfileViewOptions {
   /**
@@ -237,7 +237,7 @@ export function usePersonProfileView({
           media: t('profile.tabs.media'),
           videos: t('profile.tabs.videos'),
           likes: t('profile.tabs.likes'),
-          boosts: t('profile.tabs.boosts'),
+          reposts: t('profile.tabs.reposts'),
           mentions: t('profile.tabs.mentions'),
           feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
           starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
@@ -365,7 +365,7 @@ export function usePersonProfileView({
   );
 
   const handlePostsPress = useCallback(() => selectTab('posts'), [selectTab]);
-  const handleRepostsPress = useCallback(() => selectTab('boosts'), [selectTab]);
+  const handleRepostsPress = useCallback(() => selectTab('reposts'), [selectTab]);
   const handleRepliesPress = useCallback(() => selectTab('replies'), [selectTab]);
 
   const handleShare = useCallback(async () => {

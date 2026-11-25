@@ -84,7 +84,7 @@ export const ProfileStats = memo(function ProfileStats({
           {formatCompactNumber(repostsCount ?? 0)}
         </Text>
         <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.stats.boosts', { count: repostsCount ?? 0 })}
+          {t('profile.stats.reposts', { count: repostsCount ?? 0 })}
         </Text>
       </TouchableOpacity>
 

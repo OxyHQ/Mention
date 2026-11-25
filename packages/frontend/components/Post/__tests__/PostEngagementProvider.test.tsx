@@ -76,7 +76,7 @@ it('keeps an open panel across ordinary rerenders and closes it when the post ro
     renderer = TestRenderer.create(tree());
   });
   await act(async () => {
-    open?.('post-1', 'boosts');
+    open?.('post-1', 'reposts');
   });
   await act(async () => renderer?.update(tree()));
   expect(usePostEngagementPanels.getState().panels['deck-2']?.isOpen).toBe(true);

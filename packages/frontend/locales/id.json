@@ -668,8 +668,8 @@
     "stats": {
       "likes_one": "suka",
       "likes_other": "suka",
-      "boosts_one": "boost",
-      "boosts_other": "boost",
+      "reposts_one": "posting ulang",
+      "reposts_other": "posting ulang",
       "quotes_one": "kutipan",
       "quotes_other": "kutipan",
       "saves_one": "tersimpan",
@@ -693,7 +693,7 @@
     "contentWarning": "Peringatan konten",
     "contentWarningShow": "Tampilkan",
     "contentWarningHide": "Sembunyikan",
-    "boostUnavailable": "Postingan ini sudah tidak tersedia",
+    "repostUnavailable": "Postingan ini sudah tidak tersedia",
     "quoteUnavailable": "Postingan yang dikutip ini tidak tersedia",
     "articleSheet": {
       "emptyBody": "Tidak ada konten.",
@@ -701,12 +701,12 @@
       "title": "Artikel",
       "untitled": "Artikel tanpa judul"
     },
-    "boostsTitle": "Postingan ulang",
+    "repostsTitle": "Posting ulang",
     "likesTitle": "Suka",
     "engagement": {
       "loadError": "Daftar tidak dapat dimuat",
       "loadErrorMessage": "Periksa koneksi Anda dan coba lagi.",
-      "noBoosts": "Belum ada postingan ulang",
+      "noReposts": "Belum ada posting ulang",
       "noLikes": "Belum ada suka"
     },
     "pinned": "Disematkan",
@@ -766,7 +766,7 @@
     },
     "action": {
       "like": "menyukai postinganmu",
-      "boost": "mem-boost postinganmu",
+      "repost": "memposting ulang postinganmu",
       "reply": "membalas postinganmu",
       "mention": "menyebutmu",
       "quote": "mengutip postinganmu",
@@ -795,7 +795,7 @@
         "title": "Tidak ada pengikut baru"
       },
       "likes": {
-        "subtitle": "Saat seseorang menyukai atau mem-boost kontenmu, itu akan muncul di sini.",
+        "subtitle": "Saat seseorang menyukai atau memposting ulang kontenmu, itu akan muncul di sini.",
         "title": "Belum ada suka"
       },
       "mentions": {
@@ -877,7 +877,7 @@
       "media": "Media",
       "videos": "Video",
       "likes": "Suka",
-      "boosts": "Boost",
+      "reposts": "Posting ulang",
       "mentions": "Sebutan",
       "writers": "Penulis",
       "feeds": "Feed",
@@ -889,8 +889,8 @@
     "stats": {
       "posts_one": "Postingan",
       "posts_other": "Postingan",
-      "boosts_one": "Boost",
-      "boosts_other": "Boost",
+      "reposts_one": "Posting ulang",
+      "reposts_other": "Posting ulang",
       "replies_one": "Balasan",
       "replies_other": "Balasan",
       "reputation": "Reputasi"
@@ -1244,7 +1244,7 @@
       "hiddenWordsDesc": "Filter postingan yang memuat kata tertentu",
       "hideCounts": {
         "signInRequired": "Masuk untuk menyembunyikan jumlah interaksi",
-        "signInRequiredDesc": "Sembunyikan suka, boost, balasan, dan simpanan di postinganmu."
+        "signInRequiredDesc": "Sembunyikan suka, posting ulang, balasan, dan simpanan pada postinganmu."
       },
       "hideLikeShareCountsDesc": "Sembunyikan jumlah interaksi di postingan",
       "onlineStatus": {
@@ -1428,8 +1428,8 @@
       "description": "Topik yang kamu ikuti membentuk feed-mu, dan ikut denganmu ke semua aplikasi Oxy."
     },
     "notifications": {
-      "boosts": "Boost",
-      "boostsDesc": "Saat seseorang mem-boost postinganmu",
+      "reposts": "Posting ulang",
+      "repostsDesc": "Saat seseorang memposting ulang postinganmu",
       "follows": "Pengikut baru",
       "followsDesc": "Saat seseorang mengikutimu",
       "likes": "Suka",
@@ -1931,8 +1931,8 @@
         "description": "Sembunyikan balasan."
       },
       "noBoosts": {
-        "label": "Tanpa boost",
-        "description": "Sembunyikan boost."
+        "label": "Tanpa posting ulang",
+        "description": "Sembunyikan posting ulang."
       },
       "linksOnly": {
         "label": "Hanya tautan",
@@ -1948,7 +1948,7 @@
       },
       "minEngagement": {
         "label": "Interaksi minimum",
-        "description": "Wajibkan jumlah minimum suka, boost, dll."
+        "description": "Wajibkan minimum suka, posting ulang, dsb."
       },
       "recencyWindow": {
         "label": "Rentang kebaruan",
@@ -2092,10 +2092,6 @@
         "title": "Belum ada balasan",
         "subtitle": "Jadilah yang pertama membalas!"
       },
-      "boosts": {
-        "title": "Belum ada boost",
-        "subtitle": "Postingan yang di-boost akan muncul di sini."
-      },
       "likes": {
         "title": "Belum ada suka",
         "subtitle": "Postingan yang kamu sukai akan muncul di sini."
@@ -2119,6 +2115,10 @@
       "following": {
         "title": "Belum ada postingan",
         "subtitle": "Mulai ikuti orang untuk melihat postingan mereka."
+      },
+      "reposts": {
+        "title": "Belum ada posting ulang",
+        "subtitle": "Postingan yang diposting ulang akan muncul di sini."
       }
     },
     "tuning": {
@@ -2236,8 +2236,8 @@
       "deleteConfirmPosts_one": "Ini memusnahkan {{count}} postingan yang diterbitkan kanal ini, beserta semua suka dan simpanan di dalamnya.",
       "deleteConfirmPosts_other": "Ini memusnahkan {{count}} postingan yang diterbitkan kanal ini, beserta semua suka dan simpanan di dalamnya.",
       "deleteConfirmEmpty": "Kanal ini belum menerbitkan apa pun, jadi tidak ada postingan yang dimusnahkan.",
-      "deleteConfirmBoosts_one": "{{count}} boost atas postingan itu oleh orang lain juga ikut hilang.",
-      "deleteConfirmBoosts_other": "{{count}} boost atas postingan itu oleh orang lain juga ikut hilang.",
+      "deleteConfirmReposts_one": "{{count}} posting ulang dari postingan itu oleh orang lain juga ikut terhapus.",
+      "deleteConfirmReposts_other": "{{count}} posting ulang dari postingan itu oleh orang lain juga ikut terhapus.",
       "deleteConfirmFediverse": "Setiap server yang menerima salinannya diminta menghapusnya. Kami mengirim permintaan itu; kami tidak bisa memaksa mereka memenuhinya.",
       "deleteConfirmAccount": "Akun kanal diarsipkan di akhir, jadi tidak ada lagi yang bisa mengikutinya atau menerbitkan atas namanya.",
       "deleteConfirmAction_one": "Hapus {{count}} postingan",
@@ -2262,7 +2262,7 @@
       },
       "step2": {
         "title": "Kanal menerbitkan, bukan membalas",
-        "body": "Postingan kanal adalah postingan biasa: sampai ke feed, pencarian, dan Fediverse seperti postingan siapa pun, dan kamu bisa mem-boost-nya ke profilmu sendiri. Yang tidak akan kamu temukan adalah kotak balasan. Kanal tidak pernah menerima balasan, dan begitulah kanal dibangun, bukan karena seseorang mematikan sebuah pengaturan."
+        "body": "Postingan kanal adalah postingan biasa: sampai ke feed, pencarian, dan Fediverse seperti postingan siapa pun, dan kamu bisa memposting ulangnya ke profilmu sendiri. Yang tidak akan kamu temukan adalah kotak balasan. Kanal tidak pernah menerima balasan, dan begitulah kanal dibangun, bukan karena seseorang mematikan sebuah pengaturan."
       },
       "step3": {
         "title": "Siapa yang menulis ini?",
@@ -2779,8 +2779,8 @@
     "like": "Suka",
     "unlike": "Batal suka",
     "comment": "Komentar",
-    "boost": "Boost",
-    "unboost": "Batalkan boost",
+    "repost": "Posting ulang",
+    "unrepost": "Batalkan posting ulang",
     "save": "Simpan",
     "unsave": "Hapus dari tersimpan",
     "share": "Bagikan",
@@ -2857,13 +2857,14 @@
       "image": "Gambar",
       "video": "Video",
       "poll": "Polling",
-      "boost": "Boost"
+      "boost": "Posting ulang",
+      "repost": "Posting ulang"
     },
     "engagementRatios": "Rasio Interaksi",
     "ofViews": "dari tayangan",
     "likeRate": "Rasio Suka",
     "replyRate": "Rasio Balasan",
-    "boostRate": "Rasio Boost",
+    "repostRate": "Rasio posting ulang",
     "shareRate": "Rasio Bagikan",
     "viewsPerPost": "Tayangan per Postingan",
     "engagementPerPost": "Interaksi per Postingan",
@@ -2882,7 +2883,7 @@
       "totalInteractions": "Total interaksi",
       "reach": "Jangkauan",
       "replies": "Balasan",
-      "boosts": "Boost",
+      "reposts": "Posting ulang",
       "shares": "Dibagikan",
       "quotes": "Kutipan",
       "totalQuotes": "Total kutipan"
@@ -2907,7 +2908,7 @@
       "since": "Postingan setelah tanggal tertentu",
       "until": "Postingan sebelum tanggal tertentu",
       "min_likes": "Suka minimum",
-      "min_reposts": "Boost minimum",
+      "min_reposts": "Minimum posting ulang",
       "fromMe": "Postinganmu sendiri",
       "to": "Postingan yang menyebut pengguna tertentu",
       "toMe": "Postingan yang menyebutmu",
@@ -3023,7 +3024,7 @@
     "introSource": "Halaman ini mencantumkan setiap instans yang Mention tolak untuk bertukar data, beserta alasannya. Halaman ini dirender dari daftar yang sama dengan yang diterapkan server, jadi tidak mungkin diam-diam menjadi usang.",
     "whatItDoes": {
       "title": "Apa yang dilakukan sebuah blokir",
-      "body": "Tidak ada apa pun dari instans yang diblokir yang sampai ke Mention. Postingan, pengikut, suka, dan boost yang dikirimnya ditolak saat tiba, kami berhenti mengambil akun dan linimasanya, dan akun-akunnya tidak bisa lagi ditemukan atau diikuti dari sini.",
+      "body": "Tidak ada apa pun dari instans yang diblokir yang sampai ke Mention. Postingan, pengikut, suka, dan posting ulang yang dikirimnya ditolak saat tiba, kami berhenti mengambil akun dan linimasanya, dan akun-akunnya tidak bisa lagi ditemukan atau diikuti dari sini.",
       "bluntness": "Ini berlaku untuk satu situs secara keseluruhan, bukan untuk masing-masing orang di dalamnya. Itu tindakan yang kasar, jadi kami lebih memilih memakainya jarang-jarang dan menjelaskannya setiap kali.",
       "scope": "Setiap entri menyebut satu server dan berlaku persis untuk nama itu. Subdomain adalah server yang berbeda — blokir pada example.com tidak berlaku untuk social.example.com — jadi masing-masing diputuskan sendiri dan muncul di sini atas namanya sendiri.",
       "limits": "Perlu diketahui: blokir mengatur apa yang sampai ke Mention. Apa pun yang kamu posting secara publik di sini tetap publik dan masih bisa dibaca dari mana saja, termasuk oleh instans dalam daftar ini."

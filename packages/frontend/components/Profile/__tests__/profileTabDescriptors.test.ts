@@ -64,9 +64,9 @@ describe('profile tab descriptors', () => {
     // The exact breakage: index 1 is no longer `replies`, index 5 no longer
     // `boosts`. Resolving by name is what keeps the stats row honest.
     expect(withLanes[1].key).not.toBe('replies');
-    expect(withLanes[5].key).not.toBe('boosts');
+    expect(withLanes[5].key).not.toBe('reposts');
     expect(profileTabIndex(withLanes, 'replies')).toBe(2);
-    expect(profileTabIndex(withLanes, 'boosts')).toBe(6);
+    expect(profileTabIndex(withLanes, 'reposts')).toBe(6);
     expect(profileTabIndex(withLanes, 'posts')).toBe(0);
   });
 
@@ -75,7 +75,7 @@ describe('profile tab descriptors', () => {
       'posts',
       'media',
       'videos',
-      'boosts',
+      'reposts',
       'mentions',
       // Channel-only, and last: this asks the account kind whether the tab is
       // POSSIBLE, not whether this particular channel gets it — that second
@@ -112,7 +112,7 @@ describe('profile tab descriptors', () => {
   });
 
   it('keeps the boosts tab on a channel', () => {
-    expect(profileTabsForAccountKind('channel')).toContain('boosts');
+    expect(profileTabsForAccountKind('channel')).toContain('reposts');
   });
 
   it('keeps the mentions tab on a channel', () => {
@@ -158,7 +158,7 @@ describe('profile tab descriptors', () => {
       laneTabKey('lane-a'),
       'media',
       'videos',
-      'boosts',
+      'reposts',
       'mentions',
     ]);
   });
@@ -177,7 +177,7 @@ describe('profile tab descriptors', () => {
       'posts',
       'media',
       'videos',
-      'boosts',
+      'reposts',
       'mentions',
       'writers',
     ]);
@@ -185,7 +185,7 @@ describe('profile tab descriptors', () => {
       'posts',
       'media',
       'videos',
-      'boosts',
+      'reposts',
       'mentions',
     ]);
     // The two must actually differ; if they ever stop differing, the tab has
@@ -212,7 +212,7 @@ describe('profile tab descriptors', () => {
     // fallback is what keeps it from resolving to -1 and rendering nothing.
     expect(profileTabIndex(descriptors, 'likes')).toBe(0);
     expect(profileTabIndex(descriptors, 'lists')).toBe(0);
-    expect(profileTabIndex(descriptors, 'boosts')).toBe(3);
+    expect(profileTabIndex(descriptors, 'reposts')).toBe(3);
   });
 
   it('falls back to the first tab for a key the strip does not have', () => {

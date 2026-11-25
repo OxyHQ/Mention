@@ -128,8 +128,8 @@ export default function AppLayout() {
         ? t('videos.replies')
         : entry?.destination.kind === 'insights'
           ? t('insights.post.title')
-          : entry?.destination.kind === 'boosts'
-            ? t('post.boostsTitle', { defaultValue: 'Reposts' })
+          : entry?.destination.kind === 'reposts'
+            ? t('post.repostsTitle', { defaultValue: 'Reposts' })
             : t('post.likesTitle', { defaultValue: 'Likes' }),
       reportBoundaryError,
       documentWhenAlone,
@@ -175,6 +175,7 @@ export default function AppLayout() {
               now structural instead of a stack-attachment detail. */}
           <ExperimentalStack.Screen name="(tabs)" />
           <ExperimentalStack.Screen name="compose" />
+          <ExperimentalStack.Screen name="p/[id]/reposts" />
           <ExperimentalStack.Screen name="p/[id]/boost" />
         </ExperimentalStack>
       )}
