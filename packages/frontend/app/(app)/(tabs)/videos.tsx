@@ -4,15 +4,7 @@ import type React from 'react';
 import type { TFunction } from 'i18next';
 import { useRoute } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  FlatList,
-  Platform,
-  type ViewStyle,
-  type TextStyle,
-} from 'react-native';
+import { StyleSheet, View, FlatList, Platform, type ViewStyle, type TextStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
 import Animated from 'react-native-reanimated';
@@ -45,7 +37,6 @@ import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/mediaUrls';
 import { shareLink } from '@/utils/shareLink';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SEO } from '@/components/SEO';
@@ -99,6 +90,7 @@ import {
   HStack,
   Icon,
   RawText,
+  SpinnerIcon,
   VStack,
   defineTokens,
   toElement,
@@ -233,13 +225,12 @@ const GRADIENT_COLORS = [
 ] as const;
 const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
 const LIKE_ACTIVE_COLOR = '#FF3040';
-/** The spinners over a video: Tailwind's `text-white`. */
-const ON_VIDEO_COLOR = '#FFFFFF';
 
 const appColors = defineTokens({
   color: {
     LIKE_ACTIVE_COLOR,
     white: 'white',
+    /** The spinners and texts over a video. */
     hexFFFFFF: '#FFFFFF',
     /** The dark disc behind the buffering spinner and the pause affordance's play glyph. */
     scrim: 'rgba(0, 0, 0, 0.45)',
@@ -654,7 +645,7 @@ const ReelSurface: React.FC<
       {showBufferSpinner &&
         LtoElement(
           LVStack(
-            LVStack(LEmbed(<SpinnerIcon size={32} color={ON_VIDEO_COLOR} />))
+            LVStack(SpinnerIcon().size('2xl').tint(appColors.color.hexFFFFFF))
               .frame({ width: '56', height: '56' })
               .background(appColors.color.scrim)
               .corner('3xl')
@@ -972,11 +963,13 @@ const VideoItem = memo<VideoItemProps>(
                         ),
                         VStack(
                           HStack(
-                            Embed(
-                              <Text style={styles.userFullName} numberOfLines={1}>
-                                {userName}
-                              </Text>,
-                            ),
+                            RawText(userName)
+                              .foreground(appColors.color.hexFFFFFF)
+                              .font('sm')
+                              .weight('semibold')
+                              .textShadow('0 1px 3px rgb(0 0 0 / 0.8)')
+                              .lines(1)
+                              .shrink('normal'),
                             Embed(
                               item.user?.verified && (
                                 <RiVerifiedBadgeFill
@@ -992,11 +985,13 @@ const VideoItem = memo<VideoItemProps>(
                             .spacing('xs'),
                           HStack(
                             Icon(RiMusic2Line).size('13').foreground(appColors.color.hexFFFFFF),
-                            Embed(
-                              <Text style={styles.soundText} numberOfLines={1}>
-                                {t('videos.original_audio')} · @{userHandle}
-                              </Text>,
-                            ),
+                            RawText(t('videos.original_audio'), ' · @', userHandle)
+                              .foreground(appColors.color.hexFFFFFF)
+                              .font('xs')
+                              .weight('medium')
+                              .textShadow('0 1px 3px rgb(0 0 0 / 0.8)')
+                              .lines(1)
+                              .shrink('normal'),
                           )
                             .align('center')
                             .spacing('6')
@@ -1038,17 +1033,16 @@ const VideoItem = memo<VideoItemProps>(
                               numberOfLines={captionExpanded ? undefined : 1}
                             />,
                           ),
-                          Embed(
-                            showCaptionToggle && (
-                              <Text
-                                style={styles.captionToggle}
-                                onPress={toggleCaption}
-                                accessibilityRole="button"
-                              >
-                                {t(captionExpanded ? 'videos.less' : 'videos.more')}
-                              </Text>
-                            ),
-                          ),
+                          showCaptionToggle
+                            ? RawText(t(captionExpanded ? 'videos.less' : 'videos.more'))
+                                .foreground('white/85')
+                                .font('sm')
+                                .weight('bold')
+                                .textShadow('0 1px 2px rgb(0 0 0 / 0.8)')
+                                .margin('top', '2xs')
+                                .onPress(toggleCaption)
+                                .role('button')
+                            : null,
                         ).margin('top', 'xs')
                       : null,
                   )
@@ -1141,10 +1135,11 @@ function VideoStatus({
 
 function VideoLoadingMore() {
   const bottomInset = useVideoContentBottomInset();
-  return (
-    <View style={[classStyles.loadingMore, { bottom: bottomInset + 24 }]} pointerEvents="none">
-      <SpinnerIcon size={24} color={ON_VIDEO_COLOR} />
-    </View>
+  return toElement(
+    VStack(SpinnerIcon().size('lg').tint(appColors.color.hexFFFFFF))
+      .position({ left: 'none', right: 'none', bottom: bottomInset + 24 })
+      .align('center')
+      .allowsHitTesting(false),
   );
 }
 
@@ -2044,22 +2039,11 @@ const TEXT_SHADOW_STRONG: Pick<
   textShadowRadius: 3,
 };
 
-const TEXT_SHADOW_MEDIUM: Pick<
-  TextStyle,
-  'textShadowColor' | 'textShadowOffset' | 'textShadowRadius'
-> = {
-  textShadowColor: 'rgba(0, 0, 0, 0.8)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 2,
-};
-
 // What the reel's views drew with classes, as plain styles: these views stay React
 // Native (the reel is measured on device, so its structure stays as it is).
 const classStyles = {
   // `web:h-full`
   webFullHeight: { height: '100%' },
-  // `absolute left-0 right-0 items-center`
-  loadingMore: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   // `w-full native:flex-1`
   reel:
     Platform.OS === 'web'
@@ -2210,13 +2194,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  userFullName: {
-    flexShrink: 1,
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-    ...TEXT_SHADOW_STRONG,
-  },
   verifiedIcon: {
     marginLeft: 2,
   },
@@ -2234,24 +2211,10 @@ const styles = StyleSheet.create({
     color: '#9FD0FF',
     fontWeight: '600',
   },
-  captionToggle: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 2,
-    ...TEXT_SHADOW_MEDIUM,
-  },
   soundRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 2,
-  },
-  soundText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '500',
-    flexShrink: 1,
-    ...TEXT_SHADOW_STRONG,
   },
 });

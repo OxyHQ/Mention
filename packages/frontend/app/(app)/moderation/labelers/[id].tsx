@@ -4,7 +4,7 @@ import { Platform, StyleSheet, Text, type TextStyle, View } from 'react-native';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from '@/lib/navigation/router';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -30,8 +30,8 @@ import {
 
 import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
-/** An action chip's 5pt vertical padding, off the space scale. */
-const labelerTokens = defineTokens({ space: { chipY: 5 } });
+/** An action chip's 5pt vertical padding and a badge's 7pt horizontal one, off the space scale. */
+const labelerTokens = defineTokens({ space: { chipY: 5, badgeX: 7 } });
 
 /** A label's slug: 12/16, the platform's monospace on native (the web drew the inherited face). */
 const SLUG_STYLE: TextStyle = {
@@ -414,30 +414,23 @@ export default screen(function LabelerDetailScreen() {
                               .foreground('foreground'),
                             HStack(
                               Embed(<SeverityBadge severity={severity} />),
-                              /* Same defect as the action chip above: an interpolated
-                                            hex alpha on the `rgb(...)` primary token painted this
-                                            badge solid primary under its own primary label. Tint
-                                            and hairline are the primary at 10% and 25%. */ Embed(
-                                (render) =>
-                                  ld.defaultAction && (
-                                    <View
-                                      style={[
-                                        styles.badge,
-                                        {
-                                          backgroundColor: withAlpha(theme.colors.primary, 0.1),
-                                          borderColor: withAlpha(theme.colors.primary, 0.25),
-                                        },
-                                      ]}
-                                    >
-                                      {render(
-                                        RawText(ld.defaultAction)
-                                          .font('11')
-                                          .weight('semibold')
-                                          .foreground('primary'),
-                                      )}
-                                    </View>
-                                  ),
-                              ),
+                              // Same defect as the action chip above: an interpolated
+                              // hex alpha on the `rgb(...)` primary token painted this
+                              // badge solid primary under its own primary label. Tint
+                              // and hairline are the primary at 10% and 25%.
+                              ld.defaultAction
+                                ? VStack(
+                                    RawText(ld.defaultAction)
+                                      .font('11')
+                                      .weight('semibold')
+                                      .foreground('primary'),
+                                  )
+                                    .padding('horizontal', labelerTokens.space.badgeX)
+                                    .padding('vertical', '2xs')
+                                    .background('primary/10')
+                                    .border('primary/25', 'thin')
+                                    .corner('6')
+                                : null,
                             )
                               .spacing('6')
                               .align('center'),
