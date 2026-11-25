@@ -18,7 +18,6 @@ import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
 import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
 import {
   FLASH_CHOICES,
-  HOLD_TO_RECORD_MS,
   MAX_VIDEO_SECONDS,
   TIMER_CHOICES,
   ZOOM_DRAG_DISTANCE_PX,
@@ -629,34 +628,34 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
         Embed(
           <GestureDetector gesture={shutterDrag}>
             <Animated.View>
-              <Pressable
-                onPress={onShutterPress}
-                onLongPress={onShutterLongPress}
-                delayLongPress={HOLD_TO_RECORD_MS}
-                accessibilityRole="button"
-                // The control does more than one thing and a reader who cannot see
-                // it has no other way to learn the rest.
-                accessibilityLabel={
-                  recording
-                    ? t('camera.stop', { defaultValue: 'Stop recording' })
-                    : captureMode === 'video'
-                      ? t('camera.record', { defaultValue: 'Start recording' })
-                      : t('camera.shutter', { defaultValue: 'Take a photo' })
-                }
-                accessibilityHint={
-                  captureMode === 'video'
-                    ? t('camera.shutterHintVideo', { defaultValue: 'Tap again to stop' })
-                    : t('camera.shutterHint', {
-                        defaultValue: 'Hold to record a video, and drag up to zoom',
-                      })
-                }
-                style={styles.shutterHitArea}
-              >
-                {/* A RING plus a separate core, not one filled circle: the core is
-                    what changes between the three states, and animating a border
-                    colour would have moved the ring with it. */}
-                {toElement(shutter(captureMode === 'video', recording))}
-              </Pressable>
+              {toElement(
+                // A RING plus a separate core, not one filled circle: the core is
+                // what changes between the three states, and animating a border
+                // colour would have moved the ring with it.
+                VStack(shutter(captureMode === 'video', recording))
+                  .align('center')
+                  .justify('center')
+                  .onPress(onShutterPress)
+                  // Held this long ('250' ms), a press starts recording instead of taking a photo.
+                  .onLongPress(onShutterLongPress, '250')
+                  .role('button')
+                  // The control does more than one thing and a reader who cannot see
+                  // it has no other way to learn the rest.
+                  .label(
+                    recording
+                      ? t('camera.stop', { defaultValue: 'Stop recording' })
+                      : captureMode === 'video'
+                        ? t('camera.record', { defaultValue: 'Start recording' })
+                        : t('camera.shutter', { defaultValue: 'Take a photo' }),
+                  )
+                  .hint(
+                    captureMode === 'video'
+                      ? t('camera.shutterHintVideo', { defaultValue: 'Tap again to stop' })
+                      : t('camera.shutterHint', {
+                          defaultValue: 'Hold to record a video, and drag up to zoom',
+                        }),
+                  ),
+              )}
               {recording ? (
                 <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ring} pointerEvents="none">
                   <AnimatedCircle
@@ -807,7 +806,6 @@ function formatRemaining(seconds: number): string {
 const styles = StyleSheet.create({
   // The hit area is the RING's box, so the drag-to-zoom gesture and the press
   // start from the same place a thumb aims at.
-  shutterHitArea: { alignItems: 'center', justifyContent: 'center' },
   ring: { position: 'absolute', top: -8, left: -8 },
   modeItem: { paddingHorizontal: 14, paddingVertical: 6 },
 });

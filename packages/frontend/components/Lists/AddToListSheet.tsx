@@ -1,6 +1,6 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { TouchableOpacity, ScrollView, type ViewStyle } from 'react-native';
+import { ScrollView } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
@@ -22,20 +22,6 @@ import {
   VStack,
 } from '@oxy.so/bloom-language';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
-
-// The label area of a row: it stays a TouchableOpacity because it is no accessibility
-// element of its own (`accessible={false}`), which the language does not write.
-const touchables = {
-  // Tailwind's `flex-1`: grow, shrink and a 0% basis.
-  rowLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: '0%',
-  },
-} satisfies Record<string, ViewStyle>;
 
 const logger = createLogger('AddToListSheet');
 
@@ -237,36 +223,33 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
             {rows.map((row) =>
               toElement(
                 HStack(
-                  /* The label area and the checkbox are SIBLINGS, never one inside
-                          the other: a pressable row wrapping Bloom's Checkbox is a
-                          button inside a button on web, and a click on the box would
-                          toggle twice. The box carries the accessible name; the label
-                          area is only a bigger touch target for the same toggle. */ Embed(
-                    <TouchableOpacity
-                      style={touchables.rowLabel}
-                      onPress={() => toggle(row)}
-                      disabled={row.pending}
-                      activeOpacity={0.7}
-                      accessible={false}
-                    >
-                      {toElement(
-                        VStack(Icon(RiListUnordered).size('18').foreground('foreground'))
-                          .frame({ width: '36', height: '36' })
-                          .background('mutedFill')
-                          .corner('lg')
-                          .align('center')
-                          .justify('center'),
-                      )}
-                      {toElement(
-                        RawText(row.title)
-                          .foreground('foreground')
-                          .font('md')
-                          .weight('medium')
-                          .flex('1')
-                          .lines(1),
-                      )}
-                    </TouchableOpacity>,
-                  ),
+                  // The label area and the checkbox are SIBLINGS, never one inside
+                  // the other: a pressable row wrapping Bloom's Checkbox is a
+                  // button inside a button on web, and a click on the box would
+                  // toggle twice. The box carries the accessible name; the label
+                  // area is only a bigger touch target for the same toggle, no
+                  // accessibility element of its own.
+                  HStack(
+                    VStack(Icon(RiListUnordered).size('18').foreground('foreground'))
+                      .frame({ width: '36', height: '36' })
+                      .background('mutedFill')
+                      .corner('lg')
+                      .align('center')
+                      .justify('center'),
+                    RawText(row.title)
+                      .foreground('foreground')
+                      .font('md')
+                      .weight('medium')
+                      .flex('1')
+                      .lines(1),
+                  )
+                    .align('center')
+                    .spacing('md')
+                    .flex('1')
+                    .onPress(() => toggle(row))
+                    .disabled(row.pending)
+                    .pressFade('70')
+                    .accessibilityElement(false),
                   row.pending
                     ? SpinnerIcon().size('18').tint('primary')
                     : LCheckbox([row.hasUser, () => toggle(row)])

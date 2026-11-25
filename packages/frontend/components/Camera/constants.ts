@@ -98,9 +98,6 @@ export function shutterAction(
   return captureMode === 'video' ? 'record' : 'photo';
 }
 
-/** How long a press must be held before it starts recording instead of taking a photo. */
-export const HOLD_TO_RECORD_MS = 250;
-
 /** Cycle a choice list, wrapping at the end. Shared by the flash and timer controls. */
 export function nextChoice<T>(choices: readonly T[], current: T): T {
   const index = choices.indexOf(current);
