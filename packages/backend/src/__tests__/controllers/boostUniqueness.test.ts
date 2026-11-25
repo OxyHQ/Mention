@@ -19,7 +19,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  * The constraint covers NATIVE boosts only. A federated boost mirrors a remote
  * actor's Announce and is deduped by the Announce id, so a re-Announce after a
  * lost `Undo` legitimately produces a second row — see the index's own docblock,
- * and `backfillFederatedBoostCounts.test.ts`, which is the test that refused the
+ * and `backfillFederatedRepostCounts.test.ts`, which is the test that refused the
  * wider version of this rule.
  */
 

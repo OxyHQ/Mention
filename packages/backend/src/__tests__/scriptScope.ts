@@ -38,7 +38,7 @@
  *
  *  - `normalizeFederatedText` is the limit case: its filter is the literal
  *    `const POST_SCAN_FILTER = undefined`, so it scans the entire `posts` table.
- *  - `backfillFederatedBoostCounts` reads like a sibling of the twelve and is
+ *  - `backfillFederatedRepostCounts` reads like a sibling of the twelve and is
  *    NOT one: its select is
  *    `where(scope ? and(cursor, inArray(posts.id, scope)) : cursor)`, and its
  *    suite always passes `{ postIds: [...] }`. Bounded BY THE CALLER, which is
@@ -234,7 +234,7 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: 'and(..., inArray(posts.id, postIds)) when given, and the suite always passes postIds.',
   },
-  backfillFederatedBoostCounts: {
+  backfillFederatedRepostCounts: {
     scope: 'caller-scoped',
     reason:
       'where(scope ? and(cursor, inArray(posts.id, scope)) : cursor), and the suite always ' +

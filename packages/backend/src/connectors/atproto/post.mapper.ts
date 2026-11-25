@@ -14,7 +14,7 @@ import { isProfileLikeHref, resolveProfileLinkIdentity } from '../../services/pr
 import { previewableUrls } from '../../utils/clarityDocuments';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
-import { createFederatedRepost } from '../shared/federatedBoost';
+import { createFederatedRepost } from '../shared/federatedRepost';
 import {
   findPostsByFederatedObjects,
   postMatchesFederatedObjectSql,

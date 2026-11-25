@@ -42,7 +42,7 @@ import { isWorthImporting } from './importAdmission';
 import { config } from '../../config';
 import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
-import { createFederatedRepost } from '../shared/federatedBoost';
+import { createFederatedRepost } from '../shared/federatedRepost';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { applyDetectedPrimaryTag } from '../../services/postVariants';
 import { assertSafePublicUrl } from '@oxy.so/core/server';
