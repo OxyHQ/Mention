@@ -29,6 +29,12 @@ function mockPersister(account: string): Persister {
 jest.mock('../persister', () => ({
   accountPersister: (account: string) => mockPersister(account),
 }));
+// The feed binds its actor writer (`lib/actorCache`) to the account before
+// each read: the SDK's real `User` and `storeUsers`, without loading the whole
+// SDK entry.
+jest.mock('@oxy.so/services/ui/client', () => ({
+  ...require('@/test-support/oxyUsers').oxyUsers,
+}));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
 
 import { openAccountData } from '../accounts';
