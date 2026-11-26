@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo (ios), React dev build",
+    "runs": 1,
+    "batch": 8,
+    "note": "ms are relative Jest timings on the recording machine, not device frame times"
+  },
+  "kinds": {
+    "text": {
+      "mountMsPerRow": 4,
+      "recycleMsPerRow": 2.5,
+      "hostNodesPerRow": 36.125,
+      "componentsPerRow": 127,
+      "hooksPerRow": 108,
+      "contextReadsPerRow": 35,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "textAvatar": {
+      "mountMsPerRow": 3,
+      "recycleMsPerRow": 2.25,
+      "hostNodesPerRow": 32.125,
+      "componentsPerRow": 117,
+      "hooksPerRow": 108,
+      "contextReadsPerRow": 35,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "video": {
+      "mountMsPerRow": 3.75,
+      "recycleMsPerRow": 1.75,
+      "hostNodesPerRow": 41.125,
+      "componentsPerRow": 150,
+      "hooksPerRow": 241,
+      "contextReadsPerRow": 43,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    }
+  }
+}

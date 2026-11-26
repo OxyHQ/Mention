@@ -184,6 +184,7 @@ const HOOK_FIBER_TAGS = new Set([0, 11, 14, 15]);
  * component). Read off React's fibers: test-renderer instances expose them, and
  * the shape has been stable across React 18 and 19.
  */
+let DUMP: Map<string, { n: number; h: number; c: number }> | null = null;
 function countHooksAndContexts(renderer: TestRenderer.ReactTestRenderer): {
   hooks: number;
   contexts: number;
@@ -199,10 +200,22 @@ function countHooksAndContexts(renderer: TestRenderer.ReactTestRenderer): {
   while (stack.length > 0) {
     const fiber = stack.pop()!;
     if (HOOK_FIBER_TAGS.has(fiber.tag)) {
+      let h = 0;
+      let c = 0;
       for (let hook = fiber.memoizedState; hook; hook = (hook.next as typeof hook) ?? null)
-        hooks += 1;
+        h += 1;
       for (let dep = fiber.dependencies?.firstContext; dep; dep = (dep.next as typeof dep) ?? null)
-        contexts += 1;
+        c += 1;
+      hooks += h;
+      contexts += c;
+      if (DUMP) {
+        const t = (fiber as unknown as { elementType: any }).elementType;
+        const name =
+          t?.displayName ?? t?.name ?? t?.render?.displayName ?? t?.render?.name ?? t?.type?.displayName ?? t?.type?.name ?? `#${fiber.tag}`;
+        const e = DUMP.get(name) ?? { n: 0, h: 0, c: 0 };
+        e.n += 1; e.h += h; e.c += c;
+        DUMP.set(name, e);
+      }
     }
     if (fiber.child) stack.push(fiber.child);
     if (fiber.sibling && fiber !== root) stack.push(fiber.sibling);
@@ -352,7 +365,13 @@ describe('feed row cost', () => {
         hostNodes = countHostNodes(renderer.toJSON()) / BATCH;
         components =
           (renderer.root.findAll(() => true, { deep: true }).length - emptyComponents) / BATCH;
+        if (process.env.FEED_PERF_DUMP === kind) DUMP = new Map();
         const counted = countHooksAndContexts(renderer);
+        if (DUMP) {
+          const lines = [...DUMP.entries()].sort((a, b) => b[1].h - a[1].h).map(([k, v]) => `${k}\tn${v.n / BATCH}\th${v.h / BATCH}\tc${v.c / BATCH}`);
+          writeFileSync(join(__dirname, 'results', `dump-${kind}-${process.env.FEED_PERF_OUT ?? 'x'}.tsv`), lines.join('\n'));
+          DUMP = null;
+        }
         hooks = (counted.hooks - emptyHooks.hooks) / BATCH;
         contexts = (counted.contexts - emptyHooks.contexts) / BATCH;
         rendersPerMount = [...renders.values()].reduce((a, b) => a + b, 0) / BATCH;

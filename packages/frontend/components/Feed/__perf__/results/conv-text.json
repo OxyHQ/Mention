@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo (ios), React dev build",
+    "runs": 1,
+    "batch": 8,
+    "note": "ms are relative Jest timings on the recording machine, not device frame times"
+  },
+  "kinds": {
+    "text": {
+      "mountMsPerRow": 3.875,
+      "recycleMsPerRow": 2.5,
+      "hostNodesPerRow": 36.125,
+      "componentsPerRow": 127,
+      "hooksPerRow": 108,
+      "contextReadsPerRow": 35,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    }
+  }
+}

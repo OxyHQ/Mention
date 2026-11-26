@@ -1,0 +1,135 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo (ios), React dev build",
+    "runs": 1,
+    "batch": 8,
+    "note": "ms are relative Jest timings on the recording machine, not device frame times"
+  },
+  "kinds": {
+    "text": {
+      "mountMsPerRow": 5.25,
+      "recycleMsPerRow": 2.75,
+      "hostNodesPerRow": 36.125,
+      "componentsPerRow": 127,
+      "hooksPerRow": 108,
+      "contextReadsPerRow": 26,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "textAvatar": {
+      "mountMsPerRow": 3.125,
+      "recycleMsPerRow": 2.375,
+      "hostNodesPerRow": 32.125,
+      "componentsPerRow": 117,
+      "hooksPerRow": 108,
+      "contextReadsPerRow": 26,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "image": {
+      "mountMsPerRow": 2.25,
+      "recycleMsPerRow": 1.75,
+      "hostNodesPerRow": 39.125,
+      "componentsPerRow": 140,
+      "hooksPerRow": 159,
+      "contextReadsPerRow": 28,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "multiImage": {
+      "mountMsPerRow": 2.75,
+      "recycleMsPerRow": 3.375,
+      "hostNodesPerRow": 55.125,
+      "componentsPerRow": 191,
+      "hooksPerRow": 204,
+      "contextReadsPerRow": 34,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "video": {
+      "mountMsPerRow": 2.25,
+      "recycleMsPerRow": 1.875,
+      "hostNodesPerRow": 41.125,
+      "componentsPerRow": 150,
+      "hooksPerRow": 241,
+      "contextReadsPerRow": 34,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "linkPreview": {
+      "mountMsPerRow": 3.25,
+      "recycleMsPerRow": 2,
+      "hostNodesPerRow": 42.125,
+      "componentsPerRow": 154,
+      "hooksPerRow": 174,
+      "contextReadsPerRow": 51,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "quote": {
+      "mountMsPerRow": 4.75,
+      "recycleMsPerRow": 2.25,
+      "hostNodesPerRow": 62.125,
+      "componentsPerRow": 230,
+      "hooksPerRow": 244,
+      "contextReadsPerRow": 54,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "repost": {
+      "mountMsPerRow": 2,
+      "recycleMsPerRow": 1.25,
+      "hostNodesPerRow": 39.125,
+      "componentsPerRow": 140,
+      "hooksPerRow": 111,
+      "contextReadsPerRow": 28,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "poll": {
+      "mountMsPerRow": 2.125,
+      "recycleMsPerRow": 1.5,
+      "hostNodesPerRow": 43.125,
+      "componentsPerRow": 151,
+      "hooksPerRow": 139,
+      "contextReadsPerRow": 36,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    },
+    "communityNote": {
+      "mountMsPerRow": 2.375,
+      "recycleMsPerRow": 2.375,
+      "hostNodesPerRow": 44.125,
+      "componentsPerRow": 164,
+      "hooksPerRow": 155,
+      "contextReadsPerRow": 41,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 0
+    }
+  },
+  "isolation": {
+    "rowsMounted": 10,
+    "rendersOnUnrelatedStoreWrite": 0,
+    "targetRendersOnLike": 1,
+    "otherRowRendersOnLike": 0,
+    "otherRowRendersOnViewCount": 0
+  },
+  "fling": {
+    "postsVisited": 200,
+    "window": 12,
+    "msTotal": 503,
+    "requests": 0,
+    "translationRequests": 0,
+    "maxQueryObservers": 0
+  }
+}
