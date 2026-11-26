@@ -1,7 +1,8 @@
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
-import ContentWarning from '../ContentWarning';
+import { toElement } from '@oxy.so/bloom-language';
+import ContentWarning from '../ContentWarning.bloom';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
@@ -33,7 +34,7 @@ function render(revealed: boolean, onToggle = jest.fn()) {
   act(() => {
     tree = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        {<ContentWarning text="Spoilers" revealed={revealed} onToggle={onToggle} />}
+        {toElement(ContentWarning({ text: 'Spoilers', revealed, onToggle }))}
       </BloomThemeProvider>,
     );
   });

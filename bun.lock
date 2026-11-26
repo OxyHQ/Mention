@@ -110,7 +110,7 @@
         "@oxy.so/bloom-avatar-native": "0.1.2",
         "@oxy.so/bloom-data": "0.1.2",
         "@oxy.so/bloom-language": "1.6.0",
-        "@oxy.so/bloom-language-compiler": "file:/home/nate/.local/share/bloom-lang/proof/packs/bloom-language-compiler-1.4.0-local-7a816e3.tgz",
+        "@oxy.so/bloom-language-compiler": "file:/home/nate/.local/share/bloom-lang/packs-migrate/bloom-language-compiler-1.4.0-migrate-756fd800.tgz",
         "@oxy.so/bloom-lens": "1.2.0",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
@@ -1088,7 +1088,7 @@
 
     "@oxy.so/bloom-language": ["@oxy.so/bloom-language@1.6.0", "", { "peerDependencies": { "@expo/ui": ">=58.0.0", "@oxy.so/bloom": ">=23.9.0", "expo": "*", "expo-blur": "*", "expo-glass-effect": ">=58.0.0", "expo-router": ">=58.0.0", "react": ">=19.0.0", "react-native": ">=0.81.0", "react-native-reanimated": ">=4.6.0", "react-native-safe-area-context": ">=5.0.0" }, "optionalPeers": ["@expo/ui", "expo", "expo-blur", "expo-glass-effect", "expo-router"] }, "sha512-ngRuiiTRx7sKVFVnyORZ/813M6E6N0Ls8Jw6mTyy4T6l5pi3L5GC+iHKaFuaezf8oqzlNhGxxQ1uNkcyShyJjA=="],
 
-    "@oxy.so/bloom-language-compiler": ["@oxy.so/bloom-language-compiler@/home/nate/.local/share/bloom-lang/proof/packs/bloom-language-compiler-1.4.0-local-7a816e3.tgz", { "dependencies": { "@jridgewell/trace-mapping": "0.3.31" }, "peerDependencies": { "metro-source-map": ">=0.83.0" }, "bin": { "bloom-lang-dts": "./js/dts.js" } }, "sha512-7rEIfO0IvErqEoyGxv3mxRdjypnoI9kLQtkF+PntwOGD8RLvVoOtxX0XNMY8nU58tm8IOiHPVhAQBf6fodwsZg=="],
+    "@oxy.so/bloom-language-compiler": ["@oxy.so/bloom-language-compiler@/home/nate/.local/share/bloom-lang/packs-migrate/bloom-language-compiler-1.4.0-migrate-756fd800.tgz", { "dependencies": { "@jridgewell/trace-mapping": "0.3.31" }, "peerDependencies": { "metro-source-map": ">=0.83.0" }, "bin": { "bloom-lang-dts": "./js/dts.js" } }, "sha512-MDpKGM2OC4UnhGwS6HqJjZoiDsquNNmCrjXPHuhBK53PC28Pk5Hynop8YssZnF1hvdkLKws9+TENk1IqGSZh1Q=="],
 
     "@oxy.so/bloom-lens": ["@oxy.so/bloom-lens@1.2.0", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-37nnn2FcUamjahsf9ljUX1Bcznl+fJqCrQRBKaOe65z1p91MO0ZclbJ41VuXHS7hcorKVW6i8zAJ1uuD1EhfDw=="],
 
