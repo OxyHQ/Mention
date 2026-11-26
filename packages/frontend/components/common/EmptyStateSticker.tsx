@@ -1,7 +1,7 @@
 import { memo } from 'react';
-import { View } from 'react-native';
 import { Sticker } from '@oxy.so/bloom/sticker';
 import { useSticker } from '@oxy.so/stickers/react';
+import { VStack, toElement } from '@oxy.so/bloom-language';
 
 import { EMPTY_STATE_STICKERS, type EmptyStateStickerName } from '@/lib/stickers';
 
@@ -24,7 +24,8 @@ export const EmptyStateSticker = memo(function EmptyStateSticker({
   name: EmptyStateStickerName;
 }) {
   const { data: sticker } = useSticker(EMPTY_STATE_STICKERS[name]);
-  if (!sticker) return <View style={{ width: SIZE, height: SIZE }} />;
+  // The empty slot, SIZE square: a root of one host view reads nothing and is that View.
+  if (!sticker) return toElement(VStack().frame({ width: '120', height: '120' }));
   return (
     <Sticker
       animation={sticker.animation.url}
