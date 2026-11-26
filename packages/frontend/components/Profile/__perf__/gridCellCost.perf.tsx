@@ -188,7 +188,28 @@ function countHooksAndContexts(renderer: TestRenderer.ReactTestRenderer) {
   return { hooks, contexts };
 }
 
+const tallies: Record<string, Map<string, number>[]> = {};
+function tally(renderer: TestRenderer.ReactTestRenderer): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const node of renderer.root.findAll(() => true, { deep: true })) {
+    const t = node.type as unknown as { displayName?: string; name?: string } | string;
+    const name = typeof t === 'string' ? t : (t?.displayName ?? t?.name ?? '?');
+    out.set(name, (out.get(name) ?? 0) + 1);
+  }
+  return out;
+}
+(globalThis as { __tally?: typeof tally }).__tally = tally;
 function structure(renderer: TestRenderer.ReactTestRenderer) {
+  if (process.env.GRID_PERF_DUMP) {
+    const list = (tallies.all ??= []);
+    list.push(tally(renderer));
+    if (list.length >= 2) {
+      const [a, b] = list.slice(-2) as [Map<string, number>, Map<string, number>];
+      const lines: string[] = [];
+      for (const [k, v] of b) if (v !== (a.get(k) ?? 0)) lines.push(`${k}\t${(v - (a.get(k) ?? 0)) / N}`);
+      writeFileSync(join(__dirname, 'results', `dump-${process.env.GRID_PERF_DUMP}.tsv`), lines.join('\n'));
+    }
+  }
   return {
     components: renderer.root.findAll(() => true, { deep: true }).length,
     hostNodes: countHostNodes(renderer.toJSON()),

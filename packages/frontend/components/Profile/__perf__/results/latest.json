@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo (ios), React dev build",
+    "runs": 1,
+    "cells": 30,
+    "note": "per cell = (2N cells - N cells) / N; ms are relative Jest timings, not device frame times"
+  },
+  "kinds": {
+    "mediaCarousel": {
+      "components": 16,
+      "hostNodes": 4,
+      "hooks": 16,
+      "contexts": 4,
+      "addMsPerCell": 0.667
+    }
+  }
+}
