@@ -31,7 +31,7 @@ import { describe, expect, it } from 'bun:test';
  */
 
 const BACKEND_SRC = join(__dirname, '..', '..');
-const ENRICHMENT_DIR = join(BACKEND_SRC, 'services', 'postEnrichment');
+const ENRICHMENT_DIR = join(BACKEND_SRC, 'services', 'posts', 'postEnrichment');
 
 /**
  * Files in the enrichment directory that are not themselves enrichment steps:
@@ -96,7 +96,7 @@ describe('post-ingest enrichment — every step is registered in the fan-out', (
 
   it.each(stepModules())('registers %s in POST_ENRICHMENT_STEPS', (stepFile) => {
     const moduleName = stepFile.replace(/\.ts$/, '');
-    const source = readSource(join('services', 'postEnrichment', stepFile));
+    const source = readSource(join('services', 'posts', 'postEnrichment', stepFile));
 
     // Each step module exports exactly the function the fan-out runs; require
     // that every one of those exports is both imported and listed. A step added
