@@ -243,3 +243,25 @@ filename; `bloom-lang-dts` writes the declarations). 5 is phase 1.
    `<View />`; the spec does not say so.
 7. Known: a matched `await` compiles to a module-local `$settle` helper (an async
    call and an object per await).
+
+## Rows: PostItem's rows through `bloomc migrate`
+
+`ContentWarning`, `PostCommunityRow`, `PostCorrectionNotice` and `PostLaneChip`
+were moved to `.bloom` by `bloomc migrate --write` (Bloom
+`feat/bloom-lang-migrate`), with no hand edit to the `.bloom`; PostItem draws
+them as nodes (`ContentWarning({ … })`, no `Embed(<ContentWarning … />)`).
+`rows/variants/` keeps the TypeScript they replaced; `rows/rows.tsx` draws a row
+in either form the way PostItem draws it, in the states of `rows/states.json`.
+
+```bash
+cd packages/frontend
+bun run test:perf __perf__/lang-proof/rows        # cost per state, mount and update timed, interleaved
+BLOOM_LANG_PROOF=1 NODE_ENV=production npx expo export --platform web --output-dir <proof>
+for f in ts bloom; do
+  CHROME_PATH=<chrome> node __perf__/lang-proof/screenshot.mjs capture-rows <proof> <shots> $f
+done
+node __perf__/lang-proof/screenshot.mjs diff <shots>/ts-ContentWarning-closed@2x.png <shots>/bloom-ContentWarning-closed@2x.png
+```
+
+`/?row=<row>&state=<state>&form=<ts|bloom>` is the proof page for one row.
+Results: `results/rows.json`; the measured numbers are in the Mention PR.

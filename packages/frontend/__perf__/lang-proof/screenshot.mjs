@@ -6,6 +6,9 @@
  *     Serves a `BLOOM_LANG_PROOF=1` web export, opens `/?screen=<screen>&state=<branch>`
  *     for every branch in Chrome (light scheme, reduced motion, 1x and 2x) and writes
  *     `<out dir>/<screen>-<branch>@<scale>x.png`: the screen's frame only.
+ *   node __perf__/lang-proof/screenshot.mjs capture-rows <export dir> <out dir> <form>
+ *     The same for PostItem's rows: every state of `rows/states.json` in one form
+ *     (`ts` or `bloom`), written `<out dir>/<form>-<row>-<state>@<scale>x.png`.
  *   node __perf__/lang-proof/screenshot.mjs diff <a.png> <b.png> [<diff.png>]
  *     Exact comparison: prints the differing pixel count and writes the
  *     differing pixels in red over a faded `a` to `<diff.png>`. Exits 1 on any difference.
@@ -58,7 +61,25 @@ function serve(root) {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-async function capture(exportDir, outDir, screen = 'original') {
+/** The pages `capture` opens: a name for the file and the query that draws it. */
+function screenPages(screen) {
+  return BRANCHES.map((branch) => ({
+    name: `${screen}-${branch}`,
+    query: `screen=${screen}&state=${branch}`,
+  }));
+}
+
+function rowPages(form) {
+  const { states } = JSON.parse(
+    readFileSync(new URL('./rows/states.json', import.meta.url), 'utf8'),
+  );
+  return states.map(({ row, state }) => ({
+    name: `${form}-${row}-${state}`,
+    query: `row=${row}&state=${state}&form=${form}`,
+  }));
+}
+
+async function capture(exportDir, outDir, pages) {
   const { chromium } = require('playwright-core');
   const executablePath = process.env.CHROME_PATH;
   if (!executablePath) throw new Error('Set CHROME_PATH to a Chrome binary');
@@ -77,10 +98,10 @@ async function capture(exportDir, outDir, screen = 'original') {
         locale: 'en-US',
         timezoneId: 'UTC',
       });
-      for (const branch of BRANCHES) {
+      for (const { name, query } of pages) {
         const page = await context.newPage();
-        page.on('pageerror', (error) => errors.push(`${branch}@${scale}x: ${error.message}`));
-        await page.goto(`${origin}/?screen=${screen}&state=${branch}`);
+        page.on('pageerror', (error) => errors.push(`${name}@${scale}x: ${error.message}`));
+        await page.goto(`${origin}/?${query}`);
         const frame = page.getByTestId('proof-frame');
         await frame.waitFor({ state: 'visible', timeout: 60_000 });
         await page.evaluate(async () => {
@@ -89,7 +110,7 @@ async function capture(exportDir, outDir, screen = 'original') {
           await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
         });
         await page.waitForTimeout(500);
-        const file = join(outDir, `${screen}-${branch}@${scale}x.png`);
+        const file = join(outDir, `${name}@${scale}x.png`);
         await frame.screenshot({ path: file, animations: 'disabled', caret: 'hide' });
         console.log(file);
         await page.close();
@@ -135,11 +156,12 @@ function diff(aPath, bPath, outPath) {
 }
 
 const [command, ...args] = process.argv.slice(2);
-if (command === 'capture') await capture(args[0], args[1], args[2]);
+if (command === 'capture') await capture(args[0], args[1], screenPages(args[2] ?? 'original'));
+else if (command === 'capture-rows') await capture(args[0], args[1], rowPages(args[2] ?? 'ts'));
 else if (command === 'diff') diff(args[0], args[1], args[2]);
 else {
   console.error(
-    'usage: screenshot.mjs capture <export dir> <out dir> [screen] | diff <a> <b> [out]',
+    'usage: screenshot.mjs capture <export dir> <out dir> [screen] | capture-rows <export dir> <out dir> <form> | diff <a> <b> [out]',
   );
   process.exit(2);
 }
