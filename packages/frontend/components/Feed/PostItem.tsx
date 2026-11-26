@@ -2,7 +2,7 @@ import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
 import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react';
-import { View, Text as RNText, type GestureResponderEvent, type ViewStyle } from 'react-native';
+import { View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
 import type { TFunction } from 'i18next';
@@ -36,7 +36,6 @@ import {
   type Child,
   type IconComponent,
   Embed as LEmbed,
-  HStack as LHStack,
   RawText,
   VStack as LVStack,
   toElement as LtoElement,
@@ -173,7 +172,6 @@ const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
 /** The row's inks that are not language chains, as Bloom paints its own: once per palette. */
 const useRowInk = createTokenStyles((t) => ({
   edge: { borderColor: t.border },
-  byline: { color: t.foreground, fontSize: 15, fontWeight: '600', lineHeight: 18.75 },
 }));
 
 /**
@@ -183,16 +181,6 @@ const useRowInk = createTokenStyles((t) => ({
 function BranchElbow({ style }: { style: ViewStyle }) {
   const ink = useRowInk();
   return <View pointerEvents="none" style={[style, ink.edge]} />;
-}
-
-/** The collaborators' byline: React Native text, so its names can be links. */
-function BylineText({ children }: { children: React.ReactNode }) {
-  const ink = useRowInk();
-  return (
-    <RNText style={[ink.byline, SHRINK_STYLE]} numberOfLines={2}>
-      {children}
-    </RNText>
-  );
 }
 
 // The two vote arrows are adjacent halves of ONE pill, so neither hit region
@@ -1496,47 +1484,42 @@ function PostRow(props: PostItemProps): Child {
   });
 
   const identity = isCollabByline
-    ? Embed(
-        LtoElement(
-          LHStack(
-            LEmbed(
-              <BylineText>
-                {headerAuthors.map((a, i) => {
-                  const isLast = i === headerAuthors.length - 1;
-                  const separator =
-                    i === 0
-                      ? ''
-                      : isLast
-                        ? bylineNamesWriter
-                          ? t('collab.by', { defaultValue: ' by ' })
-                          : t('collab.and', { defaultValue: ' and ' })
-                        : ', ';
-                  return (
-                    <React.Fragment key={`${a.handle || 'author'}-${i}`}>
-                      {separator}
-                      {a.href ? (
-                        <Link
-                          href={a.href}
-                          push
-                          onPress={stopAtLink}
-                          accessibilityLabel={a.firstName}
-                        >
-                          {a.firstName}
-                        </Link>
-                      ) : (
-                        LtoElement(RawText(a.firstName))
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </BylineText>,
-            ),
-          )
-            .frame({ minWidth: 'none' })
-            .align('end')
-            .shrink('normal'),
-        ),
+    ? // The collaborators' byline: one React Native text, its names links.
+      HStack(
+        RawText(
+          ...headerAuthors.flatMap((a, i) => {
+            const isLast = i === headerAuthors.length - 1;
+            const separator =
+              i === 0
+                ? ''
+                : isLast
+                  ? bylineNamesWriter
+                    ? t('collab.by', { defaultValue: ' by ' })
+                    : t('collab.and', { defaultValue: ' and ' })
+                  : ', ';
+            return [
+              separator,
+              a.href
+                ? Embed(
+                    <Link href={a.href} push onPress={stopAtLink} accessibilityLabel={a.firstName}>
+                      {a.firstName}
+                    </Link>,
+                  )
+                : RawText(a.firstName),
+            ];
+          }),
+        )
+          .foreground('foreground')
+          .font('md')
+          .weight('semibold')
+          .leading(row.leading.tight)
+          .lines(2)
+          .shrink('normal')
+          .frame({ minWidth: 'none' }),
       )
+        .frame({ minWidth: 'none' })
+        .align('end')
+        .shrink('normal')
     : // The whole identity line is one hover target.
       Embed((render) => (
         <ProfileHoverCard username={user.handle} style={SHRINK_STYLE}>
