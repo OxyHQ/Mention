@@ -1,9 +1,6 @@
-// Settings -> Notifications, in Bloom's own language (`.bloom`, spec draft 0).
-// The hand port of `notifications.tsx` for the language proof: the route keeps
-// using the TypeScript screen until the port compiles and measures the same
-// (`__perf__/lang-proof/README.md`). Written for the spec as it should be: under
-// draft 0 each `t(…)` passed to a String is B0601 and `Partial<Prefs>(…)` does not
-// parse (the README's friction list, items 1 and 2).
+// Settings -> Notifications, in Bloom's own language (`.bloom`, spec draft 0.1).
+// The TypeScript it replaced, and a hand-cleaned TypeScript form, are kept for
+// measurement in `__perf__/lang-proof/variants/` (README there).
 
 import { useTranslation } from "react-i18next"
 import { logger } from "@oxy.so/core/logger"
@@ -49,25 +46,25 @@ fn isOn(prefs: Prefs, key: PrefKey) -> Bool {
 /// The one-field patch `update` sends (the server merges it).
 fn patch(key: PrefKey, value: Bool) -> Partial<Prefs> {
   match key {
-    case .pushEnabled => Partial<Prefs>(pushEnabled: value)
-    case .likes => Partial<Prefs>(likes: value)
-    case .boosts => Partial<Prefs>(boosts: value)
-    case .follows => Partial<Prefs>(follows: value)
-    case .mentions => Partial<Prefs>(mentions: value)
-    case .replies => Partial<Prefs>(replies: value)
-    case .quotes => Partial<Prefs>(quotes: value)
+    case .pushEnabled => Prefs.patch(pushEnabled: value)
+    case .likes => Prefs.patch(likes: value)
+    case .boosts => Prefs.patch(boosts: value)
+    case .follows => Prefs.patch(follows: value)
+    case .mentions => Prefs.patch(mentions: value)
+    case .replies => Prefs.patch(replies: value)
+    case .quotes => Prefs.patch(quotes: value)
   }
 }
 
-pub default view NotificationSettingsScreen {
+pub view NotificationSettingsScreen {
   let { t } = useTranslation()
   let router = useSettingsRouter()
   let { canUsePrivateApi, isPrivateApiPending } = useAuth()
   let section = useViewerSettingsSection("notificationPreferences")
-  // The section's types are mapped (`Partial<…[K]>`), so they are Foreign until annotated.
+  // The section's types are mapped (`Partial<…[K]>`): Foreign, so they are named here.
   let stored: Partial<Prefs> = section.value
   let loading: Bool = section.isLoading
-  let update: async (Partial<Prefs>) -> Unit = section.update
+  let update: (Partial<Prefs>) -> Promise<Unit> = section.update
 
   @state saving = false
 
@@ -75,6 +72,7 @@ pub default view NotificationSettingsScreen {
 
   async fn updatePreference(key: PrefKey, value: Bool) {
     saving = true
+    defer { saving = false }
     match await update(patch(key, value)) {
       case .ok(_) => {}
       case .err(error) => {
@@ -85,7 +83,6 @@ pub default view NotificationSettingsScreen {
         )
       }
     }
-    saving = false
   }
 
   /// A preference's row: its title, what it does, and its switch.
@@ -94,7 +91,7 @@ pub default view NotificationSettingsScreen {
       .wrapControl()
       .description(description)
       .trailing(
-        Toggle(Binding(get: isOn(prefs, key), set: { on in updatePreference(key, on) }))
+        Toggle(Binding(get: isOn(prefs, key), set: { on in task { await updatePreference(key, on) } }))
           .label(title)
       )
   }
