@@ -81,10 +81,8 @@ jest.mock('@oxy.so/services/ui/client', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
+    ...require('@/test-support/oxyUsers').oxyUsers,
     useAuth: () => ({ user: { id: 'viewer' } }),
-    useAuthStore: { getState: () => ({ user: { id: 'viewer' } }) },
-    upsertCachedUser: jest.fn(),
-    upsertCachedUsers: jest.fn(),
     FollowButton: ({
       onFollowChange,
       username,
@@ -131,6 +129,7 @@ import { ProfileCard } from '@/components/ProfileCard';
 import { SuggestedProfileCard } from '@/components/SuggestedProfileCard';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
+import { openAccountStore, signInAs, signOutForTests } from '@/test-support/accountScope';
 
 const PERSON_ID = 'person-1';
 
@@ -159,11 +158,17 @@ function probe(renderer: TestRenderer.ReactTestRenderer, testID: string): string
   return String(renderer.root.findByProps({ testID }).props.children);
 }
 
+beforeEach(() => {
+  openAccountStore();
+  signInAs('viewer');
+});
+
 afterEach(() => {
   const renderer = mounted;
   if (renderer) act(() => renderer.unmount());
   mounted = null;
   resetIdentityUpdates();
+  signOutForTests();
   jest.clearAllMocks();
 });
 

@@ -15,15 +15,16 @@ import { activateAccount, resetAccountScopeForTests } from '@/lib/accountScope';
  */
 
 /** A client nobody renders with: what `activateAccount` drops when the test passes none. */
-const scratchClient = new QueryClient();
+let scratchClient: QueryClient | undefined;
 
 /**
  * Make `accountId` the signed-in account (`null` signs out). Pass the client
  * the test renders with to have its queries and mutations dropped by the
  * change, as the runtime's notification does on device.
  */
-export function signInAs(accountId: string | null, queryClient: QueryClient = scratchClient): void {
-  activateAccount(accountId, queryClient);
+export function signInAs(accountId: string | null, queryClient?: QueryClient): void {
+  scratchClient ??= new QueryClient();
+  activateAccount(accountId, queryClient ?? scratchClient);
 }
 
 /** A new, empty bloom-data store made active: the signed-in account's `User` and records. */

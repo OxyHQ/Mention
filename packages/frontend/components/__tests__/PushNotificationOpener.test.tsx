@@ -1,7 +1,13 @@
 import TestRenderer from 'react-test-renderer';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 import { PushNotificationOpener } from '../PushNotificationOpener';
 
 let mockUserId: string | null = 'viewer';
+/** The rendered viewer (`useAuth`) and the signed-in account (the scope), moved together as on device. */
+function setViewer(id: string | null) {
+  mockUserId = id;
+  signInAs(id);
+}
 let mockEpoch = 1;
 const mockOxy = { http: { getSessionEpoch: () => mockEpoch } };
 jest.mock('@oxy.so/services/ui/client', () => ({
@@ -10,12 +16,12 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     user: mockUserId ? { id: mockUserId } : null,
     oxyServices: mockOxy,
   }),
-  useAuthStore: { getState: () => ({ user: mockUserId ? { id: mockUserId } : null }) },
 }));
 const mockPush = jest.fn();
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 const mockInvalidate = jest.fn();
 jest.mock('@tanstack/react-query', () => ({
+  ...jest.requireActual('@tanstack/react-query'),
   useQueryClient: () => ({ invalidateQueries: mockInvalidate }),
 }));
 const mockMarkAsRead = jest.fn();
@@ -38,7 +44,7 @@ jest.mock('@/utils/notifications', () => ({
 let renderer: TestRenderer.ReactTestRenderer;
 beforeEach(() => {
   jest.clearAllMocks();
-  mockUserId = 'viewer';
+  setViewer('viewer');
   mockEpoch = 1;
   mockOnOpen = undefined;
   mockColdOpen = undefined;
@@ -46,6 +52,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   if (renderer) TestRenderer.act(() => renderer.unmount());
+  signOutForTests();
 });
 async function mount() {
   await TestRenderer.act(async () => {
@@ -73,13 +80,13 @@ it('marks the push for its intended viewer and opens the post or inbox', async (
 });
 
 it('waits for a restored viewer before consuming a cold-start push', async () => {
-  mockUserId = null;
+  setViewer(null);
   mockColdOpen = { notificationId: 'n1', entityType: 'post', entityId: 'p1' };
   await mount();
   expect(mockOnOpen).toBeUndefined();
   expect(mockMarkAsRead).not.toHaveBeenCalled();
   expect(mockPush).not.toHaveBeenCalled();
-  mockUserId = 'viewer';
+  setViewer('viewer');
   await TestRenderer.act(async () => {
     renderer.update(<PushNotificationOpener />);
   });
@@ -97,10 +104,10 @@ for (const transition of ['switch', 'aba', 'logout', 'relogin'] as const) {
     });
     expect(mockPush).toHaveBeenCalledWith('/p/p1');
     mockEpoch++;
-    mockUserId = transition === 'logout' || transition === 'relogin' ? null : 'other';
+    setViewer(transition === 'logout' || transition === 'relogin' ? null : 'other');
     if (transition === 'aba' || transition === 'relogin') {
       mockEpoch++;
-      mockUserId = 'viewer';
+      setViewer('viewer');
     }
     await TestRenderer.act(async () => {
       pending.resolve();
@@ -113,7 +120,7 @@ for (const transition of ['switch', 'aba', 'logout', 'relogin'] as const) {
 it('opens the destination without marking if an old listener fires after a switch', async () => {
   await mount();
   const oldListener = mockOnOpen;
-  mockUserId = 'other';
+  setViewer('other');
   mockEpoch++;
   await TestRenderer.act(async () => {
     oldListener?.({ notificationId: 'n1', entityType: 'post', entityId: 'p1' });
@@ -125,12 +132,12 @@ it('opens the destination without marking if an old listener fires after a switc
 it('does not let a disposed A listener mark a push after A→B→A', async () => {
   await mount();
   const oldListener = mockOnOpen;
-  mockUserId = 'other';
+  setViewer('other');
   mockEpoch++;
   await TestRenderer.act(async () => {
     renderer.update(<PushNotificationOpener />);
   });
-  mockUserId = 'viewer';
+  setViewer('viewer');
   mockEpoch++;
   await TestRenderer.act(async () => {
     renderer.update(<PushNotificationOpener />);

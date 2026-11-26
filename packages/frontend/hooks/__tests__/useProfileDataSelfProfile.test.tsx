@@ -55,20 +55,37 @@ jest.mock('@oxy.so/services/ui/client', () => {
         assets: { renderUrl: (ref: string) => `https://cloud.oxy.so/${ref}` },
       },
     }),
-    queryKeys: { users: { byUsername } },
-    // The SDK hook's own options, verbatim — a 5-minute `staleTime`, a
-    // 30-minute `gcTime`, `refetchOnMount: true` and the viewer in the key. The
-    // point of running real react-query here rather than a stub is that
-    // `isPending` has to mean what it means in the app: this key holds nothing.
-    useUserByUsername: (username: string | null) =>
-      useQuery({
+    // The SDK read's own freshness, verbatim — a 5-minute staleness, a
+    // 30-minute retention, a re-read on mount and the viewer in the key — run on
+    // a real react-query and presented as the Services 15 `RecordView` the hook
+    // reads (`value`, `status`, `refresh`). The point of running a real cache
+    // here rather than a stub is that "nothing to show yet" has to mean what it
+    // means in the app: this key holds nothing.
+    useUserByUsername: (username: string | null) => {
+      const query = useQuery({
         queryKey: byUsername(username ?? '', mockViewer.current?.id ?? ''),
         queryFn: () => mockFetchProfile(username),
         enabled: Boolean(username),
         staleTime: 5 * 60 * 1000,
         gcTime: 30 * 60 * 1000,
         refetchOnMount: true,
-      }),
+      });
+      const fetching = query.fetchStatus === 'fetching';
+      return {
+        value: query.data ?? undefined,
+        status: query.status === 'pending' ? (fetching ? 'loading' : 'idle') : query.status,
+        fetchStatus: query.fetchStatus,
+        error: query.error,
+        failureCount: query.failureCount,
+        updatedAt: query.dataUpdatedAt,
+        origin: query.data === undefined ? undefined : 'network',
+        isLoading: query.isLoading,
+        isFetching: fetching,
+        refresh: async () => {
+          await query.refetch();
+        },
+      };
+    },
   };
 });
 
