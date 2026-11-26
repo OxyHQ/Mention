@@ -34,6 +34,7 @@ import Page12 from './pages/live-presence';
 import Page13 from './pages/notifications/subscriptions';
 import { NotificationSettingsScreen } from './pages/notifications.bloom';
 import { toElement } from '@oxy.so/bloom-language';
+import { BLOOM_LANG_AB, DRAW_TS, NotificationsProbe, TS_FORMS } from '@/lib/bloomLangAB';
 import Page15 from './pages/privacy/blocked';
 import Page16 from './pages/privacy/hidden-words';
 import Page17 from './pages/privacy/hide-counts';
@@ -136,7 +137,18 @@ export function useMentionSettingsPages(): MentionSettingsPages {
         defaultValue: 'Notifications',
       }),
       // A `.bloom` view is a node factory: drawn into React with `toElement`.
-      content: toElement(NotificationSettingsScreen()),
+      content: BLOOM_LANG_AB ? (
+        // DEV ONLY: the Android A/B (`lib/bloomLangAB.tsx`).
+        <NotificationsProbe>
+          {DRAW_TS && TS_FORMS ? (
+            <TS_FORMS.Notifications />
+          ) : (
+            toElement(NotificationSettingsScreen())
+          )}
+        </NotificationsProbe>
+      ) : (
+        toElement(NotificationSettingsScreen())
+      ),
     },
     'privacy/blocked': {
       title: t('settings.privacy.blockedProfiles'),

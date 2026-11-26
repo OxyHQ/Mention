@@ -77,6 +77,7 @@ import PostCommunityRow from '../Post/PostCommunityRow.bloom';
 import ContentWarning from '../Post/ContentWarning.bloom';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice.bloom';
+import { abDecoratePost, BLOOM_LANG_AB, DRAW_TS, PostProbe, TS_FORMS } from '@/lib/bloomLangAB';
 import PostDetailStats from '../Post/PostDetailStats';
 import { postLocation } from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
@@ -423,7 +424,8 @@ function usePostRowModel({
   // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
   // under the hood — never `useMemo` over an out-of-band SQLite read).
   const storePost = usePostSelector(postId ? String(postId) : undefined);
-  const viewPost = storePost ?? post;
+  // DEV ONLY: `abDecoratePost` is the identity outside the Android A/B (`lib/bloomLangAB.tsx`).
+  const viewPost = abDecoratePost(storePost ?? post);
   const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
   // Every actor on this row, corrected against any profile edit made in this
@@ -1367,9 +1369,10 @@ function PostRow(props: PostItemProps): Child {
   // A reply belongs to its thread's community, so only a post that starts one says it.
   if (communityHandle && !viewPost.replyContext) {
     contextRows.push(
-      PostCommunityRow({ handle: communityHandle, href: communityHref ?? undefined }).id(
-        'community',
-      ),
+      (DRAW_TS && TS_FORMS
+        ? Embed(<TS_FORMS.PostCommunityRow handle={communityHandle} href={communityHref} />)
+        : PostCommunityRow({ handle: communityHandle, href: communityHref ?? undefined })
+      ).id('community'),
     );
   }
   if (viewPost.crosspost) {
@@ -1572,7 +1575,11 @@ function PostRow(props: PostItemProps): Child {
       : null,
     // The lane chip, after the time; not on a boost or a collaborative byline.
     viewPost.lane && !viewPost.boost && !isCollab
-      ? PostLaneChip({ lane: viewPost.lane, authorHandle: authorHandle || '', feedDescriptor })
+      ? (DRAW_TS && TS_FORMS ? TS_FORMS.PostLaneChip : PostLaneChip)({
+          lane: viewPost.lane,
+          authorHandle: authorHandle || '',
+          feedDescriptor,
+        })
       : null,
     viewPost.boost && !isNested
       ? Icon(RiRepeat2Line)
@@ -1595,11 +1602,19 @@ function PostRow(props: PostItemProps): Child {
   );
   const postBody: Child[] = [
     spoilerText
-      ? ContentWarning({
-          text: spoilerText,
-          revealed: isContentWarningOpen,
-          onToggle: toggleContentWarning,
-        })
+      ? DRAW_TS && TS_FORMS
+        ? Embed(
+            <TS_FORMS.ContentWarning
+              text={spoilerText}
+              revealed={isContentWarningOpen}
+              onToggle={toggleContentWarning}
+            />,
+          )
+        : ContentWarning({
+            text: spoilerText,
+            revealed: isContentWarningOpen,
+            onToggle: toggleContentWarning,
+          })
       : null,
     content.title && !isContentGated
       ? Embed(
@@ -1646,7 +1661,9 @@ function PostRow(props: PostItemProps): Child {
         )
       : null,
     corrections && viewPostId && !isContentGated
-      ? PostCorrectionNotice({ postId: viewPostId, count: corrections.count })
+      ? DRAW_TS && TS_FORMS
+        ? Embed(<TS_FORMS.PostCorrectionNotice postId={viewPostId} count={corrections.count} />)
+        : PostCorrectionNotice({ postId: viewPostId, count: corrections.count })
       : null,
   ];
 
@@ -1903,6 +1920,8 @@ function PostRow(props: PostItemProps): Child {
 const PostRowView = view(PostRow);
 
 function PostItemContent(props: PostItemProps) {
+  // DEV ONLY: the Android A/B's Profiler (`lib/bloomLangAB.tsx`), identical for both forms.
+  if (BLOOM_LANG_AB) return <PostProbe>{toElement(PostRowView(props))}</PostProbe>;
   return toElement(PostRowView(props));
 }
 

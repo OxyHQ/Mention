@@ -125,6 +125,35 @@ if (process.env.BLOOM_LANG_PROOF === '1') {
   require('./__perf__/lang-proof/metro').withProofStandIns(config, __dirname);
 }
 
+// DEV ONLY: the Android A/B of the language (`lib/bloomLangAB.tsx`). With
+// `EXPO_PUBLIC_BLOOM_LANG_AB=1` a polyfill records commit and touch times before
+// any module runs; `BLOOM_LANG_PROFILING=1` also swaps React Native's production
+// renderer for its profiling build, so `<Profiler>` reports times in a release
+// bundle. Without either flag this config is unchanged.
+if (process.env.EXPO_PUBLIC_BLOOM_LANG_AB === '1') {
+  const path = require('node:path');
+  const polyfill = path.join(__dirname, 'lib/bloomLangAB.polyfill.js');
+  const getPolyfills = config.serializer.getPolyfills;
+  config.serializer.getPolyfills = (options) => [
+    ...(getPolyfills ? getPolyfills(options) : []),
+    polyfill,
+  ];
+  // The proof's deterministic stand-ins for the Notifications screens' three hooks
+  // (signed in, stored preferences, saves that resolve at once), so both forms are
+  // measured without an account or the network.
+  // Settings -> Notifications' stand-ins (`BLOOM_LANG_AB_STANDINS=1`) are in babel.config.js.
+  if (process.env.BLOOM_LANG_PROFILING === '1') {
+    const parentResolve = config.resolver.resolveRequest;
+    config.resolver.resolveRequest = (context, moduleName, platform) => {
+      const result = (parentResolve || context.resolveRequest)(context, moduleName, platform);
+      if (result.type === 'sourceFile' && /[\\/]ReactFabric-prod\.js$/.test(result.filePath)) {
+        return { ...result, filePath: result.filePath.replace(/-prod\.js$/, '-profiling.js') };
+      }
+      return result;
+    };
+  }
+}
+
 // The Bloom language compiler (`@oxy.so/bloom-language-compiler`): a pre-pass in
 // front of the transform worker above (react-native-css's, which wraps Expo's),
 // so the Babel config stays Expo's default and Noxcturnal and the React Compiler
