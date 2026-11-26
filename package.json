@@ -10,11 +10,11 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "22.1.7",
+      "@oxy.so/bloom": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/lang/packs/1795542568/oxy.so-bloom-23.7.0.tgz",
       "@oxy.so/contracts": "7.5.0",
       "@oxy.so/core": "7.55.0",
       "@oxy.so/mcp": "1.4.3",
-      "@oxy.so/services": "14.24.0",
+      "@oxy.so/services": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/integ/svc/oxy.so-services-14.24.1.tgz",
       "@oxy.so/utils": "^1.5.2",
       "@peable.to/sdk": "7.0.0",
       "@syra.fm/sdk": "0.25.0",
@@ -135,7 +135,7 @@
     "ob1": "0.87.1",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/core": "7.55.0",
-    "@oxy.so/services": "14.24.0",
+    "@oxy.so/services": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/integ/svc/oxy.so-services-14.24.1.tgz",
     "fast-uri": "3.1.9",
     "fast-xml-parser": "5.12.0",
     "ioredis": "6.0.0",
