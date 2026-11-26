@@ -105,6 +105,38 @@ const cases = [
     expectOutput: 'takes the error SECOND',
   },
   {
+    name: 'a .bloom view passing a struct as the context is rejected, at its .bloom line',
+    files: {
+      ...filler(),
+      'packages/frontend/offender.bloom':
+        `import { logger } from "@oxy.so/core/logger"\n` +
+        `\n` +
+        `struct Ctx {\n  id: String\n}\n` +
+        `\n` +
+        `pub fn run(error: Error) {\n` +
+        `  logger.error("failed", error, Ctx(id: "third"))\n` +
+        `  logger.error("failed", Ctx(id: "second"))\n` +
+        `}\n`,
+    },
+    expectFailure: true,
+    expectOutput: 'packages/frontend/offender.bloom:9: `logger.error` takes the error SECOND',
+  },
+  {
+    name: 'a .bloom view passing the error second is NOT rejected',
+    files: {
+      ...filler(),
+      'packages/frontend/clean.bloom':
+        `import { logger } from "@oxy.so/core/logger"\n` +
+        `\n` +
+        `struct Ctx {\n  id: String\n}\n` +
+        `\n` +
+        `pub fn run(error: Error) {\n` +
+        `  logger.error("failed", error, Ctx(id: "third"))\n` +
+        `}\n`,
+    },
+    expectFailure: false,
+  },
+  {
     name: "the backend's pino form is NOT rejected (this is the scope)",
     files: {
       ...filler(),
