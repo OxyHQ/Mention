@@ -45,7 +45,10 @@ const SOURCE_DIRECTORIES = [
   'utils',
 ];
 
-const SOURCE_EXTENSIONS = /\.(?:tsx?|jsx?)$/;
+// `.bloom` is Bloom's own language: its `t("key", count: n)` calls are read from
+// the source text like TypeScript's `t("key", { count: n })`, so every location
+// is the line in the `.bloom` file.
+const SOURCE_EXTENSIONS = /\.(?:tsx?|jsx?|bloom)$/;
 const EXCLUDED_PATH =
   /(?:^|\/)(?:node_modules|dist|__tests__|__mocks__)(?:\/|$)|\.(?:test|spec)\.[jt]sx?$/;
 

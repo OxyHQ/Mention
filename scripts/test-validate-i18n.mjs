@@ -527,6 +527,27 @@ const cases = [
     expectOutput: 'is no longer needed',
   },
 
+  // ------------------------------------------- Bloom's own language (.bloom) ---
+  {
+    name: 'a key only a .bloom view writes, with no English entry, is rejected',
+    files: {
+      ...tree({ 'settings.account.signedOutTitle': 'Sign in to Mention' }),
+      'packages/frontend/components/screen.bloom':
+        'pub view Screen {\n  let { t } = useTranslation()\n  body { Text(t("settings.account.missingTitle")) }\n}\n',
+    },
+    expectFailure: true,
+    expectOutput: 'components/screen.bloom:3: t("settings.account.missingTitle") has no entry',
+  },
+  {
+    name: "a .bloom view's key with an English entry passes",
+    files: {
+      ...tree({ 'settings.account.signedOutTitle': 'Sign in to Mention' }),
+      'packages/frontend/components/screen.bloom':
+        'pub view Screen {\n  let { t } = useTranslation()\n  body { Text(t("settings.account.signedOutTitle", defaultValue: "Sign in to Mention")) }\n}\n',
+    },
+    expectFailure: false,
+  },
+
   // ------------------------------------------------------- vacuity floors ---
   {
     name: 'the real floors reject a tree this small',

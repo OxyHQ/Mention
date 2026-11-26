@@ -30,9 +30,16 @@
  * `debug` / `info` / `warn` are deliberately NOT checked: their second parameter
  * genuinely IS `LogContext`, so an object literal there is right. The same
  * shape is correct one line above and wrong one line below.
+ *
+ * A `.bloom` module (Bloom's own language) is checked through the TypeScript
+ * its compiler emits, mapped back to the `.bloom` line by its source map: there
+ * the context is a struct, `logger.error(msg, Ctx(id: x))`, which no pattern on
+ * the source text would see and which compiles to the object literal this check
+ * rejects.
  */
 
 import { readdir, readFile } from 'node:fs/promises';
+import { createRequire, SourceMap } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -57,7 +64,7 @@ const SOURCE_ROOTS = [
   'packages/shared-types/src',
 ];
 
-const SOURCE_EXTENSIONS = /\.(?:tsx?|jsx?)$/;
+const SOURCE_EXTENSIONS = /\.(?:tsx?|jsx?|bloom)$/;
 const EXCLUDED_PATH = /(?:^|\/)(?:node_modules|dist|\.expo|android|ios|__mocks__)(?:\/|$)/;
 
 /**
@@ -160,9 +167,10 @@ function offendingCalls(source, loggerNames) {
       node.arguments.length >= 2 &&
       ts.isObjectLiteralExpression(node.arguments[1])
     ) {
-      const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+      const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
       offences.push({
         line: line + 1,
+        character,
         logger: node.expression.expression.text,
         text: node.getText(source).split('\n')[0].trim(),
       });
@@ -171,6 +179,26 @@ function offendingCalls(source, loggerNames) {
   };
   visit(source);
   return offences;
+}
+
+/**
+ * The `.bloom` compiler, as the frontend that builds these modules resolves it
+ * (from THIS repo, like `typescript`, when the tests point the scan elsewhere).
+ */
+let bloomCompiler;
+function compileBloom(contents, path) {
+  bloomCompiler ??= createRequire(
+    resolve(dirname(fileURLToPath(import.meta.url)), '../packages/frontend/package.json'),
+  )('@oxy.so/bloom-language-compiler/compile');
+  return bloomCompiler.compileBloomModule(contents, path, {
+    root: resolve(repositoryRoot, 'packages/frontend'),
+  });
+}
+
+/** The `.bloom` line a call in its compiled TypeScript came from, through the source map. */
+function bloomLine(map, offence) {
+  const entry = map?.findEntry(offence.line - 1, offence.character);
+  return entry?.originalLine === undefined ? undefined : entry.originalLine + 1;
 }
 
 const failures = [];
@@ -187,9 +215,25 @@ for (const path of scannedFiles) {
   // never names the module cannot import from it.
   if (!contents.includes(SDK_LOGGER_MODULE)) continue;
 
+  const isBloom = path.endsWith('.bloom');
+  let code = contents;
+  let map;
+  if (isBloom) {
+    try {
+      const output = compileBloom(contents, path);
+      code = output.code;
+      map = output.map ? new SourceMap(JSON.parse(output.map)) : undefined;
+    } catch (error) {
+      failures.push(
+        `${relative(repositoryRoot, path)}: does not compile, so it cannot be checked\n    ${error.message}`,
+      );
+      continue;
+    }
+  }
+
   const source = ts.createSourceFile(
     path,
-    contents,
+    code,
     ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
     path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
@@ -199,6 +243,11 @@ for (const path of scannedFiles) {
   loggerFiles.push(path);
 
   for (const offence of offendingCalls(source, loggerNames)) {
+    if (isBloom) {
+      const line = bloomLine(map, offence);
+      offence.line = line ?? `${offence.line} of its compiled TypeScript`;
+      if (line) offence.text = contents.split('\n')[line - 1].trim();
+    }
     failures.push(
       `${relative(repositoryRoot, path)}:${offence.line}: ` +
         `\`${offence.logger}.error\` takes the error SECOND, not a context object — ` +
