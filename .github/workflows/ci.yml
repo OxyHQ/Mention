@@ -163,7 +163,7 @@ jobs:
     # would otherwise skip the dependent too; it runs unless provenance
     # positively answered verified.
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     timeout-minutes: 30
     steps:
       # fetch-depth: 0 so the base revision's bun.lock is readable for the
@@ -174,6 +174,7 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
+          no-cache: ${{ runner.environment == 'self-hosted' }}
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node runtime
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -317,7 +318,7 @@ jobs:
     name: Test ${{ matrix.package }}
     needs: provenance
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     timeout-minutes: 35
 
     # PostgreSQL, the backend's only data store. The suite creates ONE
@@ -425,6 +426,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
         with:
+          no-cache: ${{ runner.environment == 'self-hosted' }}
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node test runtime
         if: steps.scope.outputs.run == 'true'
@@ -514,7 +516,7 @@ jobs:
     name: Test backend (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: provenance
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     timeout-minutes: 35
     services:
       # Identical to the matrix above and to docker-compose.postgres.yml; see
@@ -558,6 +560,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
         with:
+          no-cache: ${{ runner.environment == 'self-hosted' }}
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node test runtime
         if: steps.scope.outputs.run == 'true'
@@ -651,8 +654,8 @@ jobs:
     # two paths, so leaving a third event matching neither made the required
     # check fail by construction on every dispatch. Measured: baseline=skipped
     # pull-request=skipped on run 31127222964, with every other job green.
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    if: false # trial branch only
+    runs-on: seldon-ci
     timeout-minutes: 60
     steps:
       # fetch-depth: 0 so the scope diff below has both ends of the comparison.
@@ -698,6 +701,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
         with:
+          no-cache: ${{ runner.environment == 'self-hosted' }}
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node bundle runtime
         if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
@@ -774,6 +778,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
         with:
+          no-cache: ${{ runner.environment == 'self-hosted' }}
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node bundle runtime
         if: steps.scope.outputs.run == 'true'
@@ -906,7 +911,7 @@ jobs:
     name: Browser gate (e2e)
     needs: provenance
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' && github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -920,6 +925,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
         with:
+          no-cache: ${{ runner.environment == 'self-hosted' }}
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up the pinned Node runtime for the browser gate
         if: steps.scope.outputs.run == 'true'
@@ -1041,6 +1047,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
         with:
+          no-cache: ${{ runner.environment == 'self-hosted' }}
           bun-version: ${{ env.BUN_VERSION }}
       - name: Set up pinned Node test runtime
         if: steps.scope.outputs.run == 'true'
