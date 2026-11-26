@@ -36,8 +36,22 @@
   "jest": {
     "preset": "jest-expo",
     "transform": {
-      "[/\\\\](?:lib[/\\\\](?:hlsPlayback\\.web|syraPodcasts|references[/\\\\]commerceCards)\\.ts|components[/\\\\]Profile[/\\\\]openProfileMediaPicker\\.tsx|components[/\\\\]sharedRouteScreens\\.tsx|utils[/\\\\]notifications\\.ts)$": "<rootDir>/test-support/hlsPlaybackTransform.js"
+      "[/\\\\](?:lib[/\\\\](?:hlsPlayback\\.web|syraPodcasts|references[/\\\\]commerceCards)\\.ts|components[/\\\\]Profile[/\\\\]openProfileMediaPicker\\.tsx|components[/\\\\]sharedRouteScreens\\.tsx|utils[/\\\\]notifications\\.ts)$": "<rootDir>/test-support/hlsPlaybackTransform.js",
+      "\\.bloom$": "<rootDir>/test-support/bloomTransform.js"
     },
+    "moduleFileExtensions": [
+      "js",
+      "mjs",
+      "cjs",
+      "jsx",
+      "ts",
+      "mts",
+      "cts",
+      "tsx",
+      "json",
+      "node",
+      "bloom"
+    ],
     "transformIgnorePatterns": [
       "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|@oxy\\.so/bloom|@mercaria\\.co/sdk|@noble))",
       "/node_modules/react-native-reanimated/plugin/",
@@ -78,6 +92,7 @@
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",
+      "**/*.bloom",
       "!**/__tests__/**",
       "!**/__perf__/**",
       "!test-support/perf*",
