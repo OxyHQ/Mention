@@ -305,6 +305,15 @@ filters, frozen window, candidate count and score/ID ordering are unchanged.
 See [the production query measurements](audits/2026-11-16-explore-decay.md) for
 what was measured and its limits.
 
+Explore's candidate read scores a day of public originals, and the cost of a
+cold build is the disk read of those posts, not the scoring: seconds when the
+blocks were read recently, 17 to 25 s when the shared database evicted them
+(2026-11-26). The anonymous-feed cache keeps no copy of a key idle for 15
+minutes, so that reader paid the whole read. `ExploreWarmer` runs the same
+`exploreSource` candidate read every 4 minutes on the scheduler leader (behind a
+cluster-wide Redis lock) so the blocks stay resident for every language; it
+logs one `[ExploreWarmer] Warmed …` line per run.
+
 It now excludes explicitly hidden/muted/blocked authors before source caps and
 applies the existing hidden-topic multiplier to canonical topics and hashtags
 before its score keyset. Old Explore score/session cursors restart with typed

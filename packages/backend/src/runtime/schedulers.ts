@@ -32,6 +32,15 @@ export function startSchedulers(): void {
     logger.warn('Failed to initialize trending service', error);
   }
 
+  // Explore warm-up (4-min interval): keeps the day of posts Explore scores in the
+  // database cache so a cold anonymous build is seconds, not a full disk read.
+  try {
+    const { exploreWarmer } = require('../services/feed/ExploreWarmer');
+    exploreWarmer.start();
+  } catch (error) {
+    logger.warn('Failed to start explore warmer', error);
+  }
+
   // Post Classification Service (5-min interval; no-ops unless inference is configured)
   try {
     const {
@@ -200,6 +209,13 @@ export async function stopSchedulers(): Promise<void> {
     trendingService.cleanup();
   } catch (error) {
     logger.warn('Failed to stop trending service', error);
+  }
+
+  try {
+    const { exploreWarmer } = require('../services/feed/ExploreWarmer');
+    exploreWarmer.stop();
+  } catch (error) {
+    logger.warn('Failed to stop explore warmer', error);
   }
 
   try {
