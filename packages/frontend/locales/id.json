@@ -388,6 +388,9 @@
     "clearAll": {
       "a11y": "Hapus semua konten"
     },
+    "actions": {
+      "a11y": "Tindakan penyusun"
+    },
     "languages": {
       "add": "Tambah bahasa",
       "makeMain": "Jadikan bahasa utama",
