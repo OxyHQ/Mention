@@ -6,9 +6,15 @@ const mockAuth = {
   canUsePrivateApi: true,
   isAuthResolved: true,
 };
-const mockQuery: { data?: { self: null | { status: string } }; isSuccess: boolean } = {
-  data: undefined,
-  isSuccess: true,
+/** `useSupervision()`'s Services 15 `RecordView`: `value`, `status`, `refresh`. */
+const mockQuery: {
+  value?: { self: null | { status: string } };
+  status: 'idle' | 'loading' | 'success' | 'error';
+  refresh: jest.Mock;
+} = {
+  value: undefined,
+  status: 'success',
+  refresh: jest.fn(),
 };
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => mockAuth,
@@ -23,7 +29,8 @@ function Probe() {
 beforeEach(() => {
   mockAuth.user = { id: 'person', kind: 'personal' };
   mockAuth.canUsePrivateApi = true;
-  mockQuery.data = undefined;
+  mockQuery.value = undefined;
+  mockQuery.status = 'success';
 });
 afterEach(() => act(() => renderer?.unmount()));
 
@@ -32,17 +39,17 @@ it('does not treat retained success metadata without fresh shared data as an adu
     renderer = TestRenderer.create(<Probe />);
   });
   expect(result.ready).toBe(false);
-  mockQuery.data = { self: null };
+  mockQuery.value = { self: null };
   act(() => renderer.update(<Probe />));
   expect(result.ready).toBe(true);
   expect(result.supervised).toBe(false);
-  mockQuery.data = undefined;
+  mockQuery.value = undefined;
   act(() => renderer.update(<Probe />));
   expect(result.ready).toBe(false);
 });
 
 it('uses the shared active/orphaned decision and withdraws presentation access on account transition', () => {
-  mockQuery.data = { self: { status: 'orphaned' } };
+  mockQuery.value = { self: { status: 'orphaned' } };
   act(() => {
     renderer = TestRenderer.create(<Probe />);
   });
@@ -52,8 +59,22 @@ it('uses the shared active/orphaned decision and withdraws presentation access o
   expect(result.ready).toBe(false);
   mockAuth.canUsePrivateApi = true;
   mockAuth.user = { id: 'organization', kind: 'organization' };
-  mockQuery.data = undefined;
+  mockQuery.value = undefined;
   act(() => renderer.update(<Probe />));
   expect(result.ready).toBe(true);
   expect(result.supervised).toBe(false);
+});
+
+it("reports a failed read as isError and keeps the read's refresh", () => {
+  mockQuery.status = 'error';
+  act(() => {
+    renderer = TestRenderer.create(<Probe />);
+  });
+  expect(result.isError).toBe(true);
+  expect(result.ready).toBe(false);
+  result.refresh();
+  expect(mockQuery.refresh).toHaveBeenCalledTimes(1);
+  mockQuery.status = 'success';
+  act(() => renderer.update(<Probe />));
+  expect(result.isError).toBe(false);
 });
