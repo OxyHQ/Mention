@@ -157,15 +157,17 @@ jobs:
 
   # The Seldon race (OxyHQ/oxy docs/engineering/build-and-deploy.md, CI on
   # Seldon), opt-in with the repository variable CI_SELDON_RACE=true, on pull
-  # requests only: a cancelled loser makes its run conclude `cancelled`, and the
-  # deploy workflows trust only a CI run that concluded `success`. The raced
+  # requests and the merge queue. Never on push: a cancelled loser makes its
+  # run conclude `cancelled`, and the deploy workflows trust only a push CI run
+  # that concluded `success`; merge-queue-verified.sh accepts a queue run that
+  # concluded `cancelled` when its CI complete passed. The raced
   # jobs (quality, tests, backend-test) run on the self-hosted seldon-ci pool; a
   # lane still queued 3 minutes after it was created gets its hosted twin (the
   # `-hosted` jobs), the first lane to start wins and race-finish cancels the
   # other. CI complete takes the raced jobs' verdict from the race.
   race:
     needs: provenance
-    if: ${{ !cancelled() && vars.CI_SELDON_RACE == 'true' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork }}
+    if: ${{ !cancelled() && vars.CI_SELDON_RACE == 'true' && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork }}
     uses: OxyHQ/oxy/.github/workflows/seldon-race-start.yml@main
     permissions:
       actions: read
@@ -185,7 +187,7 @@ jobs:
     # would otherwise skip the dependent too; it runs unless provenance
     # positively answered verified.
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
     concurrency:
       group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-Build, lint and typecheck
     permissions: &race-lane-permissions

@@ -48,7 +48,10 @@ candidate_runs="$(
       '.workflow_runs[]
         | select(.head_sha == $sha
             and .event == "merge_group"
-            and .conclusion == "success"
+            # `cancelled` too: the Seldon race cancels a losing lane, which makes
+            # the run conclude `cancelled` with CI complete green. The CI
+            # complete check below is what vouches, for either conclusion.
+            and (.conclusion == "success" or .conclusion == "cancelled")
             and .head_repository.full_name == $repo
             and (.path == $path or (.path | startswith($path + "@"))))
         | .id'
