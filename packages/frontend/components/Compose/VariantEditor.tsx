@@ -12,7 +12,13 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
-import { AVATAR_SIZE, BOTTOM_LEFT_PAD, cardRemoveControl, composeSpace } from './composeLayout';
+import {
+  AVATAR_SIZE,
+  BOTTOM_LEFT_PAD,
+  attachedCardFillFloored,
+  cardRemoveControl,
+  composeSpace,
+} from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
 import {
@@ -273,14 +279,12 @@ const VariantEditor = memo(function VariantEditor({
             item.article
               ? Group(
                   VStack(
-                    Embed(
-                      <PostArticlePreview
-                        title={item.article.title}
-                        body={item.article.body}
-                        onPress={handleArticlePress}
-                        style={styles.articlePreview}
-                      />,
-                    ),
+                    PostArticlePreview({
+                      title: item.article.title,
+                      body: item.article.body,
+                      onPress: handleArticlePress,
+                      look: attachedCardFillFloored,
+                    }),
                   )
                     .frame({ width: '280', height: composeSpace.space.cardHeight })
                     .background('mutedFill')
@@ -351,16 +355,6 @@ const styles = StyleSheet.create({
   },
   articleSection: {
     marginTop: 4,
-  },
-  articlePreview: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    padding: 16,
-    borderWidth: 0,
-    borderRadius: 0,
-    backgroundColor: 'transparent',
-    justifyContent: 'space-between',
   },
 });
 

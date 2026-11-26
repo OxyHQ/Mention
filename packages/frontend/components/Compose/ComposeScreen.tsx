@@ -213,6 +213,8 @@ import { MentionSearchContext, useCreateMentionSearchCache } from '@/context/Men
 // Keep this in sync with PostItem constants
 import {
   BOTTOM_LEFT_PAD,
+  attachedCardFill,
+  attachedCardFillFloored,
   attachmentCard,
   attachmentsRow,
   bottomLeftInset,
@@ -3608,14 +3610,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                               onRemove={removeArticle}
                                                               look={attachmentCard}
                                                             >
-                                                              <PostArticlePreview
-                                                                title={article.title}
-                                                                body={article.body}
-                                                                onPress={openArticleEditor}
-                                                                style={
-                                                                  styles.articleAttachmentPreview
-                                                                }
-                                                              />
+                                                              {toElement(
+                                                                PostArticlePreview({
+                                                                  title: article.title,
+                                                                  body: article.body,
+                                                                  onPress: openArticleEditor,
+                                                                  look: attachedCardFillFloored,
+                                                                }),
+                                                              )}
                                                             </AttachmentCarouselItem>
                                                           );
                                                         }
@@ -3633,15 +3635,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                               onRemove={removeEvent}
                                                               look={attachmentCard}
                                                             >
-                                                              <PostAttachmentEvent
-                                                                name={event.name}
-                                                                date={event.date}
-                                                                location={event.location}
-                                                                onPress={openEventEditor}
-                                                                style={
-                                                                  styles.articleAttachmentPreview
-                                                                }
-                                                              />
+                                                              {toElement(
+                                                                PostAttachmentEvent({
+                                                                  name: event.name,
+                                                                  date: event.date,
+                                                                  location: event.location,
+                                                                  onPress: openEventEditor,
+                                                                  look: attachedCardFillFloored,
+                                                                  spread: true,
+                                                                }),
+                                                              )}
                                                             </AttachmentCarouselItem>
                                                           );
                                                         }
@@ -3659,22 +3662,23 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                                               onRemove={removeRoom}
                                                               look={attachmentCard}
                                                             >
-                                                              <RoomCard
-                                                                room={{
-                                                                  _id: attachedRoom.roomId,
-                                                                  title: attachedRoom.title,
-                                                                  status:
-                                                                    attachedRoom.status ||
-                                                                    'scheduled',
-                                                                  topic: attachedRoom.topic,
-                                                                  participants: [],
-                                                                  host: attachedRoom.host || '',
-                                                                }}
-                                                                variant="compact"
-                                                                style={
-                                                                  styles.articleAttachmentPreview
-                                                                }
-                                                              />
+                                                              {toElement(
+                                                                RoomCard({
+                                                                  room: {
+                                                                    _id: attachedRoom.roomId,
+                                                                    title: attachedRoom.title,
+                                                                    status:
+                                                                      attachedRoom.status ||
+                                                                      'scheduled',
+                                                                    topic: attachedRoom.topic,
+                                                                    participants: [],
+                                                                    host: attachedRoom.host || '',
+                                                                  },
+                                                                  variant: 'compact',
+                                                                  look: attachedCardFill,
+                                                                  spread: true,
+                                                                }),
+                                                              )}
                                                             </AttachmentCarouselItem>
                                                           );
                                                         }

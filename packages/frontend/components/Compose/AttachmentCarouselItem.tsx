@@ -1,13 +1,12 @@
 import type React from 'react';
 import type { ReactNode } from 'react';
-import { View, type ViewStyle } from 'react-native';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { tokens } from '@oxy.so/bloom/styles';
 
 import {
   Embed,
+  HStack,
   Icon,
   type IconComponent,
   type ViewModifier,
@@ -52,20 +51,18 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
   return toElement(
     VStack(
       total > 1
-        ? Embed(
-            // A React Native view with `box-none`: the language's
-            // `allowsHitTesting('children')` is drawn on the web as `none` on the box
-            // and `auto` on what is inside it, which is not what react-native-web
-            // gives a disabled control here.
-            <View style={MOVE_ROW}>
-              {toElement(
-                control(RiArrowLeftLine, canMoveLeft, () => onMove(attachmentKey, 'left')),
-              )}
-              {toElement(
-                control(RiArrowRightSLine, canMoveRight, () => onMove(attachmentKey, 'right')),
-              )}
-            </View>,
+        ? // The move controls along the bottom. The app's inline `box-none` is a
+          // native hit testing: react-native-web writes it as a CSS value the
+          // browser drops, so on the web the row's box takes touches as any view.
+          HStack(
+            control(RiArrowLeftLine, canMoveLeft, () => onMove(attachmentKey, 'left')),
+            control(RiArrowRightSLine, canMoveRight, () => onMove(attachmentKey, 'right')),
           )
+            .justify('between')
+            .align('center')
+            .zIndex('2')
+            .position({ left: 'sm', right: 'sm', bottom: 'sm' })
+            .when('native', (v) => v.allowsHitTesting('children'))
         : null,
       Embed(children),
       VStack(Icon(RiCloseLine).size('sm').foreground('foreground'))
@@ -82,18 +79,5 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
     ).modifier(look),
   );
 };
-
-/** The move controls along the bottom (`absolute left-2 right-2 bottom-2 flex-row justify-between items-center z-[2]`). */
-const MOVE_ROW = {
-  position: 'absolute',
-  left: tokens.space.sm,
-  right: tokens.space.sm,
-  bottom: tokens.space.sm,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  zIndex: 2,
-  pointerEvents: 'box-none',
-} satisfies ViewStyle;
 
 export default AttachmentCarouselItem;

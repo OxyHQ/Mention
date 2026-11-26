@@ -48,7 +48,7 @@ jest.mock('@/components/Compose/ComposeAltButton', () => ({
 }));
 jest.mock('@/components/Post/PostArticlePreview', () => ({
   __esModule: true,
-  default: jest.requireActual<typeof import('react-native')>('react-native').View,
+  default: () => null,
 }));
 
 jest.mock('@/components/MentionTextInput', () => {

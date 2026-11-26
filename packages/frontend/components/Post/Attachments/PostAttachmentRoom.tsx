@@ -1,5 +1,4 @@
-import type React from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { ViewModifier } from '@oxy.so/bloom-language';
 import RoomCard from '@/components/RoomCard';
 
 interface PostAttachmentRoomProps {
@@ -9,34 +8,33 @@ interface PostAttachmentRoomProps {
   topic?: string;
   host?: string;
   onPress?: () => void;
-  /** The cell's size from the row. */
-  style?: StyleProp<ViewStyle>;
+  /** The cell's frame and padding from the row, in place of the compact card's own padding. */
+  look?: ViewModifier;
 }
 
-const PostAttachmentRoom: React.FC<PostAttachmentRoomProps> = ({
+/** A post's room attachment: the compact room card. */
+function PostAttachmentRoom({
   roomId,
   title,
   status,
   topic,
   host,
   onPress,
-  style,
-}) => {
-  return (
-    <RoomCard
-      room={{
-        _id: roomId,
-        title,
-        status: status || 'scheduled',
-        topic,
-        participants: [],
-        host: host || '',
-      }}
-      variant="compact"
-      onPress={onPress}
-      style={style}
-    />
-  );
-};
+  look,
+}: PostAttachmentRoomProps) {
+  return RoomCard({
+    room: {
+      _id: roomId,
+      title,
+      status: status || 'scheduled',
+      topic,
+      participants: [],
+      host: host || '',
+    },
+    variant: 'compact',
+    onPress,
+    look,
+  });
+}
 
 export default PostAttachmentRoom;

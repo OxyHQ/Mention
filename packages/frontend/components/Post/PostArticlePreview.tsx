@@ -1,43 +1,48 @@
-import type React from 'react';
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { Card } from '@oxy.so/bloom/card';
+import { Card, RawText, type ViewModifier, defineModifier, view } from '@oxy.so/bloom-language';
 
-import { RawText, toElement } from '@oxy.so/bloom-language';
+/** The card's own frame: 200pt wide, at least 140 tall, padded. */
+const articleFrame = defineModifier((v) =>
+  v.padding('lg').frame({ width: '200', minHeight: '140' }),
+);
 
 interface PostArticlePreviewProps {
   title?: string;
   body?: string;
   onPress?: () => void;
-  /** The caller's size over the card's own 200pt width. */
-  style?: StyleProp<ViewStyle>;
+  /** The caller's frame and padding in place of the card's own (200pt wide, at least 140 tall). */
+  look?: ViewModifier;
 }
 
-const styles = StyleSheet.create({
-  card: { width: 200, minHeight: 140, padding: 16, justifyContent: 'space-between' },
-});
-
-const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, onPress, style }) => {
+/**
+ * Bloom's outlined card owns the chrome (card fill, 1px border, corner); a card
+ * with no `onPress` renders as a plain view, as the disabled touchable did.
+ */
+const PostArticlePreview = view(function PostArticlePreview({
+  title,
+  body,
+  onPress,
+  look,
+}: PostArticlePreviewProps) {
   const trimmedTitle = title?.trim();
   const trimmedBody = body?.trim();
 
-  return (
-    // Bloom's outlined card owns the chrome (card fill, 1px border, corner); a
-    // card with no `onPress` renders as a plain view, as the disabled touchable did.
-    <Card radius="radius-16" style={[styles.card, style]} onPress={onPress} appearance="outline">
-      {toElement(
-        RawText(trimmedTitle || 'Untitled article')
-          .foreground('foreground')
-          .font('18')
-          .leading('28px')
-          .weight('bold')
-          .margin('bottom', 'md')
-          .lines(2),
-      )}
-      {trimmedBody
-        ? toElement(RawText(trimmedBody).foreground('muted').font('sm').leading('18px').lines(3))
-        : null}
-    </Card>
-  );
-};
+  return Card(
+    RawText(trimmedTitle || 'Untitled article')
+      .foreground('foreground')
+      .font('18')
+      .leading('28px')
+      .weight('bold')
+      .margin('bottom', 'md')
+      .lines(2),
+    trimmedBody
+      ? RawText(trimmedBody).foreground('muted').font('sm').leading('18px').lines(3)
+      : null,
+  )
+    .style('outline')
+    .radius('lg')
+    .modifier(look ?? articleFrame)
+    .justify('between')
+    .onPress(onPress);
+});
 
 export default PostArticlePreview;

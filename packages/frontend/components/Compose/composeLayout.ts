@@ -41,6 +41,22 @@ export const attachmentCard = defineModifier((v) =>
     .corner('15')
     .clipped(),
 );
+/**
+ * A card drawn inside an attachment card (an article, an event, a room): it fills
+ * the cell in place of its own frame and padding, with no surface of its own (the
+ * attachment card paints it). The card spreads its content (`spread`).
+ */
+export const attachedCardFill = defineModifier((v) =>
+  v.padding('lg').frame({ width: 'full', height: 'full' }).background('transparent').grow(),
+);
+/** The same, for a card with a 140pt floor of its own (an article, an event). */
+export const attachedCardFillFloored = defineModifier((v) =>
+  v
+    .padding('lg')
+    .frame({ width: 'full', height: 'full', minHeight: '140' })
+    .background('transparent')
+    .grow(),
+);
 /** A thread item's attachment card: the same frame on the surface fill. */
 export const attachmentCardOnSurface = defineModifier((v) =>
   v

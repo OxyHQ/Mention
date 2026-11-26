@@ -171,10 +171,8 @@ const LiveRoomsScreen = screen(function LiveRoomsScreen() {
                 subtitle="Join the conversation"
               />,
             ),
-            Embed(
-              liveRooms.map((room) => (
-                <RoomCard key={room._id} room={room} onPress={() => joinLiveRoom(room._id)} />
-              )),
+            liveRooms.map((room) =>
+              RoomCard({ room, onPress: () => joinLiveRoom(room._id) }).id(room._id),
             ),
           )
             .padding('horizontal', 'lg')
@@ -198,14 +196,10 @@ const LiveRoomsScreen = screen(function LiveRoomsScreen() {
                 subtitle="Scheduled rooms"
               />,
             ),
-            Embed(
-              scheduledRooms.map((room) => (
-                <RoomCard
-                  key={room._id}
-                  room={room}
-                  onPress={() => router.push(`/live-rooms/${room._id}`)}
-                />
-              )),
+            scheduledRooms.map((room) =>
+              RoomCard({ room, onPress: () => router.push(`/live-rooms/${room._id}`) }).id(
+                room._id,
+              ),
             ),
           )
             .padding('horizontal', 'lg')

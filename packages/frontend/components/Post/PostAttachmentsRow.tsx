@@ -898,33 +898,32 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
         );
       }
       if (item.type === 'event') {
-        return (
-          <PostAttachmentEvent
-            key={`event-${postId ?? ''}-${idx}`}
-            name={event?.name || ''}
-            date={event?.date || ''}
-            location={event?.location}
-            onPress={
+        return toElement(
+          PostAttachmentEvent({
+            name: event?.name || '',
+            date: event?.date || '',
+            location: event?.location,
+            onPress:
               postId && !homiioCase
                 ? () => router.push(`/events/${encodeURIComponent(postId)}`)
-                : onEventPress || undefined
-            }
-            style={isSingleItem ? FULL_CELL : cells.event}
-          />
+                : onEventPress || undefined,
+            look: isSingleItem ? fullFrames.event : frames.event,
+          }),
+          `event-${postId ?? ''}-${idx}`,
         );
       }
       if (item.type === 'room') {
-        return (
-          <PostAttachmentRoom
-            key={`room-${postId ?? ''}-${idx}`}
-            roomId={room?.roomId || ''}
-            title={room?.title || ''}
-            status={room?.status}
-            topic={room?.topic}
-            host={room?.host}
-            onPress={onRoomPress || undefined}
-            style={isSingleItem ? undefined : cells.room}
-          />
+        return toElement(
+          PostAttachmentRoom({
+            roomId: room?.roomId || '',
+            title: room?.title || '',
+            status: room?.status,
+            topic: room?.topic,
+            host: room?.host,
+            onPress: onRoomPress || undefined,
+            look: isSingleItem ? undefined : frames.room,
+          }),
+          `room-${postId ?? ''}-${idx}`,
         );
       }
       if (item.type === 'homiioCase') {
@@ -1183,8 +1182,6 @@ const FULL_CELL = StyleSheet.create({ cell: { width: '100%' } }).cell;
 /** A cell beside others: its kind's width, at one of the row's two heights. */
 function cellSizes(height: number) {
   return StyleSheet.create({
-    event: { width: 240, height },
-    room: { width: 260, height },
     card: { width: 280, height },
   });
 }
@@ -1200,6 +1197,7 @@ const rowSpace = defineTokens({ space: { row: ROW_HEIGHT, tall: TALL_ROW_HEIGHT 
  */
 const fullFrames = {
   article: defineModifier((v) => v.frame({ width: 'full', minHeight: '140' })),
+  event: defineModifier((v) => v.frame({ width: 'full', minHeight: '140' })),
   card: defineModifier((v) => v.frame({ width: 'full' })),
 };
 const FRAMES = {
@@ -1207,12 +1205,22 @@ const FRAMES = {
     v.frame({ width: '200', minHeight: '140', height: rowSpace.space.row }),
   ),
   card: defineModifier((v) => v.frame({ width: '280', height: rowSpace.space.row })),
+  event: defineModifier((v) =>
+    v.frame({ width: '240', minHeight: '140', height: rowSpace.space.row }),
+  ),
+  // The compact room card's own padding, then its cell.
+  room: defineModifier((v) => v.padding('md').frame({ width: '260', height: rowSpace.space.row })),
 };
 const TALL_FRAMES = {
   article: defineModifier((v) =>
     v.frame({ width: '200', minHeight: '140', height: rowSpace.space.tall }),
   ),
   card: defineModifier((v) => v.frame({ width: '280', height: rowSpace.space.tall })),
+  event: defineModifier((v) =>
+    v.frame({ width: '240', minHeight: '140', height: rowSpace.space.tall }),
+  ),
+  // The compact room card's own padding, then its cell.
+  room: defineModifier((v) => v.padding('md').frame({ width: '260', height: rowSpace.space.tall })),
 };
 
 export default PostAttachmentsRow;

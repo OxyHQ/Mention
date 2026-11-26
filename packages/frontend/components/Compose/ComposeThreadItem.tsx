@@ -1,7 +1,7 @@
 import { CommerceCard } from '@/components/Post/Attachments/CommerceCard';
 import { commerceReferenceKey } from '@/utils/commerceReferences';
 import { memo, useCallback, useMemo } from 'react';
-import { View, ScrollView, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
+import { ScrollView, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import type { AccountNode } from '@oxy.so/core';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
@@ -31,6 +31,8 @@ import type { MentionTextValue } from '@/utils/mentions';
 
 import {
   BOTTOM_LEFT_PAD,
+  attachedCardFill,
+  attachedCardFillFloored,
   attachmentCard,
   attachmentCardOnSurface,
   attachmentsRow,
@@ -57,8 +59,6 @@ export interface ComposeThreadItemStyles {
   threadTextInput: TextStyle;
   mediaPreviewScroll: ViewStyle;
   mediaPreviewImage: ImageStyle;
-  mediaReorderControls: ViewStyle;
-  articleAttachmentPreview: ViewStyle;
 }
 
 interface ComposeThreadItemProps {
@@ -421,27 +421,25 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                                     />,
                                   )
                                 : null,
-                              // The row stays a view: its style's `pointerEvents: 'box-none'`
-                              // is what the web draws (the language's is the web's own).
+                              // The move controls along the bottom. The inline `box-none` is a
+                              // native hit testing: react-native-web writes it as a CSS value the
+                              // browser drops, so on the web the row's box takes touches.
                               mediaCount > 1
-                                ? Embed(
-                                    <View
-                                      style={[styles.mediaReorderControls, pointerEventsBoxNone]}
-                                    >
-                                      {toElement(
-                                        reorderStep(RiArrowLeftLine, mediaIndex === 0, () =>
-                                          onMediaMove(threadId, mediaItem.id, 'left'),
-                                        ),
-                                      )}
-                                      {toElement(
-                                        reorderStep(
-                                          RiArrowRightSLine,
-                                          mediaIndex === mediaCount - 1,
-                                          () => onMediaMove(threadId, mediaItem.id, 'right'),
-                                        ),
-                                      )}
-                                    </View>,
+                                ? HStack(
+                                    reorderStep(RiArrowLeftLine, mediaIndex === 0, () =>
+                                      onMediaMove(threadId, mediaItem.id, 'left'),
+                                    ),
+                                    reorderStep(
+                                      RiArrowRightSLine,
+                                      mediaIndex === mediaCount - 1,
+                                      () => onMediaMove(threadId, mediaItem.id, 'right'),
+                                    ),
                                   )
+                                    .justify('between')
+                                    .align('center')
+                                    .zIndex('2')
+                                    .position({ left: 'sm', right: 'sm', bottom: 'sm' })
+                                    .when('native', (v) => v.allowsHitTesting('children'))
                                 : null,
                               cardRemoveControl(() =>
                                 onMediaRemove(threadId, mediaItem.id),
@@ -461,14 +459,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                           toElement(
                             VStack(
                               VStack(
-                                Embed(
-                                  <PostArticlePreview
-                                    title={item.article.title}
-                                    body={item.article.body}
-                                    onPress={handleArticlePress}
-                                    style={styles.articleAttachmentPreview}
-                                  />,
-                                ),
+                                PostArticlePreview({
+                                  title: item.article.title,
+                                  body: item.article.body,
+                                  onPress: handleArticlePress,
+                                  look: attachedCardFillFloored,
+                                }),
                               )
                                 .modifier(attachmentCardOnSurface)
                                 .onPress(handleArticlePress)
@@ -482,15 +478,14 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                           toElement(
                             VStack(
                               VStack(
-                                Embed(
-                                  <PostAttachmentEvent
-                                    name={item.event.name}
-                                    date={item.event.date}
-                                    location={item.event.location}
-                                    onPress={handleEventPress}
-                                    style={styles.articleAttachmentPreview}
-                                  />,
-                                ),
+                                PostAttachmentEvent({
+                                  name: item.event.name,
+                                  date: item.event.date,
+                                  location: item.event.location,
+                                  onPress: handleEventPress,
+                                  look: attachedCardFillFloored,
+                                  spread: true,
+                                }),
                               )
                                 .modifier(attachmentCardOnSurface)
                                 .onPress(handleEventPress)
@@ -545,20 +540,19 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
                           toElement(
                             VStack(
                               VStack(
-                                Embed(
-                                  <RoomCard
-                                    room={{
-                                      _id: item.room.roomId,
-                                      title: item.room.title,
-                                      status: item.room.status || 'scheduled',
-                                      topic: item.room.topic,
-                                      participants: [],
-                                      host: item.room.host || '',
-                                    }}
-                                    variant="compact"
-                                    style={styles.articleAttachmentPreview}
-                                  />,
-                                ),
+                                RoomCard({
+                                  room: {
+                                    _id: item.room.roomId,
+                                    title: item.room.title,
+                                    status: item.room.status || 'scheduled',
+                                    topic: item.room.topic,
+                                    participants: [],
+                                    host: item.room.host || '',
+                                  },
+                                  variant: 'compact',
+                                  look: attachedCardFill,
+                                  spread: true,
+                                }),
                               ).modifier(attachmentCardOnSurface),
                               cardRemoveControl(handleRoomRemove).hitSlop('sm'),
                             ).alignSelf('start'),
@@ -624,9 +618,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     );
   },
 );
-
-// Stable style objects to avoid re-creating on each render
-const pointerEventsBoxNone = { pointerEvents: 'box-none' as const };
 
 /** Moves a media card one place along the row; dimmed and inert at its end. */
 const reorderStep = (glyph: typeof RiArrowLeftLine, atEnd: boolean, onPress: () => void) =>

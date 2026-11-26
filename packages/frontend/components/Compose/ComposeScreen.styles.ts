@@ -210,16 +210,6 @@ export const composeStyles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 80,
   },
-  articleAttachmentPreview: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    padding: 16,
-    borderWidth: 0,
-    borderRadius: 0,
-    backgroundColor: 'transparent',
-    justifyContent: 'space-between',
-  },
   mediaPreviewScroll: {
     paddingRight: 12,
     gap: 12,
@@ -227,15 +217,5 @@ export const composeStyles = StyleSheet.create({
   mediaPreviewImage: {
     width: '100%',
     height: '100%',
-  },
-  mediaReorderControls: {
-    position: 'absolute',
-    left: 8,
-    right: 8,
-    bottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 2,
   },
 });

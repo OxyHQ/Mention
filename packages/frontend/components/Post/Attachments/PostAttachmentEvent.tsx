@@ -1,33 +1,40 @@
 import React from 'react';
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { Card } from '@oxy.so/bloom/card';
 
-import { Embed, Group, RawText, VStack, defineTokens, toElement } from '@oxy.so/bloom-language';
+import {
+  Card,
+  Group,
+  RawText,
+  VStack,
+  type ViewModifier,
+  defineModifier,
+  defineTokens,
+  view,
+} from '@oxy.so/bloom-language';
 
 const eventColors = defineTokens({ color: { hexfff: '#fff' } });
+
+/** The card's own frame: 200pt wide, at least 140 tall. */
+const eventFrame = defineModifier((v) => v.frame({ width: '200', minHeight: '140' }));
 
 interface PostAttachmentEventProps {
   name: string;
   date: string; // ISO date string or Date object
   location?: string;
   onPress?: () => void;
-  /** The cell's size from the row (its full width when the event is alone). */
-  style?: StyleProp<ViewStyle>;
+  /** The caller's frame (the row's cell, its full width when the event is alone) in place of the card's own. */
+  look?: ViewModifier;
+  /** Spread the date block and the details from end to end (a card filling its caller's cell). */
+  spread?: boolean;
 }
 
-// The card lays its date block and details out in a row, which the language's
-// Card (a container with no stack layout) does not take: it keeps Bloom's Card.
-const styles = StyleSheet.create({
-  card: { width: 200, minHeight: 140, flexDirection: 'row' },
-});
-
-const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
+const PostAttachmentEvent = view(function PostAttachmentEvent({
   name,
   date,
   location,
   onPress,
-  style,
-}) => {
+  look,
+  spread = false,
+}: PostAttachmentEventProps) {
   // Parse date and format
   const eventDate = React.useMemo(() => {
     try {
@@ -50,77 +57,71 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
       })
     : null;
 
-  return (
-    // Bloom's `Card` owns the surface (border, card fill, corner, clip) and,
-    // given `onPress`, the press dip; without one it is a plain, inert view.
-    <Card radius="radius-16" style={[styles.card, style]} onPress={onPress} appearance="outline">
-      {toElement(
-        VStack(
-          day !== null
-            ? Group(
-                RawText(day)
-                  .font('28')
-                  .leading('32px')
-                  .weight('bold')
-                  .foreground(eventColors.color.hexfff),
-                month
-                  ? RawText(month)
-                      .font('11')
-                      .weight('semibold')
-                      .foreground('white')
-                      .textCase('uppercase')
-                      .margin('top', '2xs')
-                  : null,
-                year
-                  ? RawText(year)
-                      .opacity('90')
-                      .font('2xs')
-                      .weight('medium')
-                      .foreground('white')
-                      .margin('top', '2xs')
-                  : null,
-              )
-            : null,
-        )
-          .padding('vertical', 'md')
-          .padding('horizontal', 'sm')
-          .frame({ width: '5xl' })
-          .background('primary')
-          .align('center')
-          .justify('center'),
-      )}
-      {toElement(
-        VStack(
-          RawText(name)
-            .foreground('foreground')
-            .font('md')
-            .weight('semibold')
-            .margin('bottom', 'xs')
-            .leading('20px')
-            .lines(2),
-          Embed(
-            time &&
-              toElement(
-                RawText(time).foreground('muted').font('xs').leading('16px').margin('bottom', 'xs'),
-              ),
-          ),
-          Embed(
-            location &&
-              toElement(
-                RawText(RawText('📍', ' '), RawText(location))
-                  .foreground('muted')
+  // Bloom's `Card` owns the surface (border, card fill, corner, clip) and,
+  // given `onPress`, the press dip; without one it is a plain, inert view. It
+  // lays the date block and the details out in a row.
+  const card = Card(
+    VStack(
+      day !== null
+        ? Group(
+            RawText(day)
+              .font('28')
+              .leading('32px')
+              .weight('bold')
+              .foreground(eventColors.color.hexfff),
+            month
+              ? RawText(month)
                   .font('11')
+                  .weight('semibold')
+                  .foreground('white')
+                  .textCase('uppercase')
                   .margin('top', '2xs')
-                  .lines(1),
-              ),
-          ),
-        )
-          .padding('all', 'md')
-          .flex('1')
-          .justify('center'),
-      )}
-    </Card>
-  );
-};
+              : null,
+            year
+              ? RawText(year)
+                  .opacity('90')
+                  .font('2xs')
+                  .weight('medium')
+                  .foreground('white')
+                  .margin('top', '2xs')
+              : null,
+          )
+        : null,
+    )
+      .padding('vertical', 'md')
+      .padding('horizontal', 'sm')
+      .frame({ width: '5xl' })
+      .background('primary')
+      .align('center')
+      .justify('center'),
+    VStack(
+      RawText(name)
+        .foreground('foreground')
+        .font('md')
+        .weight('semibold')
+        .margin('bottom', 'xs')
+        .leading('20px')
+        .lines(2),
+      time
+        ? RawText(time).foreground('muted').font('xs').leading('16px').margin('bottom', 'xs')
+        : null,
+      location
+        ? RawText(RawText('📍', ' '), RawText(location))
+            .foreground('muted')
+            .font('11')
+            .margin('top', '2xs')
+            .lines(1)
+        : null,
+    )
+      .padding('all', 'md')
+      .flex('1')
+      .justify('center'),
+  )
+    .style('outline')
+    .radius('lg')
+    .axis('horizontal')
+    .modifier(look ?? eventFrame);
+  return (spread ? card.justify('between') : card).onPress(onPress);
+});
 
 export default PostAttachmentEvent;

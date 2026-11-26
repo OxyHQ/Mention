@@ -175,20 +175,17 @@ jest.mock('@/components/Podcast/PostPodcastAttachment', () => {
   return { PostPodcastAttachment: RNView };
 });
 
-jest.mock('@/components/Post/PostArticlePreview', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: RNView };
-});
+jest.mock('@/components/Post/PostArticlePreview', () => ({
+  __esModule: true,
+  default: () => null,
+}));
 
-jest.mock('@/components/Post/Attachments/PostAttachmentEvent', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: RNView };
-});
+jest.mock('@/components/Post/Attachments/PostAttachmentEvent', () => ({
+  __esModule: true,
+  default: () => null,
+}));
 
-jest.mock('@/components/RoomCard', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: RNView };
-});
+jest.mock('@/components/RoomCard', () => ({ __esModule: true, default: () => null }));
 
 const baseItem: ThreadItem = {
   id: 'thread-1',

@@ -99,10 +99,7 @@ jest.mock('@/components/Compose/InteractionSettingsPills', () => {
 });
 
 // The room attachment card draws Bloom icons, which Jest cannot load untranspiled.
-jest.mock('@/components/RoomCard', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: RNView };
-});
+jest.mock('@/components/RoomCard', () => ({ __esModule: true, default: () => null }));
 
 // Attachment previews draw Bloom's `Card`, an untranspiled ESM subpath.
 jest.mock('@oxy.so/bloom/card', () => {
