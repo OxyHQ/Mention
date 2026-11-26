@@ -1,8 +1,11 @@
 import { DECK_LIMITS } from '@mention/shared-types/deck';
 import { getRequiredOxyUserId, type OxyAuthRequest } from '@oxy.so/core/server';
 import { Router } from 'express';
-import { loadDeckWorkspace, saveDeckWorkspace } from '../services/deck/deckWorkspaceService';
-import { deckWorkspaceUpdateSchema } from '../services/deck/deckWorkspaceValidation';
+import {
+  loadDeckWorkspace,
+  saveDeckWorkspace,
+} from '../services/communities/deck/deckWorkspaceService';
+import { deckWorkspaceUpdateSchema } from '../services/communities/deck/deckWorkspaceValidation';
 
 /** Mounted exclusively under authenticatedApi: the session owns this private document. */
 const router = Router();

@@ -13,13 +13,15 @@ const effects = vi.hoisted(() => ({
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-vi.mock('../../services/notificationReadState', () => ({
+vi.mock('../../services/notifications/notificationReadState', () => ({
   SYSTEM_ACTOR: 'system',
   enrichNotificationActor: vi.fn(async (row: unknown) => row),
   markNotificationRead: effects.read,
   markAllNotificationsRead: effects.readAll,
 }));
-vi.mock('../../services/notificationInbox', () => ({ resolveNotificationInboxIds: effects.inbox }));
+vi.mock('../../services/notifications/notificationInbox', () => ({
+  resolveNotificationInboxIds: effects.inbox,
+}));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
   callerOxyUser: vi.fn(() => ({})),

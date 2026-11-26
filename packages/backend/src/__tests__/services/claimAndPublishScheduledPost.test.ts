@@ -25,7 +25,7 @@ vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => und
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('claim-and-publish');

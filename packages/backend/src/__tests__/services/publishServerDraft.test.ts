@@ -41,7 +41,7 @@ vi.mock('../../services/serviceRegistry', () => ({
   getPostFederator: () => ({ federateNewPost: hoisted.federateNewPost }),
   registerPostCreator: vi.fn(),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -55,8 +55,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
-vi.mock('../../services/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
-vi.mock('../../services/MediaMetadataService', () => ({
+vi.mock('../../services/posts/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
+vi.mock('../../services/media/MediaMetadataService', () => ({
   mediaMetadataService: { enrichFromOxy: vi.fn(async (media: unknown[]) => media) },
   readPersistedMediaFields: vi.fn(() => ({})),
 }));
@@ -65,8 +65,8 @@ import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { drainBackgroundWork } from '../../runtime/backgroundWork';
-import { postCollaborationService } from '../../services/PostCollaborationService';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCollaborationService } from '../../services/posts/PostCollaborationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import {
   clearPostScope,
   postScope,

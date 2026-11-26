@@ -8,12 +8,12 @@ import {
   communityMemberships,
 } from '../../db/schema/memberships';
 import { membershipBillingReceipts } from '../../db/schema/membershipBilling';
-import { normalizeMembershipInvoice } from '../../services/memberships/billing/normalize';
+import { normalizeMembershipInvoice } from '../../services/monetization/memberships/billing/normalize';
 import {
   persistMembershipInvoice,
   reconcileMembershipInvoice,
-} from '../../services/memberships/billing/receipts';
-import type { MembershipBillingOffer } from '../../services/memberships/billing/catalogue';
+} from '../../services/monetization/memberships/billing/receipts';
+import type { MembershipBillingOffer } from '../../services/monetization/memberships/billing/catalogue';
 
 const host = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: host }));

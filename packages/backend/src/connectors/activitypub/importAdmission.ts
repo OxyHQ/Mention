@@ -1,5 +1,5 @@
 import { MtnConfig } from '@mention/shared-types';
-import { computeDeterministicScores } from '../../services/contentClassification/spamQuality';
+import { computeDeterministicScores } from '../../services/moderation/contentClassification/spamQuality';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { xTimelineHandle } from './xTimeline';
 import { extractApContentHtml } from './apPostContent';

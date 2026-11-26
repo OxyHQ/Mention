@@ -39,7 +39,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   },
   registerPostFederator: vi.fn(),
 }));
-vi.mock('../../../services/PostHydrationService', () => ({
+vi.mock('../../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
   resolveUserSummaries: vi.fn(
     async (ids: string[]) =>
@@ -62,7 +62,7 @@ import {
 } from '../../helpers/federationFixtures';
 import { withDeadlockRetry } from '../../helpers/serviceFixtures';
 // Importing the service is what registers it with the (mocked) registry above.
-import '../../../services/PostCreationService';
+import '../../../services/posts/PostCreationService';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 
 const scope = federationScope('group-relay');

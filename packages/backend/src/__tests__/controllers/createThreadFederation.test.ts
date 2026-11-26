@@ -47,7 +47,7 @@ vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -64,7 +64,7 @@ vi.mock('../../utils/clarityDocumentWarm', () => ({
   warmClarityDocumentForTextDetached: vi.fn(),
 }));
 
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: {
     // The row as a VALUE, which is what `create` now returns. Only the fields
     // the controller reads are stated: it chains on `id`, counts `mentions`, and

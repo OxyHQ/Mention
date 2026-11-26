@@ -14,7 +14,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { getUsersByIds, cacheStore, resolve } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock('../../utils/clarityClient', () => ({
   getClarityClient: async () => ({ indexing: { resolve } }),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {

@@ -83,7 +83,9 @@ vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   return { ...actual, resolveOxyUser: vi.fn() };
 });
 
-vi.mock('../../../services/userSummaryCache', () => ({ invalidate: mocks.invalidateUsers }));
+vi.mock('../../../services/accounts/userSummaryCache', () => ({
+  invalidate: mocks.invalidateUsers,
+}));
 vi.mock('../../../connectors/oxyIdentity', () => ({
   lookupOxyIdentities: mocks.lookupOxyIdentities,
   resolveOxyIdentity: vi.fn(),
@@ -110,8 +112,8 @@ import { actorService } from '../../../connectors/activitypub/actor.service';
 import { findActorByUri } from '../../../db/federation/actorRepository';
 import { loadRemoteProfileStats } from '../../../services/federation/remoteProfileStats';
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';
-import { reconcileActorIdentityProjection } from '../../../services/ActorIdentityProjectionService';
-import { collapseImportedCopies } from '../../../services/PostEquivalenceService';
+import { reconcileActorIdentityProjection } from '../../../services/accounts/ActorIdentityProjectionService';
+import { collapseImportedCopies } from '../../../services/posts/PostEquivalenceService';
 
 const scope = federationScope('inbound-move');
 const OLD_ACTOR = `${scope.origin}/users/alice`;

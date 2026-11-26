@@ -1,4 +1,4 @@
-import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
+import { eligibleActivitySubscriptionAuthors } from '../../../services/notifications/activitySubscriptionInterest';
 /**
  * For You — multi-source candidate generation.
  *
@@ -58,7 +58,7 @@ import { and, arrayOverlaps, desc, eq, gte, inArray, lte, or, type SQL } from 'd
 import { getDb } from '../../../db/postgres';
 import { posts, postAuthorships, postSubscriptions } from '../../../db/schema';
 import { assembleShellRecords } from '../../../db/posts/postRepository';
-import { ContentAffinityService } from '../../../services/ContentAffinityService';
+import { ContentAffinityService } from '../../../services/feed/ContentAffinityService';
 import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
 import { viewerLanguageSql } from '../feedLanguage';
 import { logger } from '../../../utils/logger';

@@ -25,12 +25,12 @@ vi.mock('../utils/redis', () => ({
 // real service-token `getUsersByIds` fetch to Oxy and hangs the batch tests in
 // the unit env. These tests don't assert on follower counts, so resolve it to
 // an empty map — the intended "no author summaries available" outcome.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
-import { FeedRankingService } from '../services/FeedRankingService';
-import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
+import { FeedRankingService } from '../services/feed/FeedRankingService';
+import { BASELINE_CLASSIFIER_VERSION } from '../services/moderation/BaselineContentClassifier';
 
 /**
  * Unit tests for the ranking signals added/recalibrated in the feed overhaul:

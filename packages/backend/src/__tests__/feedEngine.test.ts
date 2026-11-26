@@ -31,8 +31,8 @@ const gateContentLoad = vi.hoisted(() =>
   ),
 );
 const revokedSocial = vi.hoisted(() => new Set<string>());
-vi.mock('../services/socialFeedEvidence', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../services/socialFeedEvidence')>()),
+vi.mock('../services/feed/socialFeedEvidence', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/feed/socialFeedEvidence')>()),
   attachSocialFeedContext: vi.fn(async () => undefined),
   eligibleSocialPostIds: vi.fn(
     async (ids: string[]) => new Set(ids.filter((id) => !revokedSocial.has(id))),
@@ -80,14 +80,14 @@ const rankPosts = vi.fn(
     return posts;
   },
 );
-vi.mock('../services/FeedRankingService', () => ({
+vi.mock('../services/feed/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
   },
 }));
 
 // sliceFeed → one single-item slice per post, preserving order.
-vi.mock('../services/ThreadSlicingService', () => ({
+vi.mock('../services/posts/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (posts: Array<Record<string, unknown>>) => ({
       slices: posts.map((post) => ({
@@ -102,7 +102,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
 
 // hydrateSlices / hydratePosts → passthrough. A candidate already carries `id`
 // (that IS the record's id), so hydration has nothing to stamp here.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (posts: unknown[]) => posts),
@@ -110,7 +110,7 @@ vi.mock('../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
-vi.mock('../services/FeedSeenPostsService', () => ({
+vi.mock('../services/feed/FeedSeenPostsService', () => ({
   feedSeenPostsService: {
     getSeenPostIds: vi.fn(async () => []),
     markPostsAsSeen: vi.fn(async () => undefined),
@@ -118,7 +118,7 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 }));
 
 import { MtnConfig } from '@mention/shared-types';
-import { postHydrationService } from '../services/PostHydrationService';
+import { postHydrationService } from '../services/posts/PostHydrationService';
 import {
   forYouDefinition,
   mediaDefinition,
@@ -126,10 +126,10 @@ import {
   videosDefinition,
 } from '../mtn/feed/definitions/presets';
 import { safetyFilter } from '../mtn/feed/engine/filters';
-import { feedSeenPostsService } from '../services/FeedSeenPostsService';
+import { feedSeenPostsService } from '../services/feed/FeedSeenPostsService';
 import { selectRankedPage } from '../mtn/feed/selectRankedPage';
 import { FeedEngine, sliceTopWindow } from '../mtn/feed/engine/FeedEngine';
-import { threadSlicingService } from '../services/ThreadSlicingService';
+import { threadSlicingService } from '../services/posts/ThreadSlicingService';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 import { parseChronoCursor } from '../utils/chronoCursor';

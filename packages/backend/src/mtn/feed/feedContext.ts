@@ -1,4 +1,4 @@
-import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
+import { eligibleActivitySubscriptionAuthors } from '../../services/notifications/activitySubscriptionInterest';
 /**
  * Viewer feed-context assembly.
  *
@@ -21,10 +21,10 @@ import type { FeedContext } from './FeedAPI';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { getFollowingIds, getFollowerIds } from '../../utils/privacyHelpers';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
-import { listSubscriptionService } from '../../services/ListSubscriptionService';
-import { userPreferenceService } from '../../services/UserPreferenceService';
-import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
-import { loadMutedLaneIds } from '../../services/safety/viewerSafety';
+import { listSubscriptionService } from '../../services/accounts/ListSubscriptionService';
+import { userPreferenceService } from '../../services/feed/UserPreferenceService';
+import { mergeFederatedFollowIds } from '../../services/feed/viewerFollowGraph';
+import { loadMutedLaneIds } from '../../services/moderation/safety/viewerSafety';
 import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
 import { logger } from '../../utils/logger';
 import { loadViewerLanguages } from '../../utils/viewerLanguage';

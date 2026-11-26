@@ -3,7 +3,7 @@ import {
   finalizeTranslation,
   protectEntities,
   TranslationOutputError,
-} from '../../services/translationOutputGuard';
+} from '../../services/posts/translationOutputGuard';
 
 describe('translation output guard', () => {
   it('strips one echoed <text> wrapper and rejects an empty answer', () => {

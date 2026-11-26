@@ -14,7 +14,7 @@ import {
   createActorProjectionCacheBatch,
   reconcileActorIdentityProjection,
   unmuteIdentityProjection,
-} from '../../services/ActorIdentityProjectionService';
+} from '../../services/accounts/ActorIdentityProjectionService';
 import { reconcileMetaIdentityAndCrossposts } from '../../scripts/reconcileMetaIdentityAndCrossposts';
 import { logger } from '../../utils/logger';
 const mocks = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   scan: vi.fn(),
   del: vi.fn(),
 }));
-vi.mock('../../services/userSummaryCache', () => ({ invalidate: mocks.invalidate }));
+vi.mock('../../services/accounts/userSummaryCache', () => ({ invalidate: mocks.invalidate }));
 vi.mock('../../utils/redis', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getRedisClient: () => ({ isReady: true, scanIterator: mocks.scan, del: mocks.del }),
@@ -41,8 +41,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
     users: { getMany: mocks.users, lookupMany: (ids: string[]) => lookupManyOf(mocks.users)(ids) },
   }),
 }));
-vi.mock('../../services/PostEquivalenceService', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/PostEquivalenceService')>()),
+vi.mock('../../services/posts/PostEquivalenceService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/posts/PostEquivalenceService')>()),
   detectCrosspostEquivalence: mocks.detect,
   reevaluateClusterForPost: mocks.reevaluate,
   reevaluateClusters: vi.fn(),

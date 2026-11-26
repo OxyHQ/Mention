@@ -4,7 +4,7 @@ import {
   compileMuteWords,
   isMutedSubject,
   type MuteWordRule,
-} from '../../services/safety/muteWordMatcher';
+} from '../../services/moderation/safety/muteWordMatcher';
 
 function rule(overrides: Partial<MuteWordRule> & Pick<MuteWordRule, 'value'>): MuteWordRule {
   return { targets: ['content', 'tag'], actorTarget: 'all', ...overrides };

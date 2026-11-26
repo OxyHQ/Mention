@@ -110,7 +110,7 @@ const gate = vi.hoisted(() => {
   return { PublishAsAccessError, operableKindOf: new Map<string, string>() };
 });
 
-vi.mock('../../services/publishAsAccount', () => ({
+vi.mock('../../services/accounts/publishAsAccount', () => ({
   PublishAsAccessError: gate.PublishAsAccessError,
   assertCanPublishAsAccount: vi.fn(
     async (params: { publishAsOxyUserId?: string | null; callerId?: string | null }) => {

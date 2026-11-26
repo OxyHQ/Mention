@@ -29,7 +29,7 @@ import { posts } from '../../db/schema/posts';
 import { likes } from '../../db/schema/engagement';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
-import { ContentAffinityService } from '../../services/ContentAffinityService';
+import { ContentAffinityService } from '../../services/feed/ContentAffinityService';
 
 let db: Database;
 const created: string[] = [];

@@ -3,7 +3,7 @@
  * the container.
  *
  * Both land in a `text[]` column, and `privacy.hiddenWords` is then read by
- * `services/safety/muteWordMatcher.ts` on EVERY feed page the viewer loads. One
+ * `services/moderation/safety/muteWordMatcher.ts` on EVERY feed page the viewer loads. One
  * non-string element accepted here is therefore not a single bad request: it is
  * a STORED value that keeps being read long after the request that wrote it.
  *

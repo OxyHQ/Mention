@@ -122,7 +122,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   blockedEitherWay: vi.fn(async () => new Set()),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),
 }));

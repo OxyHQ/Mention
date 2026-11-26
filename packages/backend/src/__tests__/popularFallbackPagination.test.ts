@@ -57,7 +57,7 @@ import type { MediaItem } from '@mention/shared-types';
 // Hydration is the one collaborator that would reach Oxy over the network. It is
 // a pass-through, so every id asserted below is a real row read out of Postgres,
 // and the cursor between pages is minted by the REAL `buildPopularCursor`.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (records: unknown[]) => records),

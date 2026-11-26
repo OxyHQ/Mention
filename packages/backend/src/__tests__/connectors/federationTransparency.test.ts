@@ -106,14 +106,14 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
   activityPubConnector: {},
   isPermanentlyUnavailableOutboxReason: vi.fn(() => false),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
   getServiceOxyClient: () => ({ users: { get: mocks.getUserById } }),
 }));
-vi.mock('../../services/fediverseSharing', () => ({
+vi.mock('../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(async () => undefined),
 }));

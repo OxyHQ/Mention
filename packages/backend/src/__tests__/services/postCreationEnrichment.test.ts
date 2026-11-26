@@ -52,7 +52,7 @@ vi.mock('../../services/serviceRegistry', () => ({
 
 // Mocked to a no-op so importing PostCreationService does not pull in the heavy
 // `../../server` module graph via the socket-emit hydration path.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
 }));
 
@@ -70,7 +70,7 @@ vi.mock('../../utils/clarityClient', () => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, serviceScope } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { PostVisibility } from '@mention/shared-types';
 
 const scope = serviceScope('post-creation-enrichment');

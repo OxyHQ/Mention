@@ -63,7 +63,7 @@ import {
   writePostgate,
   writeThreadgate,
   type GateResponse,
-} from '../services/postGates';
+} from '../services/posts/access/postGates';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
 import {
@@ -237,7 +237,7 @@ router.post('/:id/translate', ...translationRateLimiters, translatePost);
 
 // Reply controls (threadgate) and quote controls (postgate). Reading one is an
 // action on the post (the read gate); writing one is managing it — see
-// `services/postGates.ts`.
+// `services/posts/access/postGates.ts`.
 const gateRoute =
   (handler: (req: AuthRequest, postId: string) => Promise<GateResponse>, failure: string) =>
   async (req: AuthRequest, res: Response) => {

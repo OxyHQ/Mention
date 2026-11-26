@@ -7,8 +7,8 @@ import { canViewProfileDesign, ProfileVisibility } from '../utils/privacyHelpers
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
-import { loadPublicProfileFacts } from '../services/publicProfileFacts';
-import { isAccountErased } from '../services/accountErasure/erasedAccounts';
+import { loadPublicProfileFacts } from '../services/accounts/publicProfileFacts';
+import { isAccountErased } from '../services/accounts/accountErasure/erasedAccounts';
 
 const router = Router();
 

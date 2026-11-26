@@ -131,7 +131,7 @@ Attribution remains app-paid accounting, never private-data or payer authority.
 Syra podcasts use `syraForOxySession` from the same lazy `/client` boundary, so
 refresh/account switching stay with Oxy and LiveKit is not pulled into that chunk.
 
-The federation media store (`services/mediaCache/oxyMediaStore.ts`) calls the
+The federation media store (`services/media/mediaCache/oxyMediaStore.ts`) calls the
 SDK's `OxyServer.assets.mediaCache` / `assets.federatedMedia` (core 7.19), as
 Mention's workload identity: no hand-built transport. Upload bodies are a Blob
 over the temp file (`fs.openAsBlob`), streamed from disk and never buffered;

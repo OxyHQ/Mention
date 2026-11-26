@@ -3,8 +3,8 @@ import {
   isAheadOfSchedule,
   promotionMultiplier,
   scheduledImpressions,
-} from '../../services/promotion/pacing';
-import { promotionSignal } from '../../services/ranking/signals/promotion';
+} from '../../services/monetization/promotion/pacing';
+import { promotionSignal } from '../../services/feed/ranking/signals/promotion';
 
 const config = { pacingFloorShare: 0.05, maxMultiplier: 3, aheadSlackShare: 0.1 };
 const startsAt = new Date('2026-12-01T00:00:00Z');

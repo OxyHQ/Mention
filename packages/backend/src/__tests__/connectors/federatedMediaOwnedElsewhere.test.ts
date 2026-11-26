@@ -9,13 +9,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ persist: vi.fn(), recordAccess: vi.fn() }));
 
-vi.mock('../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: h.persist,
 }));
-vi.mock('../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: h.recordAccess,
 }));
-vi.mock('../../services/MediaMetadataService', () => ({
+vi.mock('../../services/media/MediaMetadataService', () => ({
   mediaMetadataService: { enrichFromOxy: vi.fn(async (items: unknown) => items) },
 }));
 

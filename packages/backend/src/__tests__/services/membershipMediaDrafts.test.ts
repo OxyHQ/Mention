@@ -10,7 +10,7 @@ import {
 } from '../../db/schema/memberships';
 import { oxyFileReferenceSync } from '../../db/schema/oxyFiles';
 import { fileReferenceEntity, pairKey } from '../../db/oxyFiles/fileReferenceEntities';
-import { expireMembershipMediaDrafts } from '../../services/memberships/mediaDrafts';
+import { expireMembershipMediaDrafts } from '../../services/monetization/memberships/mediaDrafts';
 
 beforeAll(connectPostgres);
 afterAll(closePostgres);

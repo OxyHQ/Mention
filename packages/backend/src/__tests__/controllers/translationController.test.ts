@@ -18,7 +18,7 @@ vi.mock('../../db/posts/postRepository', () => ({
   loadPostRecord: mocks.loadPostRecord,
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydratePosts: mocks.hydratePosts,
     canViewerReadPostId: mocks.canViewerReadPostId,
@@ -26,7 +26,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   },
 }));
 
-vi.mock('../../services/PostTranslationService', () => {
+vi.mock('../../services/posts/PostTranslationService', () => {
   class TranslationRequestError extends Error {
     constructor(
       message: string,
@@ -69,7 +69,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 import { translatePost } from '../../controllers/posts/translation';
-import { TranslationSourceChangedError } from '../../services/PostTranslationService';
+import { TranslationSourceChangedError } from '../../services/posts/PostTranslationService';
 
 function response(): Response {
   const res = {

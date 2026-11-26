@@ -25,10 +25,10 @@ vi.hoisted(() => {
 
 const notes = vi.hoisted(() => ({ invalidateShownNote: vi.fn(async () => {}) }));
 
-vi.mock('../../../services/communityNotes/CommunityNotesService', async () => {
+vi.mock('../../../services/moderation/communityNotes/CommunityNotesService', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../services/communityNotes/CommunityNotesService')
-  >('../../../services/communityNotes/CommunityNotesService');
+    typeof import('../../../services/moderation/communityNotes/CommunityNotesService')
+  >('../../../services/moderation/communityNotes/CommunityNotesService');
   return { ...actual, invalidateShownNote: notes.invalidateShownNote };
 });
 

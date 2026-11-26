@@ -21,7 +21,7 @@ import { inArray } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { likes } from '../../db/schema/engagement';
-import { getNetworkEngagerCounts } from '../../services/networkEngagement';
+import { getNetworkEngagerCounts } from '../../services/engagement/networkEngagement';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
 const scope = postScope('network-engagement');

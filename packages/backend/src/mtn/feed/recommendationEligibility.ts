@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { postContentVariants } from '../../db/schema';
 import { loadPostRecords } from '../../db/posts/postRepository';
-import { authorVariants, resolveVariant } from '../../services/postVariants';
+import { authorVariants, resolveVariant } from '../../services/posts/postVariants';
 import type { CandidatePost } from './engine/types';
 
 /** The owner's calibrated example: a bare number with no independently useful context. */

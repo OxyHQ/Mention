@@ -74,7 +74,7 @@ import {
   PublishAsAccessError,
   resolveAccountKinds,
   type AccountAccessReader,
-} from '../services/publishAsAccount';
+} from '../services/accounts/publishAsAccount';
 
 /**
  * Throw unless this post genuinely continues `authorId`'s own thread.

@@ -38,7 +38,10 @@ vi.mock('../utils/redis', () => ({
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { deletePostRecord, insertPostRecord } from '../db/posts/postRepository';
-import { isPostEligibleForViewTelemetry, recordDedupedView } from '../services/feedViewCounter';
+import {
+  isPostEligibleForViewTelemetry,
+  recordDedupedView,
+} from '../services/engagement/feedViewCounter';
 
 const AUTHOR = 'oxy-view-author';
 const created: string[] = [];

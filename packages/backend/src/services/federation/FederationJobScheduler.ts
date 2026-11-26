@@ -1,0 +1,1174 @@
+import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
+import { findErasedAccountUsernames } from '../../db/accountErasures/accountErasureRepository';
+import { logger } from '../../utils/logger';
+import { FEDERATION_ENABLED } from '../../connectors/activitypub/constants';
+import { instagramGraphConnector } from '../../connectors/instagram/InstagramGraphConnector';
+import { atprotoConnector } from '../../connectors/atproto/AtprotoConnector';
+import {
+  claimOutboxBackfill,
+  findActorsWithOutboxByUris,
+  findOutboxBackfillCandidates,
+  findStaleActorsForRefresh,
+  updateOutboxBackfill,
+  type OutboxBackfillCandidate,
+  type OutboxBackfillPatch,
+} from '../../db/federation/actorRepository';
+import { distinctRemoteActorUris, existsFollow } from '../../db/federation/followRepository';
+import { discoveryAdmission } from '../../connectors/activitypub/importAdmission';
+import { config } from '../../config';
+import {
+  findDueDeliveries,
+  findUnmigratedDeliveries,
+  getNextRetryTime,
+  markDeliveriesMigrated,
+  recordDeliveryAttempt,
+} from '../../db/federation/deliveryQueueRepository';
+import {
+  activityPubConnector,
+  isPermanentlyUnavailableOutboxReason,
+} from '../../connectors/activitypub/ActivityPubConnector';
+import { runCacheWorkerOnce } from '../media/mediaCache/cacheWorker';
+import { runEvictionOnce } from '../media/mediaCache/evictionJob';
+import { drainFederatedMediaDeletions } from '../media/mediaCache/federatedMediaDeletion';
+import { drainFileReferenceSync } from '../media/oxyFiles/fileReferenceSync';
+import { runFederatedBannerMirrors } from './federatedBannerMirror';
+import { syncRemoteGraphMirror } from '../../connectors/remoteGraphMirror';
+import { isMediaCacheEnabled } from '../media/mediaCache/oxyMediaStore';
+import {
+  MEDIA_CACHE_EVICTION_INTERVAL_MS,
+  MEDIA_CACHE_WORKER_INTERVAL_MS,
+} from '../media/mediaCache/constants';
+import { isQueueEnabled } from '../../queue/connection';
+import { getPeriodicQueue } from '../../queue/queues';
+import { enqueueDeliveryWithJobId } from '../../queue/producers';
+import {
+  PERIODIC_REFRESH_STALE_ACTORS,
+  PERIODIC_SYNC_FOLLOWED_OUTBOX,
+  PERIODIC_RECENT_OUTBOX_BACKFILL,
+  PERIODIC_MEDIA_CACHE_WORKER,
+  PERIODIC_MEDIA_CACHE_EVICTION,
+  PERIODIC_COMPUTE_INTEREST_SCORES,
+  PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
+  PERIODIC_FLUSH_AFFINITY_EVENTS,
+  PERIODIC_INSTAGRAM_GRAPH_SYNC,
+  PERIODIC_FEDERATED_MEDIA_DELETIONS,
+  FEDERATED_MEDIA_DELETIONS_INTERVAL_MS,
+  PERIODIC_FEDERATED_BANNER_MIRRORS,
+  FEDERATED_BANNER_MIRRORS_INTERVAL_MS,
+  PERIODIC_OXY_FILE_REFERENCE_SYNC,
+  OXY_FILE_REFERENCE_SYNC_INTERVAL_MS,
+  PERIODIC_REMOTE_GRAPH_MIRROR,
+  REMOTE_GRAPH_MIRROR_INTERVAL_MS,
+  REFRESH_STALE_ACTORS_INTERVAL_MS,
+  SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
+  RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
+  COMPUTE_INTEREST_SCORES_INTERVAL_MS,
+  FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS,
+  FLUSH_AFFINITY_EVENTS_INTERVAL_MS,
+  INSTAGRAM_GRAPH_SYNC_INTERVAL_MS,
+  DELIVERY_DRAIN_PAGE_SIZE,
+} from '../../queue/constants';
+import type { PeriodicTaskName } from '../../queue/types';
+import { interestScoreService } from '../feed/InterestScoreService';
+import { endorsementSignalService } from '../feed/EndorsementSignalService';
+import { affinityEventService } from '../feed/AffinityEventService';
+import { lookupOxyUsers } from '../../utils/oxyUserLookup';
+import type { User } from '@oxy.so/core';
+
+/** Staleness threshold after which an actor profile is re-fetched. */
+const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Legacy (no-Redis) table-backed delivery-retry loop cadence. */
+const DELIVERY_RETRY_INTERVAL_MS = 60 * 1000; // 1 minute
+
+/** Legacy startup delay before the initial outbox sync + recent backfill run. */
+const INITIAL_SYNC_STARTUP_DELAY_MS = 30 * 1000; // 30 seconds
+
+/** Max number of stale actors refreshed per scheduled run. */
+const ACTOR_REFRESH_BATCH_SIZE = 50;
+
+/** Import at most the 100 most recent importable outbox activities per actor. */
+const OUTBOX_RECENT_BACKFILL_LIMIT = 100;
+
+/** Per-run cap for one actor; larger history is advanced by persisted cursor. */
+const OUTBOX_RECENT_BACKFILL_BATCH_SIZE = 20;
+
+/** Bound page fan-out per actor/run; the cursor continues on the next scheduler tick. */
+const OUTBOX_RECENT_BACKFILL_MAX_PAGES_PER_RUN = 5;
+
+/** Number of actors advanced per scheduler run. */
+const OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE = 10;
+
+/** Per-actor distributed lock TTL for recent outbox backfill. */
+const OUTBOX_RECENT_BACKFILL_LOCK_MS = 10 * 60 * 1000;
+
+class FederationJobScheduler {
+  private actorRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  private deliveryRetryInterval: ReturnType<typeof setInterval> | null = null;
+  private outboxSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private outboxBackfillInterval: ReturnType<typeof setInterval> | null = null;
+  private mediaCacheWorkerInterval: ReturnType<typeof setInterval> | null = null;
+  private mediaCacheEvictionInterval: ReturnType<typeof setInterval> | null = null;
+  private interestScoresInterval: ReturnType<typeof setInterval> | null = null;
+  private endorsementOutboxInterval: ReturnType<typeof setInterval> | null = null;
+  private affinityEventsInterval: ReturnType<typeof setInterval> | null = null;
+  private instagramGraphSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private federatedMediaDeletionsInterval: ReturnType<typeof setInterval> | null = null;
+  private oxyFileReferenceSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private federatedBannerMirrorsInterval: ReturnType<typeof setInterval> | null = null;
+  private remoteGraphMirrorInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Startup delay timeout handles (cleared in stop())
+  private initialSyncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Overlap guards — prevent concurrent runs when intervals fire faster than jobs complete
+  private isSyncFollowedActorsPostsRunning = false;
+  private isSyncRecentOutboxBackfillsRunning = false;
+  private isRetryFailedDeliveriesRunning = false;
+  private isMediaCacheWorkerRunning = false;
+  private isMediaCacheEvictionRunning = false;
+  private isComputeInterestScoresRunning = false;
+  private isFlushEndorsementOutboxRunning = false;
+  private isFlushAffinityEventsRunning = false;
+  private isInstagramGraphSyncRunning = false;
+  private isFederatedMediaDeletionsRunning = false;
+  private isOxyFileReferenceSyncRunning = false;
+  private isFederatedBannerMirrorsRunning = false;
+  private isRemoteGraphMirrorRunning = false;
+
+  /** True when this scheduler registered BullMQ repeatable jobs (queue mode). */
+  private usingQueue = false;
+
+  start(): void {
+    if (!FEDERATION_ENABLED) {
+      logger.info('Federation disabled — job scheduler not started');
+      return;
+    }
+
+    // Invoked ONLY by the elected scheduler leader (via leaderElection →
+    // startSchedulers). Two transports:
+    //  - Queue mode (Redis configured): register BullMQ repeatable jobs so each
+    //    periodic task runs once across the fleet, and drain any in-flight
+    //    `federation_delivery_queue` rows into the BullMQ delivery queue. Delivery RETRIES are owned by
+    //    BullMQ, so there is no in-process delivery-retry interval here.
+    //  - Legacy mode (no Redis): keep the in-process setInterval scheduler and
+    //    the table-backed delivery-retry loop. This is the local-dev / degraded path.
+    if (isQueueEnabled()) {
+      this.usingQueue = true;
+      void this.registerRepeatableJobs().catch((err) =>
+        logger.error('Failed to register federation repeatable jobs:', err),
+      );
+      void this.drainPendingTableDeliveries().catch((err) =>
+        logger.error('Failed to drain pending table deliveries into BullMQ:', err),
+      );
+      logger.info('Federation job scheduler started (BullMQ queue mode)');
+      return;
+    }
+
+    this.usingQueue = false;
+    this.startLegacyIntervals();
+    logger.info('Federation job scheduler started (in-process interval mode)');
+  }
+
+  /**
+   * Legacy in-process scheduler. Used only when Redis/BullMQ is not configured
+   * (local dev or a degraded boot). Cadences are unchanged from the original
+   * implementation, now sourced from named constants.
+   */
+  private startLegacyIntervals(): void {
+    // Refresh stale actor profiles every 6 hours
+    this.actorRefreshInterval = setInterval(() => {
+      this.refreshStaleActors().catch((err) => logger.error('Actor refresh job failed:', err));
+    }, REFRESH_STALE_ACTORS_INTERVAL_MS);
+    this.actorRefreshInterval.unref?.();
+
+    // Retry failed deliveries every minute (`federation_delivery_queue`)
+    this.deliveryRetryInterval = setInterval(() => {
+      this.retryFailedDeliveries().catch((err) => logger.error('Delivery retry job failed:', err));
+    }, DELIVERY_RETRY_INTERVAL_MS);
+    this.deliveryRetryInterval.unref?.();
+
+    this.outboxSyncInterval = setInterval(() => {
+      this.syncFollowedActorsPosts().catch((err) => logger.error('Outbox sync job failed:', err));
+    }, SYNC_FOLLOWED_OUTBOX_INTERVAL_MS);
+    this.outboxSyncInterval.unref?.();
+
+    this.outboxBackfillInterval = setInterval(() => {
+      this.syncRecentOutboxBackfills().catch((err) =>
+        logger.error('Recent outbox backfill job failed:', err),
+      );
+    }, RECENT_OUTBOX_BACKFILL_INTERVAL_MS);
+    this.outboxBackfillInterval.unref?.();
+
+    // Media-cache worker + eviction intervals are only created when the cache is
+    // enabled; while disabled they would no-op every tick, so we avoid arming the
+    // timers at all. Enabling the cache requires a redeploy, so creating them at
+    // boot is sufficient (no runtime flip to observe).
+    if (isMediaCacheEnabled()) {
+      // Drain pending federated-media cache jobs (download remote → upload to Oxy).
+      this.mediaCacheWorkerInterval = setInterval(() => {
+        this.runMediaCacheWorker().catch((err) =>
+          logger.error('Media cache worker job failed:', err),
+        );
+      }, MEDIA_CACHE_WORKER_INTERVAL_MS);
+      this.mediaCacheWorkerInterval.unref?.();
+
+      // Mirror federated banners (a sweep that cannot upload would only burn attempts).
+      this.federatedBannerMirrorsInterval = setInterval(() => {
+        this.runFederatedBannerMirrors().catch((err) =>
+          logger.error('Federated banner mirror sweep failed:', err),
+        );
+      }, FEDERATED_BANNER_MIRRORS_INTERVAL_MS);
+      this.federatedBannerMirrorsInterval.unref?.();
+
+      // Evict idle cached media from Oxy S3 (activity-based TTL).
+      this.mediaCacheEvictionInterval = setInterval(() => {
+        this.runMediaCacheEviction().catch((err) =>
+          logger.error('Media cache eviction job failed:', err),
+        );
+      }, MEDIA_CACHE_EVICTION_INTERVAL_MS);
+      this.mediaCacheEvictionInterval.unref?.();
+    }
+
+    // Recommendation-signal jobs (interest-score recompute + endorsement-outbox
+    // drain). Always armed — they are not gated on the media cache.
+    this.interestScoresInterval = setInterval(() => {
+      this.computeInterestScores().catch((err) =>
+        logger.error('Interest score recompute job failed:', err),
+      );
+    }, COMPUTE_INTEREST_SCORES_INTERVAL_MS);
+    this.interestScoresInterval.unref?.();
+
+    this.endorsementOutboxInterval = setInterval(() => {
+      this.flushEndorsementOutbox().catch((err) =>
+        logger.error('Endorsement outbox flush job failed:', err),
+      );
+    }, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS);
+    this.endorsementOutboxInterval.unref?.();
+
+    this.affinityEventsInterval = setInterval(() => {
+      this.flushAffinityEvents().catch((err) =>
+        logger.error('Affinity events flush job failed:', err),
+      );
+    }, FLUSH_AFFINITY_EVENTS_INTERVAL_MS);
+    this.affinityEventsInterval.unref?.();
+
+    // Federated-media deletions — ALWAYS armed: a post deleted at its source must
+    // not live on as a re-hosted file, whatever else is switched off.
+    this.federatedMediaDeletionsInterval = setInterval(() => {
+      this.drainFederatedMediaDeletions().catch((err) =>
+        logger.error('Federated media deletion drain failed:', err),
+      );
+    }, FEDERATED_MEDIA_DELETIONS_INTERVAL_MS);
+    this.federatedMediaDeletionsInterval.unref?.();
+
+    // Oxy file references — ALWAYS armed (the drain itself honours its pause
+    // switch): an application file Oxy sees unreferenced for a day is collected.
+    this.oxyFileReferenceSyncInterval = setInterval(() => {
+      this.syncOxyFileReferences().catch((err) =>
+        logger.error('Oxy file reference drain failed:', err),
+      );
+    }, OXY_FILE_REFERENCE_SYNC_INTERVAL_MS);
+    this.oxyFileReferenceSyncInterval.unref?.();
+
+    this.remoteGraphMirrorInterval = setInterval(() => {
+      this.syncRemoteGraphMirror().catch((err) =>
+        logger.error('Remote graph mirror sweep failed:', err),
+      );
+    }, REMOTE_GRAPH_MIRROR_INTERVAL_MS);
+    this.remoteGraphMirrorInterval.unref?.();
+
+    // Instagram Graph sync — armed only when the connector is configured, for
+    // the same reason as the media-cache timers: a disabled job would no-op
+    // every tick, and enabling it requires a redeploy anyway.
+    if (instagramGraphConnector.enabled) {
+      this.instagramGraphSyncInterval = setInterval(() => {
+        this.syncInstagramFollowedAccounts().catch((err) =>
+          logger.error('Instagram Graph sync job failed:', err),
+        );
+      }, INSTAGRAM_GRAPH_SYNC_INTERVAL_MS);
+      this.instagramGraphSyncInterval.unref?.();
+    }
+
+    // Stagger startup tasks to let DB connections warm up
+    this.initialSyncTimeout = setTimeout(() => {
+      this.syncFollowedActorsPosts().catch((err) =>
+        logger.error('Initial outbox sync failed:', err),
+      );
+      this.syncRecentOutboxBackfills().catch((err) =>
+        logger.error('Initial recent outbox backfill failed:', err),
+      );
+    }, INITIAL_SYNC_STARTUP_DELAY_MS);
+    this.initialSyncTimeout.unref?.();
+  }
+
+  /**
+   * Register the periodic federation tasks as BullMQ repeatable jobs.
+   * `upsertJobScheduler` is idempotent per scheduler id, so re-registering on
+   * each leadership acquisition never creates duplicate schedules. The
+   * media-cache schedules are only registered when the cache is enabled.
+   */
+  private async registerRepeatableJobs(): Promise<void> {
+    const queue = getPeriodicQueue();
+    if (!queue) return;
+
+    const upsert = async (
+      schedulerId: string,
+      everyMs: number,
+      task: PeriodicTaskName,
+    ): Promise<void> => {
+      await queue.upsertJobScheduler(
+        schedulerId,
+        { every: everyMs },
+        { name: task, data: { task } },
+      );
+    };
+
+    await upsert(
+      PERIODIC_REFRESH_STALE_ACTORS,
+      REFRESH_STALE_ACTORS_INTERVAL_MS,
+      'refreshStaleActors',
+    );
+    await upsert(
+      PERIODIC_SYNC_FOLLOWED_OUTBOX,
+      SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
+      'syncFollowedActorsPosts',
+    );
+    await upsert(
+      PERIODIC_RECENT_OUTBOX_BACKFILL,
+      RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
+      'syncRecentOutboxBackfills',
+    );
+    await upsert(
+      PERIODIC_COMPUTE_INTEREST_SCORES,
+      COMPUTE_INTEREST_SCORES_INTERVAL_MS,
+      'computeInterestScores',
+    );
+    await upsert(
+      PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
+      FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS,
+      'flushEndorsementOutbox',
+    );
+    await upsert(
+      PERIODIC_FLUSH_AFFINITY_EVENTS,
+      FLUSH_AFFINITY_EVENTS_INTERVAL_MS,
+      'flushAffinityEvents',
+    );
+
+    if (isMediaCacheEnabled()) {
+      await upsert(
+        PERIODIC_MEDIA_CACHE_WORKER,
+        MEDIA_CACHE_WORKER_INTERVAL_MS,
+        'runMediaCacheWorker',
+      );
+      await upsert(
+        PERIODIC_MEDIA_CACHE_EVICTION,
+        MEDIA_CACHE_EVICTION_INTERVAL_MS,
+        'runMediaCacheEviction',
+      );
+      await upsert(
+        PERIODIC_FEDERATED_BANNER_MIRRORS,
+        FEDERATED_BANNER_MIRRORS_INTERVAL_MS,
+        'runFederatedBannerMirrors',
+      );
+    }
+
+    await upsert(
+      PERIODIC_FEDERATED_MEDIA_DELETIONS,
+      FEDERATED_MEDIA_DELETIONS_INTERVAL_MS,
+      'drainFederatedMediaDeletions',
+    );
+
+    await upsert(
+      PERIODIC_OXY_FILE_REFERENCE_SYNC,
+      OXY_FILE_REFERENCE_SYNC_INTERVAL_MS,
+      'syncOxyFileReferences',
+    );
+
+    await upsert(
+      PERIODIC_REMOTE_GRAPH_MIRROR,
+      REMOTE_GRAPH_MIRROR_INTERVAL_MS,
+      'syncRemoteGraphMirror',
+    );
+
+    if (instagramGraphConnector.enabled) {
+      await upsert(
+        PERIODIC_INSTAGRAM_GRAPH_SYNC,
+        INSTAGRAM_GRAPH_SYNC_INTERVAL_MS,
+        'syncInstagramFollowedAccounts',
+      );
+    } else {
+      // A schedule registered while the connector was on must not outlive it.
+      await queue.removeJobScheduler(PERIODIC_INSTAGRAM_GRAPH_SYNC).catch(() => undefined);
+    }
+
+    logger.info('Federation repeatable jobs registered');
+  }
+
+  /**
+   * Drain any `federation_delivery_queue` rows left in `pending` (written by an
+   * older build or while the queue was unavailable) into the BullMQ delivery
+   * queue, then mark them migrated so a re-run never re-enqueues the same row.
+   *
+   * Idempotency: each row is enqueued with a STABLE jobId derived from its
+   * `id`, so even if the process dies between enqueue and mark, re-running the
+   * drain maps the same row to the same BullMQ job and BullMQ dedupes it. No
+   * pending delivery is dropped.
+   */
+  private async drainPendingTableDeliveries(): Promise<void> {
+    let totalDrained = 0;
+
+    // Page through pending, not-yet-migrated rows to bound memory.
+    for (;;) {
+      const rows = await findUnmigratedDeliveries(DELIVERY_DRAIN_PAGE_SIZE);
+
+      if (rows.length === 0) break;
+
+      const migratedIds: string[] = [];
+      for (const row of rows) {
+        const jobId = `delivery:migrated:${row.id}`;
+        const enqueued = await enqueueDeliveryWithJobId(
+          {
+            activityJson: row.activityJson,
+            targetInbox: row.targetInbox,
+            senderOxyUserId: row.senderOxyUserId,
+          },
+          jobId,
+        ).catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn('[FedDeliver] drain enqueue failed', {
+            error: message,
+          });
+          return false;
+        });
+
+        if (enqueued) {
+          migratedIds.push(row.id);
+        }
+      }
+
+      if (migratedIds.length > 0) {
+        await markDeliveriesMigrated(migratedIds);
+        totalDrained += migratedIds.length;
+      }
+
+      // If nothing in this page could be enqueued (queue unavailable), stop to
+      // avoid an infinite loop over the same rows.
+      if (migratedIds.length === 0) break;
+
+      // Last partial page → done.
+      if (rows.length < DELIVERY_DRAIN_PAGE_SIZE) break;
+    }
+
+    if (totalDrained > 0) {
+      logger.info(`[FedDeliver] drained ${totalDrained} pending table deliveries into BullMQ`);
+    }
+  }
+
+  stop(): void {
+    // Queue mode: remove the repeatable-job schedules so no new periodic jobs
+    // are produced after this task steps down. Existing in-flight jobs are owned
+    // by BullMQ and finish on whichever worker holds them.
+    if (this.usingQueue) {
+      this.usingQueue = false;
+      void this.removeRepeatableJobs().catch((err) =>
+        logger.error('Failed to remove federation repeatable jobs:', err),
+      );
+      logger.info('Federation job scheduler stopped (BullMQ queue mode)');
+      return;
+    }
+
+    if (this.actorRefreshInterval) {
+      clearInterval(this.actorRefreshInterval);
+      this.actorRefreshInterval = null;
+    }
+    if (this.deliveryRetryInterval) {
+      clearInterval(this.deliveryRetryInterval);
+      this.deliveryRetryInterval = null;
+    }
+    if (this.outboxSyncInterval) {
+      clearInterval(this.outboxSyncInterval);
+      this.outboxSyncInterval = null;
+    }
+    if (this.outboxBackfillInterval) {
+      clearInterval(this.outboxBackfillInterval);
+      this.outboxBackfillInterval = null;
+    }
+    if (this.mediaCacheWorkerInterval) {
+      clearInterval(this.mediaCacheWorkerInterval);
+      this.mediaCacheWorkerInterval = null;
+    }
+    if (this.mediaCacheEvictionInterval) {
+      clearInterval(this.mediaCacheEvictionInterval);
+      this.mediaCacheEvictionInterval = null;
+    }
+    if (this.interestScoresInterval) {
+      clearInterval(this.interestScoresInterval);
+      this.interestScoresInterval = null;
+    }
+    if (this.endorsementOutboxInterval) {
+      clearInterval(this.endorsementOutboxInterval);
+      this.endorsementOutboxInterval = null;
+    }
+    if (this.affinityEventsInterval) {
+      clearInterval(this.affinityEventsInterval);
+      this.affinityEventsInterval = null;
+    }
+    if (this.instagramGraphSyncInterval) {
+      clearInterval(this.instagramGraphSyncInterval);
+      this.instagramGraphSyncInterval = null;
+    }
+    if (this.federatedMediaDeletionsInterval) {
+      clearInterval(this.federatedMediaDeletionsInterval);
+      this.federatedMediaDeletionsInterval = null;
+    }
+    if (this.oxyFileReferenceSyncInterval) {
+      clearInterval(this.oxyFileReferenceSyncInterval);
+      this.oxyFileReferenceSyncInterval = null;
+    }
+    if (this.remoteGraphMirrorInterval) {
+      clearInterval(this.remoteGraphMirrorInterval);
+      this.remoteGraphMirrorInterval = null;
+    }
+    if (this.federatedBannerMirrorsInterval) {
+      clearInterval(this.federatedBannerMirrorsInterval);
+      this.federatedBannerMirrorsInterval = null;
+    }
+    if (this.initialSyncTimeout) {
+      clearTimeout(this.initialSyncTimeout);
+      this.initialSyncTimeout = null;
+    }
+    logger.info('Federation job scheduler stopped');
+  }
+
+  /**
+   * Remove the BullMQ repeatable-job schedules registered by this leader. Safe
+   * to call when a scheduler was never registered (missing ids are ignored).
+   */
+  private async removeRepeatableJobs(): Promise<void> {
+    const queue = getPeriodicQueue();
+    if (!queue) return;
+
+    const ids = [
+      PERIODIC_REFRESH_STALE_ACTORS,
+      PERIODIC_SYNC_FOLLOWED_OUTBOX,
+      PERIODIC_RECENT_OUTBOX_BACKFILL,
+      PERIODIC_MEDIA_CACHE_WORKER,
+      PERIODIC_MEDIA_CACHE_EVICTION,
+      PERIODIC_COMPUTE_INTEREST_SCORES,
+      PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
+      PERIODIC_FLUSH_AFFINITY_EVENTS,
+      PERIODIC_INSTAGRAM_GRAPH_SYNC,
+      PERIODIC_FEDERATED_MEDIA_DELETIONS,
+      PERIODIC_FEDERATED_BANNER_MIRRORS,
+      PERIODIC_OXY_FILE_REFERENCE_SYNC,
+    ];
+
+    await Promise.allSettled(ids.map((id) => queue.removeJobScheduler(id)));
+    logger.info('Federation repeatable jobs removed');
+  }
+
+  /**
+   * Refresh stale (>24h) actor profiles so their avatar/banner/display name stay
+   * current. Covers BOTH followed actors AND any federated actor that has been
+   * resolved/viewed locally (i.e. has an oxyUserId, meaning a Mention user can
+   * land on its profile). The avatar refresh is FORCED so Oxy re-downloads and
+   * replaces the federated avatar, and the banner is re-synced as part of the
+   * full fetch.
+   *
+   * Public so the BullMQ periodic worker can invoke it; also called by the
+   * legacy in-process interval path.
+   */
+  async refreshStaleActors(): Promise<void> {
+    const staleThreshold = new Date(Date.now() - ACTOR_STALE_MS);
+
+    // Actors that have active follows (followed in either direction).
+    const followedUris = await distinctRemoteActorUris({ statuses: ['accepted'] });
+
+    // Refresh anything that is stale AND either followed or has been resolved
+    // locally (oxyUserId set ⇒ a Mention user can view this profile). This keeps
+    // viewed-but-not-followed profiles fresh too. Batched to avoid fan-out storms.
+    const staleActors = await findStaleActorsForRefresh(
+      staleThreshold,
+      followedUris,
+      ACTOR_REFRESH_BATCH_SIZE,
+    );
+
+    if (staleActors.length === 0) return;
+
+    logger.info(
+      `[FedSync] Refreshing ${staleActors.length} stale actor profiles (forcing avatar refresh)`,
+    );
+
+    // Bounded concurrency to avoid overwhelming remote servers.
+    const CONCURRENCY = 3;
+    for (let i = 0; i < staleActors.length; i += CONCURRENCY) {
+      const batch = staleActors.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        batch.map((actor) =>
+          // forceAvatarRefresh=true → Oxy re-downloads/replaces the avatar.
+          activityPubConnector.fetchRemoteActor(actor.uri, true, actor.acct).catch((err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.debug('[FedSync] failed to refresh actor', {
+              error: message,
+            });
+          }),
+        ),
+      );
+    }
+  }
+
+  /**
+   * Pull new posts from each remotely-followed actor: the outbox of every
+   * followed ActivityPub actor (catching up on posts inbox push delivery missed),
+   * and the author feed of each followed Bluesky account that is due
+   * (`connectors/atproto/accountSync.ts`).
+   *
+   * Public so the BullMQ periodic worker can invoke it.
+   */
+  async syncFollowedActorsPosts(): Promise<void> {
+    if (this.isSyncFollowedActorsPostsRunning) {
+      logger.debug('[FedSync] syncFollowedActorsPosts already running, skipping');
+      return;
+    }
+    this.isSyncFollowedActorsPostsRunning = true;
+    try {
+      // One network's failure must not cost the other its sync.
+      const [activityPub, atproto] = await Promise.allSettled([
+        this.syncFollowedActivityPubOutboxes(),
+        atprotoConnector.syncFollowedAccounts(),
+      ]);
+      if (activityPub.status === 'rejected') {
+        logger.error('[FedSync] followed outbox sync failed:', activityPub.reason);
+      }
+      if (atproto.status === 'rejected') {
+        logger.error('[FedSync] followed Bluesky account sync failed:', atproto.reason);
+      }
+    } finally {
+      this.isSyncFollowedActorsPostsRunning = false;
+    }
+  }
+
+  private async syncFollowedActivityPubOutboxes(): Promise<void> {
+    const followedActorUris = await distinctRemoteActorUris({
+      direction: 'outbound',
+      statuses: ['accepted'],
+    });
+
+    if (followedActorUris.length === 0) return;
+
+    // `{ outboxUrl: { $ne: null } }` becomes `outbox_url IS NOT NULL` — the
+    // total predicate. `<> null` would be NULL for every row and select none.
+    const actors = await findActorsWithOutboxByUris(followedActorUris);
+
+    if (actors.length === 0) return;
+
+    logger.info(`[FedSync] Syncing outbox posts for ${actors.length} followed actors`);
+
+    // Bounded concurrency to avoid overwhelming remote servers
+    const CONCURRENCY = 3;
+    for (let i = 0; i < actors.length; i += CONCURRENCY) {
+      const batch = actors.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        batch.map((actor) =>
+          activityPubConnector
+            .syncOutboxPosts(actor, 20, 'followed_outbox')
+            .catch((err) => logger.debug('[FedSync] outbox sync failed', err)),
+        ),
+      );
+    }
+  }
+
+  /**
+   * Backfill the recent historical window for resolved federated actors.
+   *
+   * This is intentionally separate from `syncFollowedActorsPosts()`:
+   * - the followed sync always checks the latest page for new content;
+   * - this job advances an opaque ActivityPub cursor until the 100 most recent
+   *   importable activities have been inspected, then stops for that actor;
+   * - the Bluesky half pages an account's author feed back to its own cap
+   *   (`advanceAtprotoHistoryBackfills`).
+   *
+   * Public so the BullMQ periodic worker can invoke it.
+   */
+  async syncRecentOutboxBackfills(): Promise<void> {
+    if (this.isSyncRecentOutboxBackfillsRunning) {
+      logger.debug('[FedSync] syncRecentOutboxBackfills already running, skipping');
+      return;
+    }
+
+    this.isSyncRecentOutboxBackfillsRunning = true;
+    try {
+      // One network's failure must not cost the other its backfill.
+      const [activityPub, atproto] = await Promise.allSettled([
+        this.advanceActivityPubOutboxBackfills(),
+        atprotoConnector.advanceHistoryBackfills(),
+      ]);
+      if (activityPub.status === 'rejected') {
+        logger.error('[FedSync] recent outbox backfill failed:', activityPub.reason);
+      }
+      if (atproto.status === 'rejected') {
+        logger.error('[FedSync] Bluesky history backfill failed:', atproto.reason);
+      }
+    } finally {
+      this.isSyncRecentOutboxBackfillsRunning = false;
+    }
+  }
+
+  private async advanceActivityPubOutboxBackfills(): Promise<void> {
+    const now = new Date();
+    const actors = await findOutboxBackfillCandidates(now, OUTBOX_RECENT_BACKFILL_ACTOR_BATCH_SIZE);
+
+    if (actors.length === 0) return;
+
+    logger.info(`[FedSync] Advancing recent outbox backfill for ${actors.length} actors`);
+
+    for (const actor of actors) {
+      await this.runRecentOutboxBackfillForActor(actor);
+    }
+  }
+
+  private async runRecentOutboxBackfillForActor(actor: OutboxBackfillCandidate): Promise<void> {
+    const outboxUrl = actor.outboxUrl;
+    if (!outboxUrl) return;
+
+    const previousState = actor.outboxBackfill;
+    const outboxChanged = Boolean(
+      previousState?.outboxUrl && previousState.outboxUrl !== outboxUrl,
+    );
+    const previousProcessedCount = outboxChanged
+      ? 0
+      : Math.max(0, previousState?.processedCount ?? 0);
+    const previousImportedCount = outboxChanged
+      ? 0
+      : Math.max(0, previousState?.importedCount ?? 0);
+    const previousExistingCount = outboxChanged
+      ? 0
+      : Math.max(0, previousState?.existingCount ?? 0);
+    const previousPageCount = outboxChanged ? 0 : Math.max(0, previousState?.pageCount ?? 0);
+
+    // Which accounts discovery copies, and how much of them (importAdmission.ts).
+    // In `shadow` the decision is only counted; `off` is the old behaviour.
+    const mode = config.federation.discoveryAdmission;
+    const admission = discoveryAdmission({
+      followedLocally: await existsFollow({
+        remoteActorUri: actor.uri,
+        direction: 'outbound',
+        statuses: ['accepted'],
+      }),
+      actorUri: actor.uri,
+      fullLimit: OUTBOX_RECENT_BACKFILL_LIMIT,
+    });
+    if (mode !== 'off' && (admission.skip || admission.limit < OUTBOX_RECENT_BACKFILL_LIMIT)) {
+      // A log line, not a counter: Mention's Prometheus counters are not scraped.
+      logger.info('[FedSync] discovery admission', {
+        decision: admission.skip ? 'skip-actor' : 'probation-cap',
+        mode,
+      });
+    }
+    const enforced = mode === 'enforce';
+    const backfillLimit = enforced ? admission.limit : OUTBOX_RECENT_BACKFILL_LIMIT;
+
+    // A skipped account leaves the walk for good (`complete` is what the
+    // candidate query excludes), exactly like one that reached its limit.
+    if (enforced && admission.skip) {
+      await updateOutboxBackfill(actor.id, {
+        status: 'complete',
+        outboxUrl,
+        completedAt: new Date(),
+        cursorUrl: null,
+        lockedUntil: null,
+        lastError: null,
+      });
+      return;
+    }
+
+    if (!outboxChanged && previousProcessedCount >= backfillLimit) {
+      await updateOutboxBackfill(actor.id, {
+        status: 'complete',
+        outboxUrl,
+        processedCount: backfillLimit,
+        completedAt: new Date(),
+        cursorUrl: null,
+        lockedUntil: null,
+        lastError: null,
+      });
+      return;
+    }
+
+    const now = new Date();
+    const lockUntil = new Date(now.getTime() + OUTBOX_RECENT_BACKFILL_LOCK_MS);
+    const claimPatch: OutboxBackfillPatch = {
+      status: 'pending',
+      outboxUrl,
+      lockedUntil: lockUntil,
+      lastRunAt: now,
+      lastError: null,
+    };
+
+    // The remote MOVED its outbox: the stored counters describe a collection
+    // that no longer exists, so the whole cursor is reset rather than resumed.
+    if (outboxChanged) {
+      claimPatch.cursorItemOffset = 0;
+      claimPatch.processedCount = 0;
+      claimPatch.importedCount = 0;
+      claimPatch.existingCount = 0;
+      claimPatch.pageCount = 0;
+      claimPatch.cursorUrl = null;
+      claimPatch.completedAt = null;
+    }
+
+    // Re-tests the lock inside the UPDATE, so two schedulers that selected the
+    // same actor cannot both proceed.
+    const claimed = await claimOutboxBackfill(actor.id, now, claimPatch);
+    if (!claimed) return;
+
+    const remaining = Math.max(0, backfillLimit - previousProcessedCount);
+    const result = await activityPubConnector.syncOutboxPostsDetailed(
+      {
+        uri: actor.uri,
+        acct: actor.acct,
+        outboxUrl,
+        oxyUserId: actor.oxyUserId,
+      },
+      {
+        limit: Math.min(OUTBOX_RECENT_BACKFILL_BATCH_SIZE, remaining),
+        importReason: 'discovery_backfill',
+        filterContent: admission.filterContent,
+        maxPages: OUTBOX_RECENT_BACKFILL_MAX_PAGES_PER_RUN,
+        startPageUrl: outboxChanged ? undefined : previousState?.cursorUrl,
+        startItemOffset: outboxChanged ? 0 : (previousState?.cursorItemOffset ?? 0),
+      },
+    );
+
+    const processedDelta = result.candidateCount ?? 0;
+    const processedCount = Math.min(backfillLimit, previousProcessedCount + processedDelta);
+    const importedCount =
+      previousImportedCount + (result.newPostCount ?? 0) + (result.importedBoostCount ?? 0);
+    const existingCount = previousExistingCount + (result.existingCount ?? 0);
+    const pageCount = previousPageCount + (result.pagesFetched ?? 0);
+
+    // The lease is released and the error cleared in every branch; the failure
+    // branch then re-sets `lastError`, which is why it is written LAST rather
+    // than conditionally omitted from the base patch.
+    const patch: OutboxBackfillPatch = {
+      outboxUrl,
+      processedCount,
+      importedCount,
+      existingCount,
+      pageCount,
+      lastRunAt: new Date(),
+      lockedUntil: null,
+      lastError: null,
+    };
+
+    if (isPermanentlyUnavailableOutboxReason(result.reason)) {
+      patch.status = 'unavailable';
+      patch.completedAt = new Date();
+      patch.cursorUrl = null;
+    } else if (!result.shouldStampCooldown) {
+      patch.status = 'failed';
+      patch.lastError = result.reason ?? 'unknown';
+    } else if (processedCount >= backfillLimit || result.reachedEnd || !result.nextCursor) {
+      patch.status = 'complete';
+      patch.completedAt = new Date();
+      patch.cursorUrl = null;
+    } else {
+      patch.status = 'pending';
+      patch.cursorUrl = result.nextCursor.url;
+      patch.cursorItemOffset = result.nextCursor.itemOffset;
+      patch.completedAt = null;
+    }
+
+    await updateOutboxBackfill(actor.id, patch);
+    logger.info('[FedSync] recent backfill completed', {
+      status: String(patch.status),
+      processedCount,
+      processingLimit: backfillLimit,
+      importedCount,
+      existingCount,
+    });
+  }
+
+  /**
+   * Retry pending deliveries whose nextAttemptAt has passed.
+   */
+  private async retryFailedDeliveries(): Promise<void> {
+    if (this.isRetryFailedDeliveriesRunning) {
+      logger.debug('retryFailedDeliveries already running, skipping');
+      return;
+    }
+    this.isRetryFailedDeliveriesRunning = true;
+    try {
+      const now = new Date();
+
+      // Larger batches to avoid backlog.
+      const pending = await findDueDeliveries(now, 200);
+
+      if (pending.length === 0) return;
+
+      logger.debug(`Retrying ${pending.length} pending deliveries`);
+
+      // Resolve every distinct sender in ONE batched round-trip rather than a
+      // per-delivery getUserById (up to 200 deliveries, with duplicate senders
+      // re-fetched). Uses the service-authed Oxy client — the process-wide
+      // request-auth client is unauthenticated and is reserved for
+      // validating INCOMING request tokens (`oxy.auth()`), so a bulk resolve on
+      // it returns nothing.
+      const uniqueSenderIds = [...new Set(pending.map((d) => d.senderOxyUserId))];
+      const senders = new Map<string, User>();
+      try {
+        const { found: resolved } = await lookupOxyUsers(
+          uniqueSenderIds,
+          'federation.delivery_senders',
+        );
+        for (const sender of resolved) {
+          if (sender?.id) senders.set(sender.id, sender);
+        }
+      } catch (err) {
+        logger.warn('[FedSync] Failed to batch-resolve delivery senders:', err);
+      }
+      // A sender Oxy no longer resolves may be an ERASED account whose queued
+      // Deletes still have to go out; the erasure ledger keeps its handle for
+      // exactly that (see `resolveSenderUsername` in queue/workers.ts).
+      const erasedSenders = await findErasedAccountUsernames(
+        uniqueSenderIds.filter((id) => !senders.get(id)?.username),
+      );
+
+      for (const delivery of pending) {
+        try {
+          // Need the sender's username to sign the request.
+          const username =
+            senders.get(delivery.senderOxyUserId)?.username ??
+            erasedSenders.get(delivery.senderOxyUserId);
+          if (!username) {
+            await recordDeliveryAttempt(delivery.id, {
+              status: 'failed',
+              error: 'Sender user not found',
+            });
+            continue;
+          }
+
+          const success = await activityPubConnector.deliverActivity(
+            delivery.activityJson,
+            delivery.targetInbox,
+            delivery.senderOxyUserId,
+            username,
+          );
+
+          if (success) {
+            // `error` is deliberately not cleared: a delivered row has always
+            // kept whatever a prior failed attempt left there. Clearing it here
+            // would be a behaviour change.
+            await recordDeliveryAttempt(delivery.id, {
+              status: 'delivered',
+              lastAttemptAt: now,
+            });
+          } else {
+            const nextAttempt = getNextRetryTime(delivery.attempts + 1);
+            if (!nextAttempt) {
+              await recordDeliveryAttempt(delivery.id, {
+                status: 'failed',
+                lastAttemptAt: now,
+                error: 'Max retries exceeded',
+              });
+            } else {
+              await recordDeliveryAttempt(delivery.id, {
+                lastAttemptAt: now,
+                nextAttemptAt: nextAttempt,
+                incrementAttempts: true,
+              });
+            }
+          }
+        } catch (err) {
+          logger.debug('Delivery retry failed', err);
+          const nextAttempt =
+            err instanceof DeliveryAuthorizationDeniedError
+              ? null
+              : getNextRetryTime(delivery.attempts + 1);
+          await recordDeliveryAttempt(delivery.id, {
+            lastAttemptAt: now,
+            error: err instanceof Error ? err.message : String(err),
+            incrementAttempts: true,
+            ...(nextAttempt ? { nextAttemptAt: nextAttempt } : { status: 'failed' }),
+          });
+        }
+      }
+    } finally {
+      this.isRetryFailedDeliveriesRunning = false;
+    }
+  }
+
+  /**
+   * Drain pending federated-media cache jobs. No-ops when the cache write side
+   * is disabled (Oxy service-client upload capability is blocked upstream).
+   *
+   * Public so the BullMQ periodic worker can invoke it.
+   */
+  async runMediaCacheWorker(): Promise<void> {
+    if (this.isMediaCacheWorkerRunning) {
+      logger.debug('[MediaCache] worker already running, skipping');
+      return;
+    }
+    this.isMediaCacheWorkerRunning = true;
+    try {
+      await runCacheWorkerOnce();
+    } finally {
+      this.isMediaCacheWorkerRunning = false;
+    }
+  }
+
+  /**
+   * Evict idle cached media from Oxy S3 past the activity TTL. No-ops when the
+   * cache write side is disabled (Oxy service-client delete is blocked upstream).
+   *
+   * Public so the BullMQ periodic worker can invoke it.
+   */
+  async runMediaCacheEviction(): Promise<void> {
+    if (this.isMediaCacheEvictionRunning) {
+      logger.debug('[MediaCache] eviction already running, skipping');
+      return;
+    }
+    this.isMediaCacheEvictionRunning = true;
+    try {
+      await runEvictionOnce();
+    } finally {
+      this.isMediaCacheEvictionRunning = false;
+    }
+  }
+
+  /**
+   * Recompute per-author interest scores from recent engagement and push the
+   * deltas to Oxy's recommendation graph. No-ops when there is nothing to score.
+   *
+   * Public so the BullMQ periodic worker can invoke it; also called by the
+   * legacy in-process interval path.
+   */
+  async computeInterestScores(): Promise<void> {
+    if (this.isComputeInterestScoresRunning) {
+      logger.debug('[InterestScore] recompute already running, skipping');
+      return;
+    }
+    this.isComputeInterestScoresRunning = true;
+    try {
+      // Gated on the last COMPLETED run, not on this timer: every leader
+      // re-registers the schedule, and BullMQ runs a newly upserted scheduler
+      // at once (#1166).
+      await interestScoreService.runIfDue(COMPUTE_INTEREST_SCORES_INTERVAL_MS);
+    } finally {
+      this.isComputeInterestScoresRunning = false;
+    }
+  }
+
+  /**
+   * Drain pending endorsement-outbox rows (re-syncing each scope's current
+   * member set to Oxy). The safety net for membership pushes that failed their
+   * immediate attempt. No-ops when the outbox is empty.
+   *
+   * Public so the BullMQ periodic worker can invoke it; also called by the
+   * legacy in-process interval path.
+   */
+  async flushEndorsementOutbox(): Promise<void> {
+    if (this.isFlushEndorsementOutboxRunning) {
+      logger.debug('[EndorsementSignal] flush already running, skipping');
+      return;
+    }
+    this.isFlushEndorsementOutboxRunning = true;
+    try {
+      await endorsementSignalService.flushOutbox();
+    } finally {
+      this.isFlushEndorsementOutboxRunning = false;
+    }
+  }
+
+  /**
+   * Drain the buffered interaction-affinity events (Redis list) and push a batch
+   * to Oxy's recommendation affinity graph. No-ops when Redis is unavailable or
+   * the buffer is empty. Best-effort — a push failure re-buffers a bounded
+   * amount inside the service and the next tick retries.
+   *
+   * Public so the BullMQ periodic worker can invoke it; also called by the
+   * legacy in-process interval path.
+   */
+  async flushAffinityEvents(): Promise<void> {
+    if (this.isFlushAffinityEventsRunning) {
+      logger.debug('[AffinityEvent] flush already running, skipping');
+      return;
+    }
+    this.isFlushAffinityEventsRunning = true;
+    try {
+      await affinityEventService.drainOnce();
+    } finally {
+      this.isFlushAffinityEventsRunning = false;
+    }
+  }
+
+  /** Mirror due federated banners (`services/federation/federatedBannerMirror.ts`). */
+  async runFederatedBannerMirrors(): Promise<void> {
+    if (this.isFederatedBannerMirrorsRunning) return;
+    this.isFederatedBannerMirrorsRunning = true;
+    try {
+      await runFederatedBannerMirrors();
+    } finally {
+      this.isFederatedBannerMirrorsRunning = false;
+    }
+  }
+
+  /** Drain the federated-media deletion outbox (`services/media/mediaCache/federatedMediaDeletion.ts`). */
+  async drainFederatedMediaDeletions(): Promise<void> {
+    if (this.isFederatedMediaDeletionsRunning) return;
+    this.isFederatedMediaDeletionsRunning = true;
+    try {
+      await drainFederatedMediaDeletions();
+    } finally {
+      this.isFederatedMediaDeletionsRunning = false;
+    }
+  }
+
+  /** Drain the Oxy file-reference outbox (`services/media/oxyFiles/fileReferenceSync.ts`). */
+  async syncOxyFileReferences(): Promise<void> {
+    if (this.isOxyFileReferenceSyncRunning) return;
+    this.isOxyFileReferenceSyncRunning = true;
+    try {
+      await drainFileReferenceSync();
+    } finally {
+      this.isOxyFileReferenceSyncRunning = false;
+    }
+  }
+
+  /**
+   * Re-crawl the follow graphs of accounts local users follow, and expire mirrored
+   * edges whose other end never became an account here (`connectors/remoteGraphMirror.ts`).
+   */
+  async syncRemoteGraphMirror(): Promise<void> {
+    if (this.isRemoteGraphMirrorRunning) return;
+    this.isRemoteGraphMirrorRunning = true;
+    try {
+      await syncRemoteGraphMirror();
+    } finally {
+      this.isRemoteGraphMirrorRunning = false;
+    }
+  }
+
+  /**
+   * Pull new posts of followed Instagram-identity accounts through the Graph
+   * API (budget-aware, small batches — see `connectors/instagram/sync.ts`).
+   * A no-op while the connector is not configured.
+   */
+  async syncInstagramFollowedAccounts(): Promise<void> {
+    if (!instagramGraphConnector.enabled) return;
+    if (this.isInstagramGraphSyncRunning) {
+      logger.debug('[instagram] periodic sync already running, skipping');
+      return;
+    }
+    this.isInstagramGraphSyncRunning = true;
+    try {
+      await instagramGraphConnector.syncFollowedAccounts();
+    } finally {
+      this.isInstagramGraphSyncRunning = false;
+    }
+  }
+}
+
+export const federationJobScheduler = new FederationJobScheduler();
+export default federationJobScheduler;

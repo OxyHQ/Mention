@@ -6,7 +6,7 @@ Oxy owns every file; Mention says which ones it USES, owns the files no person
 owns (the GIF library, report evidence), and reacts when Oxy takes a file away.
 
 The code is `packages/backend/src/db/oxyFiles/` and
-`packages/backend/src/services/oxyFiles/`; the schema is
+`packages/backend/src/services/media/oxyFiles/`; the schema is
 `packages/backend/src/db/schema/oxyFiles.ts` and migration
 `0077_oxy_file_references`.
 
@@ -54,7 +54,7 @@ client temp id, and the federated media cache's own files.
    That covers every path, including `ON DELETE CASCADE` from `posts` (account
    erasure, channel deletion, scripts). A variant's media is marked by the
    variant's BEFORE DELETE trigger, while it can still be read.
-2. **The drain decides** (`services/oxyFiles/fileReferenceSync.ts`, periodic
+2. **The drain decides** (`services/media/oxyFiles/fileReferenceSync.ts`, periodic
    queue every 30 s, `oxy-files:reference-sync`). For each due pair it asks
    the registry whether it is in use now and sends Oxy only the difference from
    what Oxy was last told (`synced_op`): `references.add` / `remove`, 100 per
@@ -81,7 +81,7 @@ client temp id, and the federated media cache's own files.
 
 A re-hosted file belongs to the federated actor's account, and Oxy refuses to
 delete an account's file another application references (`in_use`). So the
-deletion drain (`services/mediaCache/federatedMediaDeletion.ts`) still decides
+deletion drain (`services/media/mediaCache/federatedMediaDeletion.ts`) still decides
 "does Mention show it" locally, under the locks the post insert takes (Oxy's
 references trail the database by the drain, so they cannot stand in for that
 check), and then calls `clearFileReferencesBeforeDelete`: every pair of the file
@@ -94,7 +94,7 @@ asked for only once all are. Otherwise it is retried.
 `express.json()` (an HMAC over the raw body is the authentication,
 `verifyFileEventSignature`). The endpoint challenge is echoed even without a
 secret; events are refused with 503 until `OXY_FILES_WEBHOOK_SECRET` is set (Oxy
-retries). `services/oxyFiles/fileEvents.ts` applies each event in one
+retries). `services/media/oxyFiles/fileEvents.ts` applies each event in one
 transaction, deduped on its id, ordered by `occurredAt`, audited in
 `oxy_file_events`:
 

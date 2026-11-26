@@ -54,13 +54,16 @@ import type { AccountKind } from '@oxy.so/contracts';
 import type { ChannelDeletionCounts } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getRequiredOxyUserId } from '@oxy.so/core/server';
-import { assertCanDeleteAccount, PublishAsAccessError } from '../services/publishAsAccount';
+import {
+  assertCanDeleteAccount,
+  PublishAsAccessError,
+} from '../services/accounts/publishAsAccount';
 import {
   deleteChannelContent,
   previewChannelDeletion,
   NotAChannelAccountError,
   type ChannelDeletionPreview,
-} from '../services/channelDeletion/ChannelDeletionService';
+} from '../services/accounts/channelDeletion/ChannelDeletionService';
 import { callerAccountAccess } from '../utils/oxyHelpers';
 import { channelDeletionRateLimiter } from '../middleware/security';
 import { config } from '../config';

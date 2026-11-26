@@ -16,7 +16,7 @@
  */
 
 import { createCache } from '../../utils/cache';
-import type { TrendDetail } from '../TrendingService';
+import type { TrendDetail } from './TrendingService';
 
 const TREND_SUMMARY_PREFIX = 'trendsummary:v1:';
 const TREND_SUMMARY_TTL_SECONDS = 30;

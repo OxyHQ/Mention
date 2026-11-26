@@ -9,21 +9,24 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   userPreferenceService,
   readInteractionSurface,
-} from '../../services/UserPreferenceService';
-import { affinityEventService } from '../../services/AffinityEventService';
+} from '../../services/feed/UserPreferenceService';
+import { affinityEventService } from '../../services/feed/AffinityEventService';
 import { logger } from '../../utils/logger';
-import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../../services/postEngagementBroadcast';
+import {
+  emitPostEngagement,
+  POST_ENGAGEMENT_EVENTS,
+} from '../../services/engagement/postEngagementBroadcast';
 import {
   EngagementPostNotFoundError,
   removeVoteCommand,
   votePostCommand,
-} from '../../services/PostEngagementCommandService';
-import type { EngagementPostSnapshot } from '../../services/PostEngagementCommandService';
-import { canRequestReadPost } from '../../services/postReadAccess';
+} from '../../services/engagement/PostEngagementCommandService';
+import type { EngagementPostSnapshot } from '../../services/engagement/PostEngagementCommandService';
+import { canRequestReadPost } from '../../services/posts/access/postReadAccess';
 import {
   loadEngagementCountPrivacy,
   visibleEngagementCounts,
-} from '../../services/engagementCountPrivacy';
+} from '../../services/engagement/engagementCountPrivacy';
 
 /**
  * The vote counters a response may carry: `null` for counters the author hides,

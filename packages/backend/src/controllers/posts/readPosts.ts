@@ -20,7 +20,7 @@ import { encodeChronoCursor } from '../../utils/chronoCursor';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostCorrectionsResponse } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';
 import { queryString } from '../../utils/queryParams';
@@ -29,7 +29,7 @@ import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { listPostCorrections } from '../../db/posts/postCorrectionsRepository';
 import { POST_PAGE_LIMIT } from './postPageBounds';
 import { resolveViewerPrivacyAndGraph } from '../../utils/privacyHelpers';
-import { getOrLoadPostRecord } from '../../services/postDetailCache';
+import { getOrLoadPostRecord } from '../../services/posts/postDetailCache';
 import { importRemoteEngagementOnView } from '../../connectors/remoteEngagementImport';
 
 // Get all posts

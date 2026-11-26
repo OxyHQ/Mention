@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { excludedCategory } from '../../services/promotion/contentExclusions';
+import { excludedCategory } from '../../services/monetization/promotion/contentExclusions';
 import {
   type PromotablePost,
   type PromotionContext,
   promotionIneligibility,
-} from '../../services/promotion/eligibility';
+} from '../../services/monetization/promotion/eligibility';
 
 const texts = (...t: string[]) => ({ texts: t });
 

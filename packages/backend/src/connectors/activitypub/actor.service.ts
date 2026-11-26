@@ -31,7 +31,7 @@ import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { signedFetch, normalizeFederatedAcct, domainFromAcct } from './helpers';
 import { reportFederatedActorGone } from '../identity';
 import { observeOxySource, type ObservedOxySource } from '../oxyIdentity';
-import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
+import { reconcileActorIdentityProjection } from '../../services/accounts/ActorIdentityProjectionService';
 import { syncFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
 import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
 

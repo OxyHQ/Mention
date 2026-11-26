@@ -14,7 +14,7 @@ and each imported item becomes an ordinary native post of the user.
 | Piece | Where |
 | --- | --- |
 | Routes and validation | `packages/backend/src/routes/imports.ts` |
-| Import logic | `packages/backend/src/services/PostImportService.ts` |
+| Import logic | `packages/backend/src/services/posts/PostImportService.ts` |
 | Import ledger (`post_imports`) | `packages/backend/src/db/schema/imports.ts` |
 | Platform list and labels | `IMPORT_PLATFORMS`, `IMPORT_PLATFORM_LABELS` in `packages/shared-types/src/post.ts` |
 
@@ -206,7 +206,7 @@ server that follows it. Mention's inbox handles it in
    Post ids, replies, likes and moderation stay on the same rows.
 4. **One post, not two.** An imported post and the federated copy of the same
    source post are now both the user's. `collapseImportedCopies`
-   (`services/PostEquivalenceService.ts`) puts each pair into a cross-post
+   (`services/posts/PostEquivalenceService.ts`) puts each pair into a cross-post
    cluster with `imported-copy` evidence:
    - The pair matches when the ledger's `sourceId` or `sourceUrl` equals the
      copy's AS2 id or its `url`, and both posts have the same owner.

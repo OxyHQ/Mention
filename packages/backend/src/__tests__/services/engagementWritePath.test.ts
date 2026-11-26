@@ -45,7 +45,7 @@ import {
   savePostCommand,
   unsavePostCommand,
   votePostCommand,
-} from '../../services/PostEngagementCommandService';
+} from '../../services/engagement/PostEngagementCommandService';
 import {
   claimEngagementOutboxEvent,
   completeEngagementOutboxEvent,
@@ -55,7 +55,7 @@ import {
   failEngagementOutboxEvent,
   markEngagementOutboxEffectDone,
   renewEngagementOutboxEvent,
-} from '../../services/EngagementOutboxService';
+} from '../../services/engagement/EngagementOutboxService';
 
 /**
  * The actor id the atomicity probe trigger below refuses to accept. Scoping the

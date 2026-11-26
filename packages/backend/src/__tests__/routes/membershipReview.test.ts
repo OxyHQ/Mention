@@ -1,5 +1,5 @@
-import { ERASURE_STEPS } from '../../services/accountErasure/erasureSteps';
-import { applyFileEvent } from '../../services/oxyFiles/fileEvents';
+import { ERASURE_STEPS } from '../../services/accounts/accountErasure/erasureSteps';
+import { applyFileEvent } from '../../services/media/oxyFiles/fileEvents';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import express from 'express';

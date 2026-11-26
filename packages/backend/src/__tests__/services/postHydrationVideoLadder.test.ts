@@ -32,7 +32,7 @@ vi.mock('../../db/posts/postSafetyRepository', () => ({
 }));
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * A stored video's HLS ladder stamp reaches the post DTO as `hlsUrl`.
@@ -121,7 +121,7 @@ vi.mock('../../db/federation/actorRepository', () => ({
   findActorsByUris: async () => [],
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -135,7 +135,7 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 
 function postRow(video: Record<string, unknown>) {
   return {

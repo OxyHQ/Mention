@@ -163,7 +163,7 @@ dropped and the new source is translated once. A second edit during that retry
 returns `409 { code: 'TRANSLATION_SOURCE_CHANGED' }`, and nothing is cached.
 
 Model output is checked before it is stored or returned, for both endpoints
-(`packages/backend/src/services/translationOutputGuard.ts`). Before the text is sent, every entity
+(`packages/backend/src/services/posts/translationOutputGuard.ts`). Before the text is sent, every entity
 the post renderer links (`scanTextEntities`: `[mention:<id>]` placeholders,
 `[@Label](target)` mentions, `@handle` and `@user@domain`, `#hashtags`,
 `$CASHTAGS`, URLs) is replaced with an opaque `⟦n⟧` token. The answer has one
@@ -227,7 +227,7 @@ changing their payloads.
 ### Acting on a post by id
 
 Every endpoint that names a post by id asks the post read gate first
-(`services/postReadAccess.ts` → `PostHydrationService.canViewerReadPostId`):
+(`services/posts/access/postReadAccess.ts` → `PostHydrationService.canViewerReadPostId`):
 like and save and their undo, `POST /statistics/post/:postId/view`, replying
 (`POST /feed/reply` and `POST /posts` with a parent), `GET /feed/replies/:parentId`,
 `GET /feed/quotes/:postId` and reading a threadgate or postgate. A post the
@@ -238,7 +238,7 @@ is stored under the post's own URI. Like and save responses carry their counters
 through the author's count privacy: a hidden counter is `null`, as on the post DTO.
 
 Listings that hydrate candidate rows (`GET /search`, `GET /posts/saved`) page
-over the posts the viewer may read (`services/readablePage.ts`): the page,
+over the posts the viewer may read (`services/webshell/readablePage.ts`): the page,
 `hasMore` and `nextCursor` never describe a raw row. `GET /posts/saved` takes
 `cursor` (the previous page's `nextCursor`); the older `page` parameter still
 works and counts readable posts from the start.
@@ -360,7 +360,7 @@ asked about.
 ### Presence
 
 `getPresence`, `getPresenceBulk` and `subscribePresence` on the main socket
-answer through one policy (`services/presencePolicy.ts`): an account with
+answer through one policy (`services/notifications/presencePolicy.ts`): an account with
 `privacy.showOnlineStatus` off reads offline to everyone else and broadcasts
 nothing, and a block in either direction reads offline both ways (Oxy's
 two-way answer for the socket's verified bearer). A hidden account is never

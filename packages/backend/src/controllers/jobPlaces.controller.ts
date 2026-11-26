@@ -4,7 +4,7 @@
  * A thin, authenticated proxy over `clarity.places.search`: the frontend cannot
  * hold Mention's Clarity service credential, and a job's place id must come
  * from the same gazetteer the job write resolves it against
- * (`services/jobPlaces.ts`). Mounted under `authenticatedApi`, so `req.user` is
+ * (`services/jobsBoard/jobPlaces.ts`). Mounted under `authenticatedApi`, so `req.user` is
  * always present here.
  */
 
@@ -23,7 +23,7 @@ import {
   JOB_PLACE_SEARCH_MAX_LIMIT,
   JobPlacesUnavailableError,
   searchJobPlaces,
-} from '../services/jobPlaces';
+} from '../services/jobsBoard/jobPlaces';
 
 export const placeSearchQuerySchema = z.object({
   q: z

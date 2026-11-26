@@ -25,7 +25,7 @@ import { oxyFileEvents, oxyFileReferenceSync, oxyFileStates } from '../../../db/
 import { postMedia, postVariantMedia } from '../../../db/schema/postContent';
 import { userSettings } from '../../../db/schema/userProfile';
 import { createOxyFileEventsRoutes } from '../../../routes/oxyFileEvents.routes';
-import { applyFileEvent, withholdingFor } from '../../../services/oxyFiles/fileEvents';
+import { applyFileEvent, withholdingFor } from '../../../services/media/oxyFiles/fileEvents';
 import { resolveMediaItems } from '../../../utils/mediaResolver';
 
 const AUTHOR = 'oxy-file-events-author';

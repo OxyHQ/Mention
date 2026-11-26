@@ -52,7 +52,7 @@ const hoisted = vi.hoisted(() => ({
   notifyPendingInvites: vi.fn(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: hoisted.resolveUserSummaries,
   degradedActorSummary: (id: string) => ({
@@ -62,7 +62,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
-vi.mock('../../services/PostCollaborationService', () => ({
+vi.mock('../../services/posts/PostCollaborationService', () => ({
   postCollaborationService: {
     resolveCollaboratorRefs: hoisted.resolveCollaboratorRefs,
     attachCollaborators: hoisted.attachCollaborators,
@@ -103,9 +103,9 @@ import {
   trackPost,
   withDeadlockRetry,
 } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { updatePost } from '../../controllers/posts/updatePost';
-import { stripHiddenHashtags } from '../../services/postVariants';
+import { stripHiddenHashtags } from '../../services/posts/postVariants';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-spam-hashtag-strip');

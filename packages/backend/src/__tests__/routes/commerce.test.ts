@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
   featured: vi.fn(),
   collectionProducts: vi.fn(),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: async (ids: string[]) =>
     new Map(ids.map((id) => [id, { user: { id, kind: 'organization', name: {} } }])),
 }));
@@ -45,7 +45,7 @@ vi.mock('../../middleware/security', () => {
     next();
   return { operatedAccountSettingsRateLimiter: pass, postDocumentsRateLimiter: pass };
 });
-vi.mock('../../services/commerce/mercariaClient', () => ({
+vi.mock('../../services/monetization/commerce/mercariaClient', () => ({
   getMercariaClient: () => ({
     collections: { products: state.collectionProducts },
     stores: {
@@ -62,7 +62,7 @@ vi.mock('../../services/commerce/mercariaClient', () => ({
 import commerceRoutes from '../../routes/commerce';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { accountStorefronts } from '../../db/schema/commerce';
-import { ERASURE_STEPS } from '../../services/accountErasure/erasureSteps';
+import { ERASURE_STEPS } from '../../services/accounts/accountErasure/erasureSteps';
 
 function store(): MercariaStore {
   return {

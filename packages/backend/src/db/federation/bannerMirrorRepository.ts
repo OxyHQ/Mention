@@ -1,6 +1,6 @@
 /**
  * Writes to `federated_banner_mirrors` from the actor-upsert paths. The sweep
- * that drains it lives in `services/federatedBannerMirror.ts` (it imports the
+ * that drains it lives in `services/federation/federatedBannerMirror.ts` (it imports the
  * mirror in `connectors/identity.ts`, which imports this — kept apart so the two
  * modules do not import each other).
  */

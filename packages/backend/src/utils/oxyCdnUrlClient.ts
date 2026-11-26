@@ -13,7 +13,7 @@ import { config } from '../config';
  * SERVICE-AUTHENTICATED singleton: it reads the rotating credential, installs
  * egress instrumentation, and reaches `@oxy.so/mcp` and the server entrypoint.
  * Depending on all of that to concatenate a string is what forced
- * `services/webShellRenderer.ts` — which deliberately keeps clear of the server
+ * `services/webshell/webShellRenderer.ts` — which deliberately keeps clear of the server
  * entrypoint — to build its own client and, from there, its own copy of the
  * media-proxy URL shape.
  *

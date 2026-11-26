@@ -39,7 +39,7 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
     },
   }),
 }));
-vi.mock('../../services/PostHydrationService', async (importOriginal) => ({
+vi.mock('../../services/posts/PostHydrationService', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   resolveUserSummaries: async (ids: string[]) =>
     new Map(ids.map((id) => [id, { user: { id, username: `${id}@example.test`, name: {} } }])),

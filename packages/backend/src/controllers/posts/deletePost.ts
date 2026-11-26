@@ -15,14 +15,14 @@ import { CHRONO_DESC, deletePostRecord, findPostRecords } from '../../db/posts/p
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { callerAccountAccess } from '../../utils/oxyHelpers';
-import { postManagementRefusal } from '../../services/postManagementAccess';
+import { postManagementRefusal } from '../../services/posts/access/postManagementAccess';
 import {
   PostDeletionTooLargeError,
   EventCancellationRequiredError,
   type DeletedPostSubtree,
-} from '../../services/PostDeletionCascade';
-import { deleteAuthoredPost } from '../../services/PostDeletionService';
-import { loadScheduledChain } from '../../services/scheduledChain';
+} from '../../services/posts/PostDeletionCascade';
+import { deleteAuthoredPost } from '../../services/posts/PostDeletionService';
+import { loadScheduledChain } from '../../services/scheduling/scheduledChain';
 
 // Delete post
 export const deletePost = async (req: AuthRequest, res: Response) => {

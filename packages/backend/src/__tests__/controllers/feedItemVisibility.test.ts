@@ -6,7 +6,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
-vi.mock('../../services/postDetailCache', () => ({
+vi.mock('../../services/posts/postDetailCache', () => ({
   getOrLoadPostRecord: (id: string) => hoisted.loadPost(id),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -21,7 +21,7 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
 }));
 
 import { feedController } from '../../controllers/feed.controller';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 
 function request(id: string) {
   return {

@@ -29,7 +29,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { portraitBoost } from '../services/ranking/signals/optIn';
+import { portraitBoost } from '../services/feed/ranking/signals/optIn';
 import { and, inArray } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 import type { MediaItem } from '@mention/shared-types';
@@ -51,13 +51,13 @@ const rankPosts = vi.fn(async (candidates: Array<Record<string, unknown>>) => {
   }
   return candidates;
 });
-vi.mock('../services/FeedRankingService', () => ({
+vi.mock('../services/feed/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
   },
 }));
 
-vi.mock('../services/ThreadSlicingService', () => ({
+vi.mock('../services/posts/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (candidates: Array<{ id: string }>) => ({
       slices: candidates.map((post) => ({
@@ -70,7 +70,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
   },
 }));
 
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (records: unknown[]) => records),

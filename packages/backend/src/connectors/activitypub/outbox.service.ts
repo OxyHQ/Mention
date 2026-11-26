@@ -43,8 +43,8 @@ import { config } from '../../config';
 import { resolveAnnouncedActivity } from './apRelay';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { createFederatedRepost } from '../shared/federatedRepost';
-import { enrichIngestedPosts } from '../../services/postEnrichment';
-import { applyDetectedPrimaryTag } from '../../services/postVariants';
+import { enrichIngestedPosts } from '../../services/posts/postEnrichment';
+import { applyDetectedPrimaryTag } from '../../services/posts/postVariants';
 import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { actorService } from './actor.service';
 import {
@@ -78,7 +78,7 @@ import {
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
 } from './apMentions';
-import { recordRecentReplierForPost } from '../../services/PostRecentReplierService';
+import { recordRecentReplierForPost } from '../../services/posts/PostRecentReplierService';
 import { mastodonPublicStatusUris } from './mastodonPublicStatuses';
 import { isOutboxMarkedUnavailable } from './outboxSyncCooldown';
 import { transportHandoff } from './transportHandoff';
@@ -1338,7 +1338,7 @@ export class OutboxSyncService {
     }
 
     // The one post-ingest enrichment entry point the native route also uses
-    // (`services/postEnrichment/`), passed the page so a link shared by several
+    // (`services/posts/postEnrichment/`), passed the page so a link shared by several
     // notes is resolved once.
     enrichIngestedPosts(inserted);
     const byId = new Map(built.map((b) => [b.record.id, b.post]));

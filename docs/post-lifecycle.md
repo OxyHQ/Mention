@@ -18,7 +18,7 @@ post is classified and ranked once it exists.
 
 - **Trailing hashtags are filing, not prose.** `normalizePostHashtags`
   (`utils/textProcessing.ts`) is the one rule every write applies — native
-  create/edit through `stripHiddenHashtags` (`services/postVariants.ts`), the
+  create/edit through `stripHiddenHashtags` (`services/posts/postVariants.ts`), the
   federated ingest in `connectors/activitypub/apPostContent.ts`. Hashtag-only
   lines at the END of a body are removed from the visible text whole, whatever
   their count; a 4+ block elsewhere keeps only its first tag; a hashtag inside
@@ -33,7 +33,7 @@ post is classified and ranked once it exists.
   applied the rule to bodies stored before it.
 - **A cascade delete filter naming a field the schema lacks is a silent
   no-op that reports success.** `deletePost` passes the deleted post
-  DOCUMENT to `cascadeDeletedPost` (`services/PostDeletionCascade.ts`),
+  DOCUMENT to `cascadeDeletedPost` (`services/posts/PostDeletionCascade.ts`),
   scored against `POST_REFERENCE_PROBE_NAMES`
   (`scripts/lib/adminDeletionPreflight.ts`) — every known post reference
   with a disposition (`cascade`/`cancel-pending`/`retain`). A new field
@@ -57,7 +57,7 @@ post is classified and ranked once it exists.
   its own. A draft is edited in place (`PUT /posts/:id`, exempt from the
   30-minute window like a scheduled post) and is never part of a thread.
 - **Erasing an ACCOUNT is not a loop over `deletePost`.** When Oxy reports an
-  account deleted, `services/accountErasure/erasePosts.ts` walks the account's
+  account deleted, `services/accounts/accountErasure/erasePosts.ts` walks the account's
   posts in batches and reuses `cascadePostReferences`, but it KEEPS other
   people's replies (`parent_post_id` → NULL, `is_reply` stays true) where the
   single-post delete removes direct replies: erasing a person must not destroy
@@ -65,7 +65,7 @@ post is classified and ranked once it exists.
   own transaction. The whole disposition, table by table, is
   `docs/account-erasure.md`.
 - **An engagement event's side effects are independent.** The engagement
-  outbox (`services/EngagementOutboxDispatcher.ts`) attempts a like's author
+  outbox (`services/engagement/EngagementOutboxDispatcher.ts`) attempts a like's author
   notification and federation delivery every time, records each one that
   lands in `engagement_outbox.completed_effects`, and retries only the rest.
   Never chain them again: one effect that could not succeed once kept one
@@ -77,7 +77,7 @@ post is classified and ranked once it exists.
 ## Post and identity rules
 
 - **Post DTOs MUST come from `PostHydrationService`**
-  (`services/PostHydrationService.ts`). Controllers never hand-build post
+  (`services/posts/PostHydrationService.ts`). Controllers never hand-build post
   `user`, notification embedded posts, or feed shapes.
 - **`post.user` / `authors[]` / `boost.actor` are the canonical Oxy `User`
   shape**, passed through unchanged. No `avatarUrl`, no flat

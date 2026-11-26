@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { RedisClientType } from '../../utils/redis';
-import { DistributedPresenceService } from '../../services/DistributedPresenceService';
+import { DistributedPresenceService } from '../../services/notifications/DistributedPresenceService';
 
 function fakeRedis(): RedisClientType {
   const sortedSets = new Map<string, Map<string, number>>();

@@ -9,7 +9,7 @@ const { access, withUser } = vi.hoisted(() => {
   return { access, withUser };
 });
 vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({ withUser }) }));
-import { hydratePostMedia, prefetchPostMediaAccess } from '../../services/hydratePostMedia';
+import { hydratePostMedia, prefetchPostMediaAccess } from '../../services/posts/hydratePostMedia';
 beforeEach(() => {
   vi.clearAllMocks();
 });

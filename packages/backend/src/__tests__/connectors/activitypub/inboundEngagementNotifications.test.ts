@@ -34,7 +34,7 @@ const scope = federationScope('inbound-engagement-notifications');
  *
  * Drives the REAL `InboxProcessingService` with the same mocking convention as
  * the sibling `inboundSharingGates.test.ts`: mock the models + the notification
- * util + `services/fediverseSharing`, let `actor.service.ts` run for real
+ * util + `services/federation/fediverseSharing`, let `actor.service.ts` run for real
  * against the mocked `FederatedActor` model, and mock `outbox.service.ts`
  * wholesale (its thread-link/boost-import logic has its own coverage).
  */
@@ -97,7 +97,7 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../services/PostEngagementCommandService', () => ({
+vi.mock('../../../services/engagement/PostEngagementCommandService', () => ({
   materializeEngagementRelationship: (...args: unknown[]) =>
     mocks.materializeEngagementRelationship(...args),
   materializeEngagementTombstone: (...args: unknown[]) =>
@@ -108,11 +108,11 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
 
@@ -123,7 +123,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 
@@ -145,7 +145,7 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 }));
 
 // The channel reply gate resolves the parent author's account kind here.
-vi.mock('../../../services/publishAsAccount', () => ({
+vi.mock('../../../services/accounts/publishAsAccount', () => ({
   isChannelAccount: () => Promise.resolve(false),
 }));
 

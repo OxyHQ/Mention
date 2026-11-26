@@ -26,14 +26,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { randomUUID } from 'node:crypto';
 import { asc, eq, inArray } from 'drizzle-orm';
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
   isFallbackUserSummary: vi.fn().mockReturnValue(false),
 }));
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   invalidate: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('../../services/EndorsementSignalService', () => ({
+vi.mock('../../services/feed/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
     syncScopeMembershipChange: vi.fn().mockResolvedValue(undefined),

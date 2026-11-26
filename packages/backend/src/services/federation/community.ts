@@ -1,6 +1,6 @@
 import { LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND } from '@oxy.so/federation';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
-import { resolveAccountKinds } from '../publishAsAccount';
+import { resolveAccountKinds } from '../accounts/publishAsAccount';
 
 /**
  * Which of these federated actors are COMMUNITIES (a Lemmy, PieFed or Mbin

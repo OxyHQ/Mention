@@ -3,7 +3,7 @@ vi.mock('../../db/posts/postSafetyRepository', () => ({
 }));
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * The note a reader sees under a post, put there by hydration.
@@ -29,7 +29,9 @@ const { getUsersByIds, loadShownNotes } = vi.hoisted(() => ({
   loadShownNotes: vi.fn(async () => new Map()),
 }));
 
-vi.mock('../../services/communityNotes/CommunityNotesService', () => ({ loadShownNotes }));
+vi.mock('../../services/moderation/communityNotes/CommunityNotesService', () => ({
+  loadShownNotes,
+}));
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
@@ -55,7 +57,7 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
 }));
 
 const cacheStore = new Map<string, CachedUserSummary>();
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -71,7 +73,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 
 import { randomUUID } from 'node:crypto';
 
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 
 const note = {
   id: 'n1',

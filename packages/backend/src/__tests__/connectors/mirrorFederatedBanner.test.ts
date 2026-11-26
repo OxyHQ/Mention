@@ -37,7 +37,7 @@ vi.mock('../../db/federation/mediaDeletionRepository', async (importOriginal) =>
   enqueueFederatedMediaDeletions: mocks.enqueueFederatedMediaDeletions,
 }));
 
-vi.mock('../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 

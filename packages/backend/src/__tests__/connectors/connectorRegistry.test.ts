@@ -38,7 +38,7 @@ vi.mock('../../utils/logger', () => ({
 // the fediverseSharing gate (covered by `connectorRegistrySharingGate.test.ts`)
 // — default every acting user to "sharing on" so the gate never short-circuits
 // delivery here.
-vi.mock('../../services/fediverseSharing', () => ({
+vi.mock('../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 

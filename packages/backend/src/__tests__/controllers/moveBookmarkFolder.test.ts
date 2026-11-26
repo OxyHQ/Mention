@@ -8,7 +8,7 @@ vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
-vi.mock('../../services/BookmarkFolderService', () => {
+vi.mock('../../services/accounts/BookmarkFolderService', () => {
   class BookmarkFolderInputError extends Error {}
   return {
     BookmarkFolderInputError,

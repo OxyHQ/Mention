@@ -7,9 +7,9 @@ import {
   classifyPostBaseline,
   type CreatePostParams,
   derivePostType,
-} from '../../services/PostCreationService';
-import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
-import { authorVariants, toStoredContent } from '../../services/postVariants';
+} from '../../services/posts/PostCreationService';
+import { isFediverseSharingEnabled } from '../../services/federation/fediverseSharing';
+import { authorVariants, toStoredContent } from '../../services/posts/postVariants';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { logger } from '../../utils/logger';

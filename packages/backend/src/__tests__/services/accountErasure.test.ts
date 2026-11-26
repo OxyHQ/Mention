@@ -55,7 +55,7 @@ vi.mock('../../connectors/activitypub/follow.service', () => ({
  * runner (OxyHQ/Mention#1178); the code under test is identical, only the
  * numbers it is handed differ.
  */
-vi.mock('../../services/accountErasure/erasureLimits', () => ({
+vi.mock('../../services/accounts/accountErasure/erasureLimits', () => ({
   ERASURE_POST_BATCH: 2,
   ERASURE_REPOST_CHUNK: 10,
   ERASURE_DELETE_BATCH: 10,
@@ -94,17 +94,17 @@ import {
   eraseOxyUser,
   previewAccountErasure,
   processAccountErasure,
-} from '../../services/accountErasure/AccountErasureService';
+} from '../../services/accounts/accountErasure/AccountErasureService';
 import {
   ACCOUNT_ERASURE_MAP,
   ERASED_ACCOUNT_SENTINEL,
   erasureKey,
-} from '../../services/accountErasure/erasureMap';
-import { ERASURE_STEPS } from '../../services/accountErasure/erasureSteps';
+} from '../../services/accounts/accountErasure/erasureMap';
+import { ERASURE_STEPS } from '../../services/accounts/accountErasure/erasureSteps';
 import {
   ERASURE_REPOST_CHUNK,
   ERASURE_DELETE_BATCH,
-} from '../../services/accountErasure/erasureLimits';
+} from '../../services/accounts/accountErasure/erasureLimits';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const scope = serviceScope('account-erasure');

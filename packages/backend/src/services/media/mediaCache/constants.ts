@@ -1,0 +1,99 @@
+import { config } from '../../../config';
+
+/**
+ * Tunables for the activity-based federated media S3 cache.
+ *
+ * The cache is NOT a permanent mirror: remote media is copied to Oxy S3 on
+ * activity, evicted when idle past {@link MEDIA_CACHE_TTL_MS}, and re-cached on
+ * the next access. All values are named constants (no inline magic numbers).
+ */
+
+const BYTES_PER_MIB = 1024 * 1024;
+const MS_PER_SECOND = 1000;
+const SECONDS_PER_MINUTE = 60;
+const MINUTES_PER_HOUR = 60;
+const HOURS_PER_DAY = 24;
+const MS_PER_DAY = MS_PER_SECOND * SECONDS_PER_MINUTE * MINUTES_PER_HOUR * HOURS_PER_DAY;
+
+/**
+ * Idle TTL: a `cached` entry whose `lastAccessedAt` is older than this is
+ * evicted from Oxy S3 (the row is kept as `evicted` for re-caching on access).
+ */
+export const MEDIA_CACHE_TTL_MS = 30 * MS_PER_DAY;
+
+/**
+ * Maximum size of a VIDEO we will copy into the cache. Videos over this stay
+ * proxy-only (the entry is marked `failed`). Kept generous for fediverse video.
+ */
+export const MEDIA_CACHE_MAX_VIDEO_BYTES = 200 * BYTES_PER_MIB;
+
+/**
+ * Maximum size of an IMAGE (or audio) we will copy into the cache. Smaller than
+ * the video cap; over-cap images stay proxy-only.
+ */
+export const MEDIA_CACHE_MAX_IMAGE_BYTES = 32 * BYTES_PER_MIB;
+
+/**
+ * Largest federated actor BANNER stored byte-for-byte. A banner is one
+ * decorative header image, not user-posted content, so it is kept small: a
+ * larger (or animated, or non-web-format) banner is stored as a re-encoded
+ * first-frame still instead (`utils/imageReencode.ts`), never dropped.
+ */
+export const FEDERATED_BANNER_MAX_BYTES = 10 * BYTES_PER_MIB;
+
+/**
+ * Hard ceiling on the bytes DOWNLOADED for a federated banner — above the
+ * stored cap, so an oversized banner can still be fetched and re-encoded. The
+ * same ceiling oxy-api uses for federated avatars (OxyHQServices #1452).
+ */
+export const FEDERATED_BANNER_DOWNLOAD_MAX_BYTES = 25 * BYTES_PER_MIB;
+
+/**
+ * Number of leading bytes of a video to buffer for poster-frame extraction. A
+ * keyframe lives near the start of a faststart container; we never need the
+ * whole file just for the poster.
+ */
+export const MEDIA_CACHE_POSTER_PREFIX_BYTES = 24 * BYTES_PER_MIB;
+
+/** Max consecutive failed cache attempts before an entry is marked `failed`. */
+export const MEDIA_CACHE_MAX_FAIL_COUNT = 4;
+
+/** Base backoff between failed cache attempts; multiplied by 2^(failCount-1). */
+export const MEDIA_CACHE_BACKOFF_BASE_MS = 5 * MS_PER_SECOND * SECONDS_PER_MINUTE;
+
+/** Cap on the computed exponential backoff so it never grows unbounded. */
+export const MEDIA_CACHE_BACKOFF_MAX_MS = 6 * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MS_PER_SECOND;
+
+// --- Worker / scheduler bounds ----------------------------------------------
+
+/** Max pending entries a single cache-worker run will claim and process. */
+export const MEDIA_CACHE_WORKER_BATCH_SIZE = 20;
+
+/** Concurrent downloads+uploads within one worker run (matches fed job style). */
+export const MEDIA_CACHE_WORKER_CONCURRENCY = 3;
+
+/** How often the cache worker drains pending entries. */
+export const MEDIA_CACHE_WORKER_INTERVAL_MS = 60 * MS_PER_SECOND;
+
+/** Max cached+idle entries evicted from S3 per eviction-job run. */
+export const MEDIA_CACHE_EVICTION_BATCH_SIZE = 50;
+
+/** Concurrent Oxy deletes within one eviction run. */
+export const MEDIA_CACHE_EVICTION_CONCURRENCY = 3;
+
+/** How often the eviction job sweeps for idle cached entries. */
+export const MEDIA_CACHE_EVICTION_INTERVAL_MS = 60 * SECONDS_PER_MINUTE * MS_PER_SECOND;
+
+/**
+ * MASTER ENABLE FLAG for the write side of the cache (worker + eviction).
+ *
+ * The proxy read-path hooks (cache lookup, serve-from-Oxy when already cached,
+ * access bump, pending upsert) are always safe and active. The WORKER (which
+ * uploads bytes to Oxy) and the EVICTION job (which deletes Oxy objects) need a
+ * service-token upload and delete path on Oxy. That did not exist when this flag
+ * was written, which is why it defaulted closed; it exists now and
+ * `oxyMediaStore.ts` uses it, so the default is open and production has been
+ * running that way. Set `FEDERATION_MEDIA_CACHE_WRITE_ENABLED=false` to close
+ * the write side again.
+ */
+export const MEDIA_CACHE_WRITE_ENABLED = config.federation.mediaCacheWriteEnabled;

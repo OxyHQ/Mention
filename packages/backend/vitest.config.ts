@@ -157,7 +157,7 @@ export default defineConfig({
             // before the feed port, warm 69.16/61.84/74.41/70.42 against cold
             // 69.14/61.83/74.33/70.41, reproduced deliberately twice each way. The
             // entire difference was five statements and three functions in
-            // `services/TrendingService.ts`: a path whose execution depends on how
+            // `services/trending/TrendingService.ts`: a path whose execution depends on how
             // long the suite has been running, so those functions are never
             // exercised on the machine that gates merges. That is a real gap in that
             // file's tests, and it belongs to whoever next touches it — the 30s
@@ -193,7 +193,7 @@ export default defineConfig({
             // few hundredths when saves stopped enqueueing an outbox event: the
             // removed lines were covered ones, so the same uncovered defensive
             // branches are a slightly larger share of a smaller file.
-            'src/services/PostEngagementCommandService.ts': {
+            'src/services/engagement/PostEngagementCommandService.ts': {
               statements: 96.51,
               branches: 86.9,
               functions: 100,
@@ -202,19 +202,19 @@ export default defineConfig({
             // Branches 85.33 -> 85.13 when the post-owner payload stopped being
             // written and read: its two covered null-coalescing branches went, and
             // the uncovered defensive ones are a larger share of what is left.
-            'src/services/EngagementOutboxService.ts': {
+            'src/services/engagement/EngagementOutboxService.ts': {
               statements: 91.66,
               branches: 85.13,
               functions: 95,
               lines: 92.07,
             },
-            'src/services/EngagementOutboxDispatcher.ts': {
+            'src/services/engagement/EngagementOutboxDispatcher.ts': {
               statements: 98.41,
               branches: 96.87,
               functions: 91.66,
               lines: 98.24,
             },
-            'src/services/EngagementProjectionReconciliationService.ts': {
+            'src/services/engagement/EngagementProjectionReconciliationService.ts': {
               statements: 96.42,
               branches: 86.36,
               functions: 100,
@@ -271,7 +271,7 @@ export default defineConfig({
              * violation into the projection write, which belongs to the same family
              * as the moderation contention work and not to a threshold edit.
              */
-            'src/services/PostRecentReplierService.ts': {
+            'src/services/posts/PostRecentReplierService.ts': {
               statements: 98.52,
               branches: 82,
               functions: 100,
@@ -371,7 +371,7 @@ export default defineConfig({
             // reach, so the one statement they never reach now weighs more. 50/52 was
             // 96.15%, the same single miss as 49/51 is 96.07%. The escaping itself did
             // not lose coverage — it gained a dedicated suite at its new home.
-            'src/services/LabelService.ts': {
+            'src/services/moderation/LabelService.ts': {
               statements: 96.07,
               branches: 78.33,
               functions: 100,

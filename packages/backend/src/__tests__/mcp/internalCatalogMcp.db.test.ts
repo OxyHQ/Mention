@@ -30,7 +30,9 @@ import type { McpHttpConfig } from '../../../../mcp/lib/config';
 
 // The post read gate has its own suites, and this fixture's Oxy serves no
 // block lists or safety decisions; this suite is about the capability pipeline.
-mock.module('../../services/postReadAccess', () => ({ canRequestReadPost: async () => true }));
+mock.module('../../services/posts/access/postReadAccess', () => ({
+  canRequestReadPost: async () => true,
+}));
 const { savePost } = await import('../../controllers/posts/bookmarks');
 
 const keys = generateKeyPairSync('ed25519');

@@ -2,7 +2,7 @@ import { loadPostSafetyAssessments } from '../../db/posts/postSafetyRepository';
 import {
   postSafetyClassification,
   postSafetyMaterial,
-} from '../../services/contentClassification/safetyAssessment';
+} from '../../services/moderation/contentClassification/safetyAssessment';
 import * as evaluationRepository from '../../db/posts/postEvaluationRepository';
 import {
   claimPostEvaluation,
@@ -18,9 +18,9 @@ import {
   KaanaRateLimitError,
   KaanaUnavailableError,
 } from '@kaana.ai/sdk';
-import { JEV_SHADOW_DAILY_LIMIT } from '../../services/contentClassification/jevLane';
+import { JEV_SHADOW_DAILY_LIMIT } from '../../services/moderation/contentClassification/jevLane';
 import { metrics } from '../../utils/metrics';
-import type * as jevShadow from '../../services/contentClassification/jevShadow';
+import type * as jevShadow from '../../services/moderation/contentClassification/jevShadow';
 import { postEvaluations } from '../../db/schema/postEvaluations';
 
 /**
@@ -99,7 +99,7 @@ vi.mock('../../utils/inference', () => ({
 // Mock ONLY the Topic registry resolution (an Oxy round trip). By default each
 // slug resolves to a deterministic `topicId` so the canonical `topicRefs` carry
 // registry linkage; individual tests override it to assert the fallbacks.
-vi.mock('../../services/TopicService', () => ({
+vi.mock('../../services/topics/TopicService', () => ({
   topicService: {
     resolveTopicRefs: (topics: Array<{ name: string }>) => resolveTopicRefs(topics),
   },
@@ -119,7 +119,7 @@ import {
   createProductionPostClassificationService,
   PostClassificationService,
   postClassificationService,
-} from '../../services/PostClassificationService';
+} from '../../services/moderation/PostClassificationService';
 import { config } from '../../config';
 import type {
   PostRecord,

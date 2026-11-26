@@ -10,7 +10,7 @@ import {
   resolveVariant,
   resolveViewerTag,
   validateAuthorVariants,
-} from '../services/postVariants';
+} from '../services/posts/postVariants';
 
 /**
  * Multilingual post content.

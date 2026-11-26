@@ -83,7 +83,7 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
   isPermanentlyUnavailableOutboxReason: vi.fn(() => false),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
 }));
 

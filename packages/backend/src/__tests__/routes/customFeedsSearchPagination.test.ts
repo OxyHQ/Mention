@@ -47,7 +47,7 @@ const { feedEngineRun } = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(
     async (ids: string[]) =>
       new Map(

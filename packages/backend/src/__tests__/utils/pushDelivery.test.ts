@@ -46,7 +46,7 @@ vi.mock('../../config', async (importOriginal) => ({
 // Oxy's answer to "who is in their quiet hours", set per test. Empty by default,
 // so every case that is not about quiet hours sees no one held.
 const quietAccounts = vi.hoisted(() => ({ ids: new Set<string>(), asked: [] as string[][] }));
-vi.mock('../../services/quietHours', () => ({
+vi.mock('../../services/scheduling/quietHours', () => ({
   accountsInQuietHours: async (ids: readonly string[]) => {
     quietAccounts.asked.push([...ids]);
     return new Set(ids.filter((id) => quietAccounts.ids.has(id)));

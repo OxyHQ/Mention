@@ -55,7 +55,7 @@ import {
   normalizeStoredText,
 } from '../../scripts/normalizeFederatedText';
 import { extractApSummary } from '../../connectors/activitypub/apPostContent';
-import { normalizeAlt } from '../../services/MediaMetadataService';
+import { normalizeAlt } from '../../services/media/MediaMetadataService';
 
 const scope = federationScope('normalize-federated-text');
 const postFixtures = postScope('normalize-federated-text');

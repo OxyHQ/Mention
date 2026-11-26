@@ -71,7 +71,7 @@ const resolveUserSummaries = vi.hoisted(() => vi.fn(async () => new Map()));
 // The identity path behind account KINDS. The real `publishAsAccount` is used
 // throughout — the second case's condition 4 delegates to its authorization gate,
 // and stubbing that would leave the delegation untested.
-vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
+vi.mock('../../services/posts/PostHydrationService', () => ({ resolveUserSummaries }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
@@ -79,7 +79,7 @@ import {
   assertAnswersOperatedAccount,
   assertContinuesOwnThread,
 } from '../../utils/threadContinuation';
-import { PublishAsAccessError } from '../../services/publishAsAccount';
+import { PublishAsAccessError } from '../../services/accounts/publishAsAccount';
 import type { AccountMember } from '@oxy.so/core';
 
 const scope = serviceScope('thread-continuation');

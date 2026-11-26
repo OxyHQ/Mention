@@ -10,7 +10,7 @@ the descriptor system.
 All posts — native AND federated — go through the same classification
 pipeline at ingest.
 
-**Stage A — deterministic baseline** (`services/BaselineContentClassifier.ts`,
+**Stage A — deterministic baseline** (`services/moderation/BaselineContentClassifier.ts`,
 pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
 `feed.controller` reply path, `OutboxSyncService.insertMany`,
 `InboxProcessingService`. Writes a `postClassification` subdoc:
@@ -43,7 +43,7 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
 - Top-level `post.language` = `languages[0]` (primary, the AP protocol
   field).
 - Sensitive, spam, quality, toxicity scores
-  (`services/contentClassification/spamQuality.ts`), normalized hashtags,
+  (`services/moderation/contentClassification/spamQuality.ts`), normalized hashtags,
   rule-based topics via `TopicClassifier`.
 - Status: `'pending'` (waiting for Stage B).
 - `BASELINE_CLASSIFIER_VERSION` — ranking only trusts scores stamped at or
@@ -192,12 +192,12 @@ them. Three modules, no fourth copy of any predicate:
   definition remembering not to opt in, and what lets it sit safely on the
   hashtag / topic / trend / lane feeds, which have no trusted lane to scope it
   by. The reader's own toggle is `feedTuning.forYou.noContentWarning`.
-- **`services/safety/muteWordMatcher.ts`** — the pure compile/match for
+- **`services/moderation/safety/muteWordMatcher.ts`** — the pure compile/match for
   muted words, honouring `targets` (`content`/`tag`) and `actorTarget`
   (`all`/`exclude-following`).
-- **`services/safety/viewerSafety.ts`** — the ONE read path for both viewer
+- **`services/moderation/safety/viewerSafety.ts`** — the ONE read path for both viewer
   preferences; soft-fails toward the safe default.
-  `services/viewerFollowGraph.ts` owns the Oxy ∪ federated follow union both
+  `services/feed/viewerFollowGraph.ts` owns the Oxy ∪ federated follow union both
   feeds and `exclude-following` mutes read.
 
 Surface behaviour: search excludes sensitive at the QUERY level and drops
@@ -448,7 +448,7 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
 ## Feed API plumbing
 
 - **`ChronoCursor.applyToQuery` no longer exists** — every chronological list (feeds, notifications, search, likes, follows, …) pages through the one opaque `(createdAt, id)` cursor and row-comparison keyset in `utils/chronoCursor.ts`, which has no query-object-mutation footgun to warn about and still decodes every cursor format a list minted before. `posts.id` is `text` now, not `_id`; never sort or page a chronological query by id alone (see `docs/architecture.mdx` § PostgreSQL — the only store).
-- **FOUR field projections feed hydration** (`mtn/feed/FeedAPI.ts`, `controllers/feed.controller.ts`, `services/ThreadSlicingService.ts`, `routes/search.ts`). A field missing from one hydrates `undefined` with no error.
+- **FOUR field projections feed hydration** (`mtn/feed/FeedAPI.ts`, `controllers/feed.controller.ts`, `services/posts/ThreadSlicingService.ts`, `routes/search.ts`). A field missing from one hydrates `undefined` with no error.
 - **Any surface INCLUDING boosts must pass `maxDepth: 1`** or boosts render blank.
 - **`hasMore` comes from the overfetch flag**, never `slices.length >= limit`.
 - **Never put a non-post inside `slices[].items`** — `flattenSlicesToItems` pushes `item.post` unguarded. Interstitials (planned in `mtn/feed/interstitials/planInterstitials.ts`) are a top-level field, anchor by `_sliceKey`, and must never report impressions or go through `POST /feed/mtn/interactions`.
@@ -456,9 +456,9 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
 
 ## Feed Performance
 
-- Hydration author-batch: `buildUserMap` (`services/postHydration/authorMaps.ts`)
+- Hydration author-batch: `buildUserMap` (`services/posts/postHydration/authorMaps.ts`)
   batch-resolves authors via `oxyServices.getUsersByIds`.
-  `services/userSummaryCache.ts` caches the raw canonical Oxy `User` (as
+  `services/accounts/userSummaryCache.ts` caches the raw canonical Oxy `User` (as
   `PostUser`) + followerCount and the other ranking-side account facts in
   Redis (key `usersummary:v7:<id>`, 10m TTL); `invalidate()` evicts on
   federated-actor re-resolve and on Oxy's `oxy:user:invalidate`. Those facts are
@@ -481,9 +481,9 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
 - A post record is one wave of round trips: `loadPostRecords` reads `posts` and
   every child table (the variant tables through a subquery) at once. Reply
   parents, the web shell's `/p/:id` post and its SEO replies come through the
-  viewer-agnostic post-record cache (`services/postDetailCache.ts`) that
+  viewer-agnostic post-record cache (`services/posts/postDetailCache.ts`) that
   `/feed/item/:id` already used.
-- View counts: `services/feedViewCounter.ts` (Redis SET NX EX
+- View counts: `services/engagement/feedViewCounter.ts` (Redis SET NX EX
   `viewseen:<postId>:<viewerId>`). Frontend reports impressions via
   `utils/feedTelemetry.ts`.
 - Instant post-detail: memory-mode feeds seed the shared post cache

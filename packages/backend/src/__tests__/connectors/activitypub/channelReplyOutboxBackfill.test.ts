@@ -79,11 +79,11 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 
@@ -100,7 +100,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
 // account itself. The factory only CLOSES OVER `CHANNEL_ACCOUNT` below; the
 // closure does not run until the gate resolves an author, long after this module
 // finished initializing, so the `vi.mock` hoisting is harmless.
-vi.mock('../../../services/publishAsAccount', () => ({
+vi.mock('../../../services/accounts/publishAsAccount', () => ({
   isChannelAccount: (oxyUserId: string) => Promise.resolve(oxyUserId === CHANNEL_ACCOUNT),
 }));
 

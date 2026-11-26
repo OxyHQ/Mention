@@ -44,7 +44,7 @@ import {
 import { stripAtprotoHandlePrefix } from '@mention/shared-types/handle';
 import { classifyQuery } from './resolve';
 import { DeliveryAuthorizationDeniedError } from '@oxy.so/federation/node';
-import { postHydrationService } from '../services/PostHydrationService';
+import { postHydrationService } from '../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../utils/hydrationOptions';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { lookupOxyUsers } from '../utils/oxyUserLookup';
@@ -61,7 +61,7 @@ import { apiRateLimiter } from '../middleware/rateLimiter';
 import {
   isFediverseSharingEnabled,
   invalidateFediverseSharing,
-} from '../services/fediverseSharing';
+} from '../services/federation/fediverseSharing';
 import { invalidateWebfingerCache } from './activitypub/webfingerCache';
 import { enqueueSharingCleanup } from '../queue/producers';
 import { runSharingCleanup } from './activitypub/sharingCleanup.service';

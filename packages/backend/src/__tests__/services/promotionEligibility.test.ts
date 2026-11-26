@@ -4,7 +4,7 @@ import {
   type PromotablePost,
   type PromotionContext,
   promotionIneligibility,
-} from '../../services/promotion/eligibility';
+} from '../../services/monetization/promotion/eligibility';
 
 const BUYER = 'oxy-buyer';
 const post = (overrides: Partial<PromotablePost> = {}): PromotablePost => ({

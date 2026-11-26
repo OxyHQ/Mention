@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * asserted here directly.
  */
 
-vi.mock('../services/FeedRankingService', () => ({
+vi.mock('../services/feed/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {
       for (const post of posts) post.finalScore = (post._testScore as number | undefined) ?? 0;
@@ -23,7 +23,7 @@ vi.mock('../services/FeedRankingService', () => ({
   },
 }));
 
-vi.mock('../services/ThreadSlicingService', () => ({
+vi.mock('../services/posts/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (posts: Array<Record<string, unknown>>) => ({
       slices: posts.map((post) => ({
@@ -36,7 +36,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
   },
 }));
 
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     // Identity: `id` is already the post's own primary key. The mock exists to
     // keep hydration out of this file, not to rename anything.
@@ -46,7 +46,7 @@ vi.mock('../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
-vi.mock('../services/FeedSeenPostsService', () => ({
+vi.mock('../services/feed/FeedSeenPostsService', () => ({
   feedSeenPostsService: {
     getSeenPostIds: vi.fn(async () => []),
     markPostsAsSeen: vi.fn(async () => undefined),

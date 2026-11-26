@@ -10,7 +10,7 @@ vi.mock('../../db/posts/postSafetyRepository', () => ({
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { getMany, getUser, me, blocked, restricted, following, followers, cache } = vi.hoisted(
   () => ({
@@ -41,7 +41,7 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
   getFollowingIds: following,
   getFollowerIds: followers,
 }));
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: async (ids: string[]) =>
     new Map(
       ids.flatMap((id) => {
@@ -59,8 +59,8 @@ import {
   OXY_USER_ABSENT_TTL_MS,
   PostHydrationService,
   resetOxyUserFailureMemory,
-} from '../../services/PostHydrationService';
-import type { HydrationOptions } from '../../services/PostHydrationService';
+} from '../../services/posts/PostHydrationService';
+import type { HydrationOptions } from '../../services/posts/PostHydrationService';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
 const scope = postScope('hydration-latency');

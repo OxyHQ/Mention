@@ -2,7 +2,7 @@ import { createServer, type Socket } from 'node:net';
 import { config } from '../../config';
 import { withShadowReceiptDatabase } from '../../db/posts/shadowReceiptDatabase';
 import { Kaana } from '@kaana.ai/sdk';
-import { createJevReceiptReader } from '../../services/contentClassification/jevReceipt';
+import { createJevReceiptReader } from '../../services/moderation/contentClassification/jevReceipt';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
@@ -27,7 +27,10 @@ import { postImports } from '../../db/schema/imports';
 import { userSettings } from '../../db/schema/userProfile';
 import { updateUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
-import type { ShadowRelease, ShadowSignals } from '../../services/contentClassification/jevShadow';
+import type {
+  ShadowRelease,
+  ShadowSignals,
+} from '../../services/moderation/contentClassification/jevShadow';
 
 const scope = postScope('jev-shadow-ledger');
 const release: ShadowRelease = {

@@ -38,7 +38,7 @@ import { operatesAccount } from '@/lib/operatedAccounts';
  *    reaches for when an account is harassing them, at the moment they reach for
  *    them, with nothing on screen to explain why they are missing.
  *  - Showing them on an account you operate offers something pointless, which the
- *    server refuses (`services/operatedAccountAccess.ts`) and which is undoable
+ *    server refuses (`services/accounts/operatedAccountAccess.ts`) and which is undoable
  *    where it is not refused.
  *
  * So the affordance is hidden only on a POSITIVE confirmation, and the backend

@@ -29,7 +29,7 @@ import {
   type AtprotoPostView,
 } from '../../../connectors/atproto/post.mapper';
 import { findPostsByFederatedObjects } from '../../../connectors/shared/upstreamPostKey';
-import { postHydrationService } from '../../../services/PostHydrationService';
+import { postHydrationService } from '../../../services/posts/PostHydrationService';
 import { logger } from '../../../utils/logger';
 
 /** Boosts/quote embeds hydrate their original only at depth ≥ 1. */

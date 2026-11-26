@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { userSettings } from '../db/schema/userProfile';
 import { ensureUserSettings, updateUserSettings } from '../db/userProfile/userSettingsRepository';
-import { loadShowSensitiveContent } from '../services/safety/viewerSafety';
+import { loadShowSensitiveContent } from '../services/moderation/safety/viewerSafety';
 
 /**
  * `privacy.showSensitiveContent` — the gate every read surface consults before

@@ -41,10 +41,10 @@ import { buildCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDef
 import { loadViewerFeedContext } from '../mtn/feed/feedContext';
 import { languageLadder, requestLanguageCandidates } from '../utils/viewerLanguage';
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
-import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
+import { resolveUserSummaries, degradedActorSummary } from '../services/posts/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
-import type { CachedUserSummary } from '../services/userSummaryCache';
+import type { CachedUserSummary } from '../services/accounts/userSummaryCache';
 import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { respondWithApiError } from '../utils/error';

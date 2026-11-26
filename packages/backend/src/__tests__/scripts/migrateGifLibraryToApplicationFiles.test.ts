@@ -25,7 +25,7 @@ import {
   type GifFileImport,
   type GifLibraryMigrationDeps,
 } from '../../scripts/migrateGifLibraryToApplicationFiles';
-import { OxyMediaStoreThrottledError } from '../../services/mediaCache/oxyMediaStore';
+import { OxyMediaStoreThrottledError } from '../../services/media/mediaCache/oxyMediaStore';
 
 const AUTHOR = 'oxy-gif-migration-author';
 const fid = (label: string) => `ogm-${label}-${randomUUID().slice(0, 8)}`;

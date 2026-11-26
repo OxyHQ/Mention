@@ -18,8 +18,8 @@ import {
   pollVoteService,
   type PollHeader,
   type PollSummary,
-} from '../services/PollVoteService';
-import { postHydrationService } from '../services/PostHydrationService';
+} from '../services/posts/PollVoteService';
+import { postHydrationService } from '../services/posts/PostHydrationService';
 import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
 import type { PollDetail, PollResultOption, PollResults } from '@mention/shared-types';
 

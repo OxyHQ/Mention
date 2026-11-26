@@ -14,7 +14,7 @@ import { trending } from '../db/schema/discovery';
 import { resolveTrendConcept, conceptLabels } from '../services/trending/conceptRegistry';
 import { resolveTrendScope } from '../services/trending/trendItems';
 import { saveStoryMemberships } from '../services/trending/storyMembership';
-import { trendingService } from '../services/TrendingService';
+import { trendingService } from '../services/trending/TrendingService';
 import { logger } from '../utils/logger';
 import { rebaselineTrendTerms } from './rebaselineTrendTerms';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';

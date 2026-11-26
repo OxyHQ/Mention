@@ -26,14 +26,14 @@ import { PostVisibility } from '@mention/shared-types';
  * and none of them decides a metric label.
  */
 
-vi.mock('../services/feedViewCounter', () => ({
+vi.mock('../services/engagement/feedViewCounter', () => ({
   // A counted view resolves to the post's new total (null when it did not count).
   recordDedupedView: vi.fn(async () => 1),
 }));
-vi.mock('../services/dwellAggregate', () => ({
+vi.mock('../services/engagement/dwellAggregate', () => ({
   recordDwell: vi.fn(async () => undefined),
 }));
-vi.mock('../services/UserPreferenceService', () => ({
+vi.mock('../services/feed/UserPreferenceService', () => ({
   userPreferenceService: { recordInteractions: vi.fn(async () => undefined) },
 }));
 

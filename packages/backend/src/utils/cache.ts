@@ -22,7 +22,7 @@
  *  - **Locking.** {@link Cache.getOrCompute}'s stampede protection is
  *    per-PROCESS single-flight, not a distributed lock: N concurrent callers in
  *    ONE process share one computation. Distributed mutual exclusion belongs to
- *    `services/LeaderElection.ts`, which is not a cache.
+ *    `services/scheduling/LeaderElection.ts`, which is not a cache.
  *
  * FAIL-OPEN CONTRACT: no method here ever rejects because of Redis. A read
  * degrades to a miss and a write degrades to a no-op, so the caller behaves

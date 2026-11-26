@@ -1,20 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { presenceRoom } from '@mention/shared-types';
 
-vi.mock('../../services/ContentRoomLifecycle', () => ({
+vi.mock('../../services/events/ContentRoomLifecycle', () => ({
   registerContentRoomHandlers: vi.fn(),
 }));
 
-vi.mock('../../services/SocketPresenceLifecycle', () => ({
+vi.mock('../../services/notifications/SocketPresenceLifecycle', () => ({
   registerSocketPresence: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('../../services/notificationReadState', () => ({
+vi.mock('../../services/notifications/notificationReadState', () => ({
   markAllNotificationsRead: vi.fn(),
   markNotificationRead: vi.fn(),
 }));
 
-vi.mock('../../services/notificationInbox', () => ({
+vi.mock('../../services/notifications/notificationInbox', () => ({
   resolveNotificationInboxIds: vi.fn(() => Promise.resolve([])),
 }));
 

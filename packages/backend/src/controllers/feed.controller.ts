@@ -29,12 +29,18 @@ import {
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
 import { isUniqueViolation } from '@oxy.so/db';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
-import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
-import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
-import { affinityEventService } from '../services/AffinityEventService';
-import { postHydrationService } from '../services/PostHydrationService';
+import {
+  emitPostEngagement,
+  POST_ENGAGEMENT_EVENTS,
+} from '../services/engagement/postEngagementBroadcast';
+import {
+  userPreferenceService,
+  readInteractionSurface,
+} from '../services/feed/UserPreferenceService';
+import { affinityEventService } from '../services/feed/AffinityEventService';
+import { postHydrationService } from '../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../utils/hydrationOptions';
-import { canRequestReadPost } from '../services/postReadAccess';
+import { canRequestReadPost } from '../services/posts/access/postReadAccess';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import {
   checkFollowAccess,
@@ -46,10 +52,10 @@ import {
   type ViewerPrivacyContext,
   type ViewerGraphContext,
 } from '../utils/privacyHelpers';
-import { getOrLoadPostRecord } from '../services/postDetailCache';
+import { getOrLoadPostRecord } from '../services/posts/postDetailCache';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
-import { enrichIngestedPosts } from '../services/postEnrichment';
+import { enrichIngestedPosts } from '../services/posts/postEnrichment';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
@@ -57,23 +63,23 @@ import { encodeChronoCursor } from '../utils/chronoCursor';
 import { rankingWeight } from '../utils/rankingWeight';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { hashtagsSchema, parseFailureMessage } from './posts/composeInput';
-import { foldProfileLinkMentions } from '../services/profileLinkMentions';
+import { foldProfileLinkMentions } from '../services/posts/profileLinkMentions';
 import { toFederationPostPayload } from '../services/serviceRegistry';
 import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { postIsAuthoredByChannel } from '../utils/channelReplyGate';
-import { baselineContentClassifier } from '../services/BaselineContentClassifier';
-import { toStoredContent } from '../services/postVariants';
+import { baselineContentClassifier } from '../services/moderation/BaselineContentClassifier';
+import { toStoredContent } from '../services/posts/postVariants';
 import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
-import type { OperatedAccountReader } from '../services/publishAsAccount';
+import type { OperatedAccountReader } from '../services/accounts/publishAsAccount';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import { sanitizePodcast } from '../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../utils/jobPostAttachment';
-import { recordRecentReplierForPost } from '../services/PostRecentReplierService';
-import { postCreationService } from '../services/PostCreationService';
+import { recordRecentReplierForPost } from '../services/posts/PostRecentReplierService';
+import { postCreationService } from '../services/posts/PostCreationService';
 import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 

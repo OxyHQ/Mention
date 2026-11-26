@@ -7,7 +7,7 @@ import type { AccountNode } from '@oxy.so/core';
  *
  * A wire value: Oxy derives each member's `permissions` from their role
  * server-side and ships the resulting strings. The Mention backend names the same
- * constant in `services/publishAsAccount.ts` for the same reason — neither
+ * constant in `services/accounts/publishAsAccount.ts` for the same reason — neither
  * `@oxy.so/contracts` nor `@oxy.so/core` exports the permission vocabulary yet.
  * When one of them does, both call sites read it from there.
  */
@@ -18,7 +18,7 @@ const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
  * the membership Oxy already resolved onto the node.
  *
  * This is the frontend half of the rule the backend enforces in
- * `services/publishAsAccount.ts`, and it is deliberately the SAME rule rather
+ * `services/accounts/publishAsAccount.ts`, and it is deliberately the SAME rule rather
  * than a convenient approximation of it. Two families, two authorities:
  *
  *  - A **channel** can never be acted as, so there is no stronger right to ask

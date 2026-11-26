@@ -3,7 +3,7 @@ import { COMMUNITY_POST_TITLE_MAX_LENGTH, PostVisibility } from '@mention/shared
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { isBannedFromCommunity } from '../../db/communities/communityBanRepository';
-import { resolveCommunities } from '../publishAsAccount';
+import { resolveCommunities } from '../accounts/publishAsAccount';
 import { isInCommunitiesPreview } from './communityPreview';
 
 /**

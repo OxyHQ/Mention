@@ -607,7 +607,7 @@ export async function updateUserSettings(
  *
  * A NULL is a real answer — the column is NULL for an account that is not a
  * channel — so the raw value crosses this boundary rather than a boolean. The
- * consent decision itself belongs to `services/channelWriterDisclosure.ts`,
+ * consent decision itself belongs to `services/accounts/channelWriterDisclosure.ts`,
  * which is the one place allowed to turn a stored value into "name this
  * person"; splitting that across two modules is how the two surfaces that ask
  * it end up disagreeing.

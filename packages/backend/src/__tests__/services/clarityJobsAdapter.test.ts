@@ -17,7 +17,7 @@ vi.mock('../../utils/clarityClient', () => ({
   getClarityClient: async () => ({ jobs: { ingest } }),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
     for (const id of ids) {
@@ -47,7 +47,7 @@ import {
   buildJobPostingJsonLd,
   describeClaritySyncError,
   syncJobToClarity,
-} from '../../services/clarityJobsAdapter';
+} from '../../services/jobsBoard/clarityJobsAdapter';
 import type { MentionJobRow } from '../../db/jobs/jobRepository';
 
 const ORGANIZATION = {

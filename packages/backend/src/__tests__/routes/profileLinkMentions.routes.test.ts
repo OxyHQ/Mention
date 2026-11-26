@@ -45,7 +45,7 @@ vi.mock('../../connectors/activitypub/constants', async (importOriginal) => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
 }));
-// The stored-actor REPOSITORY, which is what `services/profileLinkMentions`
+// The stored-actor REPOSITORY, which is what `services/posts/profileLinkMentions`
 // consults — two point lookups (uri first, acct second), never one disjunction.
 vi.mock('../../db/federation/actorRepository', () => ({
   findActorByUri: mocks.findActorByUri,
@@ -54,7 +54,7 @@ vi.mock('../../db/federation/actorRepository', () => ({
 // Only the Oxy round trip is stubbed. `isFallbackUserSummary` stays REAL: it is
 // the predicate that decides whether an id is nameable, and a copy of it here
 // would be a second opinion about the case this route reports as no mention.
-vi.mock('../../services/PostHydrationService', async (importOriginal) => ({
+vi.mock('../../services/posts/PostHydrationService', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   resolveUserSummaries: mocks.resolveUserSummaries,
 }));

@@ -2,13 +2,13 @@ import type { SerializedMute, MutedUsersResponse } from '@mention/shared-types';
 import {
   activeMuteIdentityIds,
   unmuteIdentityProjection,
-} from '../services/ActorIdentityProjectionService';
+} from '../services/accounts/ActorIdentityProjectionService';
 import { Router, type Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { mutes } from '../db/schema/engagement';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { viewerOperatesAccount } from '../services/operatedAccountAccess';
+import { viewerOperatesAccount } from '../services/accounts/operatedAccountAccess';
 import { callerAccountAccess } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 

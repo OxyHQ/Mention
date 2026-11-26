@@ -3,7 +3,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { z } from 'zod';
 import { isUniqueViolation } from '@oxy.so/db';
 import { validateBody, validateObjectId } from '../middleware/validate';
-import { LabelService, type LabelActionPreference } from '../services/LabelService';
+import { LabelService, type LabelActionPreference } from '../services/moderation/LabelService';
 import { logger } from '../utils/logger';
 
 const router = Router();

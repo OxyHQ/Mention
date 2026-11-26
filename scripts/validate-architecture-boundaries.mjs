@@ -129,14 +129,14 @@ const BASELINE = [
       'Lives in services/federation/; gates its sweep on the same FEDERATION_ENABLED flag the connector reads.',
   },
   {
-    file: 'src/services/FederationJobScheduler.ts',
+    file: 'src/services/federation/FederationJobScheduler.ts',
     protocol: 'activitypub',
     reason:
       'A scheduler dedicated to federation delivery jobs — reaches the connector instance directly to check ' +
       'outbox-failure classification the public NetworkConnector surface does not expose.',
   },
   {
-    file: 'src/services/postHydration/userSummaries.ts',
+    file: 'src/services/posts/postHydration/userSummaries.ts',
     protocol: 'activitypub',
     reason:
       'TRACKED DEBT, not endorsed: the most product-central service in the app (post hydration) reaches into ' +
@@ -145,27 +145,27 @@ const BASELINE = [
       'third protocol.',
   },
   {
-    file: 'src/services/MediaMetadataService.ts',
+    file: 'src/services/media/MediaMetadataService.ts',
     protocol: 'activitypub',
     reason:
       'TRACKED DEBT: imports one AP attachment TYPE for media metadata mapping; should come from a normalized DTO.',
   },
   {
-    file: 'src/services/profileLinkMentions.ts',
+    file: 'src/services/posts/profileLinkMentions.ts',
     protocol: 'activitypub',
     reason:
       "TRACKED DEBT: resolves @mentions in post bodies by reaching into AP's own domain/acct helpers instead of " +
       'a protocol-neutral identity lookup.',
   },
   {
-    file: 'src/services/channelDeletion/channelDeletionFederation.ts',
+    file: 'src/services/accounts/channelDeletion/channelDeletionFederation.ts',
     protocol: 'activitypub',
     reason:
       'TRACKED DEBT: performs channel-teardown federation side effects (follow/delivery services) directly ' +
       'instead of emitting a LocalNetworkEvent through the connector registry.',
   },
   {
-    file: 'src/services/accountErasure/erasureFederation.ts',
+    file: 'src/services/accounts/accountErasure/erasureFederation.ts',
     protocol: 'activitypub',
     reason:
       "TRACKED DEBT, the same shape as channelDeletionFederation: an erased account's Delete(Tombstone) " +

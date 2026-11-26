@@ -30,7 +30,7 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { uuidv7 } from '@oxy.so/db';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
 import { posts } from '../../db/schema/posts';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 
 let db: Database;
 const createdPollIds: string[] = [];

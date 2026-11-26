@@ -72,18 +72,18 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => {
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
 }));
-vi.mock('../../services/fediverseSharing', () => ({
+vi.mock('../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(),
 }));
-vi.mock('../../services/ActorIdentityProjectionService', () => ({
+vi.mock('../../services/accounts/ActorIdentityProjectionService', () => ({
   reconcileActorIdentityProjection: mocks.reconcileProjection,
 }));
-vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
-vi.mock('../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({ invalidate: vi.fn() }));
+vi.mock('../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(async () => ({ ok: false, permanent: true })),
 }));
 

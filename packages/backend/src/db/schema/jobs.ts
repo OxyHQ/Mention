@@ -14,7 +14,7 @@
  * no foreign key, like every other Oxy account id in this schema (see
  * `CONVENTIONS.md` — "there is no `users` table"). Authority to manage a job is
  * never read off this row: it is re-checked LIVE against Oxy account membership
- * on every mutating call (`services/jobAuthority.ts`), so revoking an
+ * on every mutating call (`services/jobsBoard/jobAuthority.ts`), so revoking an
  * organization membership takes effect immediately without touching this table.
  */
 
@@ -53,7 +53,7 @@ export const mentionJobs = pgTable(
      * GeoNames id from Clarity's gazetteer and the source of truth for a
      * physical place; `locationCountryCode` / `locationRegion` /
      * `locationCity` are DERIVED from it server-side at write time
-     * (`services/jobPlaces.ts`). A country-only role has the country code and
+     * (`services/jobsBoard/jobPlaces.ts`). A country-only role has the country code and
      * nothing else. Membership of `COUNTRY_CODES` is validated by the write
      * path; the CHECKs below hold the shape only, because the ISO list is
      * Clarity's vocabulary and moves with SDK releases (a withdrawn code

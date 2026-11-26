@@ -42,7 +42,7 @@ const cacheStore = vi.hoisted(() => ({
   bumpAccess: vi.fn(),
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
-vi.mock('../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../services/media/mediaCache/cacheStore', () => ({
   lookupCacheRow: (...args: unknown[]) => cacheStore.lookupCacheRow(...args),
   bumpAccess: (...args: unknown[]) => cacheStore.bumpAccess(...args),
   recordAccessAndMaybeEnqueue: (...args: unknown[]) =>
@@ -77,10 +77,10 @@ vi.mock('../../utils/oxyHelpers', async () => {
  * the enablement flag is stubbed; the URL builder stays real.
  */
 const mediaCacheEnabled = vi.hoisted(() => ({ value: false }));
-vi.mock('../../services/mediaCache/oxyMediaStore', async () => {
-  const actual = await vi.importActual<typeof import('../../services/mediaCache/oxyMediaStore')>(
-    '../../services/mediaCache/oxyMediaStore',
-  );
+vi.mock('../../services/media/mediaCache/oxyMediaStore', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../services/media/mediaCache/oxyMediaStore')
+  >('../../services/media/mediaCache/oxyMediaStore');
   return { ...actual, isMediaCacheEnabled: () => mediaCacheEnabled.value };
 });
 
@@ -93,7 +93,7 @@ const safeFetch = vi.fn();
 /** Control the negative cache (defaults: miss + no-op write). */
 const isNegativelyCached = vi.fn().mockResolvedValue(false);
 const markNegativelyCached = vi.fn().mockResolvedValue(undefined);
-vi.mock('../../services/mediaCache/negativeCache', () => ({
+vi.mock('../../services/media/mediaCache/negativeCache', () => ({
   isNegativelyCached: (...args: unknown[]) => isNegativelyCached(...args),
   markNegativelyCached: (...args: unknown[]) => markNegativelyCached(...args),
 }));

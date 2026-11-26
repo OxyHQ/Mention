@@ -62,8 +62,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { lookupManyOf } from '../helpers/oxyLookup';
 import { MtnConfig } from '@mention/shared-types';
-import { resolveCuratorFollowerCounts } from '../../services/curatorFollowerCounts';
-import { computeStarterPackScores, curatorAuthority } from '../../services/starterPackCuration';
+import { resolveCuratorFollowerCounts } from '../../services/feed/curatorFollowerCounts';
+import {
+  computeStarterPackScores,
+  curatorAuthority,
+} from '../../services/accounts/starterPackCuration';
 
 const CURATION = MtnConfig.ranking.optInSignals.starterPackBoost;
 

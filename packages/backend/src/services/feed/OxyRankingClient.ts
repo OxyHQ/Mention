@@ -1,0 +1,284 @@
+/**
+ * OxyRankingClient — the SINGLE seam between Mention and the Oxy
+ * `POST /profiles/recommendations` contract.
+ *
+ * Every recommendation read goes through here so the wire contract (request
+ * body shape, `clientId`, viewer forwarding, response envelope, and the mapping
+ * to Mention's frontend DTO) lives in exactly one place. If the Oxy contract
+ * changes, only this file changes.
+ *
+ * A signed-in viewer's request uses the `recommendProfiles` tool on Mention's
+ * declared `oxy:tools` authority (oxy ADR 0066), for the verified viewer.
+ * Anonymous requests use the application's service identity without a viewer.
+ * Oxy derives private clientId from the verified coordinator.
+ */
+
+import type { UserNameResponse } from '@oxy.so/contracts';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import type { ForegroundProfileReader } from '../accounts/ForegroundOxyProfileClient';
+import { getServiceOxyClient, getMentionOxyClientId } from '../../utils/oxyHelpers';
+import { logger } from '../../utils/logger';
+
+/**
+ * Wire shape of a single recommendation item as returned by Oxy's
+ * `POST /profiles/recommendations`. The canonical recommendation/contract types
+ * are NOT exported from the published `@oxy.so/contracts` (they live only in the
+ * Oxy workspace), so the HTTP wire shape Mention consumes is declared locally
+ * here. `name` reuses the published canonical {@link UserNameResponse} so the
+ * display name stays the single-source-of-truth contract.
+ */
+export interface OxyRecommendationItem {
+  id?: string;
+  _id?: string;
+  username?: string;
+  name?: UserNameResponse;
+  avatar?: string | null;
+  color?: string;
+  description?: string | null;
+  verified?: boolean;
+  trustTier?: string;
+  mutualCount?: number;
+  score?: number;
+  matchedSignals?: string[];
+  isFederated?: boolean;
+  isAgent?: boolean;
+  isAutomated?: boolean;
+  instance?: string;
+  _count?: { followers?: number; following?: number };
+}
+
+/**
+ * Oxy recommendation endpoint path (service-token call). It answers
+ * `{ data: [...] }`, which the transport delivers as the bare list.
+ */
+const RECOMMENDATIONS_PATH = '/profiles/recommendations';
+
+/** Oxy's newest-people listing (sign-up order); same item shape and envelope. */
+const NEWEST_PATH = '/profiles/newest';
+
+/**
+ * The most `excludeIds` Oxy's recommendation routes accept (`maxItems: 500` on
+ * both the service and the foreground lane); one more and the whole request is
+ * a 400. A viewer with more exclusions than this still never sees an excluded
+ * profile: `RecommendationService` filters every page against the FULL set, so
+ * the overflow only costs a few slots on the page, never a leak.
+ */
+export const OXY_RECOMMENDATION_EXCLUDE_IDS_MAX = 500;
+
+/** User types the caller may exclude from the recommendation surface. */
+export type RecommendationExcludeType = 'federated' | 'agent' | 'automated';
+
+/** Editorial boost forwarded verbatim to Oxy's scorer. */
+export interface RecommendationBoostInput {
+  userIds: string[];
+  weight: number;
+  reason?: string;
+}
+
+/** Normalized inputs for a single ranking request. */
+export interface RankOptions {
+  /** Oxy Application `_id` selecting the per-app weight profile. */
+  clientId?: string;
+  /** Verified foreground viewer; never sent in a delegated identity header. */
+  viewerId?: string;
+  /** Ranks for the verified viewer on Mention's declared authority. */
+  foregroundClient?: ForegroundProfileReader;
+  /** Page size (already validated/capped by the caller). */
+  limit: number;
+  /** Pagination offset. */
+  offset?: number;
+  /** Ids to exclude (blocked/muted/restricted + self + already-seen). */
+  excludeIds?: string[];
+  /** User types to exclude. */
+  excludeTypes?: RecommendationExcludeType[];
+  /** Editorial boosts. */
+  boosts?: RecommendationBoostInput[];
+}
+
+/**
+ * A single recommendation in Mention's frontend DTO shape. Mirrors the SDK's
+ * `getProfileRecommendations` item plus the extra fields the frontend reads
+ * (`avatar`). `name.displayName` is the canonical, server-resolved value — never
+ * recomposed here.
+ */
+export interface RankedProfile {
+  id: string;
+  username?: string;
+  name: UserNameResponse;
+  avatar?: string;
+  /** The account's accent colour, so a row needs no per-person profile fetch. */
+  color?: string;
+  description?: string;
+  verified: boolean;
+  trustTier?: string;
+  mutualCount: number;
+  score?: number;
+  matchedSignals?: string[];
+  isFederated: boolean;
+  isAgent: boolean;
+  isAutomated: boolean;
+  instance?: string;
+  _count: {
+    followers: number;
+    following: number;
+  };
+}
+
+/**
+ * Result of a single ranking request: the mapped, frontend-ready profiles for
+ * the page plus the RAW count of items Oxy returned (before Mention dropped any
+ * malformed entries). The raw count — not `profiles.length` — is what the caller
+ * uses to derive `hasMore` and advance the offset cursor, so dropped malformed
+ * items never cause a duplicate or a skipped good item across pages.
+ */
+export interface RankPage {
+  profiles: RankedProfile[];
+  /** Number of items Oxy returned for this page, before mapping/dropping. */
+  rawCount: number;
+}
+
+/** JSON body sent to `POST /profiles/recommendations`. */
+interface RecommendationRequestBody {
+  clientId?: string;
+  limit: number;
+  offset?: number;
+  excludeTypes?: RecommendationExcludeType[];
+  excludeIds?: string[];
+  boosts?: RecommendationBoostInput[];
+}
+
+/**
+ * Map one raw Oxy recommendation item to Mention's frontend DTO. Passes the
+ * bare `avatar` file id and `name` through untouched (Oxy owns identity;
+ * `name.displayName` stays canonical, the client resolves the avatar via Bloom's
+ * ImageResolver). Returns `null` for an item with no usable id or neither a display name nor valid
+ * normalized handle so the caller can drop it.
+ */
+function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
+  const id =
+    typeof raw.id === 'string' && raw.id.length > 0
+      ? raw.id
+      : typeof raw._id === 'string' && raw._id.length > 0
+        ? raw._id
+        : '';
+  if (!id) return null;
+
+  const providedName = raw.name;
+  const displayName =
+    typeof providedName?.displayName === 'string' && providedName.displayName.trim()
+      ? providedName.displayName
+      : getNormalizedUserHandle(raw);
+  // displayName is optional. Its only display fallback is the canonical handle;
+  // a first/last name or opaque account ID cannot become a visual label.
+  if (!displayName) return null;
+  const name = { ...providedName, displayName };
+
+  const rawAvatar = typeof raw.avatar === 'string' ? raw.avatar : undefined;
+  const count = raw._count ?? {};
+
+  return {
+    id,
+    username: typeof raw.username === 'string' ? raw.username : undefined,
+    name,
+    // Bare Oxy file id — passed through untouched (Oxy owns identity). The client
+    // resolves it via Bloom's ImageResolver, same as `post.user.avatar` and
+    // Who-to-follow. Never pre-resolve to a URL here.
+    avatar: rawAvatar,
+    ...(typeof raw.color === 'string' && raw.color.length > 0 ? { color: raw.color } : {}),
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+    verified: raw.verified === true,
+    trustTier: typeof raw.trustTier === 'string' ? raw.trustTier : undefined,
+    mutualCount: typeof raw.mutualCount === 'number' ? raw.mutualCount : 0,
+    ...(typeof raw.score === 'number' ? { score: raw.score } : {}),
+    ...(Array.isArray(raw.matchedSignals)
+      ? { matchedSignals: raw.matchedSignals.filter((s): s is string => typeof s === 'string') }
+      : {}),
+    isFederated: raw.isFederated === true,
+    isAgent: raw.isAgent === true,
+    isAutomated: raw.isAutomated === true,
+    instance: typeof raw.instance === 'string' ? raw.instance : undefined,
+    _count: {
+      followers: typeof count.followers === 'number' ? count.followers : 0,
+      following: typeof count.following === 'number' ? count.following : 0,
+    },
+  };
+}
+
+/**
+ * Adapter over the Oxy recommendations endpoint. Stateless; safe to share.
+ */
+export class OxyRankingClient {
+  /**
+   * Rank profiles for a viewer. Builds the request body, forwards the viewer id
+   * (when present) for personalization and the pagination `offset`, calls Oxy
+   * with the service token, and maps the response to Mention's frontend DTO.
+   * Returns the mapped page plus the raw upstream count (for offset pagination).
+   * THROWS on transport/HTTP failure — the RecommendationService owns the
+   * soft-fail policy.
+   */
+  async rank(options: RankOptions): Promise<RankPage> {
+    const clientId = options.clientId ?? getMentionOxyClientId();
+
+    const body: RecommendationRequestBody = {
+      limit: options.limit,
+    };
+    if (clientId) body.clientId = clientId;
+    if (typeof options.offset === 'number' && options.offset > 0) body.offset = options.offset;
+    if (options.excludeTypes && options.excludeTypes.length > 0)
+      body.excludeTypes = options.excludeTypes;
+    if (options.excludeIds && options.excludeIds.length > 0)
+      body.excludeIds = options.excludeIds.slice(0, OXY_RECOMMENDATION_EXCLUDE_IDS_MAX);
+    if (options.boosts && options.boosts.length > 0) body.boosts = options.boosts;
+
+    const foregroundClient = options.foregroundClient;
+    if (options.viewerId && !foregroundClient) {
+      throw new Error('Personalized ranking requires the verified foreground viewer');
+    }
+    const items =
+      options.viewerId && foregroundClient
+        ? await foregroundClient.recommend({ ...body })
+        : await getServiceOxyClient().serviceRequest<OxyRecommendationItem[]>(
+            'POST',
+            RECOMMENDATIONS_PATH,
+            body,
+          );
+    const profiles: RankedProfile[] = [];
+    for (const item of items) {
+      const profile = toRankedProfile(item);
+      if (profile) profiles.push(profile);
+    }
+
+    logger.debug('[OxyRankingClient] ranked profiles', {
+      returned: profiles.length,
+      candidates: items.length,
+      authenticated: Boolean(options.viewerId),
+      customClient: Boolean(clientId),
+      offset: options.offset ?? 0,
+    });
+
+    return { profiles, rawCount: items.length };
+  }
+
+  /**
+   * The newest people on Oxy, in sign-up order. Not personalized, so it is a
+   * service call; the caller applies the viewer's exclusions. Returns the mapped
+   * page plus the raw upstream count, like {@link rank}.
+   */
+  async newest(options: { limit: number; offset?: number }): Promise<RankPage> {
+    const query = new URLSearchParams({ limit: String(options.limit) });
+    if (typeof options.offset === 'number' && options.offset > 0) {
+      query.set('offset', String(options.offset));
+    }
+    const items = await getServiceOxyClient().serviceRequest<OxyRecommendationItem[]>(
+      'GET',
+      `${NEWEST_PATH}?${query.toString()}`,
+    );
+    const profiles = items
+      .map(toRankedProfile)
+      .filter((profile): profile is RankedProfile => profile !== null);
+    return { profiles, rawCount: items.length };
+  }
+}
+
+export const oxyRankingClient = new OxyRankingClient();
+export default oxyRankingClient;

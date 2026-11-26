@@ -1,4 +1,4 @@
-import { loadPostEngagementAudience } from '../../services/postEngagementAudience';
+import { loadPostEngagementAudience } from '../../services/engagement/postEngagementAudience';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 /**
  * The engagement READ lists — who liked a post, which of the people you follow
@@ -26,7 +26,10 @@ import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../../util
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { resolveUserSummaries, degradedActorSummary } from '../../services/PostHydrationService';
+import {
+  resolveUserSummaries,
+  degradedActorSummary,
+} from '../../services/posts/PostHydrationService';
 import { config } from '../../config';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { extractFollowingIds } from '../../utils/privacyHelpers';

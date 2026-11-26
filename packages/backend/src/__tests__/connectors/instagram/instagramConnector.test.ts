@@ -58,10 +58,10 @@ vi.mock('../../../db/posts/postRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../db/posts/postRepository')>()),
   findPostRecords: h.findPostRecords,
 }));
-vi.mock('../../../services/ActorIdentityProjectionService', () => ({
+vi.mock('../../../services/accounts/ActorIdentityProjectionService', () => ({
   reconcileActorIdentityProjection: h.reconcile,
 }));
-vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
+vi.mock('../../../services/accounts/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../../connectors/instagram/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../connectors/instagram/sync')>()),
   requestInstagramSync: h.syncInBackground,
@@ -74,10 +74,10 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
 vi.mock('../../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-vi.mock('../../../services/PostHydrationService', () => ({
+vi.mock('../../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
 }));
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(),
 }));

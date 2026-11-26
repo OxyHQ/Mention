@@ -6,7 +6,7 @@ import {
   patchFromApAttachment,
   readPersistedMediaFields,
   isOxyFileId,
-} from '../../services/MediaMetadataService';
+} from '../../services/media/MediaMetadataService';
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(),
@@ -135,7 +135,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       assets: { metadataByIds },
     } as never);
 
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
     const items: MediaItem[] = [{ id: '65fdc8c8c8c8c8c8c8c8c8c8', type: 'video' }];
     const enriched = await mediaMetadataService.enrichFromOxy(items);
 
@@ -166,7 +166,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       },
     } as never);
 
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
     const [enriched] = await mediaMetadataService.enrichFromOxy([{ id: fileId, type: 'video' }]);
 
     expect(enriched.hlsReadyAt).toBe('2026-10-10T18:00:00.000Z');
@@ -191,7 +191,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
       const metadataByIds = vi.fn().mockResolvedValue([asset]);
       vi.mocked(getServiceOxyClient).mockReturnValue({ assets: { metadataByIds } } as never);
-      const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+      const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
       const items: MediaItem[] = [
         { id: fileId, type: 'video', hlsReadyAt: storedAt, alt: 'Keep caption' },
         {
@@ -244,7 +244,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       assets: { metadataByIds },
     } as never);
 
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
     const enriched = await mediaMetadataService.enrichFromOxy([{ id: fileId, type: 'video' }]);
 
     expect(metadataByIds).toHaveBeenCalledWith([fileId]);
@@ -263,7 +263,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       assets: { metadataByIds },
     } as never);
 
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
     const items: MediaItem[] = [{ id: 'https://remote.example/video.mp4', type: 'video' }];
 
     expect(await mediaMetadataService.enrichFromOxy(items)).toBe(items);
@@ -277,7 +277,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
    * that the whole job exists for.
    */
   it('reports a pending retry for a uuid v7 video with no dimensions yet', async () => {
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
     const pending: MediaItem[] = [{ id: '01a0821e-d61a-7a78-b5d1-afb1850bd5a4', type: 'video' }];
 
     expect(mediaMetadataService.needsOxyRetry(pending)).toBe(true);
@@ -301,7 +301,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
    * the VP9 original. A video keeps retrying until the ladder is stamped.
    */
   it('keeps a video pending until Oxy has finished its HLS ladder', async () => {
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
     const probed: MediaItem = {
       id: '01a12355-5f04-73a5-bb5b-dbf6f53ce659',
       type: 'video',
@@ -327,7 +327,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
    * the probe was never retried.
    */
   it('reports a pending retry for an Oxy IMAGE with no dimensions yet', async () => {
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const { mediaMetadataService } = await import('../../services/media/MediaMetadataService');
     const image: MediaItem = { id: '01a0e27d-6547-7866-8621-e8c3155f5170', type: 'image' };
 
     expect(mediaMetadataService.needsOxyRetry([image])).toBe(true);

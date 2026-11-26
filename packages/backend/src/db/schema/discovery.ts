@@ -555,7 +555,7 @@ export const authorFollowerSnapshots = pgTable(
  *
  * Text search over `searchTerms` + `title` is a GENERATED
  * `tsvector` + GIN. The 5:1 `searchTerms`:`title` ratio is applied by
- * `GIF_RANK_WEIGHTS` in `services/gifLibrary/gifLibraryService.ts` — NOT by the
+ * `GIF_RANK_WEIGHTS` in `services/media/gifLibrary/gifLibraryService.ts` — NOT by the
  * `setweight` calls below, which do not both do what they read as.
  *
  * The `setweight(…, 'A')` on the `searchTerms` half is a **no-op**:
@@ -576,7 +576,7 @@ export const authorFollowerSnapshots = pgTable(
  * outright — `generation expression is not immutable`, measured, not guessed
  * (`pg_proc.provolatile = 's'`). `array_to_tsvector(text[])` IS immutable and
  * takes each element as a lexeme verbatim, which is the correct choice:
- * `normalizeToTerms` in `services/gifLibrary/gifLibraryService.ts` already
+ * `normalizeToTerms` in `services/media/gifLibrary/gifLibraryService.ts` already
  * lowercases, strips diacritics and punctuation, and drops stop words, and BOTH
  * the stored terms and the query go through it, so no language stemming is
  * wanted. `title` is raw remote text, so it goes

@@ -45,7 +45,7 @@ import { PostVisibility } from '@mention/shared-types';
 // network, which has nothing to do with which candidates the query returned, and
 // leaving it real would make this suite fail for reasons that are not about
 // language. Everything BETWEEN the header and the rows stays real.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (records: unknown[]) => records),

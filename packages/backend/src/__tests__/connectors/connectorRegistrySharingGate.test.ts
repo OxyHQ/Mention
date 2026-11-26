@@ -40,7 +40,7 @@ vi.mock('../../utils/logger', () => ({
   },
 }));
 
-vi.mock('../../services/fediverseSharing', () => ({
+vi.mock('../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 

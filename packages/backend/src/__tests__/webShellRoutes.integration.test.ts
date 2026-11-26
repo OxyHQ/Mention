@@ -22,7 +22,7 @@ import type { ExternalIdentityReference } from '@oxy.so/contracts';
  * hydrated DTO is only the SOURCE of the card's image and text here — the gate
  * that decides whether either is emitted reads the row.
  */
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn() },
 }));
 
@@ -40,7 +40,7 @@ const { cachedUserSummaries } = vi.hoisted(() => ({
   cachedUserSummaries: vi.fn(async (_ids: string[]) => new Map<string, unknown>()),
 }));
 
-vi.mock('../services/userSummaryCache', () => ({ mget: cachedUserSummaries }));
+vi.mock('../services/accounts/userSummaryCache', () => ({ mget: cachedUserSummaries }));
 
 /**
  * The profile read goes through the process `OxyServer`'s call scope. Each
@@ -97,11 +97,11 @@ vi.mock('../utils/oxyHelpers', () => ({
 import { config } from '../config';
 import webShellRoutes from '../routes/webShell.routes';
 import { updatePostRecord } from '../db/posts/postRepository';
-import * as shellCache from '../services/webShellOgCache';
-import { mapPostOg } from '../services/webShellRenderer';
-import { invalidateOxyAuthorVisibility } from '../services/oxyAuthorVisibilityCache';
+import * as shellCache from '../services/webshell/webShellOgCache';
+import { mapPostOg } from '../services/webshell/webShellRenderer';
+import { invalidateOxyAuthorVisibility } from '../services/accounts/oxyAuthorVisibilityCache';
 import { logger } from '../utils/logger';
-import { postHydrationService } from '../services/PostHydrationService';
+import { postHydrationService } from '../services/posts/PostHydrationService';
 import type { HydratedPost } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { federatedActors, userSettings } from '../db/schema';

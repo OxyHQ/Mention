@@ -62,7 +62,7 @@ vi.mock('../runtime/oxyClient', () => ({
   }),
 }));
 
-vi.mock('../services/userSummaryCache', () => ({
+vi.mock('../services/accounts/userSummaryCache', () => ({
   invalidate: mocks.invalidateUserSummaries,
 }));
 
@@ -70,7 +70,7 @@ vi.mock('../utils/viewerLanguage', () => ({
   invalidateViewerLanguages: mocks.invalidateViewerLanguages,
 }));
 
-vi.mock('../services/oxyAuthorVisibilityCache', () => ({
+vi.mock('../services/accounts/oxyAuthorVisibilityCache', () => ({
   invalidateOxyAuthorVisibility: mocks.invalidateOxyAuthorVisibility,
 }));
 
@@ -82,7 +82,7 @@ vi.mock('../utils/logger', () => ({
   logger: { info: mocks.info, warn: mocks.warn, error: vi.fn(), debug: vi.fn() },
 }));
 
-import { startUserInvalidationSubscriber } from '../services/userInvalidationSubscriber';
+import { startUserInvalidationSubscriber } from '../services/accounts/userInvalidationSubscriber';
 
 /** Run the handler the subscriber registered, as Redis would on a message. */
 function deliver(raw: string): void {

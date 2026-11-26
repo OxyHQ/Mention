@@ -6,7 +6,7 @@
  */
 
 import type { FeedPostSlice } from '@mention/shared-types';
-import type { MuteWordRule } from '../../services/safety/muteWordMatcher';
+import type { MuteWordRule } from '../../services/moderation/safety/muteWordMatcher';
 // STATIC, not the `require()` these replaced.
 //
 // That `require()` was there "to avoid circular deps", but the cycle it guarded

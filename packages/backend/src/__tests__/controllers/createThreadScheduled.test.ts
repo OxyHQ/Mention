@@ -28,7 +28,7 @@ vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => ({ emit: hoisted.emit }),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -59,7 +59,7 @@ import { uuidv7 } from '@oxy.so/db';
  * enumerable properties and NOT the schema fields, so a document double loses
  * `content` at exactly that line — a 500 the controller logs and discards.
  */
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: {
     create: hoisted.create.mockImplementation(async (params: Record<string, unknown>) => ({
       id: uuidv7(),

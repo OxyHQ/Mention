@@ -37,7 +37,7 @@ import { MAX_LANES_PER_OWNER, MAX_LANE_NAME_LENGTH, MAX_MUTED_LANES } from '@men
 
 const mocks = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: mocks.resolveUserSummaries,
 }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => {

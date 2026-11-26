@@ -19,17 +19,17 @@ import { registerAllModules } from './src/mtn/feed/engine';
 import { registerGlobalErrorHandlers } from './src/runtime/globalErrorHandlers';
 import { registerGracefulShutdown } from './src/runtime/gracefulShutdown';
 import { PresenceRegistry } from './src/runtime/presenceRegistry';
-import { presencePolicy } from './src/services/presencePolicy';
+import { presencePolicy } from './src/services/notifications/presencePolicy';
 import { createSocketIoServer, createSocketNamespaces } from './src/runtime/socketIoServer';
 import { registerSocketHandlers } from './src/runtime/socketHandlers';
 import { attachSocketRedisAdapter } from './src/runtime/socketRedisAdapter';
 import { setRuntimeSocketServer } from './src/runtime/socketServer';
-import { DistributedPresenceService } from './src/services/DistributedPresenceService';
+import { DistributedPresenceService } from './src/services/notifications/DistributedPresenceService';
 import { presenceRoom } from '@mention/shared-types';
 import {
   startUserInvalidationSubscriber,
   type UserInvalidationSubscriber,
-} from './src/services/userInvalidationSubscriber';
+} from './src/services/accounts/userInvalidationSubscriber';
 import { logger } from './src/utils/logger';
 import { getRedisClient } from './src/utils/redis';
 import {

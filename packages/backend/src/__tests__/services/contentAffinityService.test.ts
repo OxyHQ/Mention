@@ -78,10 +78,10 @@ vi.mock('../../utils/privacyHelpers', () => ({
 // The authority blend dynamically imports these; stub them so the blend is a
 // deterministic NEUTRAL no-op (every candidate gets multiplier 1.0). This is
 // what lets the weight assertions below be exact.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
 }));
-vi.mock('../../services/FeedRankingService', () => ({
+vi.mock('../../services/feed/FeedRankingService', () => ({
   feedRankingService: { calculateAuthorityScore: vi.fn().mockReturnValue(1.0) },
 }));
 
@@ -99,7 +99,7 @@ import type { OxyClient } from '../../utils/privacyHelpers';
 import {
   ContentAffinityService,
   type ContentCandidate,
-} from '../../services/ContentAffinityService';
+} from '../../services/feed/ContentAffinityService';
 
 /**
  * Namespace for every id, hashtag and topic this file writes. The coverage

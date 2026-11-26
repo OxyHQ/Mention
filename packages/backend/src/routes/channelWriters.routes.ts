@@ -35,7 +35,7 @@
  *  2. `UserSettings.channel.signPosts === true`, and
  *  3. this reader may see the channel's profile at all.
  *
- * (1) and (2) are `disclosesWriters` from `services/channelWriterDisclosure`,
+ * (1) and (2) are `disclosesWriters` from `services/accounts/channelWriterDisclosure`,
  * which `PostHydrationService` reads too — one authority, so the list and the
  * byline cannot disagree about a consent decision. An unresolvable account, a
  * missing settings row, an unset flag and a failed lookup are all "no".
@@ -72,10 +72,13 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { userSettings } from '../db/schema/userProfile';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveUserSummaries } from '../services/posts/PostHydrationService';
 import { degradedActorSummary } from '../utils/degradedActorSummary';
-import type { CachedUserSummary } from '../services/userSummaryCache';
-import { disclosesWriters, loadSigningChannelIds } from '../services/channelWriterDisclosure';
+import type { CachedUserSummary } from '../services/accounts/userSummaryCache';
+import {
+  disclosesWriters,
+  loadSigningChannelIds,
+} from '../services/accounts/channelWriterDisclosure';
 import { checkFollowAccess, requiresAccessCheck } from '../utils/privacyHelpers';
 import { callerOxyUser } from '../utils/oxyHelpers';
 import { channelWritersRateLimiter } from '../middleware/security';

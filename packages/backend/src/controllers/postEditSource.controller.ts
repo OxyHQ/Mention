@@ -1,8 +1,8 @@
-import { loadPostSafetyDecisions } from '../services/postSafetyAccess';
+import { loadPostSafetyDecisions } from '../services/posts/access/postSafetyAccess';
 import {
   requesterPublicationPolicy,
   PostPublicationPolicyError,
-} from '../services/postPublicationPolicy';
+} from '../services/posts/access/postPublicationPolicy';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
@@ -12,12 +12,12 @@ import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
-import { authorVariants } from '../services/postVariants';
+import { authorVariants } from '../services/posts/postVariants';
 import { resolveKnownUsers } from '../utils/knownUsers';
 import { logger } from '../utils/logger';
 import { callerAccountAccess } from '../utils/oxyHelpers';
-import { postManagementRefusal } from '../services/postManagementAccess';
-import { resolveAccountKind } from '../services/publishAsAccount';
+import { postManagementRefusal } from '../services/posts/access/postManagementAccess';
+import { resolveAccountKind } from '../services/accounts/publishAsAccount';
 
 /**
  * Return the owner's raw author source for editing.

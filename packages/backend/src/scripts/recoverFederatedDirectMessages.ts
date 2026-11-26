@@ -85,7 +85,7 @@ import {
   resolveApAudienceExisting,
   type AuthorRefreshOptions,
 } from '../connectors/activitypub/apMentions';
-import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
+import { invalidate as invalidatePostDetailCache } from '../services/posts/postDetailCache';
 import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY } from '../utils/concurrency';
 import { logger } from '../utils/logger';

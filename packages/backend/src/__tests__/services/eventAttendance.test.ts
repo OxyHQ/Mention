@@ -1,4 +1,4 @@
-import { deletePostSubtree } from '../../services/PostDeletionCascade';
+import { deletePostSubtree } from '../../services/posts/PostDeletionCascade';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
@@ -19,7 +19,7 @@ import {
   listEventAttendees,
   registerForEvent,
   type EventAccess,
-} from '../../services/EventAttendanceService';
+} from '../../services/events/EventAttendanceService';
 import { EventRegistration } from '@oxy.so/mention-contracts';
 import { sanitizeEventData } from '../../controllers/posts/composeInput';
 import { adultSafetyFixture } from '../helpers/adultSafety';
@@ -309,7 +309,7 @@ it('thread deletion cannot bypass an attended child event; privileged removals r
 });
 
 it('ACL reads see local profile privacy inside the supplied transaction', async () => {
-  const { postHydrationService } = await import('../../services/PostHydrationService');
+  const { postHydrationService } = await import('../../services/posts/PostHydrationService');
   const { userSettings } = await import('../../db/schema/userProfile');
   const post = await fixture();
   expect(await postHydrationService.canViewerReadPostId(post.id, '')).toBe(true);

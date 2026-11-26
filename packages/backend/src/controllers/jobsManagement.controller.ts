@@ -22,15 +22,15 @@ import {
 } from '@mention/shared-types';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { requireEmployerAuthority } from '../services/jobAuthority';
-import { checkJobEntitlement } from '../services/jobEntitlement';
-import { syncJobToClarityInBackground } from '../services/clarityJobsAdapter';
+import { requireEmployerAuthority } from '../services/jobsBoard/jobAuthority';
+import { checkJobEntitlement } from '../services/jobsBoard/jobEntitlement';
+import { syncJobToClarityInBackground } from '../services/jobsBoard/clarityJobsAdapter';
 import {
   JobLocationError,
   JobPlacesUnavailableError,
   resolveJobLocation,
   type JobFieldIssue,
-} from '../services/jobPlaces';
+} from '../services/jobsBoard/jobPlaces';
 import {
   createJob,
   getJobById,

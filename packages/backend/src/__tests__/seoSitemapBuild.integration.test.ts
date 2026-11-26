@@ -65,7 +65,11 @@ import webShellRoutes from '../routes/webShell.routes';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { federatedActors, posts, userSettings } from '../db/schema';
-import { buildAllSitemaps, buildSitemapsIfDue, sitemapsAreDue } from '../services/seoSitemap';
+import {
+  buildAllSitemaps,
+  buildSitemapsIfDue,
+  sitemapsAreDue,
+} from '../services/webshell/seoSitemap';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 
 const scope = postScope('seo-sitemap-build');

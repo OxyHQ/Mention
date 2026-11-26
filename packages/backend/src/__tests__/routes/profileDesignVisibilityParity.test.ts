@@ -73,7 +73,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // stubs `../../config` down to what IT needs, so the real module would throw on
 // import. Nothing here exercises the gate; it is stubbed so the parity assertions
 // below stay about profile-design visibility.
-vi.mock('../../services/publishAsAccount', () => ({
+vi.mock('../../services/accounts/publishAsAccount', () => ({
   PublishAsAccessError: class extends Error {
     readonly status = 403;
   },

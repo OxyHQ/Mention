@@ -7,7 +7,7 @@ vi.mock('../../services/moderation/crowdSourceClient', () => ({
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FeedPostSlice, HydratedPost } from '@mention/shared-types';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * `hydrateSlices` re-checks post ACL per viewer and drops the items a viewer may
@@ -72,7 +72,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
  */
 
 const cacheStore = new Map<string, CachedUserSummary>();
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -87,7 +87,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 
 interface PostRowOverrides {
   status?: string;

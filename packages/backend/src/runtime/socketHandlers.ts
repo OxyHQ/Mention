@@ -1,11 +1,14 @@
 import type { Server as SocketIOServer } from 'socket.io';
-import { registerContentRoomHandlers } from '../services/ContentRoomLifecycle';
+import { registerContentRoomHandlers } from '../services/events/ContentRoomLifecycle';
 import {
   registerSocketPresence,
   type AuthenticatedPresenceSocket as AuthenticatedSocket,
-} from '../services/SocketPresenceLifecycle';
-import { markAllNotificationsRead, markNotificationRead } from '../services/notificationReadState';
-import { resolveNotificationInboxIds } from '../services/notificationInbox';
+} from '../services/notifications/SocketPresenceLifecycle';
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '../services/notifications/notificationReadState';
+import { resolveNotificationInboxIds } from '../services/notifications/notificationInbox';
 import { createSocketRateLimiter } from '../middleware/socketRateLimit';
 import { callerOxyUser } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
@@ -264,7 +267,7 @@ function registerMainNamespaceHandlers(
       logger.error('Failed to reconnect');
     });
 
-    // Every answer below is what THIS viewer may know (`services/presencePolicy.ts`).
+    // Every answer below is what THIS viewer may know (`services/notifications/presencePolicy.ts`).
     const viewer = presenceViewer(socket);
 
     // Get online status of a single user

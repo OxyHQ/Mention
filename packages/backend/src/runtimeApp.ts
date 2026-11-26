@@ -10,12 +10,12 @@ import { bruteForceProtection } from './middleware/security';
 import { createOptionalAuth } from './middleware/optionalAuth';
 import { routeRateLimitByBearer } from './mcp/middleware/mcpRateLimiter';
 import { requestObservability } from './middleware/requestObservability';
-import { contentAccessScope } from './services/contentAccessBatcher';
+import { contentAccessScope } from './services/moderation/contentAccessBatcher';
 import {
   measureNodeinfoStatistics,
   type NodeinfoLocalUsers,
   type NodeinfoStatistics,
-} from './services/nodeinfoStatistics';
+} from './services/federation/nodeinfoStatistics';
 import { getRuntimeOxyClient } from './runtime/oxyClient';
 import { globalErrorHandler } from './utils/error';
 import { isAllowedOrigin } from './utils/allowedOrigins';
@@ -23,7 +23,7 @@ import { logger } from './utils/logger';
 import { createCache } from './utils/cache';
 
 /**
- * Nodeinfo statistics (`services/nodeinfoStatistics.ts`), refreshed hourly from planner estimates and one index-only count.
+ * Nodeinfo statistics (`services/federation/nodeinfoStatistics.ts`), refreshed hourly from planner estimates and one index-only count.
  *
  * A federation-discovery statistic that other instances poll — approximate to
  * its consumers by nature. It used to be an exact `count(*)` cached for five

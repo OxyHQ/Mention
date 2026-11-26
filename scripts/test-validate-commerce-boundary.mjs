@@ -20,9 +20,9 @@ const HOST = 'Mercaria host outside the SDK';
 const PATH = 'Mercaria public API path outside the SDK';
 
 const cleanFiles = {
-  'packages/backend/src/services/commerce/mercariaClient.ts':
+  'packages/backend/src/services/monetization/commerce/mercariaClient.ts':
     "import { createMercariaClient } from '@mercaria.co/sdk';\nexport const client = createMercariaClient();\n",
-  'packages/backend/src/services/commerce/mercariaHydration.ts': [
+  'packages/backend/src/services/monetization/commerce/mercariaHydration.ts': [
     '// Reads go to https://api.mercaria.co/public/v1 — through the SDK, never from here.',
     "import { parseMercariaRef } from '@mercaria.co/sdk';",
     'export const parse = parseMercariaRef;',
@@ -79,7 +79,7 @@ await runCase('SDK consumers, with the rule explained in comments', {}, null);
 await runCase(
   'the exempt client module may name a Mercaria origin',
   {
-    'packages/backend/src/services/commerce/mercariaClient.ts': [
+    'packages/backend/src/services/monetization/commerce/mercariaClient.ts': [
       "import { createMercariaClient } from '@mercaria.co/sdk';",
       "export const client = createMercariaClient({ apiBaseUrl: 'https://api.mercaria.co' });",
       "export const probe = '/public/v1/products';",
@@ -233,24 +233,27 @@ await runCase(
 await runCase(
   'a stale exemption fails',
   {
-    'packages/backend/src/services/commerce/mercariaClient.ts': null,
+    'packages/backend/src/services/monetization/commerce/mercariaClient.ts': null,
   },
   'exempt from the commerce boundary but not a production source file',
 );
 await runCase(
   'a scan that never sees the SDK import cannot report clean',
   {
-    'packages/backend/src/services/commerce/mercariaClient.ts': 'export const client = null;\n',
-    'packages/backend/src/services/commerce/mercariaHydration.ts': 'export const parse = null;\n',
+    'packages/backend/src/services/monetization/commerce/mercariaClient.ts':
+      'export const client = null;\n',
+    'packages/backend/src/services/monetization/commerce/mercariaHydration.ts':
+      'export const parse = null;\n',
   },
   'no "@mercaria.co/sdk" literal was seen',
 );
 await runCase(
   'an SDK import mentioned only in a comment is not a sighting',
   {
-    'packages/backend/src/services/commerce/mercariaClient.ts':
+    'packages/backend/src/services/monetization/commerce/mercariaClient.ts':
       "// import from '@mercaria.co/sdk'\nexport const client = null;\n",
-    'packages/backend/src/services/commerce/mercariaHydration.ts': 'export const parse = null;\n',
+    'packages/backend/src/services/monetization/commerce/mercariaHydration.ts':
+      'export const parse = null;\n',
   },
   'no "@mercaria.co/sdk" literal was seen',
 );

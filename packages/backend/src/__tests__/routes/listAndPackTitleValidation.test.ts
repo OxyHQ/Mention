@@ -25,12 +25,14 @@ import type { OxyAuthRequest } from '@oxy.so/core/server';
 vi.mock('../../controllers/feed.controller', () => ({
   feedController: { transformPostsWithProfiles: vi.fn(async () => []) },
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
   isFallbackUserSummary: vi.fn(() => false),
 }));
-vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn(async () => undefined) }));
-vi.mock('../../services/EndorsementSignalService', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
+  invalidate: vi.fn(async () => undefined),
+}));
+vi.mock('../../services/feed/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
     syncScopeMembershipChange: vi.fn().mockResolvedValue(undefined),

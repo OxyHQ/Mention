@@ -19,7 +19,7 @@ vi.mock('../../utils/redis', async (importOriginal) => ({
   reportRedisConnectionFailure: vi.fn(),
 }));
 
-import { trendingService, type TrendingAnswer } from '../../services/TrendingService';
+import { trendingService, type TrendingAnswer } from '../../services/trending/TrendingService';
 
 const answer: TrendingAnswer = { trending: [], summary: 'summary', recId: 'rec' };
 

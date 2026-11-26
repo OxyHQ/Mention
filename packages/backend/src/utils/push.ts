@@ -7,7 +7,7 @@ import { getFirebaseConfig } from '../config';
 import { getDb } from '../db/postgres';
 import { pushTokens, type NOTIFICATION_TYPES } from '../db/schema/discovery';
 import { userSettings } from '../db/schema/userProfile';
-import { accountsInQuietHours } from '../services/quietHours';
+import { accountsInQuietHours } from '../services/scheduling/quietHours';
 import { logger } from './logger';
 import { chunk } from '@oxy.so/utils/text';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';

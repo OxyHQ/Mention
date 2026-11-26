@@ -84,7 +84,7 @@ import {
 } from './postAudience';
 import { ApiError } from '../../utils/error';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
-import { translatedBaseLanguages } from '../../services/postVariants';
+import { translatedBaseLanguages } from '../../services/posts/postVariants';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { uuidv7 } from '@oxy.so/db';
@@ -114,9 +114,9 @@ import {
 // route→service→repository direction — accepted here on purpose: invalidation
 // belongs at the single choke point every existing AND FUTURE write path goes
 // through, not duplicated at every caller that happens to remember it. See
-// `services/postDetailCache.ts`'s own doc comment for what it does and does not
+// `services/posts/postDetailCache.ts`'s own doc comment for what it does and does not
 // invalidate.
-import { invalidate as invalidatePostDetailCache } from '../../services/postDetailCache';
+import { invalidate as invalidatePostDetailCache } from '../../services/posts/postDetailCache';
 import { findRetiredGifFileRedirects } from '../oxyFiles/gifCacheRetirementRepository';
 
 type PostRow = typeof posts.$inferSelect;
@@ -880,7 +880,7 @@ interface ShellRowCarrier {
  * `PostHydrationService.hydrateSlices`.
  *
  * A caller ranking on these must know that `mediaBoost`/`portraitBoost`
- * (`services/ranking/signals/optIn.ts`) and any topic-REF-based signal score
+ * (`services/feed/ranking/signals/optIn.ts`) and any topic-REF-based signal score
  * every shell neutrally, the same as a post that genuinely has none of that —
  * `content.media` and `postClassification.topicRefs` are child-table-only and
  * are not reconstructable without the join this function exists to skip. The

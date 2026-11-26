@@ -1,6 +1,6 @@
 import { describeDriverError, isUniqueViolation } from '@oxy.so/db';
 import { upsertActor } from '../../db/federation/actorRepository';
-import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
+import { reconcileActorIdentityProjection } from '../../services/accounts/ActorIdentityProjectionService';
 import { logger } from '../../utils/logger';
 import { resolveAvatarUrl } from '../../utils/mediaResolver';
 import { metrics } from '../../utils/metrics';

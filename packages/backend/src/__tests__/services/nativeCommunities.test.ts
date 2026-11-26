@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
 vi.mock('../../services/communities/communityPreview', () => ({
   isInCommunitiesPreview: async (id: string | null) => !!id && !id.includes('outsider'),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: h.resolveUserSummaries,
 }));
@@ -31,15 +31,15 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../connectors/activitypub/delivery.service', () => ({
   deliveryService: { deliverToFollowers: h.deliverToFollowers, queueDelivery: vi.fn() },
 }));
-vi.mock('../../services/fediverseSharing', () => ({
+vi.mock('../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: async () => true,
 }));
-vi.mock('../../services/PostRecentReplierService', () => ({
+vi.mock('../../services/posts/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
 }));
-vi.mock('../../services/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
+vi.mock('../../services/posts/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
-vi.mock('../../services/postSafetyAccess', () => ({
+vi.mock('../../services/posts/access/postSafetyAccess', () => ({
   loadPostSafetyDecisions: async (records: Array<{ id: string }>) =>
     new Map(records.map((record) => [record.id, { allowed: true }])),
 }));
@@ -50,7 +50,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { federatedActors } from '../../db/schema/federation';
 import { clearServiceScope, readPost, serviceScope, trackPost } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { CommunityPostError } from '../../services/communities/communityPosting';
 import { removePostFromCommunity } from '../../services/communities/communityModeration';
 import {

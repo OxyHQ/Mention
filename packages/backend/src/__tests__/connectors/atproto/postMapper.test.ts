@@ -67,7 +67,7 @@ import {
 } from '../../../connectors/atproto/post.mapper';
 import { findPostLinkPreviews } from '../../../db/posts/postLinkPreviewRepository';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
-import type { CreatePostParams } from '../../../services/PostCreationService';
+import type { CreatePostParams } from '../../../services/posts/PostCreationService';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
 

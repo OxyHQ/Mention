@@ -17,8 +17,8 @@ import {
   removeDeclaredCustomEmoji,
 } from '../connectors/activitypub/apPostContent';
 import { fetchVerifiedAnnouncedNote } from '../connectors/activitypub/helpers';
-import { baselineContentClassifier } from '../services/BaselineContentClassifier';
-import { deleteFederatedPostSubtree } from '../services/FederatedPostDeletionService';
+import { baselineContentClassifier } from '../services/moderation/BaselineContentClassifier';
+import { deleteFederatedPostSubtree } from '../services/federation/FederatedPostDeletionService';
 import { getRemoteHost } from '../connectors/shared/url';
 import { logger } from '../utils/logger';
 import { DEFAULT_CONCURRENCY, mapWithConcurrency } from '../utils/concurrency';

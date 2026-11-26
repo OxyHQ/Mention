@@ -9,7 +9,7 @@ import {
   deletePostRecord,
 } from '../../db/posts/postRepository';
 import { sanitizePodcast } from '../../utils/podcastReference';
-import { toStoredContent } from '../../services/postVariants';
+import { toStoredContent } from '../../services/posts/postVariants';
 
 beforeAll(async () => {
   await connectPostgres();

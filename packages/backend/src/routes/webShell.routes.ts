@@ -36,12 +36,12 @@ import { profileRouteFamily } from '@mention/shared-types/profileUrls';
 import { Router, type Request, type Response } from 'express';
 import { config } from '../config';
 import { loadPostRecord } from '../db/posts/postRepository';
-import { getOrLoadPostRecord } from '../services/postDetailCache';
-import { loadNewestEligibleReplies } from '../services/PostRecentReplierService';
+import { getOrLoadPostRecord } from '../services/posts/postDetailCache';
+import { loadNewestEligibleReplies } from '../services/posts/PostRecentReplierService';
 import type { PostRecord } from '../db/posts/postRecord';
-import { postHydrationService } from '../services/PostHydrationService';
-import { mget as mgetUserSummaries } from '../services/userSummaryCache';
-import { cachedOxyAuthorVisibility } from '../services/oxyAuthorVisibilityCache';
+import { postHydrationService } from '../services/posts/PostHydrationService';
+import { mget as mgetUserSummaries } from '../services/accounts/userSummaryCache';
+import { cachedOxyAuthorVisibility } from '../services/accounts/oxyAuthorVisibilityCache';
 import { logger } from '../utils/logger';
 import {
   type OgData,
@@ -58,17 +58,17 @@ import {
   renderShellWithOg,
   buildShellBootstrapHtml,
   type ShellBootstrap,
-} from '../services/webShellRenderer';
-import { getShellCached } from '../services/webShellOgCache';
+} from '../services/webshell/webShellRenderer';
+import { getShellCached } from '../services/webshell/webShellOgCache';
 import { normalizeHashtag } from '../utils/textProcessing';
-import { loadPublicProfileFacts } from '../services/publicProfileFacts';
+import { loadPublicProfileFacts } from '../services/accounts/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { lookupOxyUsers } from '../utils/oxyUserLookup';
 import { webShellRateLimiter } from '../middleware/security';
 import { namedRoutePattern } from '../middleware/requestObservability';
 import { isApexHost } from '../middleware/apexFrontendProxy';
-import { getShell } from '../services/webShellDocument';
+import { getShell } from '../services/webshell/webShellDocument';
 import {
   SitemapNotReadyError,
   hashtagHasListablePosts,
@@ -76,7 +76,7 @@ import {
   type MentionProfileSeoPolicy,
   sitemapIndex,
   sitemapShard,
-} from '../services/seoSitemap';
+} from '../services/webshell/seoSitemap';
 
 /** Wall-clock budget for the per-request profile read (sent once, never retried). */
 const OG_FETCH_TIMEOUT_MS = 2500;

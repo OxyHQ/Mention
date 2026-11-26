@@ -6,7 +6,7 @@ import {
   requesterPublicationPolicy,
   publicationVisibility,
   PostPublicationPolicyError,
-} from '../../services/postPublicationPolicy';
+} from '../../services/posts/access/postPublicationPolicy';
 /**
  * `POST /posts` — the native single-post create.
  *
@@ -20,26 +20,29 @@ import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepo
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { PostVisibility, type PostContent } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
-import { affinityEventService } from '../../services/AffinityEventService';
-import { postCreationService } from '../../services/PostCreationService';
-import { persistPreparedArticle, prepareArticle } from '../../services/postArticles';
+import { affinityEventService } from '../../services/feed/AffinityEventService';
+import { postCreationService } from '../../services/posts/PostCreationService';
+import { persistPreparedArticle, prepareArticle } from '../../services/posts/postArticles';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { normalizeMediaItems } from '../../utils/mediaInput';
-import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
+import {
+  ensurePostMediaPublic,
+  servesMediaPublicly,
+} from '../../services/posts/access/postMediaVisibility';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
-import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
+import { resolveVariant, validateAuthorVariants } from '../../services/posts/postVariants';
 import { validatePublicShareTarget } from '../../utils/postAccessControl';
-import { canRequestReadPost } from '../../services/postReadAccess';
+import { canRequestReadPost } from '../../services/posts/access/postReadAccess';
 import { LaneAssignmentError } from '../../utils/laneAssignment';
 import { assertParentAcceptsReplies, ChannelReplyError } from '../../utils/channelReplyGate';
-import { PublishAsAccessError } from '../../services/publishAsAccount';
+import { PublishAsAccessError } from '../../services/accounts/publishAsAccount';
 import {
   CommunityPostError,
   normalizeCommunityPostTitle,
@@ -49,7 +52,7 @@ import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachme
 import {
   postCollaborationService,
   CollabValidationError,
-} from '../../services/PostCollaborationService';
+} from '../../services/posts/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds';
 import {
   DEFAULT_POLL_DURATION_DAYS,

@@ -38,7 +38,7 @@ import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 import { getClarityClient } from '../utils/clarityClient';
-import { requireEmployerAuthority } from '../services/jobAuthority';
+import { requireEmployerAuthority } from '../services/jobsBoard/jobAuthority';
 import { getJobById, incrementApplicationCount } from '../db/jobs/jobRepository';
 import {
   APPLICATION_UNIQUE_CONSTRAINT,

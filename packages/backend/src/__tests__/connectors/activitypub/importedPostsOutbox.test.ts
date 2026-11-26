@@ -55,7 +55,7 @@ vi.mock('../../../utils/oxyHelpers', () => ({
     getServiceAssetMetadataByIds: vi.fn().mockResolvedValue([]),
   }),
 }));
-vi.mock('../../../services/PostHydrationService', () => ({
+vi.mock('../../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
 }));
 vi.mock('../../../utils/clarityClient', () => ({
@@ -66,7 +66,7 @@ vi.mock('../../../utils/clarityClient', () => ({
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import { clearServiceScope, serviceScope, trackPost } from '../../helpers/serviceFixtures';
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
-import { postImportService } from '../../../services/PostImportService';
+import { postImportService } from '../../../services/posts/PostImportService';
 import { PostVisibility } from '@mention/shared-types';
 
 const scope = serviceScope('imported-outbox');

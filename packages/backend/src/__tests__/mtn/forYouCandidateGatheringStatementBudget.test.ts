@@ -29,7 +29,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 import type { FeedPostSlice } from '@mention/shared-types';
 
 const { getUsersByIds, cacheStore } = vi.hoisted(() => ({
@@ -64,7 +64,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -86,7 +86,7 @@ import {
   gatherTrendingLane,
   type GatherForYouCandidatesParams,
 } from '../../mtn/feed/feeds/forYouCandidateSources';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import { metrics } from '../../utils/metrics';
 
 const scope = postScope('for-you-candidate-gathering-budget');

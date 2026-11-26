@@ -1,5 +1,5 @@
 /**
- * Build every SEO sitemap when the cached catalog is due (`services/seoSitemap.ts`).
+ * Build every SEO sitemap when the cached catalog is due (`services/webshell/seoSitemap.ts`).
  *
  * Run as a scheduled one-shot ECS task from the live `mention` task definition
  * with this command (oxy-infra `app-mention-sitemaps.tf`), never inside a task
@@ -22,7 +22,7 @@
 
 import { once } from 'node:events';
 import { connectPostgres } from '../db/postgres';
-import { buildSitemapsIfDue, sitemapsAreDue } from '../services/seoSitemap';
+import { buildSitemapsIfDue, sitemapsAreDue } from '../services/webshell/seoSitemap';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';

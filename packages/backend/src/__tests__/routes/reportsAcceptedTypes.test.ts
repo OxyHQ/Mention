@@ -36,13 +36,13 @@ vi.mock('../../services/moderation/ReportIntakeService', async () => {
 
 /**
  * A `user` report now asks whether the reporter OPERATES the account named
- * (`services/operatedAccountAccess.ts`), which reaches Oxy for identity and the
+ * (`services/accounts/operatedAccountAccess.ts`), which reaches Oxy for identity and the
  * account graph. Stubbed to "an account nobody here operates" so this file keeps
  * testing what it is about — which reported TYPES the route accepts — rather than
  * silently becoming a test of the operator gate, which
  * `reportsOperatedAccount.test.ts` owns.
  */
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 

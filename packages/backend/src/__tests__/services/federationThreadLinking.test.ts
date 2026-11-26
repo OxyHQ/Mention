@@ -64,11 +64,11 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
 
-vi.mock('../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: h.persistRemoteMedia,
 }));
 
-vi.mock('../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: h.recordAccess,
 }));
 
@@ -96,7 +96,7 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -110,7 +110,7 @@ import {
   seedFollow,
 } from '../helpers/federationFixtures';
 // Importing the service is what registers it with the (mocked) registry above.
-import '../../services/PostCreationService';
+import '../../services/posts/PostCreationService';
 import { activityPubConnector as federationService } from '../../connectors/activitypub/ActivityPubConnector';
 import backfillFederatedThreadLinks from '../../scripts/backfillFederatedThreadLinks';
 import { insertPostRecord } from '../../db/posts/postRepository';

@@ -47,7 +47,7 @@ export async function closeAdminScriptResources(): Promise<void> {
  * and making it async would change every call site in the connectors.
  */
 export async function registerAdminScriptServices(): Promise<void> {
-  await import('../../services/PostCreationService.js');
+  await import('../../services/posts/PostCreationService.js');
 }
 
 /**

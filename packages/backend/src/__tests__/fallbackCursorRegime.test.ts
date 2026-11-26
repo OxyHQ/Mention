@@ -70,7 +70,7 @@ const rankByLikes = vi.fn(async (candidates: CandidatePost[]): Promise<Candidate
 // is referenced from inside a function body — naming it directly as the property
 // value reads it during hoisting and dies with "Cannot access before
 // initialization".
-vi.mock('../services/FeedRankingService', () => ({
+vi.mock('../services/feed/FeedRankingService', () => ({
   feedRankingService: { rankPosts: (candidates: CandidatePost[]) => rankByLikes(candidates) },
 }));
 
@@ -78,7 +78,7 @@ vi.mock('../services/FeedRankingService', () => ({
 // own legacy-store queries for thread children, and grouping is not what is under test.
 // A non-empty `slices` is also how a RANKED page is told apart from a fallback
 // one, which serves flat `items` and no slices at all.
-vi.mock('../services/ThreadSlicingService', () => ({
+vi.mock('../services/posts/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (candidates: CandidatePost[]) => ({
       slices: candidates.map((post) => ({
@@ -94,7 +94,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
 // Hydration is the one collaborator that would reach Oxy over the network. It is
 // a pass-through, so every id asserted below is a real row read out of Postgres,
 // and the cursor between pages is minted by the REAL `buildPopularCursor`.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (records: unknown[]) => records),
@@ -104,7 +104,7 @@ vi.mock('../services/PostHydrationService', () => ({
 
 // An empty seen set on every page: the regime the engine picks must not depend
 // on a Redis-backed cache that survives between tests.
-vi.mock('../services/FeedSeenPostsService', () => ({
+vi.mock('../services/feed/FeedSeenPostsService', () => ({
   feedSeenPostsService: {
     getSeenPostIds: vi.fn(async () => []),
     markPostsAsSeen: vi.fn(async () => undefined),

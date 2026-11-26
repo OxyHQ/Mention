@@ -12,7 +12,7 @@ mock.module('../../utils/oxyHelpers', () => ({
 }));
 
 const { canSeeUnratedMaterial, decideContentAccess, runWithContentAccessScope } = await import(
-  '../../services/contentAccessBatcher'
+  '../../services/moderation/contentAccessBatcher'
 );
 
 const anonymous = { accessToken: null };

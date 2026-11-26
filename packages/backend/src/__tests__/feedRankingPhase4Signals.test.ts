@@ -18,7 +18,7 @@ vi.mock('../utils/redis', () => ({
   }),
 }));
 
-import { FeedRankingService } from '../services/FeedRankingService';
+import { FeedRankingService } from '../services/feed/FeedRankingService';
 
 /**
  * PHASE 4 DISCOVERY RANKING SIGNALS — `localBoost` (4d) and

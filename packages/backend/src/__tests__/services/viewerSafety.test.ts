@@ -1,5 +1,5 @@
 /**
- * `services/safety/viewerSafety` — the ONE read path for the two per-viewer
+ * `services/moderation/safety/viewerSafety` — the ONE read path for the two per-viewer
  * safety preferences, against real rows.
  *
  * Both loaders soft-fail toward the SAFE default, and that is the property worth
@@ -16,7 +16,10 @@ import { inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { muteWords } from '../../db/schema/engagement';
 import { userSettings } from '../../db/schema/userProfile';
-import { loadMuteWords, loadShowSensitiveContent } from '../../services/safety/viewerSafety';
+import {
+  loadMuteWords,
+  loadShowSensitiveContent,
+} from '../../services/moderation/safety/viewerSafety';
 
 let db: Database;
 const createdUserIds: string[] = [];

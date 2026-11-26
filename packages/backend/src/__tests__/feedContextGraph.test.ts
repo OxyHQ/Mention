@@ -13,10 +13,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // privacyHelpers (imported by feedContext for the extract* helpers) pulls in the
 vi.mock('../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
-vi.mock('../services/ListSubscriptionService', () => ({
+vi.mock('../services/accounts/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));
-vi.mock('../services/UserPreferenceService', () => ({
+vi.mock('../services/feed/UserPreferenceService', () => ({
   userPreferenceService: {
     getUserBehavior: vi.fn(async () => undefined),
     getTopRegion: vi.fn(() => undefined),

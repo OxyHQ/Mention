@@ -66,7 +66,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // viewer" so these cases stay about the privacy of what a notification may
 // reveal. Pinned rather than left real: the live resolver reads Redis and Oxy,
 // neither of which decides anything this file asserts.
-vi.mock('../../services/notificationInbox', () => ({
+vi.mock('../../services/notifications/notificationInbox', () => ({
   resolveNotificationInboxIds: async (viewerId: string) => [viewerId],
 }));
 
@@ -88,7 +88,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   blockedEitherWay: vi.fn(async () => new Set()),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),
 }));
@@ -110,8 +110,8 @@ vi.mock('../../utils/push', () => ({
  * stage: observing the arguments the route hands hydration, and forcing the
  * privacy authority to fail.
  */
-vi.mock('../../services/PostHydrationService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../services/PostHydrationService')>();
+vi.mock('../../services/posts/PostHydrationService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/posts/PostHydrationService')>();
   mocks.hydratePosts.mockImplementation(
     actual.postHydrationService.hydratePosts.bind(actual.postHydrationService),
   );
@@ -130,7 +130,7 @@ import { notifications } from '../../db/schema/discovery';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import notificationsRouter from '../../routes/notifications';
-import { resetOxyUserFailureMemory } from '../../services/PostHydrationService';
+import { resetOxyUserFailureMemory } from '../../services/posts/PostHydrationService';
 
 const scope = postScope('notifications-privacy');
 const ACTOR = scope.user('actor');

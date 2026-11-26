@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { scheduledPostPublisher } from '../../services/ScheduledPostPublisher';
+import { scheduledPostPublisher } from '../../services/scheduling/ScheduledPostPublisher';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { pastSweepWindow } from './scheduledPublisherWindow';
 
 /**
@@ -21,7 +21,7 @@ import { pastSweepWindow } from './scheduledPublisherWindow';
  * SELECTION, ORDER and per-post isolation, and the claim + publish pipeline
  * (invites, MTN, notifications, federation) has its own coverage.
  */
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: {
     claimAndPublishScheduledPost: vi.fn(
       async ({ postId }: { postId: string }) => ({ id: postId }) as PostRecord,

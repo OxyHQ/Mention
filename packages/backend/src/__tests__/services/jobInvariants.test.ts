@@ -35,7 +35,7 @@ const run = randomUUID();
 const EMPLOYER_ID = `employer-${run}`;
 const OPERATOR_ID = `operator-${run}`;
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
     for (const id of ids) {

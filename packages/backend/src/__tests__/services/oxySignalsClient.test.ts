@@ -8,7 +8,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ serviceRequest: mocks.serviceRequest }),
 }));
 
-import { OxySignalsClient } from '../../services/OxySignalsClient';
+import { OxySignalsClient } from '../../services/feed/OxySignalsClient';
 
 beforeEach(() => {
   vi.clearAllMocks();

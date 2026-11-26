@@ -28,7 +28,7 @@ const h = vi.hoisted(() => ({
   deleteShouldFail: { value: false },
 }));
 
-vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
+vi.mock('../../services/media/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: () => h.mediaCacheEnabled.value,
   deleteCachedMedia: async (oxyFileId: string) => {
     if (h.deleteShouldFail.value) throw new Error('media store refused the delete');

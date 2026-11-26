@@ -24,7 +24,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ withUser: oxy.withUser }),
 }));
 
-import { ensurePostMediaPublic, postMediaFileIds } from '../../services/postMediaVisibility';
+import {
+  ensurePostMediaPublic,
+  postMediaFileIds,
+} from '../../services/posts/access/postMediaVisibility';
 
 beforeEach(() => {
   vi.clearAllMocks();

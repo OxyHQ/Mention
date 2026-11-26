@@ -33,7 +33,7 @@ export interface PresenceViewer {
 
 /**
  * Whose presence a viewer may learn — the one decision every presence answer
- * and broadcast goes through (`services/presencePolicy.ts`).
+ * and broadcast goes through (`services/notifications/presencePolicy.ts`).
  */
 export interface PresencePolicyPort {
   /**

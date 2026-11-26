@@ -40,7 +40,7 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { accountLists } from '../../db/schema/lists';
 import { ENTITY_FOLLOW_TYPES, entityFollows } from '../../db/schema/engagement';
 import { uuidv7 } from '@oxy.so/db';
-import { canViewList } from '../../services/listAccess';
+import { canViewList } from '../../services/accounts/listAccess';
 import entityFollowRouter from '../../routes/entity-follow.routes';
 
 let db: Database;

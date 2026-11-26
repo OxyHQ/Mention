@@ -1,0 +1,270 @@
+import { revalidateAnonymousFeed, type AnonymousFeedSnapshot } from './revalidateAnonymousFeed';
+import { createHash } from 'node:crypto';
+import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
+import { createCache } from '../../utils/cache';
+import { ANON_FRESH_MS } from './anonFeedFreshness';
+import type { RequestLanguages } from '../../utils/viewerLanguage';
+
+/**
+ * Redis cache for the ANONYMOUS main-feed page.
+ *
+ * The anonymous feed is identical for every logged-out viewer (no personalized
+ * blocked/muted filtering, no per-user seen-set), yet the controller recomputes
+ * a full-collection engagement sort AND re-hydrates every post on every request.
+ * Caching the fully-built response for a short window turns the common default
+ * anon feed into a single shared cache read while staying fresh enough that new
+ * posts surface within the TTL.
+ *
+ * Everything here is FAIL-SOFT: a missing/unready Redis, or any read/write
+ * error, degrades to a live recompute — it never throws into the request path.
+ * That contract, the TTL and the JSON handling come from the shared
+ * {@link createCache} primitive; this module owns the KEY (a feed page is
+ * identified by its whole request shape) and the read/write split the controller
+ * needs — the feed is computed by the controller, so this cache is deliberately
+ * NOT a get-or-compute one. Only anonymous requests are ever cached;
+ * authenticated feeds are personalized and must never be shared.
+ */
+
+/** How long a joiner waits for the leader building the same anonymous page. */
+export const ANON_JOIN_DEADLINE_MS = 3_000;
+
+/** The two response shapes the main feed produces; both are plain JSON. */
+type CacheableFeedResponse = FeedResponse | SlicedFeedResponse;
+
+/**
+ * What is stored: the page plus the record revisions it was hydrated from, so a
+ * read can re-authorize it without re-hydrating it (see `revalidateAnonymousFeed`).
+ */
+export type AnonFeedEntry = AnonymousFeedSnapshot<CacheableFeedResponse>;
+
+interface AnonFeedCacheKeyInput {
+  /**
+   * Optional keyspace isolator. Two callers cache different response SHAPES for
+   * overlapping `type` names (the legacy feed controller emits a flat
+   * {@link FeedResponse}; the MTN controller emits a {@link SlicedFeedResponse}),
+   * so each passes a distinct namespace to guarantee they never read each other's
+   * entries. Omitted ⇒ the legacy (unnamespaced) keyspace.
+   */
+  namespace?: string;
+  /** Feed type descriptor (e.g. `mixed`, `posts`, `media`, or an MTN descriptor). */
+  type: string;
+  /** Optional sort mode (`recent` | `best` | `oldest`). */
+  sort?: string;
+  /** Page size. */
+  limit: number;
+  /** Pagination cursor for the page. */
+  cursor?: string;
+  /**
+   * The reader languages the response was built for — ISO 639-1 base subtags.
+   *
+   * Part of the cache IDENTITY, not a personalization: an anonymous feed is
+   * shared, and since `loadViewerFeedContext` now resolves an anonymous reader's
+   * languages from their request (`?lang=`, then `Accept-Language`), two readers
+   * with different locales get genuinely different pages. Without this in the key
+   * they would collapse onto whichever one warmed the entry first — a Spanish
+   * reader served the German reader's feed, which is the bug this whole change
+   * exists to fix, reintroduced one layer up.
+   *
+   * `TrendingService` keys its shared read on languages for exactly this reason.
+   * The set is normalized, deduped and capped at 3 upstream, so the cardinality
+   * this adds is bounded and `es,en` / `en,es` are ONE entry rather than two.
+   */
+  languages?: readonly string[];
+  /** Fully-resolved feed filters (authors, keywords, …). */
+  filters?: Record<string, unknown>;
+}
+
+/**
+ * Deterministic JSON serialization: object keys are sorted at every level so two
+ * structurally-equal filter objects always produce the same string (and thus the
+ * same cache key) regardless of insertion order.
+ */
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, val) => {
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const record = val as Record<string, unknown>;
+      return Object.keys(record)
+        .sort()
+        .reduce<Record<string, unknown>>((acc, key) => {
+          acc[key] = record[key];
+          return acc;
+        }, {});
+    }
+    return val;
+  });
+}
+
+/**
+ * How long a page is KEPT after it stops being fresh, to be served while one
+ * build refreshes it. A build is the whole gather-rank-hydrate pipeline: on the
+ * Explore feed it scores a day of posts and runs 4 to 15 s against a 15 s
+ * statement timeout, so an entry that simply vanished after 45 s sent every
+ * reader that arrived next into a build of their own, and a loaded database
+ * answered those with 503s. A stale page is a shared page a minute or so old;
+ * a 503 is nothing.
+ */
+const STALE_TTL_SECONDS = 15 * 60;
+
+const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: STALE_TTL_SECONDS });
+
+/** What is stored: the entry and when it was built (the cache has no age of its own). */
+interface StoredAnonFeed {
+  cachedAt: number;
+  entry: AnonFeedEntry;
+  /**
+   * The page was built while Oxy could not resolve an author (it shows "Unknown
+   * user"). It is never served as fresh, only as the stale page of last resort:
+   * better than a 40 s wait or a 503 while Oxy recovers, replaced by the first
+   * clean build, and never written over a clean page.
+   */
+  degraded?: boolean;
+}
+
+class AnonFeedCache {
+  /** v3: entries are {@link StoredAnonFeed} (entry + build time), kept past their freshness. */
+  private readonly KEY_PREFIX = 'anonfeed:v3:';
+
+  /**
+   * Build a collision-free cache key. Distinct filters/sort/cursor/limit/languages
+   * map to distinct keys, so two different anon requests never share an entry. The
+   * (potentially large) filter object is fingerprinted with a short SHA-256 so
+   * the key stays bounded.
+   */
+  buildKey(input: AnonFeedCacheKeyInput): string {
+    const hasFilters = input.filters && Object.keys(input.filters).length > 0;
+    const filtersFingerprint = hasFilters
+      ? createHash('sha256').update(stableStringify(input.filters)).digest('hex').slice(0, 16)
+      : 'none';
+    const namespacedType = input.namespace ? `${input.namespace}:${input.type}` : input.type;
+    // SORTED, so two readers whose languages differ only in order share an entry.
+    const languageKey =
+      input.languages && input.languages.length > 0 ? [...input.languages].sort().join(',') : 'any';
+    return [
+      this.KEY_PREFIX + namespacedType,
+      input.sort ?? 'default',
+      String(input.limit),
+      input.cursor ?? 'first',
+      filtersFingerprint,
+      languageKey,
+    ].join(':');
+  }
+
+  /**
+   * Read a cached anon page, re-authorized for this read, or `null` on miss /
+   * any Redis failure. A failed authorization rejects: no cached page is served
+   * without current decisions.
+   */
+  async read(
+    key: string,
+    requestLanguages?: RequestLanguages,
+    freshMs: number = ANON_FRESH_MS,
+  ): Promise<CacheableFeedResponse | null> {
+    return this.readWhere(
+      key,
+      requestLanguages,
+      (stored) => !stored.degraded && Date.now() - stored.cachedAt < freshMs,
+    );
+  }
+
+  /**
+   * The page kept for `key` whatever its age (still re-authorized, like
+   * {@link read}), or `null` when none is kept. For serving while a build
+   * refreshes it, never instead of one.
+   */
+  async readStale(
+    key: string,
+    requestLanguages?: RequestLanguages,
+  ): Promise<CacheableFeedResponse | null> {
+    return this.readWhere(key, requestLanguages, () => true);
+  }
+
+  private async readWhere(
+    key: string,
+    requestLanguages: RequestLanguages | undefined,
+    accepts: (stored: StoredAnonFeed) => boolean,
+  ): Promise<CacheableFeedResponse | null> {
+    const stored = await cache.get<StoredAnonFeed>(key);
+    if (!stored?.entry?.page || !accepts(stored)) return null;
+    return revalidateAnonymousFeed(stored.entry, requestLanguages);
+  }
+
+  /**
+   * Persist an anon page. Fail-soft: a write error is logged and swallowed.
+   *
+   * A `degraded` page (see {@link StoredAnonFeed.degraded}) is only stored when
+   * nothing is kept yet, so a clean stale page is never replaced by a worse one.
+   */
+  async write(key: string, entry: AnonFeedEntry, options?: { degraded?: boolean }): Promise<void> {
+    const degraded = options?.degraded === true;
+    if (degraded && (await cache.get<StoredAnonFeed>(key))?.entry?.page) return;
+    await cache.set<StoredAnonFeed>(key, {
+      cachedAt: Date.now(),
+      entry,
+      ...(degraded ? { degraded } : {}),
+    });
+  }
+
+  /**
+   * Builds of a page in progress in THIS process, by key.
+   *
+   * The entry expires for everyone at once, and every anonymous request that
+   * misses before the first rebuild lands would otherwise run the whole
+   * gather-rank-hydrate pipeline for the same page — a stampede on exactly the
+   * most-read keys. Per process, not global: it needs no lock round trip, and a
+   * handful of instances each building once is the bounded version of the
+   * problem.
+   */
+  private readonly inFlight = new Map<string, Promise<AnonFeedEntry | null>>();
+
+  /**
+   * Claim the rebuild of `key` after a cache miss.
+   *
+   * The first caller LEADS: it builds the page and must call `settle` exactly
+   * once — with the page, or `null` when it has none to share (an error, a
+   * `pending` page). `settle` is idempotent, so a `finally` may call it again.
+   * Later callers JOIN and await the leader's answer; a `null` answer means
+   * "build your own", which is exactly what they would have done without this.
+   */
+  claimBuild(
+    key: string,
+  ):
+    | { role: 'lead'; settle: (entry: AnonFeedEntry | null) => void }
+    | { role: 'join'; result: Promise<AnonFeedEntry | null> } {
+    const existing = this.inFlight.get(key);
+    if (existing) return { role: 'join', result: this.withinJoinDeadline(existing) };
+
+    let resolve!: (entry: AnonFeedEntry | null) => void;
+    const result = new Promise<AnonFeedEntry | null>((r) => {
+      resolve = r;
+    });
+    this.inFlight.set(key, result);
+    let settled = false;
+    return {
+      role: 'lead',
+      settle: (entry) => {
+        if (settled) return;
+        settled = true;
+        if (this.inFlight.get(key) === result) this.inFlight.delete(key);
+        resolve(entry);
+      },
+    };
+  }
+
+  /**
+   * A joiner waits for the leader, but only {@link ANON_JOIN_DEADLINE_MS}: a
+   * leader stuck on a slow query or an Oxy call would otherwise hold every
+   * reader of that page for as long as it hangs. Past the deadline the joiner
+   * answers `null`, "build your own", which is what it would have done without
+   * single-flight, so the cost of a hung leader is bounded rather than shared.
+   */
+  private withinJoinDeadline(build: Promise<AnonFeedEntry | null>): Promise<AnonFeedEntry | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), ANON_JOIN_DEADLINE_MS);
+      timer.unref?.();
+    });
+    return Promise.race([build, deadline]).finally(() => clearTimeout(timer));
+  }
+}
+
+export const anonFeedCache = new AnonFeedCache();

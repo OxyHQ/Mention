@@ -6,7 +6,7 @@ import { upsertActor } from '../../db/federation/actorRepository';
 import type { ResolveExternalIdentityResponse } from '@oxy.so/contracts';
 import { observeOxySource, resolveOxyIdentity, type ObservedOxySource } from '../oxyIdentity';
 import { syncFederatedBannerInBackground } from '../../db/federation/bannerMirrorRepository';
-import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
+import { reconcileActorIdentityProjection } from '../../services/accounts/ActorIdentityProjectionService';
 import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
 import {
   atprotoIdentityHandle,
@@ -17,7 +17,7 @@ import {
 import { describeDriverError, isUniqueViolation } from '@oxy.so/db';
 import { metrics } from '../../utils/metrics';
 import { isDid } from './constants';
-import { oxyErrorStatus } from '../../services/oxyFiles/oxyErrors';
+import { oxyErrorStatus } from '../../services/media/oxyFiles/oxyErrors';
 
 /**
  * Counter a run can fail on when an actor row could not be written.

@@ -42,7 +42,7 @@ import {
   AFFINITY_BUFFER_KEY,
   AFFINITY_BUFFER_MAX_LEN,
   AFFINITY_DRAIN_BATCH_SIZE,
-} from '../../services/AffinityEventService';
+} from '../../services/feed/AffinityEventService';
 
 const signalsClient = {
   pushEvents: mocks.pushEvents,

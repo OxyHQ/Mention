@@ -1,0 +1,124 @@
+import {
+  findEvictableMediaCacheEntries,
+  markMediaCacheEvicted,
+  type MediaCacheEvictionCandidate,
+} from '../../../db/federation/mediaCacheRepository';
+import { logger } from '../../../utils/logger';
+import {
+  MEDIA_CACHE_EVICTION_BATCH_SIZE,
+  MEDIA_CACHE_EVICTION_CONCURRENCY,
+  MEDIA_CACHE_TTL_MS,
+} from './constants';
+import {
+  deleteCachedMedia,
+  isAbsentFromCacheNamespace,
+  isMediaCacheEnabled,
+  isMediaStoreThrottled,
+} from './oxyMediaStore';
+
+/**
+ * A bounded description of why a delete failed, for the warn below.
+ *
+ * `OxyMediaStoreRequestError` carries the HTTP status, which is what decides the
+ * answer: a 403 means the credential, a 5xx means wait (a 404 or a
+ * not-a-cache-object 403 never reaches here — see `isAbsentFromCacheNamespace`).
+ * The fields are read
+ * defensively because a rejection here can also be a plain SDK object, for which
+ * `String(error)` prints `[object Object]`.
+ */
+function describeDeleteFailure(error: unknown): Record<string, unknown> {
+  if (typeof error !== 'object' || error === null) return { reason: String(error) };
+  const fields = error as { message?: unknown; statusCode?: unknown; status?: unknown };
+  const status =
+    typeof fields.statusCode === 'number'
+      ? fields.statusCode
+      : typeof fields.status === 'number'
+        ? fields.status
+        : undefined;
+  return {
+    reason:
+      typeof fields.message === 'string' && fields.message.length > 0
+        ? fields.message.slice(0, 300)
+        : 'unknown failure',
+    ...(status !== undefined ? { status } : {}),
+  };
+}
+
+/**
+ * Delete the Oxy object(s) for one idle entry and transition it to `evicted`,
+ * KEEPING the row (file ids cleared) so a future access re-caches it. If a
+ * delete fails the row is left `cached` so the next sweep retries — we never
+ * mark `evicted` while bytes may still live in S3 (avoids orphaned objects).
+ * An id the cache namespace does not hold (already gone, or a durable file a
+ * pre-oxy#1444 dedupe handed back) is not a failure: nothing of the cache's is
+ * left behind it, and retrying it would be refused forever.
+ */
+async function evictOne(candidate: MediaCacheEvictionCandidate): Promise<'done' | 'budget-spent'> {
+  const fileIds = [candidate.oxyFileId, candidate.posterFileId].filter(
+    (id): id is string => typeof id === 'string' && id.length > 0,
+  );
+
+  // Delete every associated object first; only flip to `evicted` if all succeed.
+  const results = await Promise.allSettled(fileIds.map((id) => deleteCachedMedia(id)));
+  const failed = results.filter(
+    (r): r is PromiseRejectedResult =>
+      r.status === 'rejected' && !isAbsentFromCacheNamespace(r.reason),
+  );
+  if (failed.length > 0) {
+    // A spent write budget is not this entry's failure, and it will be the next
+    // entry's too — say so ONCE (the store logs the pause itself) and let the
+    // sweep stop. The row stays `cached`, which is what the next sweep needs.
+    if (failed.some((result) => isMediaStoreThrottled(result.reason))) {
+      return 'budget-spent';
+    }
+    // The REASON, not just the count. Without it this line said only "something
+    // failed" — and it said it for the same 50 rows on every sweep, so the one
+    // question it needed to answer (is the object already gone, is the
+    // credential refused, is Oxy down?) was the one it could not.
+    logger.warn('[MediaCache] Eviction delete failed; leaving entry cached for retry', {
+      remoteUrl: candidate.remoteUrl,
+      failedCount: failed.length,
+      ...describeDeleteFailure(failed[0].reason),
+    });
+    return 'done';
+  }
+
+  await markMediaCacheEvicted(candidate.remoteUrl);
+  return 'done';
+}
+
+/**
+ * Evict `cached` entries idle past {@link MEDIA_CACHE_TTL_MS} from Oxy S3.
+ * Bounded batch + bounded concurrency, no-ops when the write side is disabled
+ * (delete capability blocked upstream). Overlap-guarded by the scheduler.
+ */
+export async function runEvictionOnce(): Promise<void> {
+  if (!isMediaCacheEnabled()) {
+    logger.debug('[MediaCache] Eviction skipped — media cache disabled (blocked upstream)');
+    return;
+  }
+
+  const cutoff = new Date(Date.now() - MEDIA_CACHE_TTL_MS);
+  const candidates = await findEvictableMediaCacheEntries(cutoff, MEDIA_CACHE_EVICTION_BATCH_SIZE);
+
+  if (candidates.length === 0) return;
+
+  logger.info(`[MediaCache] Evicting ${candidates.length} idle cached media entries`);
+
+  for (let i = 0; i < candidates.length; i += MEDIA_CACHE_EVICTION_CONCURRENCY) {
+    const batch = candidates.slice(i, i + MEDIA_CACHE_EVICTION_CONCURRENCY);
+    const settled = await Promise.allSettled(batch.map((candidate) => evictOne(candidate)));
+
+    // Every remaining delete this sweep would only buy another refusal: the
+    // budget is per application and per window. Measured before this: 50
+    // eviction deletes failing per sweep, every sweep, with a warn line each.
+    if (
+      settled.some((result) => result.status === 'fulfilled' && result.value === 'budget-spent')
+    ) {
+      logger.info('[MediaCache] Eviction stopping early; media-write budget spent', {
+        remaining: candidates.length - (i + batch.length),
+      });
+      return;
+    }
+  }
+}

@@ -3,7 +3,7 @@ import {
   nodeinfoCombinedUsers,
   nodeinfoStatisticsExtension,
   type NodeinfoStatistics,
-} from './services/nodeinfoStatistics';
+} from './services/federation/nodeinfoStatistics';
 import { withGemiesSdkCsp } from '@gemies/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
 import { EXPECTED_VIEWER_HEADER } from '@mention/shared-types/common';
@@ -21,7 +21,7 @@ import { createAppAssociationRouter, wellKnownNotFound } from './routes/appAssoc
 export interface AppMiddleware {
   activity?: RequestHandler;
   requestObservability: RequestHandler;
-  /** Request-scoped Oxy content decisions (`services/contentAccessBatcher`). */
+  /** Request-scoped Oxy content decisions (`services/moderation/contentAccessBatcher`). */
   contentAccessScope: RequestHandler;
   rateLimiter: RequestHandler;
   bruteForceProtection: RequestHandler;

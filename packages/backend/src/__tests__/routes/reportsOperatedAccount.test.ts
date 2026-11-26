@@ -40,7 +40,7 @@ vi.mock('../../services/moderation/ReportIntakeService', async () => {
   return { ...actual, createReport: (...args: unknown[]) => createReport(...args) };
 });
 
-vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
+vi.mock('../../services/posts/PostHydrationService', () => ({ resolveUserSummaries }));
 
 vi.mock('../../utils/oxyHelpers', async () => ({
   ...(await import('../helpers/accountAccess')).rosterMocks(() => ({

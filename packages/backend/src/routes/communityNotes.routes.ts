@@ -16,12 +16,12 @@ import {
   withdrawCommunityNote,
   writeCommunityNote,
   type CommunityNoteRatingInput,
-} from '../services/communityNotes/CommunityNotesService';
+} from '../services/moderation/communityNotes/CommunityNotesService';
 import {
   resolveNoteSubject,
   withSubjectPosts,
   type NoteSubjectRefusal,
-} from '../services/communityNotes/communityNoteSubjects';
+} from '../services/moderation/communityNotes/communityNoteSubjects';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { logger } from '../utils/logger';

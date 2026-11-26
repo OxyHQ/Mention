@@ -8,11 +8,11 @@ import { hashedIpKey } from '../utils/ipKey';
 import { getServiceOxyClient, uploadServiceUserMedia, requesterFiles } from '../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import type { RequestSafetyContext } from '../utils/safetyRequester';
-import { describeOxyError, oxyErrorStatus } from '../services/oxyFiles/oxyErrors';
+import { describeOxyError, oxyErrorStatus } from '../services/media/oxyFiles/oxyErrors';
 import {
   MEDIA_REJECTED_TYPES,
   contentTypeFamilyFromString,
-} from '../services/mediaCache/mediaTypes';
+} from '../services/media/mediaCache/mediaTypes';
 
 /**
  * POST /posts/intent-media

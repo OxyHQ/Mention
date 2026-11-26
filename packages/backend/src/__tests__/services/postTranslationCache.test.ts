@@ -40,7 +40,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { getUsersByIds, cacheStore, inferenceChat } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
@@ -79,7 +79,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -102,12 +102,12 @@ import { postContentVariants, postVariantAltTexts } from '../../db/schema/postCo
 import { loadPostRecord, replacePostContent } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import {
   PostTranslationService,
   TranslationSourceChangedError,
-} from '../../services/PostTranslationService';
-import { translationSourceFingerprint } from '../../services/postVariants';
+} from '../../services/posts/PostTranslationService';
+import { translationSourceFingerprint } from '../../services/posts/postVariants';
 import { createRedisLock } from '../../utils/redisLock';
 
 /**
@@ -298,9 +298,9 @@ describe('machine translation cache', () => {
         .map((file) => path.relative(srcRoot, file));
       expect(callers).toEqual([path.join('controllers', 'posts', 'translation.ts')]);
 
-      const hydrationDirectory = path.join(srcRoot, 'services', 'postHydration');
+      const hydrationDirectory = path.join(srcRoot, 'services', 'posts', 'postHydration');
       const hydrationFiles = [
-        path.join(srcRoot, 'services', 'PostHydrationService.ts'),
+        path.join(srcRoot, 'services', 'posts', 'PostHydrationService.ts'),
         ...fs
           .readdirSync(hydrationDirectory)
           .filter((name) => name.endsWith('.ts'))

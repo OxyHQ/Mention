@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANON_FRESH_MS, anonFreshMsFor } from '../../services/anonFeedFreshness';
+import { ANON_FRESH_MS, anonFreshMsFor } from '../../services/feed/anonFeedFreshness';
 
 describe('anonFreshMsFor', () => {
   it('keeps Explore, whose build reads ~45,000 blocks, fresh longer than any other anonymous page', () => {

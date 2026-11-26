@@ -5,14 +5,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ForegroundOxyProfileClient,
   ForegroundRankingError,
-} from '../../services/ForegroundOxyProfileClient';
+} from '../../services/accounts/ForegroundOxyProfileClient';
 
 const mocks = vi.hoisted(() => ({ serviceRequest: vi.fn() }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ serviceRequest: mocks.serviceRequest }),
   getMentionOxyClientId: () => 'fixture_mention_application',
 }));
-import { OxyRankingClient } from '../../services/OxyRankingClient';
+import { OxyRankingClient } from '../../services/feed/OxyRankingClient';
 
 const servers: http.Server[] = [];
 const CATALOG = {

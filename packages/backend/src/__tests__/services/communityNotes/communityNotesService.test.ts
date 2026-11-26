@@ -67,7 +67,7 @@ import {
   withdrawCommunityNote,
   writeCommunityNote,
   CommunityNotesUnavailableError,
-} from '../../../services/communityNotes/CommunityNotesService';
+} from '../../../services/moderation/communityNotes/CommunityNotesService';
 
 const note = (id: string, subject: string, over: Record<string, unknown> = {}) => ({
   id,

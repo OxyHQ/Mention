@@ -1,5 +1,5 @@
-import { commerceLinksByPost } from '../../../services/commerce/federationLinks';
-import { authorsMayFederate } from '../../../services/postPublicationPolicy';
+import { commerceLinksByPost } from '../../../services/monetization/commerce/federationLinks';
+import { authorsMayFederate } from '../../../services/posts/access/postPublicationPolicy';
 import { filterFederatablePosts } from '../../../services/federation/publicationPolicy';
 import { Router, type Request, type Response } from 'express';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
@@ -29,8 +29,8 @@ import {
 } from '../constants';
 import { chronoCursorSql, chronoOrderBy } from '../../../mtn/feed/CursorBuilder';
 import { encodeChronoCursor } from '../../../utils/chronoCursor';
-import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSharing';
-import { isErasedActorHandle } from '../../../services/accountErasure/erasedAccounts';
+import { isFediverseSharingEnabledFromUser } from '../../../services/federation/fediverseSharing';
+import { isErasedActorHandle } from '../../../services/accounts/accountErasure/erasedAccounts';
 
 /**
  * The CONTENT half of the `/ap/users/:username/*` namespace: the outbox, the

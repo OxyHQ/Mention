@@ -10,7 +10,7 @@ import { normalizeAltInput, normalizeMediaItems } from '../../utils/mediaInput';
  * (`PostHydrationService`) makes the feed look right while a raw value is signed
  * forever, so the invariant has to hold HERE — these tests are what pins it down.
  *
- * The rule itself is `normalizeAlt` (`services/MediaMetadataService.ts`), the same
+ * The rule itself is `normalizeAlt` (`services/media/MediaMetadataService.ts`), the same
  * one the ActivityPub and atproto ingests apply; this boundary adds the product
  * length cap on top.
  */

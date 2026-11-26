@@ -5,8 +5,11 @@ import { getDb } from '../db/postgres';
 import { isUniqueViolation } from '@oxy.so/db';
 import { ENTITY_FOLLOW_TYPES, entityFollows } from '../db/schema/engagement';
 import { logger } from '../utils/logger';
-import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
-import { canViewList, loadListVisibility } from '../services/listAccess';
+import {
+  listSubscriptionService,
+  LIST_ENTITY_TYPE,
+} from '../services/accounts/ListSubscriptionService';
+import { canViewList, loadListVisibility } from '../services/accounts/listAccess';
 import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { queryString } from '../utils/queryParams';
 import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';

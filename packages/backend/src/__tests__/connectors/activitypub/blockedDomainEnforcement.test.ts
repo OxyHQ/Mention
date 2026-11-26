@@ -100,7 +100,7 @@ vi.mock('../../../db/federation/actorRepository', async (importOriginal) => {
   };
 });
 
-vi.mock('../../../services/PostEngagementCommandService', () => ({
+vi.mock('../../../services/engagement/PostEngagementCommandService', () => ({
   materializeEngagementRelationship: (...args: unknown[]) =>
     mocks.materializeEngagementRelationship(...args),
   materializeEngagementTombstone: (...args: unknown[]) =>
@@ -111,11 +111,11 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 
@@ -132,7 +132,7 @@ vi.mock('../../../utils/notificationUtils', () => ({
   createBatchNotifications: vi.fn(),
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(),
   isFediverseSharingEnabledFromUser: (...args: unknown[]) =>
     mocks.isFediverseSharingEnabledFromUser(...args),

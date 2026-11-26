@@ -35,16 +35,16 @@ const recordDedupedView = vi.fn(
 const recordDwell = vi.fn((_postId: string, _durationMs: number) => Promise.resolve());
 const recordInteractions = vi.fn((_userId: string, _entries: unknown[]) => Promise.resolve());
 
-vi.mock('../services/feedViewCounter', () => ({
+vi.mock('../services/engagement/feedViewCounter', () => ({
   recordDedupedView: (postId: string, viewerId: string) => recordDedupedView(postId, viewerId),
   isPostEligibleForViewTelemetry: vi.fn(() => Promise.resolve(true)),
 }));
 
-vi.mock('../services/dwellAggregate', () => ({
+vi.mock('../services/engagement/dwellAggregate', () => ({
   recordDwell: (postId: string, durationMs: number) => recordDwell(postId, durationMs),
 }));
 
-vi.mock('../services/UserPreferenceService', () => ({
+vi.mock('../services/feed/UserPreferenceService', () => ({
   userPreferenceService: {
     recordInteractions: (userId: string, entries: unknown[]) => recordInteractions(userId, entries),
   },

@@ -11,14 +11,14 @@ import {
   starterPacks,
 } from '../db/schema/lists';
 import { starterPackSearchPredicate } from '../utils/searchPredicates';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveUserSummaries } from '../services/posts/PostHydrationService';
 import { resolveKnownUsers } from '../utils/knownUsers';
-import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
+import { invalidate as invalidateUserSummaries } from '../services/accounts/userSummaryCache';
 import type { AvatarIdentitySummary, PostUser } from '@mention/shared-types';
 import { avatarIdentitySummary } from '../utils/avatarIdentitySummary';
 import { logger } from '../utils/logger';
 import { queryString } from '../utils/queryParams';
-import { endorsementSignalService } from '../services/EndorsementSignalService';
+import { endorsementSignalService } from '../services/feed/EndorsementSignalService';
 
 /**
  * What a starter pack's own two text fields may be.

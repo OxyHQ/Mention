@@ -34,8 +34,8 @@ const federateDelete = vi.hoisted(() => vi.fn(async () => undefined));
 const deliverToFollowers = vi.hoisted(() => vi.fn(async () => undefined));
 const getUserById = vi.hoisted(() => vi.fn());
 
-vi.mock('../../services/publishAsAccount', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/publishAsAccount')>()),
+vi.mock('../../services/accounts/publishAsAccount', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/accounts/publishAsAccount')>()),
   resolveAccountKind: oxyKind,
 }));
 vi.mock('../../connectors/activitypub/follow.service', () => ({
@@ -79,12 +79,12 @@ import { userSettings } from '../../db/schema/userProfile';
 import { deckWorkspaces } from '../../db/schema/deck';
 import { lanes } from '../../db/schema/channels';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { CHANNEL_CASCADE } from '../../services/channelDeletion/channelCascadeManifest';
+import { CHANNEL_CASCADE } from '../../services/accounts/channelDeletion/channelCascadeManifest';
 import {
   deleteChannelContent,
   NotAChannelAccountError,
   previewChannelDeletion,
-} from '../../services/channelDeletion/ChannelDeletionService';
+} from '../../services/accounts/channelDeletion/ChannelDeletionService';
 
 const scope = serviceScope('channel-deletion');
 const CHANNEL = scope.user('channel');

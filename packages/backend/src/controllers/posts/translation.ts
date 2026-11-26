@@ -8,16 +8,16 @@ import type { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
-import { canRequestReadPost } from '../../services/postReadAccess';
+import { canRequestReadPost } from '../../services/posts/access/postReadAccess';
 import { callerOxyUser } from '../../utils/oxyHelpers';
 import {
   postTranslationService,
   TranslationRequestError,
   TranslationSourceChangedError,
-} from '../../services/PostTranslationService';
-import { TranslationOutputError } from '../../services/translationOutputGuard';
+} from '../../services/posts/PostTranslationService';
+import { TranslationOutputError } from '../../services/posts/translationOutputGuard';
 import { classifyKaanaFailure } from '../../utils/kaana';
 import { MAX_TEXT_LENGTH } from './composeInput';
 

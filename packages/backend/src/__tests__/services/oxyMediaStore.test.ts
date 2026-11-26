@@ -7,7 +7,7 @@ import { OxyServer } from '@oxy.so/core/server';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /** Actual workload transport, with fetch responses standing in for Oxy. */
-vi.mock('../../services/mediaCache/constants', () => ({ MEDIA_CACHE_WRITE_ENABLED: true }));
+vi.mock('../../services/media/mediaCache/constants', () => ({ MEDIA_CACHE_WRITE_ENABLED: true }));
 const serviceToken = (credentialId: string) =>
   `e30.${Buffer.from(
     JSON.stringify({
@@ -109,7 +109,7 @@ import {
   OxyMediaOwnedElsewhereError,
   OxyMediaStoreRequestError,
   OxyMediaStoreThrottledError,
-} from '../../services/mediaCache/oxyMediaStore';
+} from '../../services/media/mediaCache/oxyMediaStore';
 import { logger } from '../../utils/logger';
 
 let workDir: string;

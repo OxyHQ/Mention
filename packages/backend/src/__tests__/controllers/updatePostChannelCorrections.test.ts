@@ -65,7 +65,7 @@ vi.mock('../../utils/oxyHelpers', async () => ({
  * channel's — the same single path production uses, rather than a second stub of
  * the predicate that could answer differently from it.
  */
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: hoisted.resolveUserSummaries,
   degradedActorSummary: (id: string) => ({
@@ -75,7 +75,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
-vi.mock('../../services/PostCollaborationService', () => ({
+vi.mock('../../services/posts/PostCollaborationService', () => ({
   postCollaborationService: {
     resolveCollaboratorRefs: hoisted.resolveCollaboratorRefs,
     attachCollaborators: hoisted.attachCollaborators,

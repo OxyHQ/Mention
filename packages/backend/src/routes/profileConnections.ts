@@ -2,7 +2,7 @@ import { resolvePageLimit } from '@oxy.so/utils/paging';
 import { Router, type Response } from 'express';
 import { getErrorStatus } from '@oxy.so/core';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { isAccountErased } from '../services/accountErasure/erasedAccounts';
+import { isAccountErased } from '../services/accounts/accountErasure/erasedAccounts';
 import { loadProfileConnections } from '../services/federation/remoteConnections';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';

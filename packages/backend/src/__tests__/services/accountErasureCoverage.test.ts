@@ -9,11 +9,11 @@ import {
   ACCOUNT_REFERENCE_EXTRAS,
   NOT_AN_ACCOUNT_COLUMN,
   erasureKey,
-} from '../../services/accountErasure/erasureMap';
+} from '../../services/accounts/accountErasure/erasureMap';
 import {
   ERASURE_STEPS,
   STEPS_PERFORMED_ELSEWHERE,
-} from '../../services/accountErasure/erasureSteps';
+} from '../../services/accounts/accountErasure/erasureSteps';
 
 /**
  * THE ERASURE GATE (OxyHQ/Mention#1169): a new table carrying an Oxy account id
@@ -105,7 +105,7 @@ describe('account erasure covers every account column in the schema', () => {
     expect(
       uncovered(tables),
       'These columns can hold an Oxy account id but the erasure map does not say what happens to them.\n' +
-        'Add an entry to ACCOUNT_ERASURE_MAP (services/accountErasure/erasureMap.ts) with its disposition\n' +
+        'Add an entry to ACCOUNT_ERASURE_MAP (services/accounts/accountErasure/erasureMap.ts) with its disposition\n' +
         'and reason, and a step in erasureSteps.ts; or, if the column does not hold an account id, add it\n' +
         'to NOT_AN_ACCOUNT_COLUMN with what it does hold.',
     ).toEqual([]);

@@ -14,7 +14,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 

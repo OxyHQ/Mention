@@ -6,7 +6,7 @@ vi.mock('../../services/moderation/crowdSourceClient', () => ({
 }));
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * DISCLOSING THE HUMAN BEHIND A CHANNEL POST.
@@ -147,7 +147,7 @@ vi.mock('../../db/federation/actorRepository', () => ({
   findActorsByUris: async () => [],
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -161,7 +161,7 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 
 /** A post published BY `authorId`, written by `writerId` when one is given. */
 function postRow(authorId: string, writerId?: string) {
@@ -480,7 +480,7 @@ describe('PostHydrationService — the channel writer byline', () => {
  *
  * On the legacy store, `writtenByOxyUserId` had to be named in FOUR separate `select`
  * strings (`mtn/feed/FeedAPI`, `controllers/feed.controller`,
- * `services/ThreadSlicingService`, `routes/search`); missing from one, the
+ * `services/posts/ThreadSlicingService`, `routes/search`); missing from one, the
  * writer hydrated `undefined` with no error, so the same post named its writer
  * on a feed row and dropped the name as a thread parent. `main` carried a test
  * asserting all four strings contained the field.

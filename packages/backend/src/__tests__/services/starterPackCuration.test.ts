@@ -29,7 +29,7 @@ import {
   starterPackCurationDeps,
   type CurationEdge,
   type StarterPackCurationDeps,
-} from '../../services/starterPackCuration';
+} from '../../services/accounts/starterPackCuration';
 
 const CURATION = MtnConfig.ranking.optInSignals.starterPackBoost;
 

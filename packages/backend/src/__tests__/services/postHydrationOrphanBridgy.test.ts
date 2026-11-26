@@ -42,7 +42,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),
   invalidate: vi.fn(async () => undefined),
@@ -55,7 +55,7 @@ vi.mock('../../connectors/activitypub/actor.service', () => ({
   default: { getOrFetchActor: (...args: unknown[]) => getOrFetchActor(...args) },
 }));
 
-import { resolveOrphanFederatedAuthors } from '../../services/PostHydrationService';
+import { resolveOrphanFederatedAuthors } from '../../services/posts/PostHydrationService';
 
 const DID = 'did:plc:reu7q3altx5gsonhu5nxcfp6';
 const OBJECT_URL = `https://bsky.brid.gy/convert/ap/at://${DID}/app.bsky.feed.post/3moysdeqo3c2r`;

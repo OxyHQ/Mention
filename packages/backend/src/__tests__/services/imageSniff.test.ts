@@ -3,7 +3,7 @@ import {
   isAnimatedImage,
   isWebSafeImageType,
   sniffImageMime,
-} from '../../services/mediaCache/imageSniff';
+} from '../../services/media/mediaCache/imageSniff';
 
 /** The magic-byte decision a sniffing download (a federated banner) is made on. */
 describe('sniffImageMime', () => {

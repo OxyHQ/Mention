@@ -29,7 +29,7 @@ const oxy = vi.hoisted(() => ({
   accountKinds: new Map<string, string>(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();

@@ -68,7 +68,7 @@ vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: oxyHelpers.createScopedOxyClient,
 }));
-vi.mock('../services/ListSubscriptionService', () => ({
+vi.mock('../services/accounts/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));
 /**
@@ -81,10 +81,10 @@ vi.mock('../services/ListSubscriptionService', () => ({
  * curation case drives it to `true`.
  */
 const laneExists = vi.hoisted(() => vi.fn(async (): Promise<boolean> => false));
-vi.mock('../services/laneVisibility', () => ({
+vi.mock('../services/feed/laneVisibility', () => ({
   ownerHasProfileAffectingLane: laneExists,
 }));
-vi.mock('../services/UserPreferenceService', () => ({
+vi.mock('../services/feed/UserPreferenceService', () => ({
   userPreferenceService: {
     getUserBehavior: vi.fn(async () => undefined),
     getTopRegion: vi.fn(() => undefined),
@@ -101,7 +101,7 @@ const anonCache = vi.hoisted(() => ({
   // Every request leads its own build unless a test says otherwise.
   claimBuild: vi.fn(() => ({ role: 'lead' as const, settle: vi.fn() })),
 }));
-vi.mock('../services/anonFeedCache', () => ({ anonFeedCache: anonCache }));
+vi.mock('../services/feed/anonFeedCache', () => ({ anonFeedCache: anonCache }));
 
 // Federated sync-on-view: the side effect an empty author feed triggers. Defaults
 // to "nothing to sync" so unrelated tests are unaffected.

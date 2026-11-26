@@ -4,8 +4,8 @@ import {
   recommendationService,
   MAX_RECOMMENDATION_OFFSET,
   RecommendationsUnavailableError,
-} from '../services/RecommendationService';
-import type { RecommendationExcludeType } from '../services/OxyRankingClient';
+} from '../services/feed/RecommendationService';
+import type { RecommendationExcludeType } from '../services/feed/OxyRankingClient';
 import { decodeOffsetCursor } from '../utils/offsetCursor';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';

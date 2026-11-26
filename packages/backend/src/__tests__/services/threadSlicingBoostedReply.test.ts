@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import { PostType } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { threadSlicingService } from '../../services/ThreadSlicingService';
+import { threadSlicingService } from '../../services/posts/ThreadSlicingService';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 
 /**

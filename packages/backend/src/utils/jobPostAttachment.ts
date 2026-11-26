@@ -1,6 +1,6 @@
 import type { PostJobContent } from '@mention/shared-types';
 import { getJobById, toMentionJobPosting } from '../db/jobs/jobRepository';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveUserSummaries } from '../services/posts/PostHydrationService';
 
 /**
  * Extract ONLY the untrusted `mentionJobId` reference from a job attachment

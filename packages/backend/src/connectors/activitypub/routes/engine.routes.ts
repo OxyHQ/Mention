@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { authorsMayFederate } from '../../../services/postPublicationPolicy';
+import { authorsMayFederate } from '../../../services/posts/access/postPublicationPolicy';
 import rateLimit from 'express-rate-limit';
 import type { User } from '@oxy.so/core';
 import {
@@ -30,8 +30,8 @@ import {
 import {
   isFediverseSharingEnabledFromUser,
   getFediverseSharingStateByUsername,
-} from '../../../services/fediverseSharing';
-import { isErasedActorHandle } from '../../../services/accountErasure/erasedAccounts';
+} from '../../../services/federation/fediverseSharing';
+import { isErasedActorHandle } from '../../../services/accounts/accountErasure/erasedAccounts';
 
 /**
  * Mention's binding of the shared `@oxy.so/federation` webfinger + actor + inbox

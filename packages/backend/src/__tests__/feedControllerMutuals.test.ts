@@ -68,10 +68,10 @@ vi.mock('../mtn/UserPrivacyManager', () => ({
     })),
   },
 }));
-vi.mock('../services/ListSubscriptionService', () => ({
+vi.mock('../services/accounts/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));
-vi.mock('../services/UserPreferenceService', () => ({
+vi.mock('../services/feed/UserPreferenceService', () => ({
   userPreferenceService: {
     getUserBehavior: vi.fn(async () => undefined),
     getTopRegion: vi.fn(() => undefined),

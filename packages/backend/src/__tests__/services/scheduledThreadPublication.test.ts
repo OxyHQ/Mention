@@ -39,8 +39,8 @@ vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => und
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import type { PostRecord } from '../../db/posts/postRecord';
-import { postCreationService } from '../../services/PostCreationService';
-import { scheduledPostPublisher } from '../../services/ScheduledPostPublisher';
+import { postCreationService } from '../../services/posts/PostCreationService';
+import { scheduledPostPublisher } from '../../services/scheduling/ScheduledPostPublisher';
 import { pastSweepWindow } from './scheduledPublisherWindow';
 
 const scope = serviceScope('scheduled-thread-publication');

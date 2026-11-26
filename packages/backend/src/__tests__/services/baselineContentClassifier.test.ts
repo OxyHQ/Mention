@@ -4,13 +4,13 @@ import {
   baselineContentClassifier,
   BASELINE_CLASSIFIER_VERSION,
   type ClassifyInput,
-} from '../../services/BaselineContentClassifier';
+} from '../../services/moderation/BaselineContentClassifier';
 import {
   RuleBasedTopicClassifier,
   type TopicClassifier,
   type TopicClassifierInput,
-} from '../../services/contentClassification/TopicClassifier';
-import { deriveRegion } from '../../services/contentClassification/region';
+} from '../../services/moderation/contentClassification/TopicClassifier';
+import { deriveRegion } from '../../services/moderation/contentClassification/region';
 
 describe('BaselineContentClassifier', () => {
   describe('languages (multi-language — the single canonical language field)', () => {

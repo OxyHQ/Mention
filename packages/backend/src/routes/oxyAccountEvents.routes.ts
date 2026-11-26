@@ -5,8 +5,8 @@ import {
   isAccountEventRefusal,
   verifyAccountEvent,
   type OxyAccountEvent,
-} from '../services/accountErasure/oxyAccountEvents';
-import { acceptAccountEvent } from '../services/accountErasure/accountEventIntake';
+} from '../services/accounts/accountErasure/oxyAccountEvents';
+import { acceptAccountEvent } from '../services/accounts/accountErasure/accountEventIntake';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';

@@ -37,7 +37,7 @@ import type { PostRecord } from '../../../db/posts/postRecord';
  * `handleUndo(Follow)` branch. Covered here as a regression guard.
  *
  * Drives the REAL `InboxProcessingService` against REAL `federated_actors`,
- * `federated_follows` and `posts` rows. `services/fediverseSharing` stays
+ * `federated_follows` and `posts` rows. `services/federation/fediverseSharing` stays
  * mocked — it is the flag under test — and `outbox.service.ts` is mocked
  * wholesale, because its thread-linking/boost-import logic has its own
  * coverage and only the GATE matters here.
@@ -107,7 +107,7 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: mocks.signRequest,
 }));
 
-vi.mock('../../../services/PostEngagementCommandService', () => ({
+vi.mock('../../../services/engagement/PostEngagementCommandService', () => ({
   materializeEngagementRelationship: (...args: unknown[]) =>
     mocks.materializeEngagementRelationship(...args),
   materializeEngagementTombstone: (...args: unknown[]) =>
@@ -118,11 +118,11 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
 
@@ -133,7 +133,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 
@@ -141,7 +141,7 @@ vi.mock('../../../services/fediverseSharing', () => ({
 // module that knows what a channel account IS. Mocked so this file needs no Oxy
 // identity path, and so a test that expects a DROP has to seed the parent under
 // the channel account itself.
-vi.mock('../../../services/publishAsAccount', () => ({
+vi.mock('../../../services/accounts/publishAsAccount', () => ({
   isChannelAccount: (oxyUserId: string) => Promise.resolve(oxyUserId === CHANNEL_ACCOUNT),
 }));
 

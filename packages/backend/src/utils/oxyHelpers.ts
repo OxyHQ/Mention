@@ -5,8 +5,8 @@ import type {
   OxyServer,
   OxyUserClient,
 } from '@oxy.so/core/server';
-import { ForegroundOxyProfileClient } from '../services/ForegroundOxyProfileClient';
-import type { AccountAccessReader } from '../services/publishAsAccount';
+import { ForegroundOxyProfileClient } from '../services/accounts/ForegroundOxyProfileClient';
+import type { AccountAccessReader } from '../services/accounts/publishAsAccount';
 import { extractBearerToken } from '@oxy.so/mcp';
 import { OxyPrivacyUnavailableError, type OxyClient } from './privacyHelpers';
 import { config } from '../config';
@@ -61,7 +61,7 @@ export function callerOxyUser(req: RequestSafetyContext): OxyUserClient | undefi
 /**
  * The caller's effective access in an Oxy account, asked of Oxy with the
  * request's own verified bearer: `oxy.accountAccessFor(req, accountId, { fresh })`
- * bound to this request, for the gates in `services/publishAsAccount`.
+ * bound to this request, for the gates in `services/accounts/publishAsAccount`.
  *
  * `fresh` every time, because every gate behind it guards a write or a private
  * read and a revoked member must lose the right on their next request; the SDK

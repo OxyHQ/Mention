@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
 
-vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
+vi.mock('../../services/posts/PostHydrationService', () => ({ resolveUserSummaries }));
 vi.mock('../../utils/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 import { rosterAccess } from '../helpers/accountAccess';
 import {
   canManagePostWithoutLookup,
   postManagementRefusal,
-} from '../../services/postManagementAccess';
+} from '../../services/posts/access/postManagementAccess';
 
 const WRITER = 'human-writer';
 const CHANNEL = 'oxy-channel-account';

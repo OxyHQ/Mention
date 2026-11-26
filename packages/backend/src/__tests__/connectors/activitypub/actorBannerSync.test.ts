@@ -33,7 +33,7 @@ vi.mock('../../../connectors/oxyIdentity', async () => {
 vi.mock('../../../connectors/identity', () => ({
   reportFederatedActorGone: vi.fn(async () => 'archived'),
 }));
-vi.mock('../../../services/ActorIdentityProjectionService', () => ({
+vi.mock('../../../services/accounts/ActorIdentityProjectionService', () => ({
   reconcileActorIdentityProjection: vi.fn(async () => ({ postsChanged: 0 })),
 }));
 vi.mock('../../../connectors/activitypub/move.service', () => ({

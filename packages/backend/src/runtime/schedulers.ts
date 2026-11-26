@@ -8,7 +8,9 @@ import { logger } from '../utils/logger';
  */
 export function startSchedulers(): void {
   try {
-    const { crosspostReconciliationJob } = require('../services/CrosspostReconciliationJob');
+    const {
+      crosspostReconciliationJob,
+    } = require('../services/federation/CrosspostReconciliationJob');
     crosspostReconciliationJob.start();
   } catch (error) {
     logger.warn('Failed to start cross-post reconciliation job', error);
@@ -16,7 +18,7 @@ export function startSchedulers(): void {
 
   // Feed job scheduler
   try {
-    const { feedJobScheduler } = require('../services/FeedJobScheduler');
+    const { feedJobScheduler } = require('../services/feed/FeedJobScheduler');
     feedJobScheduler.start();
   } catch (error) {
     logger.warn('Failed to start feed job scheduler', error);
@@ -24,7 +26,7 @@ export function startSchedulers(): void {
 
   // Trending Service (30-min calculation interval)
   try {
-    const { trendingService } = require('../services/TrendingService');
+    const { trendingService } = require('../services/trending/TrendingService');
     trendingService.initialize();
   } catch (error) {
     logger.warn('Failed to initialize trending service', error);
@@ -32,7 +34,9 @@ export function startSchedulers(): void {
 
   // Post Classification Service (5-min interval; no-ops unless inference is configured)
   try {
-    const { postClassificationService } = require('../services/PostClassificationService');
+    const {
+      postClassificationService,
+    } = require('../services/moderation/PostClassificationService');
     postClassificationService.start();
   } catch (error) {
     logger.warn('Failed to start post classification service', error);
@@ -40,7 +44,7 @@ export function startSchedulers(): void {
 
   // Topic Service (daily AI enrichment of topic metadata)
   try {
-    const { topicService } = require('../services/TopicService');
+    const { topicService } = require('../services/topics/TopicService');
     topicService.start();
   } catch (error) {
     logger.warn('Failed to initialize topic service', error);
@@ -48,7 +52,7 @@ export function startSchedulers(): void {
 
   // Federation Job Scheduler (also owns the media-cache worker + eviction jobs)
   try {
-    const { federationJobScheduler } = require('../services/FederationJobScheduler');
+    const { federationJobScheduler } = require('../services/federation/FederationJobScheduler');
     federationJobScheduler.start();
   } catch (error) {
     logger.warn('Failed to start federation job scheduler', error);
@@ -58,7 +62,7 @@ export function startSchedulers(): void {
   // follower counts for active authors, powering the `risingCreators` feed
   // source's follower-growth delta. Timers are unref'd; inline no-op without Redis.
   try {
-    const { followerSnapshotJob } = require('../services/followerSnapshotJob');
+    const { followerSnapshotJob } = require('../services/accounts/followerSnapshotJob');
     followerSnapshotJob.start();
   } catch (error) {
     logger.warn('Failed to start follower snapshot job', error);
@@ -67,7 +71,7 @@ export function startSchedulers(): void {
   // Paid promotions: the delivered count follows the impression ledger and a
   // finished promotion is completed. Leader-gated; a no-op while the feature is off.
   try {
-    const { promotionLifecycleJob } = require('../services/promotion/lifecycle');
+    const { promotionLifecycleJob } = require('../services/monetization/promotion/lifecycle');
     promotionLifecycleJob.start();
   } catch (error) {
     logger.warn('Failed to start promotion lifecycle job', error);
@@ -78,7 +82,7 @@ export function startSchedulers(): void {
   try {
     const {
       applicationAccountRegistrationJob,
-    } = require('../services/applicationAccountRegistrationJob');
+    } = require('../services/accounts/applicationAccountRegistrationJob');
     applicationAccountRegistrationJob.start();
   } catch (error) {
     logger.warn('Failed to start application account registration job', error);
@@ -88,7 +92,7 @@ export function startSchedulers(): void {
   // rows past each `db/expiry.ts` registry entry's retention, in bounded
   // batches, every ten minutes (OxyHQ/Mention#1187).
   try {
-    const { expirySweepJob } = require('../services/ExpirySweepJob');
+    const { expirySweepJob } = require('../services/scheduling/ExpirySweepJob');
     expirySweepJob.start();
   } catch (error) {
     logger.warn('Failed to start expiry sweep job', error);
@@ -119,7 +123,7 @@ export function startSchedulers(): void {
   try {
     const {
       accountEventReconciliationJob,
-    } = require('../services/accountErasure/AccountEventReconciliationJob');
+    } = require('../services/accounts/accountErasure/AccountEventReconciliationJob');
     accountEventReconciliationJob.start();
   } catch (error) {
     logger.warn('Failed to start account event reconciliation job', error);
@@ -147,7 +151,7 @@ export function startSchedulers(): void {
   try {
     const {
       fileReferenceReconciliationScheduler,
-    } = require('../services/oxyFiles/fileReferenceReconciliation');
+    } = require('../services/media/oxyFiles/fileReferenceReconciliation');
     fileReferenceReconciliationScheduler.start();
   } catch (error) {
     logger.warn('Failed to start Oxy file reference reconciliation', error);
@@ -176,56 +180,60 @@ export function startSchedulers(): void {
  */
 export async function stopSchedulers(): Promise<void> {
   try {
-    const { crosspostReconciliationJob } = require('../services/CrosspostReconciliationJob');
+    const {
+      crosspostReconciliationJob,
+    } = require('../services/federation/CrosspostReconciliationJob');
     crosspostReconciliationJob.stop();
   } catch (error) {
     logger.warn('Failed to stop cross-post reconciliation job', error);
   }
 
   try {
-    const { feedJobScheduler } = require('../services/FeedJobScheduler');
+    const { feedJobScheduler } = require('../services/feed/FeedJobScheduler');
     feedJobScheduler.stop();
   } catch (error) {
     logger.warn('Failed to stop feed job scheduler', error);
   }
 
   try {
-    const { trendingService } = require('../services/TrendingService');
+    const { trendingService } = require('../services/trending/TrendingService');
     trendingService.cleanup();
   } catch (error) {
     logger.warn('Failed to stop trending service', error);
   }
 
   try {
-    const { postClassificationService } = require('../services/PostClassificationService');
+    const {
+      postClassificationService,
+    } = require('../services/moderation/PostClassificationService');
     postClassificationService.stop();
   } catch (error) {
     logger.warn('Failed to stop post classification service', error);
   }
 
   try {
-    const { topicService } = require('../services/TopicService');
+    const { topicService } = require('../services/topics/TopicService');
     topicService.stop();
   } catch (error) {
     logger.warn('Failed to stop topic service', error);
   }
 
   try {
-    const { federationJobScheduler } = require('../services/FederationJobScheduler');
+    const { federationJobScheduler } = require('../services/federation/FederationJobScheduler');
     federationJobScheduler.stop();
   } catch (error) {
     logger.warn('Failed to stop federation job scheduler', error);
   }
 
   try {
-    const { followerSnapshotJob } = require('../services/followerSnapshotJob');
+    const { followerSnapshotJob } = require('../services/accounts/followerSnapshotJob');
     followerSnapshotJob.stop();
   } catch (error) {
     logger.warn('Failed to stop follower snapshot job', error);
   }
 
   try {
-    const { promotionLifecycleJob } = require('../services/promotion/lifecycle');
+    const { promotionLifecycleJob } = require('../services/monetization/promotion/lifecycle');
     promotionLifecycleJob.stop();
   } catch (error) {
     logger.warn('Failed to stop promotion lifecycle job', error);
@@ -234,14 +242,14 @@ export async function stopSchedulers(): Promise<void> {
   try {
     const {
       applicationAccountRegistrationJob,
-    } = require('../services/applicationAccountRegistrationJob');
+    } = require('../services/accounts/applicationAccountRegistrationJob');
     applicationAccountRegistrationJob.stop();
   } catch (error) {
     logger.warn('Failed to stop application account registration job', error);
   }
 
   try {
-    const { expirySweepJob } = require('../services/ExpirySweepJob');
+    const { expirySweepJob } = require('../services/scheduling/ExpirySweepJob');
     expirySweepJob.stop();
   } catch (error) {
     logger.warn('Failed to stop expiry sweep job', error);
@@ -259,7 +267,7 @@ export async function stopSchedulers(): Promise<void> {
   try {
     const {
       accountEventReconciliationJob,
-    } = require('../services/accountErasure/AccountEventReconciliationJob');
+    } = require('../services/accounts/accountErasure/AccountEventReconciliationJob');
     accountEventReconciliationJob.stop();
   } catch (error) {
     logger.warn('Failed to stop account event reconciliation job', error);
@@ -277,7 +285,7 @@ export async function stopSchedulers(): Promise<void> {
   try {
     const {
       fileReferenceReconciliationScheduler,
-    } = require('../services/oxyFiles/fileReferenceReconciliation');
+    } = require('../services/media/oxyFiles/fileReferenceReconciliation');
     fileReferenceReconciliationScheduler.stop();
   } catch (error) {
     logger.warn('Failed to stop Oxy file reference reconciliation', error);

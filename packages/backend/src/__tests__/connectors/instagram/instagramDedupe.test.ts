@@ -30,13 +30,13 @@ vi.mock('../../../connectors/instagram/graphClient', async (importOriginal) => (
   ...(await importOriginal<typeof import('../../../connectors/instagram/graphClient')>()),
   fetchBusinessDiscovery: h.fetchBusinessDiscovery,
 }));
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: h.persist,
 }));
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
-vi.mock('../../../services/mediaMetadataEnrichJob', () => ({
+vi.mock('../../../services/media/mediaMetadataEnrichJob', () => ({
   enqueueMediaMetadataEnrich: vi.fn(async () => true),
 }));
 vi.mock('../../../queue/producers', async (importOriginal) => ({
@@ -62,7 +62,7 @@ vi.mock('../../../utils/notificationUtils', () => ({
   createBatchNotifications: vi.fn().mockResolvedValue(undefined),
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('../../../services/PostHydrationService', () => ({
+vi.mock('../../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -77,7 +77,7 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
 }));
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(),
 }));
@@ -116,7 +116,7 @@ import {
 } from '../../../db/federation/actorRepository';
 import { claimSourceKey, findFilledSourceKeys } from '../../../db/posts/postSourceKeyRepository';
 import { deletePostRecord } from '../../../db/posts/postRepository';
-import '../../../services/PostCreationService';
+import '../../../services/posts/PostCreationService';
 import { buildFederatedNoteProvenance } from '../../../connectors/activitypub/apPostContent';
 import { resolvePostIdFromObjectUri } from '../../../connectors/activitypub/helpers';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
@@ -126,7 +126,7 @@ import {
   reelPosterRepairExitCode,
   repairInstagramReelPosters,
 } from '../../../scripts/repairInstagramReelPosters';
-import { enqueueMediaMetadataEnrich } from '../../../services/mediaMetadataEnrichJob';
+import { enqueueMediaMetadataEnrich } from '../../../services/media/mediaMetadataEnrichJob';
 import {
   optionsFor,
   requestInstagramSync,

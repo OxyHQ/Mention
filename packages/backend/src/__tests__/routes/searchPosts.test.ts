@@ -69,7 +69,7 @@ vi.mock('../../runtime/oxyClient', () => ({
  * actually selected, so `posts[0].content.text` naming the right row is evidence
  * about the query.
  */
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydratePosts: vi.fn(async (records: Array<Record<string, never>>) =>
       records
@@ -99,7 +99,7 @@ import { userSettings } from '../../db/schema/userProfile';
 import { clearPostScope, postScope, seedPost, track } from '../helpers/postFixtures';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
-import { BASELINE_CLASSIFIER_VERSION } from '../../services/BaselineContentClassifier';
+import { BASELINE_CLASSIFIER_VERSION } from '../../services/moderation/BaselineContentClassifier';
 import searchRoutes from '../../routes/search';
 
 const scope = postScope('search-posts');

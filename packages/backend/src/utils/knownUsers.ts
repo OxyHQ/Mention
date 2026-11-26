@@ -1,6 +1,9 @@
 import type { PostUser } from '@mention/shared-types';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
-import { isFallbackUserSummary, resolveUserSummaries } from '../services/PostHydrationService';
+import {
+  isFallbackUserSummary,
+  resolveUserSummaries,
+} from '../services/posts/PostHydrationService';
 import { logger } from './logger';
 
 /** The synthetic actor of server-authored notifications; it is not an Oxy account. */

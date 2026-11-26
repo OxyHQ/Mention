@@ -9,16 +9,16 @@ import { PostType, MtnConfig, isRepostType } from '@mention/shared-types';
 import type { ForYouFeedTuning, PostContent } from '@mention/shared-types';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { hasFederatedContentWarning, isSensitivePost } from '../../feedSafety';
-import { isFallbackUserSummary } from '../../../../services/PostHydrationService';
-import type { CachedUserSummary } from '../../../../services/userSummaryCache';
-import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
-import { detectBotShape } from '../../../../services/contentClassification/botSignals';
-import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
+import { isFallbackUserSummary } from '../../../../services/posts/PostHydrationService';
+import type { CachedUserSummary } from '../../../../services/accounts/userSummaryCache';
+import { detectLowEffort } from '../../../../services/moderation/contentClassification/lowEffort';
+import { detectBotShape } from '../../../../services/moderation/contentClassification/botSignals';
+import { readTrustedScores } from '../../../../services/moderation/contentClassification/trustedScores';
 import {
   SPAM_QUALITY_CONFIG,
   visibleText,
-} from '../../../../services/contentClassification/spamQuality';
-import { authorVariants, resolveVariant } from '../../../../services/postVariants';
+} from '../../../../services/moderation/contentClassification/spamQuality';
+import { authorVariants, resolveVariant } from '../../../../services/posts/postVariants';
 import { feedModuleRegistry, type FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
 import { escapeRegExp } from '@oxy.so/utils/text';

@@ -54,7 +54,7 @@ const fixtureMode = process.env.COMMERCE_BOUNDARY_FIXTURE === '1';
  * if an origin ever has to be spelled out, this is where. It must exist: an
  * exemption for a file that is gone is a permission nobody re-examines.
  */
-const EXEMPT_FILES = ['packages/backend/src/services/commerce/mercariaClient.ts'];
+const EXEMPT_FILES = ['packages/backend/src/services/monetization/commerce/mercariaClient.ts'];
 
 const EXCLUDED_PACKAGES = new Set(['e2e']);
 const SOURCE_EXTENSION = /\.(?:tsx|ts|jsx|js|mjs|cjs)$/;

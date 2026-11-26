@@ -1,6 +1,6 @@
 import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { Router, type Request, type Response } from 'express';
-import { topicService } from '../services/TopicService';
+import { topicService } from '../services/topics/TopicService';
 import { TopicType } from '@oxy.so/core';
 import { queryString } from '../utils/queryParams';
 

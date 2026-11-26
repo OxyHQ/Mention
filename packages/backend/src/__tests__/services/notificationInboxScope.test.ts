@@ -51,7 +51,7 @@ vi.mock('../../utils/redis', () => ({
 // `resolveUserSummaries` is the Redis/Oxy identity path pulled in transitively by
 // `publishAsAccount`; nothing in this suite resolves an account kind through it
 // (the kind arrives on the `AccountNode`).
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
@@ -63,8 +63,8 @@ import {
   listOperatedChannelIds,
   membershipAuthorizesActingFor,
   type OperatedAccountReader,
-} from '../../services/publishAsAccount';
-import { resolveNotificationInboxIds } from '../../services/notificationInbox';
+} from '../../services/accounts/publishAsAccount';
+import { resolveNotificationInboxIds } from '../../services/notifications/notificationInbox';
 
 const VIEWER = 'viewer-1';
 const OTHER_OPERATOR = 'operator-2';

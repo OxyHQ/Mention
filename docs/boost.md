@@ -22,7 +22,7 @@ payment catalogue, and a client never sends one.
 
 ## Who may promote what
 
-`services/promotion/eligibility.ts` is one pure function; each rule is a reason
+`services/monetization/promotion/eligibility.ts` is one pure function; each rule is a reason
 code a client maps to copy:
 
 - `not-owner`: only the author's own post;
@@ -66,7 +66,7 @@ No checkout, charge or test payment is created by this code while the switch is 
 
 By the owner's rule a post about politics, gambling and casinos, or animal sales is not eligible, and neither is
 anything else against Oxy's ethical standards. Payment never widens a gate, so the refusal is Mention's, decided
-in `services/promotion/contentExclusions.ts` and applied by `promotionIneligibility` (`category-excluded`).
+in `services/monetization/promotion/contentExclusions.ts` and applied by `promotionIneligibility` (`category-excluded`).
 
 - **Politics** comes from the Stage-A classifier's own `politics` topic.
 - **Gambling/casinos and animal sales** are not topics the classifier emits, so they are matched on the hashtags

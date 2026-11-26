@@ -16,7 +16,7 @@ import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 import { escapeRegExp } from '@oxy.so/utils/text';
 import { networkUrlOf } from '../../utils/federation/mirrorTransports';
 import { isApPostObjectType } from './apSchemas';
-import { contentTypeFamilyFromString } from '../../services/mediaCache/mediaTypes';
+import { contentTypeFamilyFromString } from '../../services/media/mediaCache/mediaTypes';
 
 /**
  * Low-level ActivityPub helpers used by more than one AP sub-service

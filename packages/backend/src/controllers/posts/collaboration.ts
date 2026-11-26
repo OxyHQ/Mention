@@ -1,4 +1,4 @@
-import { PostPublicationPolicyError } from '../../services/postPublicationPolicy';
+import { PostPublicationPolicyError } from '../../services/posts/access/postPublicationPolicy';
 /**
  * The collaborator-invite replies on a post: accept, decline, and the author
  * stopping an accepted collaboration. The state machine itself is
@@ -8,12 +8,12 @@ import { PostPublicationPolicyError } from '../../services/postPublicationPolicy
 import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import {
   postCollaborationService,
   CollabStateError,
-} from '../../services/PostCollaborationService';
+} from '../../services/posts/PostCollaborationService';
 
 // Accept a collaboration invite
 export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {

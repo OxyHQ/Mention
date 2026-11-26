@@ -374,7 +374,7 @@ export const postMedia = pgTable(
      * while it does. A COPY of `oxy_file_states.withheld` for this media id,
      * kept so readers filter on the row they already hold:
      *
-     *  - the file-event webhook (`services/oxyFiles/fileEvents.ts`) rewrites it
+     *  - the file-event webhook (`services/media/oxyFiles/fileEvents.ts`) rewrites it
      *    on every row with this media id when a file starts or stops being
      *    withheld;
      *  - the `*_withheld_from_file_state` BEFORE INSERT trigger (migration
@@ -465,7 +465,7 @@ export const postMedia = pgTable(
       t.postId.desc(),
     ),
     // "Which posts use this file": the federated-media deletion check and the
-    // file-event webhook's withholding rewrite (`services/oxyFiles/`).
+    // file-event webhook's withholding rewrite (`services/media/oxyFiles/`).
     index('post_media_media_id_idx').on(t.mediaId),
   ],
 );

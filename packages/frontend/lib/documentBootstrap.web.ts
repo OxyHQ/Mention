@@ -5,7 +5,7 @@ import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 /**
  * Public data the server resolved while building this document, read from the
  * inert `<script type="application/json" id="mention-bootstrap">` it injects
- * (`packages/backend/src/services/webShellRenderer.ts`, `ShellBootstrap`).
+ * (`packages/backend/src/services/webshell/webShellRenderer.ts`, `ShellBootstrap`).
  *
  * The document is publicly cached, so this is only ever what an anonymous
  * caller can read, and possibly a few minutes old: callers use it as a FLOOR

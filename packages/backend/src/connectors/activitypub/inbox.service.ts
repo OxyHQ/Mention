@@ -12,7 +12,7 @@ import {
 import { isApActorType } from '@oxy.so/federation';
 import { createInboundDispatcher, type InboundDispatcherConfig } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
-import { enrichIngestedPosts } from '../../services/postEnrichment';
+import { enrichIngestedPosts } from '../../services/posts/postEnrichment';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import {
   deleteFollowById,
@@ -42,11 +42,11 @@ import { extractLocalPostIdFromApUri, isBlockedDomain, resolveOxyUser } from './
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { storeRemoteLinkPreviews } from '../shared/linkPreviews';
-import { pollVoteService } from '../../services/PollVoteService';
+import { pollVoteService } from '../../services/posts/PollVoteService';
 import {
   isFediverseSharingEnabled,
   isFediverseSharingEnabledFromUser,
-} from '../../services/fediverseSharing';
+} from '../../services/federation/fediverseSharing';
 import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
 import { outboxSyncService } from './outbox.service';
@@ -72,22 +72,22 @@ import { declaredOriginalUrls } from './declaredOriginal';
 import {
   detectCrosspostEquivalence,
   reevaluateClusterForPost,
-} from '../../services/PostEquivalenceService';
+} from '../../services/posts/PostEquivalenceService';
 import { applyMentionPlaceholders, extractMentionTags, resolveInboundMentions } from './apMentions';
 import { OWN_DOMAINS } from './ownDomain';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
-import { applyDetectedPrimaryTag } from '../../services/postVariants';
-import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
+import { applyDetectedPrimaryTag } from '../../services/posts/postVariants';
+import { baselineContentClassifier } from '../../services/moderation/BaselineContentClassifier';
 import { isApPostObjectType, parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
 import {
   materializeEngagementRelationship,
   materializeEngagementTombstone,
-} from '../../services/PostEngagementCommandService';
-import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
+} from '../../services/engagement/PostEngagementCommandService';
+import { deleteFederatedPostSubtree } from '../../services/federation/FederatedPostDeletionService';
 import { applyInboundMove } from './move.service';
 import { bridgeFollowEdge } from './followBridge';
 import { crawlRemoteGraphForInteraction } from '../remoteGraphMirror';

@@ -127,7 +127,7 @@ vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   return { ...actual, resolveOxyUser: (...args: unknown[]) => mocks.resolveOxyUser(...args) };
 });
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabledFromUser: (...args: unknown[]) =>
     mocks.isFediverseSharingEnabledFromUser(...args),
   getFediverseSharingStateByUsername: (...args: unknown[]) =>

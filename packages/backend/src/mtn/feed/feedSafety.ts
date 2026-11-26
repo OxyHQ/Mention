@@ -32,7 +32,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { inList, qualified } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
-import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
+import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/moderation/contentClassification/nsfw';
 
 /**
  * Excludes sensitive posts from `posts`.

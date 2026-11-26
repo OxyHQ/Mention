@@ -26,7 +26,7 @@ import {
   excludedDisplayModesForTab,
   loadExcludedLaneIds,
   ownerHasProfileAffectingLane,
-} from '../services/laneVisibility';
+} from '../services/feed/laneVisibility';
 import type { LaneDisplayMode } from '@mention/shared-types';
 
 const OWNER = 'lanevis-owner';

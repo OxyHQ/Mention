@@ -27,7 +27,10 @@ import {
   updateUserSettings,
 } from '../db/userProfile/userSettingsRepository';
 import { callerAccountAccess, ensureProfileMediaPublic } from '../utils/oxyHelpers';
-import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
+import {
+  assertCanPublishAsAccount,
+  PublishAsAccessError,
+} from '../services/accounts/publishAsAccount';
 import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxy.so/core/server';
@@ -508,7 +511,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       // ELEMENTS filtered, not just the container — the same thing
       // `interests.tags` does a dozen lines below, and the reason it does it.
       // Both of these land in a `text[]` column, and `privacy.hiddenWords` is
-      // then read by `services/safety/muteWordMatcher.ts` on EVERY feed page
+      // then read by `services/moderation/safety/muteWordMatcher.ts` on EVERY feed page
       // this viewer loads: one non-string element accepted here is not a single
       // bad request, it is a stored value that breaks that viewer's feed until
       // somebody notices and rewrites the row.

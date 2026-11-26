@@ -40,7 +40,10 @@ function signPostsRows(entries: Array<[string, unknown]>): Map<string, unknown> 
   return new Map(entries);
 }
 
-import { disclosesWriters, loadSigningChannelIds } from '../../services/channelWriterDisclosure';
+import {
+  disclosesWriters,
+  loadSigningChannelIds,
+} from '../../services/accounts/channelWriterDisclosure';
 
 describe('loadSigningChannelIds', () => {
   beforeEach(() => {
@@ -212,7 +215,7 @@ describe('signPosts has exactly one reader', () => {
     // The write: `PUT /profile/settings/:userId`, the operator's toggle.
     'routes/profileSettings.ts',
     // The read: the one authority this file is about.
-    'services/channelWriterDisclosure.ts',
+    'services/accounts/channelWriterDisclosure.ts',
   ]);
 
   /** Strip block and line comments so a docstring is not read as a usage. */
@@ -250,10 +253,10 @@ describe('signPosts has exactly one reader', () => {
 
   it('does not let post hydration read the flag for itself', () => {
     const hydrationFiles = [
-      path.join(BACKEND_SRC, 'services/PostHydrationService.ts'),
-      ...readdirSync(path.join(BACKEND_SRC, 'services/postHydration'))
+      path.join(BACKEND_SRC, 'services/posts/PostHydrationService.ts'),
+      ...readdirSync(path.join(BACKEND_SRC, 'services/posts/postHydration'))
         .filter((name) => name.endsWith('.ts'))
-        .map((name) => path.join(BACKEND_SRC, 'services/postHydration', name)),
+        .map((name) => path.join(BACKEND_SRC, 'services/posts/postHydration', name)),
     ];
     // Vacuity floor: the facade and its modules really were found.
     expect(hydrationFiles.length).toBeGreaterThan(5);
@@ -264,9 +267,9 @@ describe('signPosts has exactly one reader', () => {
 
     // The disclosure helper is consumed where the signing channels are resolved.
     const authorMaps = readFileSync(
-      path.join(BACKEND_SRC, 'services/postHydration/authorMaps.ts'),
+      path.join(BACKEND_SRC, 'services/posts/postHydration/authorMaps.ts'),
       'utf8',
     );
-    expect(authorMaps).toContain("from '../channelWriterDisclosure'");
+    expect(authorMaps).toContain("from '../../accounts/channelWriterDisclosure'");
   });
 });

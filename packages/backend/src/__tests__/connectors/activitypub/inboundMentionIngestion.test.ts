@@ -32,7 +32,7 @@ const scope = federationScope('inbound-mention-ingestion');
  *
  * Drives the REAL `InboxProcessingService` with the sibling
  * `inboundEngagementNotifications.test.ts` mocking convention: mock the models +
- * notification util + `services/fediverseSharing`, let `actor.service.ts` +
+ * notification util + `services/federation/fediverseSharing`, let `actor.service.ts` +
  * `constants.ts` (mention resolution) run for real against the mocked
  * `FederatedActor` model / Oxy client, and mock `outbox.service.ts` wholesale.
  */
@@ -93,11 +93,11 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
 
@@ -108,7 +108,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 

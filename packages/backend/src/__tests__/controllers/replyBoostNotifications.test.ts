@@ -26,8 +26,10 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 // The post read gate has its own suites; this one is about what happens past it.
-vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
+  canRequestReadPost: vi.fn(async () => true),
+}));
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: (id: string) => ({
@@ -49,15 +51,15 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../services/PostRecentReplierService', () => ({
+vi.mock('../../services/posts/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../services/AffinityEventService', () => ({
+vi.mock('../../services/feed/AffinityEventService', () => ({
   affinityEventService: { record: vi.fn().mockResolvedValue(undefined) },
 }));
 
-vi.mock('../../services/UserPreferenceService', () => ({
+vi.mock('../../services/feed/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn().mockResolvedValue(undefined) },
   readInteractionSurface: vi.fn(() => undefined),
 }));
@@ -66,7 +68,7 @@ vi.mock('../../connectors/outboundFederation', () => ({
   federateAsResolvedActor: vi.fn(),
 }));
 
-vi.mock('../../services/postEngagementBroadcast', () => ({
+vi.mock('../../services/engagement/postEngagementBroadcast', () => ({
   emitPostEngagement: vi.fn(),
   POST_ENGAGEMENT_EVENTS: {
     LIKED: 'post:liked',
@@ -105,7 +107,7 @@ import {
   serviceScope,
 } from '../helpers/serviceFixtures';
 import { feedController } from '../../controllers/feed.controller';
-import { canRequestReadPost } from '../../services/postReadAccess';
+import { canRequestReadPost } from '../../services/posts/access/postReadAccess';
 import { drainBackgroundWork, resetBackgroundWorkForTests } from '../../runtime/backgroundWork';
 import {
   createMentionNotifications,

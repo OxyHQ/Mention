@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (posts: unknown[]) => posts),
@@ -17,8 +17,8 @@ import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
 import { registerAllModules } from '../mtn/feed/engine';
 import { exploreDefinition } from '../mtn/feed/definitions/presets';
 import { exploreSource } from '../mtn/feed/engine/sources/discoverySources';
-import { feedRankingService } from '../services/FeedRankingService';
-import { negativePenalty } from '../services/ranking/signals/negativePenalty';
+import { feedRankingService } from '../services/feed/FeedRankingService';
+import { negativePenalty } from '../services/feed/ranking/signals/negativePenalty';
 import { EXPLORE_RANKING_VERSION, ScoreCursor } from '../mtn/feed/CursorBuilder';
 import type { PostRecord } from '../db/posts/postRecord';
 

@@ -29,7 +29,7 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotificationsStrict: mocks.createPostAuthorNotificationsStrict,
 }));
 
-vi.mock('../../services/EngagementOutboxService', () => ({
+vi.mock('../../services/engagement/EngagementOutboxService', () => ({
   dispatchEngagementOutbox: vi.fn(),
 }));
 
@@ -49,11 +49,11 @@ import {
   EngagementOutboxDispatcher,
   handleEngagementOutboxEvent,
   LIKE_NOTIFICATION_MAX_AGE_MS,
-} from '../../services/EngagementOutboxDispatcher';
+} from '../../services/engagement/EngagementOutboxDispatcher';
 import {
   dispatchEngagementOutbox,
   type EngagementOutboxEvent,
-} from '../../services/EngagementOutboxService';
+} from '../../services/engagement/EngagementOutboxService';
 
 let db: Database;
 const createdPostIds: string[] = [];

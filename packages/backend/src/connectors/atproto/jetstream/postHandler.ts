@@ -22,7 +22,7 @@ import {
   findTransportCopies,
   releaseTransportCopy,
 } from '../../../db/posts/postTransportCopyRepository';
-import { deleteFederatedPostSubtree } from '../../../services/FederatedPostDeletionService';
+import { deleteFederatedPostSubtree } from '../../../services/federation/FederatedPostDeletionService';
 import { logger } from '../../../utils/logger';
 import { POST_COLLECTION } from '../constants';
 import { importPostsByUri } from '../post.mapper';

@@ -30,7 +30,10 @@ import type { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { labelMiddlewareResponse } from './requestObservability';
-import { SHELL_ACCESS_HEADER, invalidateShellDocument } from '../services/webShellDocument';
+import {
+  SHELL_ACCESS_HEADER,
+  invalidateShellDocument,
+} from '../services/webshell/webShellDocument';
 
 /**
  * The frontend apex host (`mention.earth`). Derived from the SAME `MENTION_WEB_ORIGIN`

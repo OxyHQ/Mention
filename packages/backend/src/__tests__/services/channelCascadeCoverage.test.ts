@@ -7,7 +7,7 @@ import {
   EMBEDDED_CHANNEL_REFERENCES,
   NOT_A_CHANNEL_REFERENCE,
   OWNED_BY_OXY,
-} from '../../services/channelDeletion/channelCascadeManifest';
+} from '../../services/accounts/channelDeletion/channelCascadeManifest';
 
 /**
  * Deleting a channel has to remove EVERYTHING that points at it. A cascade

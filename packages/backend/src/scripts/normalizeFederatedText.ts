@@ -83,7 +83,7 @@ import { posts } from '../db/schema/posts';
 import { postContentVariants, postMedia } from '../db/schema/postContent';
 import { findPostRecords } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
-import { normalizeAlt } from '../services/MediaMetadataService';
+import { normalizeAlt } from '../services/media/MediaMetadataService';
 import { htmlToInlineLabel } from '../utils/federation/htmlToPlainText';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';

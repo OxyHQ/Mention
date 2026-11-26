@@ -29,7 +29,7 @@ import { isVideoSurface, MtnConfig, PostType } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { deleteUserBehavior, loadUserBehavior } from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { userPreferenceService } from '../../services/UserPreferenceService';
+import { userPreferenceService } from '../../services/feed/UserPreferenceService';
 
 describe('isVideoSurface', () => {
   it('classifies the canonical video surfaces', () => {

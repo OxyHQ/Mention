@@ -29,10 +29,13 @@ const IS_FEDERATED = sql<boolean>`(
   or ${posts.federationSensitive} is not null
   or ${posts.federationSpoilerText} is not null
 )`;
-import { recordDedupedView } from '../../services/feedViewCounter';
-import { recordDwell } from '../../services/dwellAggregate';
-import { recordPromotionImpressions } from '../../services/promotion/impressions';
-import { type InteractionEntry, userPreferenceService } from '../../services/UserPreferenceService';
+import { recordDedupedView } from '../../services/engagement/feedViewCounter';
+import { recordDwell } from '../../services/engagement/dwellAggregate';
+import { recordPromotionImpressions } from '../../services/monetization/promotion/impressions';
+import {
+  type InteractionEntry,
+  userPreferenceService,
+} from '../../services/feed/UserPreferenceService';
 import {
   recordImpression,
   recordInteractionSignal,

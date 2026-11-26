@@ -95,19 +95,19 @@ vi.mock('../utils/oxyHelpers', () => ({
     },
   })),
 }));
-vi.mock('../services/ListSubscriptionService', () => ({
+vi.mock('../services/accounts/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));
-vi.mock('../services/laneVisibility', () => ({
+vi.mock('../services/feed/laneVisibility', () => ({
   ownerHasProfileAffectingLane: vi.fn(async () => false),
 }));
-vi.mock('../services/UserPreferenceService', () => ({
+vi.mock('../services/feed/UserPreferenceService', () => ({
   userPreferenceService: {
     getUserBehavior: vi.fn(async () => undefined),
     getTopRegion: vi.fn(() => undefined),
   },
 }));
-vi.mock('../services/anonFeedCache', () => ({
+vi.mock('../services/feed/anonFeedCache', () => ({
   anonFeedCache: {
     read: vi.fn(async (): Promise<unknown> => null),
     readStale: vi.fn(async (): Promise<unknown> => null),
@@ -140,7 +140,7 @@ vi.mock('../mtn/feed/FeedTuner', () => ({
 // No muted words: the tuner pipeline that runs after the exclusion pass must be
 // a pass-through here, so anything missing from the response is the exclusion
 // pass's doing and nothing else's.
-vi.mock('../services/safety/viewerSafety', () => ({
+vi.mock('../services/moderation/safety/viewerSafety', () => ({
   loadMuteWords: vi.fn(async () => []),
   loadShowSensitiveContent: vi.fn(async () => true),
   loadMutedLaneIds: vi.fn(async () => []),

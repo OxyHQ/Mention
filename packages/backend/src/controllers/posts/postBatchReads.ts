@@ -1,13 +1,13 @@
 /**
  * `GET /posts/:id/ancestors` and `GET /posts/batch` — see
- * `services/postBatchReads` for what they read and why it discloses nothing a
+ * `services/posts/postBatchReads` for what they read and why it discloses nothing a
  * series of single reads would not.
  */
 
 import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { MAX_POST_BATCH, type PostListResponse } from '@mention/shared-types';
-import { loadReadableAncestors, loadReadablePosts } from '../../services/postBatchReads';
+import { loadReadableAncestors, loadReadablePosts } from '../../services/posts/postBatchReads';
 import { queryString } from '../../utils/queryParams';
 import { logger } from '../../utils/logger';
 

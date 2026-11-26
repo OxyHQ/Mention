@@ -1,0 +1,731 @@
+/**
+ * Web-shell OpenGraph renderer — the `bskyweb` model, ported from the retired
+ * Cloudflare Pages `_worker.js`.
+ *
+ * These are the PURE, dependency-light building blocks: they map already-fetched
+ * profile / post data into an {@link OgData} record, render the OG/Twitter
+ * `<meta>` block, and splice it into a static SPA shell (replacing `<title>` and
+ * injecting the meta before `</head>`). They perform NO IO and NEVER import the
+ * server module / models, so they are unit-testable in isolation and can be
+ * called from the request path without pulling a heavy dependency graph.
+ *
+ * The IO layer (fetching the shell, the Oxy profile, and the hydrated post) lives
+ * in `routes/webShell.routes.ts`, which is the only caller of these functions.
+ */
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import type { AccountKind } from '@oxy.so/core';
+import { localActorTypeForAccountKind, type LocalActorType } from '@oxy.so/federation';
+import { profileRouteFamily } from '@mention/shared-types/profileUrls';
+import type { HydratedPost } from '@mention/shared-types';
+import type { RemoteProfileStats } from '@mention/shared-types/profile';
+import { siteStructuredData } from '@mention/shared-types/seo';
+import { toReaderText } from '@mention/shared-types/textEntities';
+import { resolveMediaRef } from '../../utils/mediaResolver';
+import { config } from '../../config';
+
+/** Normalized OG payload injected into a shell for one profile / post URL. */
+export interface OgData {
+  title: string;
+  description: string;
+  /** Absolute image URL; omitted entirely when the entity has no image. */
+  image?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageType?: string;
+  imageAlt?: string;
+  url: string;
+  /** OpenGraph object type (`profile` | `article`). */
+  type: string;
+  /**
+   * The Twitter card layout. Defaults to `summary_large_image` when there is an
+   * image; a profile asks for `summary`, because its image is a small square
+   * avatar that a large card would stretch across the full width.
+   */
+  twitterCard?: 'summary' | 'summary_large_image';
+  /** `profile:username` for an `og:type=profile` document. */
+  profileUsername?: string;
+  /** BCP-47 language of the public document. */
+  lang?: string;
+  /** Search indexing policy. Public entity pages default to index/follow. */
+  robots?: 'index,follow' | 'noindex,follow' | 'noindex,nofollow';
+  /** JSON-LD entity represented by the public profile or post. */
+  jsonLd?: Record<string, unknown>;
+}
+
+/** Canonical web origin used for `og:url` (the apex the SPA is served from). */
+const WEB_ORIGIN = config.web.origin;
+
+/** Homepage metadata is served ONLY by the exact apex root route, never baked into the SPA fallback. */
+export function mapHomepageOg(): OgData {
+  const name = config.deployment?.branding.name ?? 'Mention';
+  return {
+    // The English of the app's `seo.home.*`, which replaces these once it loads.
+    title: `${name}: a social network connected to the Fediverse`,
+    description: `${name} is a social network for iOS, Android and the web. Follow people, share posts and join the conversation — and connect with Mastodon and the rest of the Fediverse.`,
+    url: `${WEB_ORIGIN}/`,
+    type: 'website',
+    robots: 'index,follow',
+    jsonLd: siteStructuredData({
+      origin: WEB_ORIGIN,
+      name,
+      logoUrl: config.deployment?.branding.logoUrl,
+    }),
+    image: `${WEB_ORIGIN}/og-image.jpg`,
+    imageWidth: 1280,
+    imageHeight: 720,
+    imageType: 'image/jpeg',
+    imageAlt:
+      'Illustration of friends and a dog gathered around the Mention logo under a blue sky.',
+  };
+}
+
+/**
+ * The `og:image` for an avatar, always on one of OUR origins.
+ *
+ * A federated avatar arrives as an absolute URL on the remote instance's own
+ * media host, and emitting it verbatim made every card renderer — crawlers,
+ * Slack, WhatsApp, the browser's own preview — fetch the image straight from
+ * that third party. `resolveMediaRef` is the codebase's single answer to that
+ * question: a remote reference comes back proxied, a bare Oxy file id comes back
+ * on the Oxy CDN, both at card size.
+ */
+function ogImageForAvatar(avatar: unknown): string | undefined {
+  if (typeof avatar !== 'string' || avatar.length === 0) return undefined;
+  const resolved = resolveMediaRef(avatar);
+  // `thumbUrl` is absent only for a URL already on one of our origins, which is
+  // servable as it stands.
+  return resolved.thumbUrl ?? resolved.url;
+}
+
+/** Shape of the Oxy `/profiles/username/<handle>` payload we read for OG. */
+export interface OxyProfileData {
+  externalIdentities?: unknown;
+  id?: string;
+  username?: string;
+  name?: { displayName?: string };
+  avatar?: string | null;
+  bio?: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  links?: string[];
+  _count?: { followers?: number; following?: number };
+  /** Set on an account Mention minted for a remote (fediverse / atproto) actor. */
+  isFederated?: boolean;
+  type?: string;
+  federation?: { actorUri?: string; domain?: string };
+  /**
+   * The Oxy account classification: which canonical URL the profile lives at
+   * ({@link canonicalProfilePath}) and what schema.org calls it
+   * ({@link schemaOrgProfileType}).
+   */
+  kind?: AccountKind;
+}
+
+/**
+ * Where a profile canonically lives on the web: `/c/<handle>` for a Mention
+ * channel, `/@<handle>` for everyone else — `profileRouteFamily`, the rule the
+ * app's own links and redirects read.
+ *
+ * ONE definition, so the OG `og:url` a crawler reads and the redirect a browser
+ * follows cannot disagree — a canonical URL that redirects is a canonical URL
+ * that is wrong.
+ */
+export function canonicalProfilePath(
+  profile: Pick<OxyProfileData, 'username' | 'kind' | 'isFederated'>,
+): string {
+  const username = profile.username ?? '';
+  return profileRouteFamily(profile) === 'channel'
+    ? `/c/${handlePathSegment(username)}`
+    : `/@${handlePathSegment(username)}`;
+}
+
+/**
+ * The schema.org type of an account, from the AS2 type `@oxy.so/federation`
+ * announces for its kind — one table for what the fediverse and search engines
+ * are told an account is.
+ *
+ * schema.org has no counterpart for two of the AS2 types, and Google reads a
+ * `ProfilePage`'s `mainEntity` only as a `Person` or an `Organization`. So a
+ * `Service` (a bot) and a `Group` (a community) are `Organization`: neither is
+ * an individual human, and schema.org's `Organization` is "a school, NGO,
+ * corporation, club, etc." — a community is the club.
+ */
+const SCHEMA_ORG_TYPE_BY_ACTOR_TYPE = {
+  Person: 'Person',
+  Organization: 'Organization',
+  Service: 'Organization',
+  Group: 'Organization',
+} as const satisfies Record<LocalActorType, 'Person' | 'Organization'>;
+
+export function schemaOrgProfileType(kind: AccountKind | undefined): 'Person' | 'Organization' {
+  return SCHEMA_ORG_TYPE_BY_ACTOR_TYPE[localActorTypeForAccountKind(kind)];
+}
+
+/**
+ * A handle as one URL path segment, with its `@` left literal.
+ *
+ * `@` is a legal path character (RFC 3986 `pchar`), and `/@user@instance` is
+ * the URL the app routes, the address bar shows and people share. Encoding it
+ * made every federated profile's canonical a SECOND spelling of the page
+ * (`/@user%40instance`), one that no link pointed at — and a search engine does
+ * not treat a percent-encoded reserved character as the same URL.
+ */
+export function handlePathSegment(handle: string): string {
+  return encodeURIComponent(handle).replace(/%40/g, '@');
+}
+
+/**
+ * Escape a string for safe interpolation into HTML attribute / text contexts.
+ * Handles the minimum dangerous set (`& < > "`), matching the retired worker.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Render the OG/Twitter `<meta>` block for injection into `<head>`. Every dynamic
+ * value is HTML-escaped. `og:image`/`twitter:image` are emitted only when an
+ * image is present (a preview card without an image is still valid), and the
+ * Twitter card type follows: `summary_large_image` promises an image, so a card
+ * with no image must declare the plain `summary` instead.
+ */
+export function buildOgMetaHtml(og: OgData): string {
+  const title = escapeHtml(og.title);
+  const description = escapeHtml(og.description);
+  const url = escapeHtml(og.url);
+  const type = escapeHtml(og.type);
+  const card = og.image ? (og.twitterCard ?? 'summary_large_image') : 'summary';
+  const robots = escapeHtml(og.robots ?? 'index,follow');
+
+  let html =
+    `<meta property="og:type" content="${type}">` +
+    `<meta property="og:site_name" content="${escapeHtml(config.deployment?.branding.name ?? 'Mention')}">` +
+    `<meta property="og:url" content="${url}">` +
+    `<meta property="og:title" content="${title}">` +
+    `<meta property="og:description" content="${description}">` +
+    (og.profileUsername
+      ? `<meta property="profile:username" content="${escapeHtml(og.profileUsername)}">`
+      : '') +
+    `<meta name="twitter:card" content="${card}">` +
+    `<meta name="twitter:title" content="${title}">` +
+    `<meta name="twitter:description" content="${description}">` +
+    `<meta name="description" content="${description}">` +
+    `<meta name="robots" content="${robots}">` +
+    `<link rel="canonical" href="${url}">`;
+
+  if (og.image) {
+    const image = escapeHtml(og.image);
+    html +=
+      `<meta property="og:image" content="${image}">` +
+      `<meta name="twitter:image" content="${image}">`;
+    if (og.imageWidth) html += `<meta property="og:image:width" content="${og.imageWidth}">`;
+    if (og.imageHeight) html += `<meta property="og:image:height" content="${og.imageHeight}">`;
+    if (og.imageType)
+      html += `<meta property="og:image:type" content="${escapeHtml(og.imageType)}">`;
+    if (og.imageAlt)
+      html +=
+        `<meta property="og:image:alt" content="${escapeHtml(og.imageAlt)}">` +
+        `<meta name="twitter:image:alt" content="${escapeHtml(og.imageAlt)}">`;
+  }
+
+  if (og.jsonLd) {
+    // `<` is validly escaped inside JSON and prevents an attacker-controlled
+    // string from closing the script element. JSON-LD consumers decode it.
+    const json = JSON.stringify(og.jsonLd).replace(/</g, '\\u003c');
+    html += `<script type="application/ld+json">${json}</script>`;
+  }
+
+  return html.replace(/<(meta|link|script)\b/g, '<$1 data-mention-seo="true"');
+}
+
+const TITLE_RE = /<title\b[^>]*>[\s\S]*?<\/title>/i;
+const HEAD_CLOSE_RE = /<\/head>/i;
+
+/**
+ * Insert an HTML snippet immediately before `</head>` (or prepend it when the
+ * shell somehow lacks a head). Used for STATIC `<head>` hints (e.g. `preconnect`)
+ * that are independent of the per-request OG block. A function replacement is used
+ * so a `$` in the snippet is never treated as a `String.replace` back-reference.
+ */
+export function injectHeadHtml(shell: string, snippet: string): string {
+  if (!snippet) return shell;
+  return HEAD_CLOSE_RE.test(shell)
+    ? shell.replace(HEAD_CLOSE_RE, () => `${snippet}</head>`)
+    : snippet + shell;
+}
+
+/** The element id the frontend reads the bootstrap from (`lib/documentBootstrap`). */
+export const SHELL_BOOTSTRAP_ELEMENT_ID = 'mention-bootstrap';
+
+/**
+ * Public data this document's route resolved while building it, handed to the
+ * app so its first request does not have to wait for the same lookup.
+ *
+ * Only what any anonymous caller can already read: the page is publicly cached,
+ * so nothing viewer-relative or permission-gated may go in here.
+ */
+export interface ShellBootstrap {
+  /** A PUBLIC profile page's `/profiles/username/<handle>` payload. */
+  profile?: { handle: string; data: OxyProfileData };
+}
+
+/**
+ * The bootstrap as an inert JSON data block. `type="application/json"` is never
+ * executed, so CSP's script rules do not apply to it; `<`, `>`, `&` and the two
+ * JavaScript line terminators are escaped so no value can close the element.
+ */
+export function buildShellBootstrapHtml(bootstrap: ShellBootstrap): string {
+  const json = JSON.stringify(bootstrap).replace(
+    /[<>&\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+  return `<script type="application/json" id="${SHELL_BOOTSTRAP_ELEMENT_ID}">${json}</script>`;
+}
+
+/**
+ * Splice OG data into a static SPA shell: replace the existing `<title>` and
+ * inject the OG/Twitter meta block immediately before `</head>`. When `og` is
+ * null the shell is returned verbatim (browsers still boot the SPA; crawlers
+ * simply see no rich preview). Function replacements are used so a `$` in the
+ * injected content is never interpreted as a `String.replace` back-reference.
+ */
+export function renderShellWithOg(shell: string, og: OgData | null): string {
+  if (!og) return shell;
+
+  const meta = buildOgMetaHtml(og);
+  const titleTag = `<title data-mention-seo="true">${escapeHtml(og.title)}</title>`;
+
+  // The exported SPA may already contain generic SEO. Replace that ownership
+  // rather than emitting competing canonical/robots/description values.
+  // Keep a token boundary where a tag was removed. This transforms a trusted
+  // executable shell; it is not an HTML sanitizer.
+  let html = shell
+    .replace(/<meta\b[^>]*>/gi, (tag) =>
+      /\b(?:name|property)\s*=\s*(["'])(?:description|robots|og:[^"']+|twitter:[^"']+)\1/i.test(tag)
+        ? ' '
+        : tag,
+    )
+    .replace(/<link\b[^>]*>/gi, (tag) => (/\brel\s*=\s*(["'])canonical\1/i.test(tag) ? ' ' : tag))
+    .replace(
+      /<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>[\s\S]*?<\/script>/gi,
+      ' ',
+    );
+  if (og.lang) {
+    html = html.replace(
+      /<html\b([^>]*)\blang=(['"])[^'"]*\2([^>]*)>/i,
+      (_match, before, _quote, after) =>
+        `<html${before}lang="${escapeHtml(og.lang ?? 'en')}"${after}>`,
+    );
+  }
+  html = TITLE_RE.test(html)
+    ? html.replace(TITLE_RE, () => titleTag)
+    : injectHeadHtml(html, titleTag);
+  html = HEAD_CLOSE_RE.test(html)
+    ? html.replace(HEAD_CLOSE_RE, () => `${meta}</head>`)
+    : meta + html;
+
+  return html;
+}
+
+/**
+ * What Mention itself knows about a profile, beyond the Oxy payload: the
+ * author's public post count, and — for a federated account — the origin's own
+ * totals and join date (see `remoteProfileStats`). Every field is optional and
+ * an absent one is UNKNOWN, never zero.
+ */
+export interface ProfileSeoFacts {
+  postsCount?: number;
+  remote?: RemoteProfileStats;
+}
+
+/** A schema.org `InteractionCounter` for one action type, or nothing when the count is unknown. */
+function interactionCounter(action: 'FollowAction' | 'WriteAction', count: number | undefined) {
+  return typeof count === 'number' && Number.isFinite(count) && count >= 0
+    ? [
+        {
+          '@type': 'InteractionCounter',
+          interactionType: `https://schema.org/${action}`,
+          userInteractionCount: count,
+        },
+      ]
+    : [];
+}
+
+/**
+ * Map an Oxy profile payload (`/profiles/username/<handle>`) into OG data. Works
+ * for local and federated handles — both resolve through the Oxy API. Returns
+ * null when the handle is unknown (no `username`).
+ *
+ * The JSON-LD is Google's `ProfilePage`: the person (or organization) as
+ * `mainEntity`, with their followers as `interactionStatistic` and what they
+ * did — posts written, accounts followed — as `agentInteractionStatistic`.
+ *
+ * A federated account is an Oxy account minted the day Mention first resolved
+ * the actor, so its Oxy `createdAt` is a discovery date and its Oxy follow
+ * graph holds only the follows made through this server. Its join date and
+ * totals therefore come from the origin ({@link ProfileSeoFacts.remote}), and
+ * are left out — not zeroed — when the origin did not report them.
+ */
+export function mapProfileOg(
+  data: OxyProfileData | null | undefined,
+  facts: ProfileSeoFacts = {},
+): OgData | null {
+  if (!data?.username) return null;
+
+  const username = data.username;
+  const displayName = data.name?.displayName?.trim();
+  const avatar = data.avatar;
+  const url = `${WEB_ORIGIN}${canonicalProfilePath(data)}`;
+  const name = displayName || `@${username}`;
+  const bio = (data.bio || data.description || '').trim();
+  const brand = config.deployment?.branding.name ?? 'Mention';
+  // A profile with no bio still gets a real description: an empty one leaves
+  // the search snippet to whatever the crawler scrapes from the app chrome.
+  const description =
+    bio ||
+    (displayName
+      ? `${displayName} (@${username}) is on ${brand}. See their posts, replies and media.`
+      : `@${username} is on ${brand}. See their posts, replies and media.`);
+  const isFederated = Boolean(data.isFederated || data.type === 'federated');
+
+  const followers = isFederated ? facts.remote?.followersCount : data._count?.followers;
+  const following = isFederated ? facts.remote?.followingCount : data._count?.following;
+  const createdAt = isFederated ? facts.remote?.joinedAt : data.createdAt;
+  // The origin's total, as the page's posts stat shows it; Mention's own count
+  // holds only the posts it imported.
+  const postsCount = isFederated
+    ? (facts.remote?.postsCount ?? facts.postsCount)
+    : facts.postsCount;
+
+  // The origin actor is the same person on the network they post from.
+  const actorUri = isFederated ? data.federation?.actorUri : undefined;
+  const sameAs = [
+    ...new Set(
+      [...(data.links ?? []), ...(actorUri ? [actorUri] : [])].filter((link) =>
+        /^https?:\/\//i.test(link),
+      ),
+    ),
+  ];
+
+  const image = ogImageForAvatar(avatar);
+
+  const interactionStatistic = interactionCounter('FollowAction', followers);
+  const agentInteractionStatistic = [
+    ...interactionCounter('WriteAction', postsCount),
+    ...interactionCounter('FollowAction', following),
+  ];
+
+  return {
+    title: displayName ? `${displayName} (@${username}) on ${brand}` : `@${username} on ${brand}`,
+    description,
+    image,
+    url,
+    type: 'profile',
+    twitterCard: 'summary',
+    profileUsername: username,
+    robots: 'index,follow',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'ProfilePage',
+      url,
+      ...(createdAt ? { dateCreated: createdAt } : {}),
+      ...(data.updatedAt ? { dateModified: data.updatedAt } : {}),
+      mainEntity: {
+        '@type': schemaOrgProfileType(data.kind),
+        ...(data.id ? { identifier: data.id } : {}),
+        name,
+        alternateName: `@${username}`,
+        url,
+        ...(bio ? { description: bio } : {}),
+        ...(image ? { image } : {}),
+        ...(sameAs.length ? { sameAs } : {}),
+        ...(interactionStatistic.length ? { interactionStatistic } : {}),
+        ...(agentInteractionStatistic.length ? { agentInteractionStatistic } : {}),
+      },
+    },
+  };
+}
+
+/**
+ * A hashtag's page. `tag` is normalized (`normalizeHashtag`), so every spelling
+ * of it — `#Gaza`, `/hashtag/GAZA` — names one canonical URL. Indexed only while
+ * some post Mention would list carries it: an empty tag page is a soft 404.
+ */
+export function mapHashtagOg(tag: string, hasListablePosts: boolean): OgData {
+  const brand = config.deployment?.branding.name ?? 'Mention';
+  const url = `${WEB_ORIGIN}/hashtag/${encodeURIComponent(tag)}`;
+  return {
+    title: `#${tag} on ${brand}`,
+    description: `The latest posts about #${tag} on ${brand}.`,
+    url,
+    type: 'website',
+    robots: hasListablePosts ? 'index,follow' : 'noindex,follow',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: `#${tag}`,
+      url,
+      isPartOf: { '@id': `${WEB_ORIGIN}/#website` },
+    },
+  };
+}
+
+/**
+ * The safety verdict a post's OG card is rendered under. Required rather than
+ * optional so no future caller can render a card without having decided: an
+ * unfurler has no viewer, so there is no per-user setting to consult and no way for
+ * the people in that chat to opt in.
+ */
+export interface PostOgSafety {
+  /**
+   * Whether the post may only be shown behind a warning (sensitive/NSFW, or a
+   * federated content warning). Computed by the caller from the RAW post row, which
+   * carries every signal — see `mtn/feed/feedSafety.requiresContentWarning`.
+   */
+  requiresWarning: boolean;
+  /** The federated content-warning label, when the post carries one. */
+  contentWarning?: string;
+}
+
+/**
+ * Description used for a gated post that carries no content-warning label of its
+ * own. Deliberately says nothing about the post beyond the fact that it is gated.
+ */
+const GATED_POST_DESCRIPTION = 'This post is marked sensitive. Open it on Mention to view it.';
+
+/**
+ * Map a hydrated post into OG data. Media / poster / link-preview URLs are
+ * already absolute (resolved server-side during hydration). The author avatar is
+ * a canonical Oxy `User` shape: a federated absolute URL or a bare Oxy file id
+ * resolved to its public CDN URL through the SDK — never a pre-resolved
+ * `avatarUrl` shim.
+ *
+ * A post that {@link PostOgSafety.requiresWarning} gets NO image and none of its
+ * body text. An unfurl renders at full size in Slack / Discord / iMessage for
+ * everyone in the conversation, with no content warning and nobody having opted in —
+ * so emitting the media there defeats the in-app warning completely, for people who
+ * never asked to see it. Title and URL still go out: attributing a post to its
+ * author and linking to it reveals nothing the warning was protecting, and a card
+ * with no metadata at all would just look broken. The description carries the
+ * author's own content warning when there is one (the fediverse convention — it is
+ * written precisely to be read INSTEAD of the body), else a neutral notice.
+ */
+export function mapPostOg(
+  post: HydratedPost,
+  id: string,
+  safety: PostOgSafety,
+  shape: { isBoost: boolean } = { isBoost: false },
+): OgData {
+  const user = post.user;
+  const handle = getNormalizedUserHandle(user);
+  const author = user.name?.displayName?.trim() || (handle ? `@${handle}` : 'Someone');
+  const brand = config.deployment?.branding.name ?? 'Mention';
+  const url = `${WEB_ORIGIN}/p/${encodeURIComponent(id)}`;
+
+  if (safety.requiresWarning) {
+    const warning = safety.contentWarning?.trim();
+    return {
+      title: `${author} on ${brand}`,
+      description: cutAtWord(warning || GATED_POST_DESCRIPTION, 200),
+      url,
+      type: 'article',
+      robots: 'noindex,nofollow',
+    };
+  }
+
+  // A boost has an intentionally empty body — its renderable text and media
+  // live on the boosted original (embedded at maxDepth:1), so a boost's card
+  // describes that.
+  const original = post.originalPost?.content;
+  const bodyText = cardText(post.content?.text?.trim() || original?.text);
+  const media = (post.content?.media?.length ? post.content.media : original?.media) ?? [];
+
+  // `og:image` must be an IMAGE: a video's own file is not one, its poster is.
+  const first = media[0];
+  const mediaImage =
+    first?.type === 'video' ? first.posterUrl || first.thumbUrl : first?.url || first?.thumbUrl;
+  const documentImage = post.documents?.[0]?.imageUrl;
+  const avatarImage = ogImageForAvatar(user.avatar);
+  const image = mediaImage || documentImage || avatarImage || undefined;
+  const imageIsMedia = Boolean(mediaImage) && image === mediaImage;
+
+  const authorHandle = handle ? `@${handle}` : author;
+  const createdAt = post.metadata?.createdAt;
+  const updatedAt = post.metadata?.updatedAt;
+  const lang = post.content?.textLang || post.metadata?.language;
+  const snippet = bodyText ? cutAtWord(bodyText, 70) : '';
+
+  const images = media
+    .filter((item) => item.type !== 'video')
+    .map((item) => item.url || item.thumbUrl)
+    .filter((value): value is string => Boolean(value));
+  const videos = media
+    .filter((item) => item.type === 'video' && item.url && (item.posterUrl || item.thumbUrl))
+    .map((item) => ({
+      '@type': 'VideoObject',
+      name: snippet || `Video by ${author} on ${brand}`,
+      // Required by Google's video results. The author's own words about the
+      // clip first, then the post around it, then who posted it.
+      description: codePointPrefix(
+        item.alt?.trim() ||
+          bodyText ||
+          `A video posted by ${author} (${authorHandle}) on ${brand}.`,
+        500,
+      ),
+      contentUrl: item.url,
+      thumbnailUrl: item.posterUrl || item.thumbUrl,
+      ...(createdAt ? { uploadDate: createdAt } : {}),
+      ...(typeof item.durationSec === 'number' && item.durationSec > 0
+        ? { duration: `PT${Math.round(item.durationSec)}S` }
+        : {}),
+    }));
+
+  // What the author chose to hide is `null` and stays unsaid.
+  const engagement = post.engagement;
+  const interactionStatistic = [
+    ...countOf('LikeAction', engagement?.likes),
+    ...countOf('ShareAction', engagement?.reposts),
+  ];
+  const replies = engagement?.replies;
+
+  return {
+    // The author first — that is who a reader is looking for — then the
+    // opening of the post, which is what the page is about.
+    title: snippet ? `${author} on ${brand}: "${snippet}"` : `${author} on ${brand}`,
+    description: bodyText
+      ? cutAtWord(bodyText, 200)
+      : `A post by ${author} (${authorHandle}) on ${brand}.`,
+    image,
+    ...(imageIsMedia && first?.type !== 'video' && first?.width && first?.height
+      ? { imageWidth: first.width, imageHeight: first.height }
+      : {}),
+    ...(imageIsMedia && first?.alt ? { imageAlt: first.alt } : {}),
+    // A small avatar is not a large image.
+    ...(image && !imageIsMedia && image === avatarImage ? { twitterCard: 'summary' as const } : {}),
+    url,
+    type: 'article',
+    lang,
+    // A boost repeats someone else's post: the original is the page to index,
+    // and this one still passes its links on.
+    robots: shape.isBoost ? 'noindex,follow' : 'index,follow',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'SocialMediaPosting',
+      url,
+      identifier: id,
+      ...(bodyText ? { text: bodyText } : {}),
+      ...(createdAt ? { datePublished: createdAt } : {}),
+      ...(updatedAt ? { dateModified: updatedAt } : {}),
+      ...(lang ? { inLanguage: lang } : {}),
+      ...(images.length ? { image: images } : {}),
+      ...(videos.length ? { video: videos } : {}),
+      author: authorJsonLd(user, author, handle, avatarImage),
+      ...(interactionStatistic.length ? { interactionStatistic } : {}),
+      ...(typeof replies === 'number' && replies >= 0 ? { commentCount: replies } : {}),
+    },
+  };
+}
+
+/**
+ * A post's author as schema.org reads one. Its `url` is the author's canonical
+ * profile — `/c/` for a Mention channel, the same rule {@link canonicalProfilePath}
+ * applies — because a profile link that redirects is not the profile.
+ */
+function authorJsonLd(
+  user: HydratedPost['user'],
+  name: string,
+  handle: string | null,
+  image: string | undefined,
+): Record<string, unknown> {
+  return {
+    '@type': schemaOrgProfileType(user.kind),
+    name,
+    alternateName: handle ? `@${handle}` : name,
+    ...(handle
+      ? {
+          url: `${WEB_ORIGIN}${canonicalProfilePath({
+            username: handle,
+            kind: user.kind,
+            isFederated: user.isFederated,
+          })}`,
+        }
+      : {}),
+    ...(image ? { image } : {}),
+  };
+}
+
+/**
+ * A public reply as a `Comment` on the post it answers — the `comment` a
+ * discussion page is read by. Null for a reply with no author to name or
+ * nothing to say: Google needs both.
+ *
+ * The caller decides WHICH replies are shown here (public, ungated, by an
+ * author who is visible and indexable); this only describes one.
+ */
+export function mapReplyComment(reply: HydratedPost, id: string): Record<string, unknown> | null {
+  const handle = getNormalizedUserHandle(reply.user);
+  if (!handle) return null;
+  const text = cardText(reply.content?.text);
+  const images = (reply.content?.media ?? [])
+    .filter((item) => item.type !== 'video')
+    .map((item) => item.url || item.thumbUrl)
+    .filter((value): value is string => Boolean(value));
+  if (!text && !images.length) return null;
+
+  const name = reply.user.name?.displayName?.trim() || `@${handle}`;
+  const createdAt = reply.metadata?.createdAt;
+  return {
+    '@type': 'Comment',
+    url: `${WEB_ORIGIN}/p/${encodeURIComponent(id)}`,
+    ...(text ? { text } : {}),
+    ...(images.length ? { image: images } : {}),
+    ...(createdAt ? { datePublished: createdAt } : {}),
+    author: authorJsonLd(reply.user, name, handle, ogImageForAvatar(reply.user.avatar)),
+  };
+}
+
+/** A hydrated body as one line of reader text: mentions as their labels, whitespace collapsed. */
+function cardText(text: string | undefined): string {
+  return toReaderText(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * The first `max` characters (code points, not UTF-16 units), so a cut never
+ * splits a surrogate pair: a lone half would reach the page as U+FFFD.
+ */
+function codePointPrefix(text: string, max: number): string {
+  const points = Array.from(text);
+  return points.length <= max ? text : points.slice(0, max).join('');
+}
+
+/**
+ * The opening of a text, at most `max` characters including the ellipsis, cut at
+ * a word and never through a surrogate pair.
+ */
+export function cutAtWord(text: string, max: number): string {
+  if (Array.from(text).length <= max) return text;
+  const room = max - 1;
+  const cut = codePointPrefix(text, room);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${(lastSpace > room * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
+/** A schema.org `InteractionCounter`, or nothing when the count is unknown or hidden. */
+function countOf(action: 'LikeAction' | 'ShareAction', count: number | null | undefined) {
+  return typeof count === 'number' && Number.isFinite(count) && count >= 0
+    ? [
+        {
+          '@type': 'InteractionCounter',
+          interactionType: `https://schema.org/${action}`,
+          userInteractionCount: count,
+        },
+      ]
+    : [];
+}

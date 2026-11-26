@@ -31,7 +31,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
  * A string that is simply not a post id matches no row and gets the 404 it
  * deserves.
  */
-vi.mock('../../services/postEngagementBroadcast', () => ({
+vi.mock('../../services/engagement/postEngagementBroadcast', () => ({
   emitPostEngagement: vi.fn(),
   POST_ENGAGEMENT_EVENTS: {
     LIKED: 'post:liked',
@@ -44,7 +44,7 @@ vi.mock('../../services/postEngagementBroadcast', () => ({
   },
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));

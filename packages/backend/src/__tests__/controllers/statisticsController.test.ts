@@ -42,16 +42,16 @@ vi.mock('../../utils/inference', () => ({ isInferenceEnabled: () => true, infere
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ users: { get: async () => ({}) } }),
 }));
-vi.mock('../../services/UserPreferenceService', () => ({
+vi.mock('../../services/feed/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
 }));
 /** The read gate itself has its own suites; here it only refuses what a case marks unreadable. */
-vi.mock('../../services/postReadAccess', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
   canRequestReadPost: vi.fn(
     async (_req: unknown, postId: string) => !unreadablePostIds.has(postId),
   ),
 }));
-vi.mock('../../services/feedViewCounter', () => ({
+vi.mock('../../services/engagement/feedViewCounter', () => ({
   // `null` is "no view counted", which is what sends `trackPostView` down the
   // read-back branch these cases are about. It used to be `false`; the counter
   // returns the post's new total now, so a falsy-but-not-null value would flow

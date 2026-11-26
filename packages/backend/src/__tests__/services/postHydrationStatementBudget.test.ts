@@ -38,7 +38,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { getUsersByIds, cacheStore } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
@@ -79,7 +79,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
  * The count below is the cold one; clearing it before the measured call is what
  * makes the two starter-pack fills real.
  */
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -98,10 +98,10 @@ import { config } from '../../config';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
 import { clearPostScope, postScope, seedPost, seedPosts } from '../helpers/postFixtures';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import { metrics } from '../../utils/metrics';
-import { captureHydrationRevisions } from '../../services/hydrationRevisions';
-import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
+import { captureHydrationRevisions } from '../../services/posts/hydrationRevisions';
+import { revalidateAnonymousFeed } from '../../services/feed/revalidateAnonymousFeed';
 
 const scope = postScope('statement-budget');
 const AUTHOR_ID = scope.user('author');

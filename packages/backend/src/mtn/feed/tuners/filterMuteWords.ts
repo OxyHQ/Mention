@@ -4,12 +4,12 @@ import {
   NO_FOLLOWED_AUTHORS,
   compileMuteWords,
   isMutedSubject,
-} from '../../../services/safety/muteWordMatcher';
+} from '../../../services/moderation/safety/muteWordMatcher';
 
 /**
  * Drop feed slices whose anchor post the viewer muted.
  *
- * The matching rule itself lives in `services/safety/muteWordMatcher` — the same
+ * The matching rule itself lives in `services/moderation/safety/muteWordMatcher` — the same
  * one search and notifications call — so a muted word means the same thing on every
  * surface. This tuner only adapts the feed's slice shape to it.
  */

@@ -30,7 +30,7 @@ vi.mock('../../services/moderation/ReportIntakeService', async () => {
   return { ...actual, createReport: (...args: unknown[]) => createReport(...args) };
 });
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 

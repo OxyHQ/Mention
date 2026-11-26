@@ -17,7 +17,7 @@ import { TopicType } from '@oxy.so/core';
 import { getDb } from '../../db/postgres';
 import { trending, TrendingType } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
-import { topicService } from '../TopicService';
+import { topicService } from '../topics/TopicService';
 import { loadExcerptsByTerm } from './trendExcerpts';
 import {
   deriveTrendLabel,

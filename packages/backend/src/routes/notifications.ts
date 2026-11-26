@@ -15,12 +15,15 @@ import { loadPostRecords } from '../db/posts/postRepository';
 import type { Server } from 'socket.io';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
-import { postHydrationService, type HydrationOptions } from '../services/PostHydrationService';
+import {
+  postHydrationService,
+  type HydrationOptions,
+} from '../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../utils/hydrationOptions';
 import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { blockedEitherWay } from '../utils/privacyHelpers';
-import { resolveNotificationInboxIds } from '../services/notificationInbox';
+import { resolveNotificationInboxIds } from '../services/notifications/notificationInbox';
 import { queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
@@ -33,15 +36,18 @@ import {
   enrichNotificationActor,
   markAllNotificationsRead,
   markNotificationRead,
-} from '../services/notificationReadState';
+} from '../services/notifications/notificationReadState';
 import { requiresContentWarning } from '../mtn/feed/feedSafety';
-import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
+import {
+  loadMuteWords,
+  loadShowSensitiveContent,
+} from '../services/moderation/safety/viewerSafety';
 import {
   NO_FOLLOWED_AUTHORS,
   compileMuteWords,
   isMutedSubject,
-} from '../services/safety/muteWordMatcher';
-import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
+} from '../services/moderation/safety/muteWordMatcher';
+import { loadFollowedAuthorIds } from '../services/feed/viewerFollowGraph';
 
 export { toPopulatedActor };
 
@@ -145,7 +151,7 @@ function optionalText(value: unknown): string | undefined {
 /**
  * Every `recipientId` this request's viewer may read — themselves, plus any
  * CHANNEL they operate (a channel has no session of its own, so its inbox is
- * only reachable this way). See `services/notificationInbox`.
+ * only reachable this way). See `services/notifications/notificationInbox`.
  *
  * EVERY recipient-scoped query in this file goes through here. A handler that
  * filters on `recipientId = userId` directly is not a smaller version of this —

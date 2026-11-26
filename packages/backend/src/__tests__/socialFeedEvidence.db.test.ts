@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 import { PostType, type FeedPostSlice } from '@mention/shared-types';
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(
     async (ids: string[]) =>
       new Map(
@@ -15,12 +15,12 @@ vi.mock('../services/PostHydrationService', () => ({
 import { connectPostgres, closePostgres, getDb } from '../db/postgres';
 import { likes, userSettings } from '../db/schema';
 import { clearServiceScope, seedPost, serviceScope } from './helpers/serviceFixtures';
-import { getNetworkEngagerCounts } from '../services/networkEngagement';
+import { getNetworkEngagerCounts } from '../services/engagement/networkEngagement';
 import {
   attachSocialFeedContext,
   eligibleSocialActors,
   eligibleSocialPostIds,
-} from '../services/socialFeedEvidence';
+} from '../services/feed/socialFeedEvidence';
 import { friendsEngagedSource } from '../mtn/feed/engine/sources/socialSources';
 import { encodeChronoCursor } from '../utils/chronoCursor';
 import { forYouDefinition, followingDefinition } from '../mtn/feed/definitions/presets';
@@ -189,7 +189,7 @@ describe('public social recommendation evidence', () => {
     const liked = slice(target.id);
     await attachSocialFeedContext([liked], ctx);
     expect(liked.socialContext?.type).toBe('likedBy');
-    const { resolveUserSummaries } = await import('../services/PostHydrationService');
+    const { resolveUserSummaries } = await import('../services/posts/PostHydrationService');
     vi.mocked(resolveUserSummaries).mockRejectedValueOnce(new Error('actor service unavailable'));
     const unavailable = slice(target.id);
     await expect(attachSocialFeedContext([unavailable], ctx)).resolves.toBeUndefined();
@@ -237,7 +237,7 @@ describe('social evidence query plan', () => {
 
   it('does not walk unrelated post inventory when the indexed activity cohort is empty', async () => {
     const { sql } = await import('drizzle-orm');
-    const { networkEngagementExistsSql } = await import('../services/socialFeedEvidence');
+    const { networkEngagementExistsSql } = await import('../services/feed/socialFeedEvidence');
     const result = await getDb().execute(
       sql`explain (analyze,buffers,format json) select id from posts where ${networkEngagementExistsSql([scope.user('no-activity')], new Date(now - 86400000), new Date(now))} order by created_at desc,id desc limit 20`,
     );

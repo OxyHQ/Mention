@@ -43,7 +43,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AccountMember, AccountNode, User } from '@oxy.so/core';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { getUsersByIds, cacheStore, listAccounts, listAccountMembers, claim } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
@@ -56,7 +56,7 @@ const { getUsersByIds, cacheStore, listAccounts, listAccountMembers, claim } = v
 // The publish PIPELINE (MTN record, federation fan-out, notifications) is the
 // subject of its own suites; what matters here is WHO may start it and WHICH
 // account it is claimed for, so the claim is observed rather than executed.
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: { claimAndPublishScheduledPost: claim },
 }));
 
@@ -127,7 +127,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   ),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -146,7 +146,7 @@ import type { HydratedPost } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import { getPostById } from '../../controllers/posts/readPosts';
 import { getScheduledPosts, publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
 import { loadPostRecord } from '../../db/posts/postRepository';

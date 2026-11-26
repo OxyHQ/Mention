@@ -38,7 +38,7 @@ import {
   recordUse,
   searchLocal,
   type GifRecord,
-} from '../../services/gifLibrary/gifLibraryService';
+} from '../../services/media/gifLibrary/gifLibraryService';
 
 let db: Database;
 const createdKlipyIds: string[] = [];

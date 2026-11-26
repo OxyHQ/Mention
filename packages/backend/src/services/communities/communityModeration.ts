@@ -8,12 +8,12 @@ import {
   listCommunityBans,
 } from '../../db/communities/communityBanRepository';
 import { activityPubConnector } from '../../connectors/activitypub/ActivityPubConnector';
-import { resolveUserSummaries } from '../PostHydrationService';
-import { invalidate as invalidatePostDetail } from '../postDetailCache';
+import { resolveUserSummaries } from '../posts/PostHydrationService';
+import { invalidate as invalidatePostDetail } from '../posts/postDetailCache';
 import { degradedActorSummary } from '../../utils/degradedActorSummary';
 import { logger } from '../../utils/logger';
 import type { AccountMember } from '@oxy.so/core';
-import { assertCanModerateCommunity, type AccountAccessReader } from '../publishAsAccount';
+import { assertCanModerateCommunity, type AccountAccessReader } from '../accounts/publishAsAccount';
 import { CommunityPostError } from './communityPosting';
 
 /**

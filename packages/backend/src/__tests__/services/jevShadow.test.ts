@@ -9,7 +9,7 @@ import {
   type ShadowRelease,
   type ShadowSignals,
   type ShadowSnapshot,
-} from '../../services/contentClassification/jevShadow';
+} from '../../services/moderation/contentClassification/jevShadow';
 
 const release: ShadowRelease = {
   evaluationVersion: 'shadow-v1',

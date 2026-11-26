@@ -37,8 +37,8 @@ import { recordAccountErasureRequest } from '../db/accountErasures/accountErasur
 import {
   previewAccountErasure,
   processAccountErasure,
-} from '../services/accountErasure/AccountErasureService';
-import { normalizeUsername } from '../services/accountErasure/oxyAccountEvents';
+} from '../services/accounts/accountErasure/AccountErasureService';
+import { normalizeUsername } from '../services/accounts/accountErasure/oxyAccountEvents';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 

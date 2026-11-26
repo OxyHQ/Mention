@@ -9,13 +9,13 @@ import {
   mediaMetadataService,
   mergeMediaItem,
   readPersistedMediaFields,
-} from '../../services/MediaMetadataService';
-import { invalidate as invalidatePostDetailCache } from '../../services/postDetailCache';
+} from '../../services/media/MediaMetadataService';
+import { invalidate as invalidatePostDetailCache } from '../../services/posts/postDetailCache';
 import { logger } from '../../utils/logger';
 import {
   applyFileMediaMetadata,
   type FileMediaMetadataWrite,
-} from '../../services/mediaMetadataPersistence';
+} from '../../services/media/mediaMetadataPersistence';
 import { sleep } from '../../utils/sleep';
 
 const FILE_BATCH_SIZE = 100;

@@ -145,9 +145,9 @@ export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
 export const PERIODIC_INSTAGRAM_GRAPH_SYNC = 'federation:instagram-graph-sync';
 /** Delete from Oxy the re-hosted federated media no post references any more. */
 export const PERIODIC_FEDERATED_MEDIA_DELETIONS = 'federation:federated-media-deletions';
-/** Mirror federated accounts' banners into Oxy (retrying, see services/federatedBannerMirror.ts). */
+/** Mirror federated accounts' banners into Oxy (retrying, see services/federation/federatedBannerMirror.ts). */
 export const PERIODIC_FEDERATED_BANNER_MIRRORS = 'federation:federated-banner-mirrors';
-/** Tell Oxy which files Mention uses (ADR 0043; services/oxyFiles/fileReferenceSync.ts). */
+/** Tell Oxy which files Mention uses (ADR 0043; services/media/oxyFiles/fileReferenceSync.ts). */
 export const PERIODIC_OXY_FILE_REFERENCE_SYNC = 'oxy-files:reference-sync';
 /** Re-crawl followed accounts' graphs and expire stale mirror edges (connectors/remoteGraphMirror.ts). */
 export const PERIODIC_REMOTE_GRAPH_MIRROR = 'federation:remote-graph-mirror';

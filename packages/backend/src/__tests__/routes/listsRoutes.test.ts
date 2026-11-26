@@ -40,7 +40,7 @@ vi.mock('../../controllers/feed.controller', () => ({
   feedController: { transformPostsWithProfiles: mocks.transformPostsWithProfiles },
 }));
 // The endorsement outbox is a fire-and-forget Oxy signal with its own queries.
-vi.mock('../../services/EndorsementSignalService', () => ({
+vi.mock('../../services/feed/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
     syncScopeMembershipChange: vi.fn().mockResolvedValue(undefined),

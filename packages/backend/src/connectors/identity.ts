@@ -9,8 +9,8 @@ import { userSettings } from '../db/schema/userProfile';
 import { eq } from 'drizzle-orm';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { updateUserSettings } from '../db/userProfile/userSettingsRepository';
-import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
-import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
+import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/media/mediaCache/cacheWorker';
+import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/media/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import { createIdentityBridge, type ServiceRequest } from '@oxy.so/federation/node';
 
@@ -82,7 +82,7 @@ export interface MirrorBannerResult {
  * Best-effort: returns `{ ok: true }` when the banner was stored, otherwise
  * `{ ok: false, permanent, reason }`. A non-http url is `permanent: true`.
  * Transient failures are surfaced at `warn`; permanent ones stay quiet. Called
- * by the banner sweep (`services/federatedBannerMirror.ts`), which records the
+ * by the banner sweep (`services/federation/federatedBannerMirror.ts`), which records the
  * outcome and retries — `permanent` only chooses how soon.
  */
 export async function mirrorFederatedBanner(

@@ -200,7 +200,7 @@ export async function enqueueFederatedMediaDeletions(
 /**
  * Re-open deletions Oxy answered `in_use` for these files — the
  * reconciliation calls it after re-sending removals its commit may have undone
- * (`services/oxyFiles/fileReferenceReconciliation.ts`): a Mention reference
+ * (`services/media/oxyFiles/fileReferenceReconciliation.ts`): a Mention reference
  * re-added there is exactly what makes Oxy answer `in_use` for a file only
  * Mention used. Only `in_use` rows: a file with no row was never this drain's,
  * and a tombstone stays as it is.

@@ -86,9 +86,9 @@ vi.mock('../../services/search/hashtagSearch', async () => {
 });
 
 /** Owners resolve through Oxy; stubbed so no lane leaves the process. */
-vi.mock('../../services/PostHydrationService', async () => {
-  const actual = await vi.importActual<typeof import('../../services/PostHydrationService')>(
-    '../../services/PostHydrationService',
+vi.mock('../../services/posts/PostHydrationService', async () => {
+  const actual = await vi.importActual<typeof import('../../services/posts/PostHydrationService')>(
+    '../../services/posts/PostHydrationService',
   );
   return { ...actual, resolveUserSummaries: vi.fn(async () => new Map()) };
 });

@@ -65,7 +65,7 @@
  *
  * ## Scheduling
  *
- * `services/ExpirySweepJob.ts` runs {@link SCHEDULED_EXPIRY_SWEEP_TARGETS} on the
+ * `services/scheduling/ExpirySweepJob.ts` runs {@link SCHEDULED_EXPIRY_SWEEP_TARGETS} on the
  * elected leader (`runtime/schedulers.ts`). It went unscheduled for months after
  * the port (OxyHQ/Mention#1187): `author_follower_snapshots` alone reached 5.4M
  * rows, 1.4 GB with indexes, against a 30-day retention. Each run deletes in

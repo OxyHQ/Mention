@@ -7,12 +7,12 @@ import { lookupOxyIdentities, resolveOxyIdentity } from '../connectors/oxyIdenti
 import {
   createActorProjectionCacheBatch,
   reconcileActorIdentityProjection,
-} from '../services/ActorIdentityProjectionService';
+} from '../services/accounts/ActorIdentityProjectionService';
 import {
   crosspostReconciliationPostSql,
   detectCrosspostEquivalence,
   reevaluateClusterForPost,
-} from '../services/PostEquivalenceService';
+} from '../services/posts/PostEquivalenceService';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { logger } from '../utils/logger';

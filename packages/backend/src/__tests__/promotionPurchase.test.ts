@@ -12,7 +12,7 @@ import type { PostRecordInput } from '../db/posts/postRecord';
 import { posts } from '../db/schema/posts';
 import { postPromotions } from '../db/schema/promotions';
 import { userSettings } from '../db/schema/userProfile';
-import { startPromotionPurchase } from '../services/promotion/purchase';
+import { startPromotionPurchase } from '../services/monetization/promotion/purchase';
 
 let db: Database;
 const created: string[] = [];

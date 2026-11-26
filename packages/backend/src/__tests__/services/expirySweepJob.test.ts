@@ -24,7 +24,7 @@ vi.mock('../../db/expiry', async (importOriginal) => ({
 }));
 
 import { SCHEDULED_EXPIRY_SWEEP_TARGETS } from '../../db/expiry';
-import { ExpirySweepJob } from '../../services/ExpirySweepJob';
+import { ExpirySweepJob } from '../../services/scheduling/ExpirySweepJob';
 
 function done(table: string, deleted = 0): ExpirySweepResult {
   return { table, deleted, truncated: false };

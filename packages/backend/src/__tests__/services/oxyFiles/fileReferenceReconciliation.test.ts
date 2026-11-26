@@ -37,7 +37,7 @@ import {
   oxyEntityTypeFor,
   fileReferenceEntity,
 } from '../../../db/oxyFiles/fileReferenceEntities';
-import { drainFileReferenceSync } from '../../../services/oxyFiles/fileReferenceSync';
+import { drainFileReferenceSync } from '../../../services/media/oxyFiles/fileReferenceSync';
 import {
   FileReferenceReconciliationScheduler,
   isReconciliationDue,
@@ -47,7 +47,7 @@ import {
   RECONCILE_RATE_LIMIT_ATTEMPTS,
   RECONCILE_RATE_LIMIT_WAIT_MS,
   runFileReferenceReconciliation,
-} from '../../../services/oxyFiles/fileReferenceReconciliation';
+} from '../../../services/media/oxyFiles/fileReferenceReconciliation';
 
 type Item = { fileId: string; entityId: string };
 type Inventory = Iterable<Item> | AsyncIterable<Item>;

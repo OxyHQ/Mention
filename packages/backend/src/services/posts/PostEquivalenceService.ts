@@ -1,0 +1,985 @@
+import { and, desc, eq, gte, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { normalizeMultilineText } from '@oxy.so/core';
+import { getDb } from '../../db/postgres';
+import { postEquivalenceMembers, posts } from '../../db/schema/posts';
+import { postContentVariants, postMedia } from '../../db/schema/postContent';
+import { federatedActors } from '../../db/schema/federation';
+import { postImports } from '../../db/schema/imports';
+import { findImportedCopyPairs } from '../../db/imports/postImportRepository';
+import {
+  createCluster,
+  dissolveCluster,
+  findClusterById,
+  findClusterByPostId,
+  removeClusterMember,
+  setPreferredMember,
+  type EquivalenceClusterRecord,
+  type EquivalenceMemberWrite,
+} from '../../db/posts/postEquivalenceRepository';
+import { FEDERATION_NETWORKS, canonicalFederationHost } from '@oxy.so/federation';
+import { logger } from '../../utils/logger';
+import { metrics } from '../../utils/metrics';
+import { lookupOxyIdentities } from '../../connectors/oxyIdentity';
+
+/**
+ * ONE PIECE OF WRITING, TWO OBJECTS — AND WHY THAT IS NOT THE SAME QUESTION AS
+ * "ARE THESE TWO ACCOUNTS ONE PERSON?".
+ *
+ * Proving that `@zuck@instagram.com` and `@zuck@threads.net` are one person says
+ * nothing about their POSTS. A person with two accounts writes different things
+ * on them most of the time, and collapsing everything they publish would be a
+ * far worse bug than the duplicate it set out to fix. So post equivalence is its
+ * own concept, with its own evidence, and a proven identity is a PRECONDITION
+ * for it rather than a reason.
+ *
+ * ## Every source object survives. Only the card collapses.
+ *
+ * The Instagram object and the Threads object keep their own permalinks,
+ * protocol ids, edits, deletes, replies, likes, boosts and moderation state,
+ * because they genuinely are two objects and the reader may need either. What
+ * changes is that feed, profile and search surfaces render the cluster's
+ * PREFERRED member and skip the rest — through a SQL predicate, so a page of 20
+ * rows is still 20 cards.
+ *
+ * ## The evidence hierarchy, strongest first
+ *
+ *   `declared`        the source SAYS SO — an explicit canonical/original
+ *                     relation on the object itself. Deterministic; nothing else
+ *                     is checked once it holds.
+ *   `shared-media-id` both objects name the same first-party media asset.
+ * Arbitrary links in captions do not declare a canonical source. Explicit
+ * source metadata reaches the `declared` tier through the ingest contract.
+ *   `fingerprint`     the conservative FALLBACK, and the only tier that can be
+ *                     wrong. It demands ALL of: the same Oxy person through a
+ *                     PROVEN cross-network identity link; two networks that are
+ *                     a reviewed pair; publication inside a narrow window;
+ *                     exact normalized text where text exists; the same media
+ *                     count and types; and a deterministic media-equality
+ *                     signal. Any one missing and it refuses.
+ *
+ * ## What may NEVER create a cluster
+ *
+ * Two different people posting the same photo. Similar text. A close perceptual
+ * hash — nothing here computes one, deliberately, because "close" is exactly the
+ * signal that produces confident false positives. Matching usernames. The same
+ * author repeating themselves hours or days later. A false positive here
+ * attributes one post's engagement, replies and provenance to another post; a
+ * missed collapse shows a reader two cards. Those are not comparable, and every
+ * threshold below is set on that asymmetry.
+ *
+ * ## Text-only posts get a tighter window than anything else
+ *
+ * A person can intentionally write the same sentence twice, and short posts
+ * collide across an account's own history far more often than media does. So a
+ * text-only pair has minutes rather than half an hour, and an empty body can
+ * never be matched at all — every empty string is equal to every other one.
+ *
+ * ## An import and the federated copy of the same source post
+ *
+ * One more pair is the same piece of writing stored twice, inside ONE network:
+ * a post Oxy Move imported (`post_imports`) and the federated copy of that very
+ * source post, which federation brought in from the user's old account before
+ * they moved. Once a verified `Move` has projected the old account onto the
+ * user, both are theirs. The evidence is deterministic — the import ledger names
+ * the source item, and the federated copy IS that item (`imported-copy` below)
+ * — so no identity proof, window or content comparison is involved, only the
+ * shared owner. The federated copy is always the rendered member: remote
+ * replies, likes and boosts address its AS2 id, so it is the object the
+ * conversation lives on. When the owners diverge again (the Move is withdrawn
+ * in Oxy and the source is projected back), re-evaluation splits the pair and
+ * both posts are visible again. See `docs/import.mdx`.
+ */
+
+/** `metrics` label for a refusal, so "why is nothing collapsing?" is answerable. */
+const EQUIVALENCE_DECISION_METRIC = 'post_equivalence_decision_total';
+
+/**
+ * How far apart two variants of one cross-post may be published.
+ *
+ * Meta's own cross-posting publishes both within seconds; a person doing it by
+ * hand takes longer. Thirty minutes covers the manual case without reaching into
+ * "the same author posted something similar later today", which is the collision
+ * this bound exists to exclude rather than to tolerate.
+ */
+export const CROSSPOST_WINDOW_MS =
+  Number.parseInt(process.env.CROSSPOST_WINDOW_MS ?? '', 10) || 30 * 60 * 1000;
+
+/**
+ * The same bound for a pair with NO media, where the only evidence is that two
+ * strings match.
+ *
+ * Deliberately far tighter. "Good morning" is a post somebody makes on both
+ * accounts every day of their life, and at half an hour the fallback would
+ * cluster two of them roughly whenever the two ingests landed near each other.
+ */
+export const CROSSPOST_TEXT_ONLY_WINDOW_MS =
+  Number.parseInt(process.env.CROSSPOST_TEXT_ONLY_WINDOW_MS ?? '', 10) || 5 * 60 * 1000;
+
+/** What happened to one detection attempt. */
+export interface CrosspostDecision {
+  outcome: 'clustered' | 'joined' | 'refused' | 'not-applicable';
+  /** A stable code — logs, metrics and the reconciliation report read it. */
+  reason: string;
+  clusterId?: string;
+}
+
+/** Everything {@link detectCrosspostEquivalence} is told about a freshly-stored post. */
+export interface CrosspostDetectionInput {
+  postId: string;
+  /**
+   * URLs the SOURCE OBJECT declared as this post's original — an AS2 `url` Link
+   * with `rel` containing `canonical`, or an equivalent first-party relation.
+   *
+   * Supplied by the ingest rather than re-read here, because only the ingest
+   * holds the raw document. Absent for every object that declares nothing, which
+   * is most of them, and the `declared` tier then simply does not fire.
+   */
+  declaredOriginalUrls?: readonly string[];
+}
+
+/** The post fields every tier reads. */
+interface EquivalenceCandidate {
+  id: string;
+  actorUri: string;
+  oxyUserId: string;
+  /** The authoring actor's NETWORK identity domain — see {@link networkDomainSql}. */
+  networkDomain: string;
+  createdAt: Date;
+  isEdited: boolean;
+  federationUrl: string | null;
+  /** The AS2 object id / at-uri of a federated post; `null` for a native one. */
+  federationActivityId: string | null;
+  /**
+   * Set only for a post Oxy Move IMPORTED: the source item its ledger row names.
+   * Such a post is native, so `actorUri` is empty and `networkDomain` is the
+   * source permalink's host.
+   */
+  importSource: { sourceId: string; sourceUrl: string } | null;
+  /** The primary rendition's body, normalized for comparison. */
+  text: string;
+  media: CandidateMedia[];
+}
+
+interface CandidateMedia {
+  type: string;
+  /** The origin URL as the remote served it, before the cache rewrote anything. */
+  remoteUrl: string | null;
+  mediaId: string;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number | null;
+}
+
+function decision(
+  outcome: CrosspostDecision['outcome'],
+  reason: string,
+  clusterId?: string,
+): CrosspostDecision {
+  metrics.incrementCounter(EQUIVALENCE_DECISION_METRIC, 1, { outcome, reason });
+  return { outcome, reason, clusterId };
+}
+
+/**
+ * A media URL reduced to the asset it names.
+ *
+ * Meta's CDN URLs carry signed, expiring query parameters that differ on every
+ * fetch and between the two apps, so the raw URLs of one asset never match. What
+ * DOES survive is the path. Query and fragment are dropped and the host with
+ * them: the same asset is served from different CDN hosts to the two apps, and
+ * keeping the host would make two spellings of one file look like two files.
+ *
+ * Returns `undefined` for anything that is not a usable identifier — which is
+ * the point of the length floor. A path ending in `image.jpg` or `1.png` names
+ * an asset on thousands of sites, and matching on it would cluster unrelated
+ * posts with total confidence.
+ */
+export function sharedMediaIdentifier(remoteUrl: string | null): string | undefined {
+  if (!remoteUrl) return undefined;
+  let url: URL;
+  try {
+    url = new URL(remoteUrl);
+  } catch {
+    return undefined;
+  }
+  // Only Meta's asset namespace makes a basename comparable across CDN hosts.
+  // An unrelated origin can serve a different file under that same name.
+  if (
+    url.protocol !== 'https:' ||
+    !['cdninstagram.com', 'fbcdn.net'].some(
+      (domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`),
+    )
+  )
+    return undefined;
+  const segments = url.pathname.split('/').filter((segment) => segment.length > 0);
+  const terminal = segments[segments.length - 1];
+  if (!terminal) return undefined;
+  const token = terminal.replace(/\.[a-z0-9]{1,5}$/i, '');
+  // Long enough to be an asset id rather than a word, and carrying at least one
+  // digit — the two properties every first-party media identifier has and no
+  // generic filename does.
+  if (token.length < 16 || !/\d/.test(token)) return undefined;
+  return token.toLowerCase();
+}
+
+/**
+ * The NETWORK a federated post came from, as SQL over the joined actor row.
+ *
+ * Not `posts.federation_actor_uri`'s host, and the difference is the whole
+ * point: an Instagram post reaches us through `kilogram.makeup`, so the actor
+ * URI's host names the bridge rather than the network. The authoring actor row
+ * already holds the answer — `network_acct` for a re-labelled bridged actor
+ * (`zuck@instagram.com`), and `domain` for everything else, which is the same
+ * two-shape rule `findIdentityOwnerActor` reads — so it is taken from there.
+ *
+ * Reading the bridge host instead would put both variants of a Meta cross-post
+ * on hosts that are trivially different (`kilogram.makeup` vs `threads.net`) and
+ * so pass the "different network" test for the wrong reason, while ALSO failing
+ * `findCrossNetworkPair`, which is keyed on identity domains. The pair lookup
+ * would then refuse every real cross-post — a silent, total no-op.
+ */
+function networkDomainSql(): SQL<string | null> {
+  return sql<string | null>`coalesce(
+    nullif(split_part(${federatedActors.networkAcct}, '@', 2), ''),
+    ${federatedActors.domain}
+  )`;
+}
+
+/**
+ * Administrative scan only; this is not evidence authorizing a collapse.
+ * Requires the same LEFT JOIN to federatedActors as loadCandidate. Keep every
+ * existing member/collapsed row even if its author, network or status changed.
+ */
+export function crosspostReconciliationPostSql(): SQL {
+  // Mirror canonicalFederationHost used by classifyPair (trim, lowercase,
+  // remove one www. prefix); networkAcct still takes precedence over domain.
+  const trimCharacters =
+    ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+  const domain = sql<string>`regexp_replace(lower(btrim(${networkDomainSql()}, ${trimCharacters})), '^www[.]', '')`;
+  return sql`(${or(
+    and(
+      eq(posts.status, 'published'),
+      isNull(posts.repostOf),
+      ne(posts.oxyUserId, ''),
+      ne(posts.federationActorUri, ''),
+      inArray(domain, ['instagram.com', 'threads.net']),
+    ),
+    eq(posts.crosspostCollapsed, true),
+    sql`exists (select 1 from ${postEquivalenceMembers} where ${postEquivalenceMembers.postId} = ${posts.id})`,
+  )})`;
+}
+
+/** The canonical host of an import's source permalink, or `null` when it is not a URL. */
+function permalinkHost(url: string): string | null {
+  try {
+    return canonicalFederationHost(new URL(url).hostname);
+  } catch {
+    return null;
+  }
+}
+
+/** Load everything the tiers read about one post, or `null` when it is gone. */
+async function loadCandidate(postId: string): Promise<EquivalenceCandidate | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      id: posts.id,
+      actorUri: posts.federationActorUri,
+      oxyUserId: posts.oxyUserId,
+      networkDomain: networkDomainSql(),
+      createdAt: posts.createdAt,
+      isEdited: posts.isEdited,
+      federationUrl: posts.federationUrl,
+      federationActivityId: posts.federationActivityId,
+      status: posts.status,
+      boostOf: posts.repostOf,
+      importSourceId: postImports.sourceId,
+      importSourceUrl: postImports.sourceUrl,
+    })
+    .from(posts)
+    .leftJoin(federatedActors, eq(federatedActors.uri, posts.federationActorUri))
+    .leftJoin(postImports, eq(postImports.postId, posts.id))
+    .where(eq(posts.id, postId))
+    .limit(1);
+  if (!row || row.status !== 'published' || row.boostOf !== null) return null;
+  if (!row.oxyUserId || !row.createdAt) return null;
+  const importSource =
+    row.importSourceId && row.importSourceUrl && !row.actorUri
+      ? { sourceId: row.importSourceId, sourceUrl: row.importSourceUrl }
+      : null;
+  const networkDomain = importSource ? permalinkHost(importSource.sourceUrl) : row.networkDomain;
+  if (!networkDomain || (!importSource && !row.actorUri)) return null;
+
+  const [variant] = await db
+    .select({ body: postContentVariants.body })
+    .from(postContentVariants)
+    .where(and(eq(postContentVariants.postId, postId), eq(postContentVariants.position, 0)))
+    .limit(1);
+
+  const media = await db
+    .select({
+      type: postMedia.type,
+      remoteUrl: postMedia.remoteUrl,
+      mediaId: postMedia.mediaId,
+      width: postMedia.width,
+      height: postMedia.height,
+      sizeBytes: postMedia.sizeBytes,
+    })
+    .from(postMedia)
+    .where(eq(postMedia.postId, postId))
+    .orderBy(postMedia.position);
+
+  return {
+    id: row.id,
+    actorUri: row.actorUri ?? '',
+    oxyUserId: row.oxyUserId,
+    networkDomain,
+    createdAt: row.createdAt,
+    isEdited: row.isEdited,
+    federationUrl: row.federationUrl,
+    federationActivityId: row.federationActivityId,
+    importSource,
+    text: normalizeMultilineText(variant?.body ?? '').trim(),
+    media,
+  };
+}
+
+/**
+ * The sibling posts worth comparing against: same Oxy person, a DIFFERENT
+ * network, inside the widest window any tier allows, not already clustered.
+ *
+ * "Same Oxy person" is doing the heavy lifting and is not a convenience. Two
+ * accounts only share an Oxy user after the within-network bridged merge or the
+ * cross-network equivalence layer has proved they are one person — so "the same
+ * content from two different people" cannot reach this function at all, rather
+ * than being rejected by a later check somebody might reorder.
+ */
+async function findSiblingIds(candidate: EquivalenceCandidate): Promise<string[]> {
+  const since = new Date(candidate.createdAt.getTime() - CROSSPOST_WINDOW_MS);
+  const until = new Date(candidate.createdAt.getTime() + CROSSPOST_WINDOW_MS);
+  const rows = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .leftJoin(federatedActors, eq(federatedActors.uri, posts.federationActorUri))
+    .leftJoin(postEquivalenceMembers, eq(postEquivalenceMembers.postId, posts.id))
+    .where(
+      and(
+        eq(posts.oxyUserId, candidate.oxyUserId),
+        ne(posts.id, candidate.id),
+        ne(networkDomainSql(), candidate.networkDomain),
+        eq(posts.status, 'published'),
+        isNull(posts.repostOf),
+        gte(posts.createdAt, since),
+        lte(posts.createdAt, until),
+        isNull(postEquivalenceMembers.id),
+      ),
+    )
+    .orderBy(posts.createdAt)
+    .limit(20);
+  return rows.map((row) => row.id);
+}
+
+/** Administrative repair must distinguish unavailable authority from negative proof. */
+interface EquivalenceErrorOptions {
+  failOnError?: boolean;
+}
+
+/** One request per detection/re-evaluation, scoped to the current decision. */
+async function loadIdentityProof(
+  candidates: Iterable<EquivalenceCandidate>,
+  options: EquivalenceErrorOptions = {},
+) {
+  // An import has no source actor to prove; its tier needs no identity lookup.
+  const identifiers = [
+    ...new Set(
+      [...candidates].map((candidate) => candidate.actorUri).filter((uri) => uri.length > 0),
+    ),
+  ];
+  if (identifiers.length === 0) return [];
+  try {
+    return await lookupOxyIdentities(identifiers);
+  } catch (err) {
+    if (options.failOnError) throw err;
+    logger.warn('[Equivalence] Oxy identity proof unavailable', { err });
+    return [];
+  }
+}
+
+/** The evidence linking two candidates, strongest first, or `undefined`. */
+function classifyPair(
+  a: EquivalenceCandidate,
+  b: EquivalenceCandidate,
+  declaredOriginalUrls: readonly string[],
+  identities: Awaited<ReturnType<typeof lookupOxyIdentities>>,
+): { confidence: EquivalenceClusterRecord['confidence']; evidence: string } | undefined {
+  // Reconciliation and cluster re-evaluation call this without the sibling
+  // query. Recheck Oxy ownership here too: a corrected identity must make its
+  // posts visible again, even when the content evidence still matches.
+  if (a.oxyUserId !== b.oxyUserId) return undefined;
+  // An import is only ever the same object as the federated copy of its own
+  // source item; it takes no part in the cross-network tiers below.
+  if (a.importSource || b.importSource) return importedCopyEvidence(a, b);
+  if (Math.abs(a.createdAt.getTime() - b.createdAt.getTime()) > CROSSPOST_WINDOW_MS)
+    return undefined;
+  if ((a.isEdited || b.isEdited) && a.text !== b.text) return undefined;
+
+  // The two networks must be a REVIEWED pair. Sharing an Oxy user is not enough
+  // on its own: the bridged merge also produces one, and two copies of the same
+  // X account arriving through two bridges are the same OBJECT rather than a
+  // cross-post — clustering those would collapse a duplicate that the identity
+  // layer is already responsible for.
+  // Content policy only. Oxy has already established the person; Mention
+  // limits its media comparison to the networks whose content it understands.
+  const domains = [a.networkDomain, b.networkDomain].map(canonicalFederationHost).sort();
+  if (domains[0] !== 'instagram.com' || domains[1] !== 'threads.net') return undefined;
+
+  // Cached author ids are projections; only current Oxy proof authorizes collapse.
+  for (const candidate of [a, b]) {
+    const identity = identities.find((entry) => entry.identifier === candidate.actorUri);
+    if (
+      identity?.userId !== candidate.oxyUserId ||
+      !identity.externalIdentities.some(
+        (source) =>
+          source.actorUri === candidate.actorUri && source.network === candidate.networkDomain,
+      )
+    )
+      return undefined;
+  }
+
+  const declared = declaredOriginalUrls.find(
+    (url) => b.federationUrl !== null && sameUrl(url, b.federationUrl),
+  );
+  if (declared) return { confidence: 'declared', evidence: `declared-original:${declared}` };
+
+  // Everything below the author's own declaration additionally needs the two
+  // bodies to be COMPATIBLE. Shared media is strong evidence that one upload
+  // reached two apps; it is not evidence that the same thing was WRITTEN twice,
+  // and a person re-posting their own photo with a new thought has published two
+  // pieces of writing. It is also what makes an edit able to end a cluster: a
+  // Threads copy that grows three paragraphs the Instagram caption never had
+  // stops being compatible, and `reevaluateCluster` splits it back out.
+  if (!textsCompatible(a, b)) return undefined;
+
+  const sharedAsset = sharedMediaAsset(a, b);
+  if (sharedAsset)
+    return { confidence: 'shared-media-id', evidence: `shared-media-id:${sharedAsset}` };
+
+  return fingerprint(a, b);
+}
+
+/**
+ * The `imported-copy` tier: one post is an import whose ledger names a source
+ * item, and the other is the federated copy OF that item — its AS2 id or its
+ * permalink. Deterministic, like `declared`; the caller has already required a
+ * shared owner, which after a verified Move is what makes both the user's.
+ *
+ * Two imports never pair (the ledger already dedupes them), and neither does an
+ * import with a native post: only federation holds a second copy of a source.
+ */
+function importedCopyEvidence(
+  a: EquivalenceCandidate,
+  b: EquivalenceCandidate,
+): { confidence: EquivalenceClusterRecord['confidence']; evidence: string } | undefined {
+  const imported = a.importSource ? a : b;
+  const federated = imported === a ? b : a;
+  if (!imported.importSource || federated.importSource || !federated.actorUri) return undefined;
+  const { sourceId, sourceUrl } = imported.importSource;
+  const names = [federated.federationActivityId, federated.federationUrl].filter(
+    (url): url is string => !!url,
+  );
+  const same =
+    (federated.federationActivityId !== null && federated.federationActivityId === sourceId) ||
+    names.some((url) => sameUrl(sourceUrl, url));
+  return same ? { confidence: 'declared', evidence: `imported-copy:${sourceUrl}` } : undefined;
+}
+
+/**
+ * Whether two bodies can be the same piece of writing.
+ *
+ * Equal after normalization, or one of them EMPTY — a caption on one network and
+ * a bare image post on the other is an ordinary cross-post, and demanding
+ * equality there would refuse most real ones. Anything else is two different
+ * things said about the same picture.
+ *
+ * Deliberately not a similarity score. "Mostly the same" is the input that turns
+ * a conservative rule into a confident false positive, and the threshold would
+ * have to be defended in both directions with no data to defend it from.
+ */
+function textsCompatible(a: EquivalenceCandidate, b: EquivalenceCandidate): boolean {
+  if (a.text === b.text) return true;
+  return a.text.length === 0 || b.text.length === 0;
+}
+
+/** Whether two URLs name the same resource, preserving resource-selecting queries. */
+function sameUrl(left: string, right: string): boolean {
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    return (
+      a.protocol === b.protocol &&
+      a.host.toLowerCase() === b.host.toLowerCase() &&
+      a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '') &&
+      a.search === b.search
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** A first-party media identifier both posts carry, or `undefined`. */
+function sharedMediaAsset(a: EquivalenceCandidate, b: EquivalenceCandidate): string | undefined {
+  if (a.media.length === 0 || a.media.length !== b.media.length) return undefined;
+  const theirs = b.media
+    .map((item) => `${item.type}:${sharedMediaIdentifier(item.remoteUrl)}`)
+    .sort();
+  // EVERY item must match, not merely one. One shared asset inside two different
+  // carousels is one reused photo, which is a thing people do on purpose.
+  const identifiers = a.media.map((item) => sharedMediaIdentifier(item.remoteUrl));
+  if (identifiers.some((id) => id === undefined)) return undefined;
+  const ours = a.media.map((item, index) => `${item.type}:${identifiers[index]}`).sort();
+  if (ours.some((id, index) => id !== theirs[index])) return undefined;
+  return identifiers[0];
+}
+
+/**
+ * The fallback, which refuses far more often than it fires.
+ *
+ * Read the conditions as a single conjunction: publication inside the window
+ * (tighter with no media), identical normalized text when there IS text, the
+ * same media count and the same types in the same order, and — because nothing
+ * above is a content identity — a deterministic media-equality signal from
+ * the same source URL, with matching dimensions and byte size. Equal dimensions
+ * and byte size alone cannot identify content. A pair missing any condition is not clustered and
+ * is not clustered "with lower confidence" either: there is no such thing here.
+ */
+function fingerprint(
+  a: EquivalenceCandidate,
+  b: EquivalenceCandidate,
+): { confidence: EquivalenceClusterRecord['confidence']; evidence: string } | undefined {
+  const gap = Math.abs(a.createdAt.getTime() - b.createdAt.getTime());
+  const textOnly = a.media.length === 0 && b.media.length === 0;
+  if (gap > (textOnly ? CROSSPOST_TEXT_ONLY_WINDOW_MS : CROSSPOST_WINDOW_MS)) return undefined;
+
+  // An empty body is equal to every other empty body, so it can never be the
+  // evidence. With no media either, there is nothing left to compare at all.
+  if (a.text !== b.text) return undefined;
+  if (textOnly && a.text.length === 0) return undefined;
+  if (textOnly) {
+    return { confidence: 'fingerprint', evidence: `identical-text:${gap}ms` };
+  }
+
+  if (a.media.length !== b.media.length) return undefined;
+  for (let i = 0; i < a.media.length; i += 1) {
+    const ours = a.media[i];
+    const theirs = b.media[i];
+    if (ours.type !== theirs.type) return undefined;
+    // A source URL is an equality signal; dimensions and byte size alone are
+    // not. Preserve its query because it may select the underlying resource.
+    if (!ours.remoteUrl || ours.remoteUrl !== theirs.remoteUrl) return undefined;
+    // Dimensions and byte size, both present and both equal. A missing value is
+    // a refusal rather than a pass: "we could not tell" is not "they matched",
+    // and treating it as one is how a fingerprint check becomes a text check
+    // wearing a media check's name.
+    if (
+      !ours.width ||
+      !ours.height ||
+      ours.width !== theirs.width ||
+      ours.height !== theirs.height
+    ) {
+      return undefined;
+    }
+    if (!ours.sizeBytes || ours.sizeBytes !== theirs.sizeBytes) return undefined;
+  }
+
+  return { confidence: 'fingerprint', evidence: `identical-text-and-media:${gap}ms` };
+}
+
+/**
+ * Which variant a reader is shown, decided DETERMINISTICALLY.
+ *
+ * Arrival order is deliberately not part of it: the same set of members must
+ * always choose the same representative, or a re-evaluation after an edit or a
+ * deletion could silently swap which post a permalink-sharing reader sees.
+ *
+ *   0. a federated copy over an import of it — the conversation lives on the
+ *      object remote servers address;
+ *   1. a member the evidence names as the declared original;
+ *   2. the richer media — more items first, then more total pixels;
+ *   3. the earliest publication, which is the one that was written first;
+ *   4. the lowest id, so the answer is total.
+ */
+export function preferredVariant(
+  members: readonly { postId: string; evidence: string }[],
+  candidates: ReadonlyMap<string, EquivalenceCandidate>,
+): string {
+  const pixels = (candidate: EquivalenceCandidate | undefined): number =>
+    (candidate?.media ?? []).reduce(
+      (total, item) => total + (item.width ?? 0) * (item.height ?? 0),
+      0,
+    );
+
+  return [...members].sort((left, right) => {
+    const a = candidates.get(left.postId);
+    const b = candidates.get(right.postId);
+    const importedLeft = a?.importSource ? 1 : 0;
+    const importedRight = b?.importSource ? 1 : 0;
+    if (importedLeft !== importedRight) return importedLeft - importedRight;
+    const declaredLeft =
+      left.evidence.startsWith('declared-original:') &&
+      a?.federationUrl &&
+      sameUrl(left.evidence.slice('declared-original:'.length), a.federationUrl)
+        ? 0
+        : 1;
+    const declaredRight =
+      right.evidence.startsWith('declared-original:') &&
+      b?.federationUrl &&
+      sameUrl(right.evidence.slice('declared-original:'.length), b.federationUrl)
+        ? 0
+        : 1;
+    if (declaredLeft !== declaredRight) return declaredLeft - declaredRight;
+
+    const mediaCount = (b?.media.length ?? 0) - (a?.media.length ?? 0);
+    if (mediaCount !== 0) return mediaCount;
+    const area = pixels(b) - pixels(a);
+    if (area !== 0) return area;
+
+    const published = (a?.createdAt.getTime() ?? 0) - (b?.createdAt.getTime() ?? 0);
+    if (published !== 0) return published;
+    return left.postId < right.postId ? -1 : 1;
+  })[0].postId;
+}
+
+/**
+ * Decide whether a freshly-stored post is a cross-post of something we already
+ * hold, and cluster it if so.
+ *
+ * By default never throws. A failure here must not fail an ingest — the post is stored and
+ * visible either way, and the worst outcome of a miss is the duplicate card this
+ * exists to remove. Administrative reconciliation opts into failOnError so
+ * skipped work cannot be reported as a successful repair.
+ */
+export async function detectCrosspostEquivalence(
+  input: CrosspostDetectionInput,
+  options: EquivalenceErrorOptions = {},
+): Promise<CrosspostDecision> {
+  try {
+    const candidate = await loadCandidate(input.postId);
+    if (!candidate) return decision('not-applicable', 'post-not-eligible');
+    // Imports are paired from the ledger (`collapseImportedCopies`), never by search.
+    if (candidate.importSource) return decision('not-applicable', 'imported-post');
+    if (await findClusterByPostId(candidate.id)) {
+      return decision('not-applicable', 'already-clustered');
+    }
+
+    const siblingIds = await findSiblingIds(candidate);
+    if (siblingIds.length === 0) return decision('refused', 'no-sibling-in-window');
+
+    const declared = input.declaredOriginalUrls ?? [];
+    const siblings = (await Promise.all(siblingIds.map(loadCandidate))).filter(
+      (sibling): sibling is EquivalenceCandidate => sibling !== null,
+    );
+    const identities = await loadIdentityProof([candidate, ...siblings], options);
+    for (const sibling of siblings) {
+      const match = classifyPair(candidate, sibling, declared, identities);
+      if (!match) continue;
+
+      const candidates = new Map([
+        [candidate.id, candidate],
+        [sibling.id, sibling],
+      ]);
+      const members: EquivalenceMemberWrite[] = [
+        {
+          postId: candidate.id,
+          networkDomain: candidate.networkDomain,
+          preferred: false,
+          evidence: match.evidence,
+        },
+        {
+          postId: sibling.id,
+          networkDomain: sibling.networkDomain,
+          preferred: false,
+          evidence: match.evidence,
+        },
+      ];
+      const preferredId = preferredVariant(members, candidates);
+      for (const member of members) member.preferred = member.postId === preferredId;
+
+      const clusterId = await createCluster(match.confidence, members);
+      logger.info('[Equivalence] cross-post variants collapsed into one feed item', {
+        cluster: clusterId,
+        confidence: match.confidence,
+        evidence: match.evidence,
+        members: members.map((member) => `${member.networkDomain}:${member.postId}`),
+        preferred: preferredId,
+      });
+      return decision('clustered', match.confidence, clusterId);
+    }
+
+    return decision('refused', 'no-sufficient-evidence');
+  } catch (err) {
+    if (options.failOnError) throw err;
+    logger.warn('[Equivalence] cross-post detection failed', { post: input.postId, err });
+    return decision('not-applicable', 'detection-failed');
+  }
+}
+
+/**
+ * Collapse `oxyUserId`'s imported posts under the federated copies of the same
+ * source items, for the copies that came from `actorUris` (optionally only the
+ * given imports). One cluster per pair, the federated copy rendered — see
+ * "An import and the federated copy of the same source post" above.
+ *
+ * Runs from both directions, so the order the two copies arrive in does not
+ * matter: after a verified `Move` projects the old actor onto the user (its
+ * copies meet imports already made), and after an import batch (its imports
+ * meet copies already adopted). Idempotent: a clustered post is not a
+ * candidate again. By default never throws — a miss leaves two visible cards,
+ * which the next run collapses; `failOnError` is for callers that retry.
+ */
+export async function collapseImportedCopies(
+  params: { oxyUserId: string; actorUris: readonly string[]; importedPostIds?: readonly string[] },
+  options: EquivalenceErrorOptions = {},
+): Promise<{ clustered: number; refused: number }> {
+  const result = { clustered: 0, refused: 0 };
+  try {
+    const pairs = await findImportedCopyPairs(params);
+    const claimed = new Set<string>();
+    for (const pair of pairs) {
+      // One source item has one federated copy, but two imports could name
+      // it (the ledger is per platform); the first pair wins, the rest refuse.
+      if (claimed.has(pair.federatedPostId) || claimed.has(pair.importedPostId)) {
+        result.refused += 1;
+        continue;
+      }
+      const [imported, federated] = await Promise.all([
+        loadCandidate(pair.importedPostId),
+        loadCandidate(pair.federatedPostId),
+      ]);
+      const match = imported && federated ? classifyPair(imported, federated, [], []) : undefined;
+      if (!imported || !federated || !match) {
+        result.refused += 1;
+        continue;
+      }
+      const members: EquivalenceMemberWrite[] = [imported, federated].map((candidate) => ({
+        postId: candidate.id,
+        // Both are the SAME network's post: hydration shows no cross-network
+        // label for a cluster that spans one network.
+        networkDomain: federated.networkDomain,
+        preferred: false,
+        evidence: match.evidence,
+      }));
+      const preferredId = preferredVariant(
+        members,
+        new Map([
+          [imported.id, imported],
+          [federated.id, federated],
+        ]),
+      );
+      for (const member of members) member.preferred = member.postId === preferredId;
+      let clusterId: string;
+      try {
+        clusterId = await createCluster(match.confidence, members);
+      } catch (err) {
+        // A concurrent run clustered one of the two first (unique member key).
+        if (
+          (err as { code?: string }).code !== '23505' &&
+          (err as { cause?: { code?: string } }).cause?.code !== '23505'
+        )
+          throw err;
+        result.refused += 1;
+        continue;
+      }
+      claimed.add(pair.federatedPostId);
+      claimed.add(pair.importedPostId);
+      result.clustered += 1;
+      metrics.incrementCounter(EQUIVALENCE_DECISION_METRIC, 1, {
+        outcome: 'clustered',
+        reason: 'imported-copy',
+      });
+      logger.info('[Equivalence] imported post collapsed under its federated copy', {
+        cluster: clusterId,
+        imported: imported.id,
+        federated: federated.id,
+      });
+    }
+  } catch (err) {
+    if (options.failOnError) throw err;
+    logger.warn('[Equivalence] imported-copy collapse failed', {
+      oxyUserId: params.oxyUserId,
+      err,
+    });
+  }
+  return result;
+}
+
+/**
+ * Re-check a cluster after one of its posts changed or went away.
+ *
+ * Two things make a cluster wrong after the fact, and both are ordinary: an EDIT
+ * that makes one variant materially different from the other — a Threads post
+ * that grows three paragraphs the Instagram caption never had is no longer the
+ * same piece of writing — and a DELETE that leaves one member behind. A cluster
+ * that has stopped being true must stop collapsing, and it must do so by making
+ * the hidden post visible again rather than by leaving a card pointing at
+ * nothing.
+ *
+ * Deterministic evidence is re-checked too. After an edit, an old declaration
+ * cannot stand in for current source metadata: the changed objects must match
+ * through their current content evidence.
+ */
+export async function reevaluateCluster(
+  clusterId: string,
+  options: EquivalenceErrorOptions = {},
+): Promise<void> {
+  try {
+    const cluster = await findClusterById(clusterId);
+    if (!cluster) return;
+
+    const loaded = new Map<string, EquivalenceCandidate>();
+    for (const member of cluster.members) {
+      const candidate = await loadCandidate(member.postId);
+      if (candidate) loaded.set(member.postId, candidate);
+    }
+
+    const surviving = cluster.members.filter((member) => loaded.has(member.postId));
+    if (surviving.length < 2) {
+      // One variant left (or none): there is nothing to collapse, and whatever
+      // survives must be visible. Dissolving rather than keeping a one-member
+      // cluster also means the surviving post can be clustered again later.
+      await dissolveCluster(clusterId);
+      logger.info('[Equivalence] cluster dissolved; fewer than two variants remain', {
+        cluster: clusterId,
+      });
+      return;
+    }
+
+    // Re-decide every member against the one the evidence prefers. A member that
+    // no longer matches is SPLIT OUT and made visible again rather than the
+    // whole cluster being torn down — the remaining variants are still each
+    // other's cross-posts.
+    const identities = await loadIdentityProof(loaded.values(), options);
+    const anchorId = preferredVariant(surviving, loaded);
+    const anchor = loaded.get(anchorId)!;
+    let removed = 0;
+    for (const member of surviving) {
+      if (member.postId === anchorId) continue;
+      const other = loaded.get(member.postId)!;
+      // Stored declarations describe the old source object. An edit must prove
+      // equivalence again from current content rather than inherit that claim.
+      const declared =
+        !anchor.isEdited && !other.isEdited && member.evidence.startsWith('declared-original:')
+          ? [member.evidence.slice('declared-original:'.length)]
+          : [];
+      if (classifyPair(other, anchor, declared, identities)) continue;
+      await removeClusterMember(clusterId, member.postId);
+      removed += 1;
+      logger.info('[Equivalence] variant split out of its cluster; it no longer matches', {
+        cluster: clusterId,
+        post: member.postId,
+      });
+    }
+
+    if (surviving.length - removed < 2) {
+      await dissolveCluster(clusterId);
+      return;
+    }
+    await setPreferredMember(clusterId, anchorId);
+  } catch (err) {
+    if (options.failOnError) throw err;
+    logger.warn('[Equivalence] cluster re-evaluation failed', { cluster: clusterId, err });
+  }
+}
+
+/** Re-check the cluster a post belongs to, if any. The edit path's entry point. */
+export async function reevaluateClusterForPost(
+  postId: string,
+  options: EquivalenceErrorOptions = {},
+): Promise<void> {
+  const cluster = await findClusterByPostId(postId).catch((error) => {
+    if (options.failOnError) throw error;
+    return null;
+  });
+  if (cluster) await reevaluateCluster(cluster.id, options);
+}
+
+/** Re-check several clusters — the post-deletion repair. */
+export async function reevaluateClusters(clusterIds: readonly string[]): Promise<void> {
+  for (const clusterId of clusterIds) {
+    await reevaluateCluster(clusterId);
+  }
+}
+
+/** One variant of a cluster, as the hydration path reads it. */
+export interface CrosspostVariantRow {
+  postId: string;
+  networkDomain: string;
+  preferred: boolean;
+}
+
+/**
+ * The cross-post variants of every post in `postIds`, keyed by post id.
+ *
+ * ONE query for the whole page, and it joins members to members rather than
+ * looping: a feed page can carry several collapsed cross-posts, and asking per
+ * post would put a round trip on every card of every feed for a shape almost no
+ * post has. Posts in no cluster are simply absent from the map, which is the
+ * overwhelming majority and costs them nothing beyond this single query.
+ *
+ * Returns an empty map on failure. Provenance is a label; a card that renders
+ * without it is the same card, so it must never be able to fail a page.
+ */
+export async function loadCrosspostVariants(
+  postIds: readonly string[],
+): Promise<Map<string, CrosspostVariantRow[]>> {
+  const byPost = new Map<string, CrosspostVariantRow[]>();
+  if (postIds.length === 0) return byPost;
+
+  try {
+    const mine = alias(postEquivalenceMembers, 'mine');
+    const rows = await getDb()
+      .select({
+        forPostId: mine.postId,
+        postId: postEquivalenceMembers.postId,
+        networkDomain: postEquivalenceMembers.networkDomain,
+        preferred: postEquivalenceMembers.preferred,
+      })
+      .from(mine)
+      .innerJoin(postEquivalenceMembers, eq(postEquivalenceMembers.clusterId, mine.clusterId))
+      .where(inArray(mine.postId, [...postIds]))
+      // Deterministic, and the same order the card renders: the representative
+      // first, then by network, so two readers of one cluster never see the two
+      // names in a different order.
+      .orderBy(desc(postEquivalenceMembers.preferred), postEquivalenceMembers.networkDomain);
+
+    for (const row of rows) {
+      const list = byPost.get(row.forPostId) ?? [];
+      list.push({
+        postId: row.postId,
+        networkDomain: row.networkDomain,
+        preferred: row.preferred,
+      });
+      byPost.set(row.forPostId, list);
+    }
+  } catch (err) {
+    logger.warn('[Equivalence] failed to load cross-post provenance', { err });
+    return new Map();
+  }
+  return byPost;
+}
+
+/**
+ * The display name of a network identity domain — `instagram.com` → `Instagram`.
+ *
+ * Read off the SAME `FederationNetwork` declarations the claim parser and the
+ * ingest use, so the label and the identity can never name different networks. A
+ * domain no declaration covers falls back to the domain itself, which is
+ * truthful rather than blank.
+ */
+export function networkLabel(networkDomain: string): string {
+  const canonical = networkDomain.trim().toLowerCase();
+  if (canonical === 'threads.net') return 'Threads';
+  const known = Object.values(FEDERATION_NETWORKS).find(
+    (network) => network.domain.toLowerCase() === canonical,
+  );
+  return known?.name ?? networkDomain;
+}
