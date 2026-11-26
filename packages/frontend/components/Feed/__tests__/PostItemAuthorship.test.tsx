@@ -37,9 +37,8 @@ jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
 // The services session is not the subject: a signed-out viewer.
 jest.mock('@oxy.so/services/ui/client', () => ({
+  ...require('@/test-support/oxyUsers').oxyUsers,
   useAuth: () => ({ user: null, isAuthenticated: false, oxyServices: {} }),
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
 }));
 
 /**
