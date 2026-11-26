@@ -1,7 +1,7 @@
+import { currentAccountId, subscribeAccount } from '@/lib/accountScope';
 import type { MutedUsersResponse, SerializedMute } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient } from '@/utils/api';
-import { useAuthStore } from '@oxy.so/services/ui/client';
 import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 
 const logger = createLogger('MuteService');
@@ -22,9 +22,9 @@ class MuteService {
   ): Promise<boolean> {
     const controller = new AbortController();
     const cancelIfViewerChanged = () => {
-      if (!viewerId || useAuthStore.getState().user?.id !== viewerId) controller.abort();
+      if (!viewerId || currentAccountId() !== viewerId) controller.abort();
     };
-    const stopWatching = useAuthStore.subscribe(cancelIfViewerChanged);
+    const stopWatching = subscribeAccount(cancelIfViewerChanged);
     try {
       cancelIfViewerChanged();
       if (controller.signal.aborted) return false;

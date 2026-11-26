@@ -22,7 +22,8 @@ import { presentSheet } from '@/utils/sheet';
 import { ComposeMediaPreview } from '@/components/Compose/ComposeMediaPreview';
 import AttachmentCarouselItem from '@/components/Compose/AttachmentCarouselItem';
 import { ScrollArea } from '@oxy.so/bloom/layout';
-import { useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { currentAccountId } from '@/lib/accountScope';
 import { useRouter, useFocusEffect, type Href } from '@/lib/navigation/router';
 import {
   createReplyComposerHandoff,
@@ -195,7 +196,7 @@ export function CompactReplyComposer({
       onClaim: () => {
         if (
           transferringRef.current &&
-          useAuthStore.getState().user?.id === scope.viewerId &&
+          currentAccountId() === scope.viewerId &&
           oxyServices.http.getSessionEpoch() === scope.epoch
         ) {
           replyDraft.store.getState().clearIfUnchanged(current.revision);

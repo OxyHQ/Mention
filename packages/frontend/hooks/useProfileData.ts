@@ -26,10 +26,7 @@ const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
 /**
  * React Query key for a federated profile resolved via WebFinger. Mention-owned
- * — the SDK has no by-handle federated-resolve hook, so there is no
- * `queryKeys.users.*` helper for it — but it is rooted at the SDK's
- * `queryKeys.users.details()` so it lives in the users-cache namespace and is
- * cleared alongside the SDK user keys. Viewer-scoped for the same reason as
+ * — the SDK has no by-handle federated-resolve hook. Viewer-scoped for the same reason as
  * `useUserByUsername`: an authenticated resolve embeds the viewer-relative
  * `relationship` (`followsYou`), so anon vs authed must be distinct entries and
  * a landing session must force a refetch. Defined once here so this Mention-only
@@ -244,7 +241,7 @@ export function useProfileData(username?: string): {
    */
   const documentProfile = handle ? bootstrapProfileFor(handle) : null;
 
-  // Local profiles — SDK hook, shares the singleton React Query cache.
+  // Local profiles — SDK hook, a view of the account's `User` (bloom-data).
   const localQuery = useUserByUsername(!readUnrated || isFederated ? null : handle || null);
   const minimalQuery = useQuery({
     queryKey: viewerQueryKeys.minimalProfile(viewerId, normalizedHandle),
@@ -298,9 +295,14 @@ export function useProfileData(username?: string): {
       : null;
 
   const profile =
-    (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile ?? documentProfile;
-  const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
-  const isError = isFederated ? federatedQuery.isError : localQuery.isError;
+    (isFederated ? federatedProfile : localQuery.value) ?? sessionProfile ?? documentProfile;
+  // React Query's `isPending`: nothing to show yet, skipped reads included.
+  const localPending =
+    localQuery.value === undefined &&
+    localQuery.status !== 'success' &&
+    localQuery.status !== 'error';
+  const isPending = isFederated ? federatedQuery.isPending : localPending;
+  const isError = isFederated ? federatedQuery.isError : localQuery.status === 'error';
   const queryError = isFederated ? federatedQuery.error : localQuery.error;
 
   // Appearance/customization (privacy, cover image, post count, color overrides).
@@ -331,7 +333,7 @@ export function useProfileData(username?: string): {
       if (!sessionProfile && !isFederated) await minimalQuery.refetch();
       return;
     }
-    const profileRequest = isFederated ? federatedQuery.refetch() : localQuery.refetch();
+    const profileRequest = isFederated ? federatedQuery.refetch() : localQuery.refresh();
     await Promise.all([profileRequest, ...(userId ? [appearanceQuery.refetch()] : [])]);
   }, [
     appearanceQuery,

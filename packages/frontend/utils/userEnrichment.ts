@@ -1,12 +1,11 @@
-import { queryKeys } from '@oxy.so/services/ui/client';
-import { cacheActor } from '@/lib/actorCache';
-import { queryClient } from '@/lib/queryClient';
+import { User as UserRecord } from '@oxy.so/services/ui/client';
+import { actorWriter } from '@/lib/actorCache';
 import type { User } from '@oxy.so/core';
 
 /**
  * For each user missing an avatar, fetch the full profiles in a SINGLE bulk
- * request and merge-upsert them into the React Query cache (the single in-memory
- * actor cache) via `lib/actorCache`. This avoids the classic N+1 —
+ * request and merge them into the SDK's `User` (the account's actor cache) via
+ * `lib/actorCache`. This avoids the classic N+1 —
  * one HTTP request per missing user — by routing the misses through
  * `oxyServices.users.getMany` (chunked 100/req, deduped) instead of looping
  * `getUserById`. The merge-upsert fills the avatar without stripping any field an
@@ -27,13 +26,10 @@ export function enrichMissingAvatars(
     .filter((id) => id.length > 0);
   if (missingIds.length === 0) return Promise.resolve();
 
+  const actors = actorWriter();
   return getUsersByIds(missingIds)
     .then((fetched) => {
-      for (const user of fetched) {
-        if (user?.id) {
-          cacheActor(user);
-        }
-      }
+      actors.cacheActors(fetched.filter((user) => Boolean(user?.id)));
     })
     .catch(() => {
       // Avatar enrichment is best-effort: placeholders stay in place on failure.
@@ -41,35 +37,31 @@ export function enrichMissingAvatars(
 }
 
 /**
- * Warm the React Query user cache for a set of user ids in a SINGLE bulk request,
- * skipping ids already cached at `queryKeys.users.detail(id)`. Each fetched
+ * Warm the SDK's `User` for a set of user ids in a SINGLE bulk request,
+ * skipping ids it already holds. Each fetched
  * profile is merge-upserted via `lib/actorCache` so per-row reads
  * (e.g. a list whose rows resolve a user by id) hit the warm cache instead of
  * firing one HTTP request per row — the classic N+1 — without clobbering any
  * field an authoritative fetch already stored. Best-effort: resolves to `[]` on
  * failure so callers degrade to their own per-row resolution.
  *
- * Reads and writes the app's singleton client directly rather than taking one:
- * the write goes through `lib/actorCache`, which is bound to that singleton, so
- * a caller passing a DIFFERENT client would have this skipping ids cached in one
- * cache while priming another.
+ * Reads and writes the signed-in account's store (the one `lib/actorCache`
+ * writes), captured before the request, so an answer that lands after an
+ * account switch primes nothing of the next account.
  */
 export function prewarmUsersByIds(
   ids: readonly string[],
   getUsersByIds: (ids: string[]) => Promise<User[]>,
 ): Promise<User[]> {
   const toFetch = Array.from(new Set(ids.filter((id) => id.length > 0))).filter(
-    (id) => !queryClient.getQueryData(queryKeys.users.detail(id)),
+    (id) => !UserRecord.has(id),
   );
   if (toFetch.length === 0) return Promise.resolve([]);
 
+  const actors = actorWriter();
   return getUsersByIds(toFetch)
     .then((fetched) => {
-      for (const user of fetched) {
-        if (user?.id) {
-          cacheActor(user);
-        }
-      }
+      actors.cacheActors(fetched.filter((user) => Boolean(user?.id)));
       return fetched;
     })
     .catch(() => []);

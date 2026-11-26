@@ -1,8 +1,8 @@
 import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import { useQueries } from '@tanstack/react-query';
-import { queryKeys } from '@oxy.so/services/ui/client';
+import { useEntities } from '@oxy.so/bloom-data';
+import { User as UserRecord } from '@oxy.so/services/ui/client';
 import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -69,22 +69,17 @@ const hostTokens = defineTokens({ avatarSize: { host: 48 } });
 const MAX_PARTICIPANT_AVATARS = 10;
 
 /**
- * The faces for one of the room's avatar piles, read from the same user cache
- * `useRoomUsers` warms (same key, same fetch), for only the ids the pile shows.
+ * The faces for one of the room's avatar piles, read from the SDK's `User`,
+ * which `useRoomUsers` warms for every participant, for only the ids the pile
+ * shows.
  */
 function useRoomAvatarItems(
   userIds: string[],
   oxyServices: Pick<OxyServices, 'assets' | 'users'>,
 ): AvatarGroupItem[] {
-  const results = useQueries({
-    queries: userIds.map((userId) => ({
-      queryKey: queryKeys.users.detail(userId),
-      queryFn: () => oxyServices.users.get(userId),
-      staleTime: 5 * 60 * 1000,
-    })),
-  });
+  const profiles = useEntities(UserRecord, userIds);
   return userIds.map((userId, index) => {
-    const profile = results[index]?.data as User | undefined;
+    const profile = profiles[index] as User | undefined;
     return {
       id: userId,
       uri: getAvatarUrl(profile, oxyServices),

@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
-import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { currentAccountId, subscribeAccount } from '@/lib/accountScope';
 import {
   Button,
   Embed,
@@ -156,7 +157,7 @@ const NotificationsScreen = screen(function NotificationsScreen() {
     (intent: NotificationIntent) =>
       canUsePrivateApi &&
       user?.id === intent.viewerId &&
-      useAuthStore.getState().user?.id === intent.viewerId &&
+      currentAccountId() === intent.viewerId &&
       oxyServices.session.isAuthenticated &&
       oxyServices.http.getSessionEpoch() === intent.epoch,
     [canUsePrivateApi, user?.id, oxyServices],
@@ -168,7 +169,7 @@ const NotificationsScreen = screen(function NotificationsScreen() {
   }, [user?.id, oxyServices, isCurrentIntent]);
   const subscribeSession = useCallback(
     (listener: () => void) => {
-      const unsubscribeUser = useAuthStore.subscribe(listener);
+      const unsubscribeUser = subscribeAccount(listener);
       try {
         const unsubscribeToken = oxyServices.session.onChange(listener);
         return () => {

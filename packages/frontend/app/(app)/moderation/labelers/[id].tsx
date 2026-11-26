@@ -7,7 +7,7 @@ import { useLocalSearchParams } from '@/lib/navigation/router';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { labelerService } from '@/services/labelerService';
-import { severityTokens, type Severity, type LabelActionType } from '@/components/LabelBadge';
+import type { Severity, LabelActionType } from '@/components/LabelBadge';
 import { logger } from '@oxy.so/core/logger';
 import {
   Divider as LDivider,
@@ -77,6 +77,19 @@ const ACTION_OPTIONS_CONFIG: { value: LabelAction; labelKey: string }[] = [
   { value: 'blur', labelKey: 'moderation.blur' },
   { value: 'hide', labelKey: 'moderation.hide' },
 ];
+
+/**
+ * Raw severity swatches. Module-local: exported, their inferred type names the
+ * language's `AppColorToken`, which its entry does not export (TS2883).
+ */
+const severityTokens = defineTokens({
+  color: {
+    low: '#6b7280',
+    medium: '#f59e0b',
+    high: '#f97316',
+    critical: '#ef4444',
+  },
+});
 
 /** A label's severity: the word in its swatch, on the swatch at 12.5% (hex `20`) inside a 31.4% (hex `50`) hairline. */
 function severityBadge(severity: Severity) {

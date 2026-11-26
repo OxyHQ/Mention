@@ -329,9 +329,7 @@ export function usePersonProfileView({
     await Promise.all([
       refreshAccount(),
       ...(profileData?.id && !isFederated ? [refetchLaneTabs()] : []),
-      ...(stableUserId && refreshFollowStatus && refreshFollowCounts
-        ? [refreshFollowStatus(), refreshFollowCounts()]
-        : []),
+      ...(stableUserId ? [refreshFollowStatus(), refreshFollowCounts()] : []),
     ]);
   }, [
     refreshAccount,

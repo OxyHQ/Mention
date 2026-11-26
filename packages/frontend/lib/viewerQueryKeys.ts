@@ -21,8 +21,9 @@ export function viewerCacheId(viewerId: ViewerId): string {
 
 /**
  * Mention-owned data that is identical for every caller. Canonical Oxy identity
- * objects are intentionally not duplicated here: callers must use
- * `@oxy.so/services`' `queryKeys.users.*` for those public identity records only.
+ * objects are intentionally not duplicated here: they live in `@oxy.so/services`'
+ * `User` (the account's bloom-data store), read with its `useUserById` or
+ * `useEntity(User, id)` and written through `lib/actorCache`.
  */
 export const publicQueryKeys = {
   commerceProducts: (query: string) => [...PUBLIC_ROOT, 'commerce-products', query] as const,

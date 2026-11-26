@@ -1,7 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { cacheActors } from '@/lib/actorCache';
+import { actorWriter } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
@@ -48,13 +48,14 @@ export const SuggestedUsers = memo(function SuggestedUsers({
     queryFn: async () => {
       const src = sourceUserId;
       if (!src) return [];
+      const actors = actorWriter();
       // `getSimilarProfiles` returns the SDK `User` shape (optional id); narrow
       // through `unknown` to the looser `ProfileData`, the same erasure the
       // recommendations path produces.
       const similar: unknown = await oxyServices.users.similar(src);
       const list: ProfileData[] = Array.isArray(similar) ? similar : [];
       if (list.length > 0) {
-        cacheActors(list);
+        actors.cacheActors(list);
         void enrichMissingAvatars(list.slice(0, maxCards), (ids) => oxyServices.users.getMany(ids));
       }
       return list;

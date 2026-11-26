@@ -28,7 +28,7 @@ import * as path from 'node:path';
  * `rgb(209 45 50)` in dark. So the exemption was certifying four real defects,
  * and it is gone.
  *
- * Local hard-coded hex palettes (e.g. `severityTokens` in `LabelBadge`) ARE
+ * Local hard-coded hex palettes (e.g. `severityTokens` on the labeler screen) ARE
  * still legitimate, which is why this scanner keys on `colors.<role>` rather
  * than on "a template literal followed by two hex digits".
  *

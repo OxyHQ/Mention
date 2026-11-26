@@ -8,6 +8,7 @@ import type {
 import { createLogger } from '@oxy.so/core/logger';
 import type { FeedItem } from '@/db/schema';
 import { toFeedItem } from '@/db/feedItem';
+import { actorWriter } from '@/lib/actorCache';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { requestFeedPage, takeBootFeedRead } from '@/services/feedPageRead';
 import { advanceLocalPostRevision } from '@/stores/feedScrollStore';
@@ -160,6 +161,8 @@ async function loadFeedPage(
   }: { cursor: string | undefined; signal: AbortSignal; current: ListState<FeedExtra> | undefined },
   feed: FeedIdentity,
 ): Promise<Page<FeedItem, FeedExtra>> {
+  // Bound to the account asking, before the request leaves.
+  const actors = actorWriter();
   try {
     // The home feed's first page may already have been read while the app
     // booted, for this same viewer. Not awaited when there is none: the read
@@ -181,7 +184,7 @@ async function loadFeedPage(
       interstitials: response.interstitials,
     });
     // The web feed's only actor source: avatars and names render from it.
-    precacheActorsFromPosts(content.items);
+    precacheActorsFromPosts(content.items, actors);
 
     const pending = Boolean(feed.userId) && response.pending === true && content.items.length === 0;
     // A still-syncing outbox answering empty is not the profile emptying: a

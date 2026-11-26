@@ -8,13 +8,12 @@ import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiIndeterminateCircleFill } from '@oxy.so/bloom/icons/RiIndeterminateCircleFill';
-import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { listsService } from '@/services/listsService';
 
 import { logger } from '@oxy.so/core/logger';
-import { queryClient } from '@/lib/queryClient';
+import { actorWriter } from '@/lib/actorCache';
 import type { User } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
 import {
@@ -79,18 +78,16 @@ const EditListMembersScreen = screen(function EditListMembersScreen() {
     setLoading(true);
     setError(null);
     try {
+      // Bound to the account asking, before the first request leaves.
+      const actors = actorWriter();
       const data = await listsService.get(listId);
       const memberIds: string[] = Array.isArray(data?.memberOxyUserIds)
         ? data.memberOxyUserIds
         : [];
-      // Single bulk fetch (no per-id N+1); prime the shared React Query cache so
+      // Single bulk fetch (no per-id N+1); prime the SDK's `User` so
       // downstream profile reads for these members hit the cache.
       const fetched = await oxyServices.users.getMany(memberIds);
-      for (const user of fetched) {
-        if (user?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
-        }
-      }
+      actors.cacheActors(fetched.filter((user) => Boolean(user?.id)));
       const byId = new Map(fetched.map((user) => [user.id, user]));
       const profiles = memberIds
         .map((uid) => byId.get(uid))

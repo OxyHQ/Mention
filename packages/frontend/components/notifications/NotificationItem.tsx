@@ -3,7 +3,6 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
@@ -12,7 +11,8 @@ import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { hoverGroupProps, SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { createTokenStyles, tokenAlpha, useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { queryKeys as sdkQueryKeys } from '@oxy.so/services/ui/client';
+import { type Store, useStore, withStore } from '@oxy.so/bloom-data';
+import { User as UserRecord } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { notificationSubjectHref } from '@/utils/notificationRoute';
@@ -60,6 +60,11 @@ import {
   defineModifier,
   type StackView,
 } from '@oxy.so/bloom-language';
+
+/** The account's held copy of a person (the SDK's `User`), read once without subscribing. */
+function readUser(store: Store, id: string): User | undefined {
+  return withStore(store, () => UserRecord.get(id)) as User | undefined;
+}
 
 /** The byline's name keeps its width; the handle beside it gives way. */
 const NAME_HOLDS_WIDTH = defineModifier((v) => v.shrink('never'));
@@ -364,7 +369,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const theme = useTheme();
   const rowTokens = useRowTokens();
   const surfaceFill = useSurfaceFill();
-  const queryClient = useQueryClient();
+  const dataStore = useStore();
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
   // Accepting/declining an invite mutates the post's authorship, so the updated
   // post must be propagated here — updating only the React Query post-detail cache
@@ -428,17 +433,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
           : mergeActor(
               actor,
               // An actor with no id has no cache entry and no edit to lay over
-              // it; reading the cache under an `undefined` key would ask for a
-              // query key that cannot exist.
+              // it; reading the cache under an `undefined` id would ask for a
+              // record that cannot exist.
               actor.id
-                ? correctedIdentity(
-                    queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id)),
-                    knownIdentities.get(actor.id),
-                  )
+                ? correctedIdentity(readUser(dataStore, actor.id), knownIdentities.get(actor.id))
                 : undefined,
             ),
       ),
-    [item.actors, resolvedPrimary, queryClient, knownIdentities],
+    [item.actors, resolvedPrimary, dataStore, knownIdentities],
   );
 
   // Collab invites carry no backend preview — read the invited post through the
@@ -1064,6 +1066,7 @@ const rowStyles = StyleSheet.create({
 // Memoized: a realtime patch to one notification (or a parent re-render) must not
 // re-render every row — the parent passes a stable `item` and a memoized
 // `onMarkAsRead`.
+
 export const NotificationItem = React.memo(NotificationItemComponent);
 
 /** The identity marker sits centred on the name line, 4pt after the name. */

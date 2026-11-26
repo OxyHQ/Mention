@@ -1,19 +1,18 @@
 /**
- * Reactive user-cache reads backed by React Query (the single in-memory actor
- * cache). These adapters return the cached `User` directly — matching the prior
- * selector shape — so call sites read `user?.username` etc. unchanged while the
- * underlying cache is now React Query, which works on web (no SQLite /
- * SharedArrayBuffer required) and native alike.
+ * Reactive user-cache reads backed by the SDK's `User` (Services 15: one
+ * `@oxy.so/bloom-data` store per account, the account's actor cache). These
+ * adapters return the cached `User` directly — matching the prior selector
+ * shape — so call sites read `user?.username` etc. unchanged.
  */
 
-import { skipToken, useQuery } from '@tanstack/react-query';
-import { queryKeys, useUserById as useSdkUserById } from '@oxy.so/services/ui/client';
+import { useEntity } from '@oxy.so/bloom-data';
+import { User as UserRecord, useUserById as useSdkUserById } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 
-/** Reactively read a cached user by id. Subscribes to the React Query cache. */
+/** Reactively read a user by id, fetching it when it is not held. */
 export function useUserById(id?: string): User | undefined {
-  const { data } = useSdkUserById(id ?? null, { enabled: Boolean(id) });
-  return data ?? undefined;
+  const { value } = useSdkUserById(id ?? null, { enabled: Boolean(id) });
+  return value ?? undefined;
 }
 
 /**
@@ -21,15 +20,10 @@ export function useUserById(id?: string): User | undefined {
  *
  * For list rows whose payload already carries what they draw (a recommendation
  * has the username, avatar and colour). {@link useUserById} would refetch every
- * row: the actor cache seeds a cold entry stale on purpose, so a row mounting on
- * it asks Oxy for that person again — five requests for a five-person rail. This
- * still picks up anything written to the entry later (a batched avatar
- * enrichment), because it subscribes to the same key.
+ * row it does not hold — five requests for a five-person rail. This still picks
+ * up anything written to the record later (a batched avatar enrichment),
+ * because it subscribes to the same record.
  */
 export function useCachedUserSnapshot(id?: string): User | undefined {
-  const { data } = useQuery<User>({
-    queryKey: queryKeys.users.detail(id ?? ''),
-    queryFn: skipToken,
-  });
-  return data;
+  return useEntity(UserRecord, id || undefined) as User | undefined;
 }

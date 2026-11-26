@@ -1,6 +1,6 @@
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
-import { queryClient } from '@/lib/queryClient';
+import { actorWriter } from '@/lib/actorCache';
 import { refreshPrivacyLists } from '@/services/privacyService';
 import { searchService } from '@/services/searchService';
 import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
@@ -13,7 +13,6 @@ import {
 } from '@oxy.so/bloom/surfaces';
 import type { User } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
-import { queryKeys } from '@oxy.so/services/ui/client';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -82,6 +81,8 @@ export default function RestrictedUsersScreen() {
     try {
       setLoading(true);
       restrictedLogger.debug('Loading restricted users...');
+      // Bound to the account asking, before the first request leaves.
+      const actors = actorWriter();
       const restrictedUsersList = await oxyServices.privacy.restricted();
       restrictedLogger.debug('Oxy response', {
         count: restrictedUsersList?.length,
@@ -114,13 +115,9 @@ export default function RestrictedUsersScreen() {
 
       // Single bulk fetch for all restricted profiles (no per-id N+1, no
       // manual batching — the SDK chunks 100/req internally). Results are
-      // primed into the shared React Query cache for downstream reads.
+      // primed into the SDK's `User` for downstream reads.
       const fetched = await oxyServices.users.getMany(userIds);
-      for (const user of fetched) {
-        if (user?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
-        }
-      }
+      actors.cacheActors(fetched.filter((user) => Boolean(user?.id)));
       // Preserve order; drop ids the bulk fetch couldn't resolve.
       const byId = new Map(fetched.map((user) => [user.id, user]));
       const users = userIds.map((id) => byId.get(id)).filter((user): user is User => Boolean(user));

@@ -19,7 +19,7 @@ import { Platform } from 'react-native';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
-import { cacheActors } from '@/lib/actorCache';
+import { actorWriter } from '@/lib/actorCache';
 import { useAuth, type CacheableUser } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
@@ -224,18 +224,19 @@ function ConnectionsContent({
     queryFn: async ({ pageParam }): Promise<ConnectionsPage> => {
       if (!profileId) return { users: [] };
       const kind = listKind ?? 'followers';
+      const actors = actorWriter();
       try {
         if (isFederatedProfile) {
           const page = await fetchProfileConnections(profileId, kind, pageParam);
           // `PostUser` is an interface, so it is spread into a plain record to cache.
-          cacheActors(page.users.map((item): CacheableUser => ({ ...item })));
+          actors.cacheActors(page.users.map((item): CacheableUser => ({ ...item })));
           return { users: page.users, nextCursor: page.nextCursor };
         }
         const list =
           kind === 'following'
             ? (await oxyServices.follows.following(profileId)).following
             : (await oxyServices.follows.followers(profileId)).followers;
-        cacheActors(list);
+        actors.cacheActors(list);
         return { users: list };
       } catch (err) {
         // The lists are public; an auth error (no usable bearer yet on cold
@@ -314,10 +315,11 @@ function ConnectionsContent({
     queryFn: async () => {
       const targetId = profileId;
       if (!targetId) return [];
+      const actors = actorWriter();
       try {
         const result = await oxyServices.follows.mutuals(targetId, { limit: 50 });
         const list = result.mutuals;
-        cacheActors(list);
+        actors.cacheActors(list);
         return list;
       } catch (err) {
         // Mutuals require a viewer; on an auth error (no usable bearer yet on

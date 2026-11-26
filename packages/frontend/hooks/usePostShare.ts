@@ -1,11 +1,9 @@
-import { queryKeys } from '@oxy.so/services/ui/client';
-import type { User } from '@oxy.so/core';
+import { User as UserRecord } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { toast } from '@oxy.so/bloom/toast';
 import i18n from '@/lib/i18n';
 import { shareLink } from '@/utils/shareLink';
-import { queryClient } from '@/lib/queryClient';
 import { postPermalink } from '@/utils/postPermalink';
 import { toReaderText } from '@mention/shared-types/textEntities';
 
@@ -45,7 +43,7 @@ export async function sharePost(post: SharePost | null | undefined): Promise<voi
     let handle = getNormalizedUserHandle(user) || '';
     if (!handle && id) {
       try {
-        const cached = queryClient.getQueryData<User>(queryKeys.users.detail(id));
+        const cached = UserRecord.get(id);
         handle = cached?.username || '';
       } catch (lookupError) {
         logger.debug('User lookup failed during share', { error: lookupError });

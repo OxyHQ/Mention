@@ -11,7 +11,7 @@
  */
 
 import type { CacheableUser } from '@oxy.so/services/ui/client';
-import { cacheActors } from '@/lib/actorCache';
+import { type ActorWriter, actorWriter } from '@/lib/actorCache';
 
 /**
  * A post-shaped record carrying actors from the canonical hydration contract.
@@ -35,7 +35,10 @@ interface PostWithActors {
  * actor. Hydration may expose the same related post through `originalPost` and
  * the more specific quote/boost field, so precedence avoids duplicate upserts.
  */
-export function precacheActorsFromPosts(posts: readonly unknown[] | null | undefined): void {
+export function precacheActorsFromPosts(
+  posts: readonly unknown[] | null | undefined,
+  writer: ActorWriter = actorWriter(),
+): void {
   if (!Array.isArray(posts) || posts.length === 0) return;
 
   const users: CacheableUser[] = [];
@@ -55,5 +58,5 @@ export function precacheActorsFromPosts(posts: readonly unknown[] | null | undef
   // post in the response is authored by the account whose picture just changed,
   // which is what made this the surface the bug was found on — but not the only
   // one that could cause it, which is why the correction is not here.
-  cacheActors(users);
+  writer.cacheActors(users);
 }

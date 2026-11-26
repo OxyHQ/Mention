@@ -1,11 +1,11 @@
-import { memo } from 'react';
-import { skipToken, useQueries } from '@tanstack/react-query';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListItem } from '@oxy.so/bloom/list';
 import type { ChatFace, ChatPreview } from '@oxy.so/bloom/chat-list';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { queryKeys } from '@oxy.so/services/ui/client';
+import { useEntities } from '@oxy.so/bloom-data';
+import { User as UserRecord } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 import { useRouter } from '@/lib/navigation/router';
@@ -54,15 +54,11 @@ export const PrivateMentionRow = memo(function PrivateMentionRow({
   const router = useRouter();
   const { latestPost, participantIds, rootId, lastActivityAt } = conversation;
 
-  const cached = useQueries({
-    queries: participantIds.slice(0, MAX_FACES).map((id) => ({
-      queryKey: queryKeys.users.detail(id),
-      queryFn: skipToken,
-    })),
-  });
+  const faceIds = useMemo(() => participantIds.slice(0, MAX_FACES), [participantIds]);
+  const cached = useEntities(UserRecord, faceIds);
 
-  const participants: Participant[] = participantIds.slice(0, MAX_FACES).map((id, index) => {
-    const user = cached[index]?.data as User | undefined;
+  const participants: Participant[] = faceIds.map((id, index) => {
+    const user = cached[index] as User | undefined;
     if (user) return user;
     if (latestPost.user?.id === id) return latestPost.user;
     return { id };
