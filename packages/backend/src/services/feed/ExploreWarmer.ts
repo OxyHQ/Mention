@@ -32,6 +32,14 @@ const WARM_LOCK_KEY = 'explore:warm';
  */
 const WARM_LOCK_TTL_MS = 3 * 60 * 1000;
 
+/**
+ * How long the warm-up rests after a failed read. A read that fails is a read
+ * that ran out its whole statement budget (45 s of disk reads) against a database
+ * that is already starved: repeating it every cadence would be the extra load
+ * that keeps it starved. On 2026-11-26 every run timed out for hours.
+ */
+const REST_AFTER_FAILURE_MS = 30 * 60 * 1000;
+
 /** What the warm-up asks for. Only the scan matters, so a small page is enough. */
 const WARM_CAP = 20;
 
@@ -42,6 +50,8 @@ export class ExploreWarmer {
   private timer: ReturnType<typeof setInterval> | null = null;
   /** The warm-up in flight on this task, so a second trigger joins it instead of scanning again. */
   private inFlight: Promise<void> | null = null;
+  /** Until when a failed read keeps the warm-up from trying again. */
+  private restUntil = Number.NEGATIVE_INFINITY;
 
   constructor(private readonly lock: DistributedLock = createRedisLock()) {}
 
@@ -77,6 +87,7 @@ export class ExploreWarmer {
   }
 
   private async warmOnceAcrossTasks(): Promise<void> {
+    if (Date.now() < this.restUntil) return;
     const attempt = await this.lock.tryAcquire(WARM_LOCK_KEY, WARM_LOCK_TTL_MS);
     if (attempt.status === 'held') return;
     try {
@@ -88,6 +99,9 @@ export class ExploreWarmer {
       logger.info(
         `[ExploreWarmer] Warmed ${rows.length} candidates in ${Date.now() - startedAt} ms`,
       );
+    } catch (error) {
+      this.restUntil = Date.now() + REST_AFTER_FAILURE_MS;
+      throw error;
     } finally {
       if (attempt.status === 'acquired') await attempt.release();
     }

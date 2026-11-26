@@ -55,17 +55,39 @@ describe('ExploreWarmer.runOnce', () => {
     expect(source.gather).toHaveBeenCalledTimes(1);
   });
 
-  it('releases the lock and can run again after a failed read', async () => {
-    const release = vi.fn(async () => {});
-    const warmer = new ExploreWarmer({
-      tryAcquire: async () => ({ status: 'acquired', release }),
+  describe('after a failed read', () => {
+    function failedOnce() {
+      const release = vi.fn(async () => {});
+      const warmer = new ExploreWarmer({
+        tryAcquire: async () => ({ status: 'acquired', release }),
+      });
+      source.gather.mockRejectedValueOnce(new Error('statement timeout'));
+      return { warmer, release };
+    }
+
+    it('releases the lock and rests, so a starved database is not read again at once', async () => {
+      const { warmer, release } = failedOnce();
+
+      await expect(warmer.runOnce()).rejects.toThrow('statement timeout');
+      await warmer.runOnce();
+
+      expect(release).toHaveBeenCalledTimes(1);
+      expect(source.gather).toHaveBeenCalledTimes(1);
     });
-    source.gather.mockRejectedValueOnce(new Error('statement timeout'));
 
-    await expect(warmer.runOnce()).rejects.toThrow('statement timeout');
-    await warmer.runOnce();
+    it('reads again once the rest is over', async () => {
+      vi.useFakeTimers();
+      try {
+        const { warmer } = failedOnce();
+        await expect(warmer.runOnce()).rejects.toThrow('statement timeout');
 
-    expect(release).toHaveBeenCalledTimes(2);
-    expect(source.gather).toHaveBeenCalledTimes(2);
+        vi.advanceTimersByTime(31 * 60 * 1000);
+        await warmer.runOnce();
+
+        expect(source.gather).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
