@@ -354,7 +354,7 @@ jobs:
 
   # quality's hosted twin in the Seldon race: the same name and steps.
   quality-hosted:
-    name: Build, lint and typecheck
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Build, lint and typecheck' || 'Build, lint and typecheck (seldon twin, off)' }}
     needs: [provenance, race]
     if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && needs.provenance.outputs.verified != 'true') }}
     runs-on: ubuntu-latest
@@ -366,7 +366,7 @@ jobs:
 
   # quality's rescue: reruns it hosted when a Seldon lane of it failed.
   quality-rescue:
-    name: Build, lint and typecheck
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Build, lint and typecheck' || 'Build, lint and typecheck (seldon rescue, off)' }}
     needs: [provenance, quality]
     if: ${{ !cancelled() && needs.quality.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
@@ -562,7 +562,7 @@ jobs:
 
   # tests's hosted twin in the Seldon race: the same name and steps.
   tests-hosted:
-    name: Test ${{ matrix.package }}
+    name: ${{ vars.CI_SELDON_RACE == 'true' && format('Test {0}', matrix.package) || format('Test {0} (seldon twin, off)', matrix.package) }}
     needs: [provenance, race]
     if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && needs.provenance.outputs.verified != 'true') }}
     runs-on: ubuntu-latest
@@ -577,7 +577,7 @@ jobs:
 
   # tests's rescue: reruns it hosted when a Seldon lane of it failed.
   tests-rescue:
-    name: Test ${{ matrix.package }}
+    name: ${{ vars.CI_SELDON_RACE == 'true' && format('Test {0}', matrix.package) || format('Test {0} (seldon rescue, off)', matrix.package) }}
     needs: [provenance, tests]
     if: ${{ !cancelled() && needs.tests.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
@@ -739,7 +739,7 @@ jobs:
 
   # backend-test's hosted twin in the Seldon race: the same name and steps.
   backend-test-hosted:
-    name: Test backend (${{ matrix.shard }}/${{ strategy.job-total }})
+    name: ${{ vars.CI_SELDON_RACE == 'true' && format('Test backend ({0}/{1})', matrix.shard, strategy.job-total) || format('Test backend ({0}/{1}) (seldon twin, off)', matrix.shard, strategy.job-total) }}
     needs: [provenance, race]
     if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && needs.provenance.outputs.verified != 'true') }}
     runs-on: ubuntu-latest
@@ -754,7 +754,7 @@ jobs:
 
   # backend-test's rescue: reruns it hosted when a Seldon lane of it failed.
   backend-test-rescue:
-    name: Test backend (${{ matrix.shard }}/${{ strategy.job-total }})
+    name: ${{ vars.CI_SELDON_RACE == 'true' && format('Test backend ({0}/{1})', matrix.shard, strategy.job-total) || format('Test backend ({0}/{1}) (seldon rescue, off)', matrix.shard, strategy.job-total) }}
     needs: [provenance, backend-test]
     if: ${{ !cancelled() && needs.backend-test.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
