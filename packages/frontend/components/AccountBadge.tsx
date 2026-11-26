@@ -1,19 +1,16 @@
-import { tokens } from '@oxy.so/bloom/styles';
-import { useCallback } from 'react';
-import {
-  Pressable,
-  View,
-  type GestureResponderEvent,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { AccountKind } from '@oxy.so/core';
 import { isMentionChannel } from '@mention/shared-types/profileUrls';
-import type { BloomIconComponent } from '@oxy.so/bloom';
 import { RiFediverseLine } from '@oxy.so/bloom/icons/RiFediverseLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
+import {
+  Icon,
+  type IconComponent,
+  type IconSizeToken,
+  type ViewModifier,
+  VStack,
+  view,
+} from '@oxy.so/bloom-language';
 
 /**
  * The quiet marker that sits beside a name saying what KIND of account it is —
@@ -50,82 +47,54 @@ import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 
 /** Presentation shared by every marker below. */
 interface IdentityBadgeVisualProps {
-  /** Icon size in px. Defaults to 15 (inline-with-text size). */
-  size?: number;
+  /** Icon size. Defaults to 15 (inline-with-text size). */
+  size?: IconSizeToken;
   /** Icon ink: the theme's foreground, or (the default) its muted foreground. */
   tone?: 'foreground' | 'muted';
-  /** Style for the wrapper (e.g. the baseline-nudge transform in UserName). */
-  style?: StyleProp<ViewStyle>;
-}
-
-interface IdentityMarkerProps extends IdentityBadgeVisualProps {
-  Icon: BloomIconComponent;
-  a11yLabel: string;
-  /**
-   * Opt IN to interactivity. Absent → a plain icon that cannot be tapped and
-   * cannot swallow an enclosing row's press.
-   *
-   * Deliberately named for what it DOES here rather than for which explainer it
-   * opens: each branch of {@link AccountBadge} hands it that branch's own
-   * handler, and this component is the shared mechanism, not the choice.
-   */
-  onExplain?: () => void;
+  /** The caller's placement of the marker (e.g. the baseline nudge in UserName). */
+  look?: ViewModifier;
 }
 
 /**
  * The one place that decides whether a marker is a control or a statement, and
  * the one place that computes its icon tone.
+ *
+ * `onExplain` opts IN to interactivity. Absent: a plain icon that cannot be
+ * tapped and cannot swallow an enclosing row's press. It is named for what it
+ * DOES here rather than for which explainer it opens: each branch of
+ * {@link AccountBadge} hands it that branch's own handler, and this is the shared
+ * mechanism, not the choice.
  */
-function IdentityMarker({
-  Icon,
-  a11yLabel,
-  onExplain,
-  size = 15,
-  tone,
-  style,
-}: IdentityMarkerProps) {
-  const handlePress = useCallback(
-    (event?: GestureResponderEvent) => {
-      // Only reachable when a caller opted in. The marker still sits inside an
-      // identity line that a parent may make pressable, so an opted-in marker
-      // keeps its tap to itself rather than also firing the row's navigation.
-      event?.stopPropagation?.();
-      onExplain?.();
-    },
-    [onExplain],
-  );
-
-  const { colors } = useTheme();
-  const icon = (
-    <Icon
-      width={size}
-      height={size}
-      fill={tone === 'foreground' ? colors.text : colors.textSecondary}
-    />
-  );
+function identityMarker(
+  glyph: IconComponent,
+  a11yLabel: string,
+  onExplain: (() => void) | undefined,
+  { size = '15', tone, look }: IdentityBadgeVisualProps,
+) {
+  const marker = VStack(
+    Icon(glyph)
+      .size(size)
+      .foreground(tone === 'foreground' ? 'foreground' : 'muted'),
+  ).label(a11yLabel);
 
   if (!onExplain) {
     // `image` rather than no role: the marker carries meaning a sighted reader
     // gets from the glyph, so it stays in the accessibility tree — it simply
     // stops being announced as something that can be activated.
-    return (
-      <View style={style} accessibilityRole="image" accessibilityLabel={a11yLabel}>
-        {icon}
-      </View>
-    );
+    return marker.role('image').modifier(look);
   }
 
-  return (
-    <Pressable
-      onPress={handlePress}
-      accessibilityRole="button"
-      accessibilityLabel={a11yLabel}
-      hitSlop={tokens.hitSlop.md}
-      style={style}
-    >
-      {icon}
-    </Pressable>
-  );
+  return marker
+    .onPress((event) => {
+      // Only reachable when a caller opted in. The marker still sits inside an
+      // identity line that a parent may make pressable, so an opted-in marker
+      // keeps its tap to itself rather than also firing the row's navigation.
+      event?.stopPropagation?.();
+      onExplain();
+    })
+    .role('button')
+    .hitSlop('md')
+    .modifier(look);
 }
 
 export interface AccountBadgeProps extends IdentityBadgeVisualProps {
@@ -172,14 +141,14 @@ export interface AccountBadgeProps extends IdentityBadgeVisualProps {
  */
 export function AccountBadge(props: AccountBadgeProps) {
   // Most accounts draw no marker at all, and this sits in every post header
-  // (twice). Deciding that BEFORE any hook keeps the common case at zero hook
-  // slots — `useTranslation` alone is a dozen, plus an i18n listener, per
-  // instance (#1103).
+  // (twice). Deciding that BEFORE any view keeps the common case at no fiber and
+  // zero hook slots — `useTranslation` alone is a dozen, plus an i18n listener,
+  // per instance (#1103).
   if (!props.isFederated && !isMentionChannel(props)) return null;
-  return <AccountBadgeMarker {...props} />;
+  return AccountBadgeMarker(props);
 }
 
-function AccountBadgeMarker({
+const AccountBadgeMarker = view(function AccountBadgeMarker({
   kind,
   isFederated,
   onExplainNetwork,
@@ -189,22 +158,13 @@ function AccountBadgeMarker({
   const { t } = useTranslation();
 
   if (isMentionChannel({ kind, isFederated })) {
-    return (
-      <IdentityMarker
-        {...visual}
-        Icon={RiMegaphoneLine}
-        a11yLabel={t('channels.badge.a11yLabel')}
-        onExplain={onExplainChannel}
-      />
-    );
+    return identityMarker(RiMegaphoneLine, t('channels.badge.a11yLabel'), onExplainChannel, visual);
   }
 
-  return (
-    <IdentityMarker
-      {...visual}
-      Icon={RiFediverseLine}
-      a11yLabel={t('fediverse.remoteBadge.a11yLabel')}
-      onExplain={onExplainNetwork}
-    />
+  return identityMarker(
+    RiFediverseLine,
+    t('fediverse.remoteBadge.a11yLabel'),
+    onExplainNetwork,
+    visual,
   );
-}
+});

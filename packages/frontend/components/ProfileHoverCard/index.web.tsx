@@ -96,6 +96,9 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
   // colour, including the floating surface (see `resolveProfileColor`).
   // asChild carries the scoped CSS variables onto the portaled panel.
   const profileColor = resolveProfileColor(profile?.design?.color);
+  const badge = profile
+    ? AccountBadge({ isFederated: profile.isFederated, kind: profile.kind, size: '13' })
+    : null;
 
   return (
     <BloomColorScope {...profileColor} asChild>
@@ -107,11 +110,7 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
           displayName={profile?.design.displayName?.trim() || username}
           username={profile?.username || username}
           verified={profile?.verified}
-          badge={
-            profile ? (
-              <AccountBadge isFederated={profile.isFederated} kind={profile.kind} size={13} />
-            ) : undefined
-          }
+          badge={badge ? toElement(badge) : undefined}
           bio={profile?.bio || undefined}
           stats={
             profile

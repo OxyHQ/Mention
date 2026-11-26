@@ -749,16 +749,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                         .shrink('first')
                         .lines(1)
                     : null,
-                  Embed(
-                    isSingleActor ? (
-                      <AccountBadge
-                        isFederated={resolvedPrimary.isFederated}
-                        kind={resolvedPrimary.kind}
-                        size={13}
-                        style={BADGE_PLACEMENT}
-                      />
-                    ) : null,
-                  ),
+                  isSingleActor
+                    ? AccountBadge({
+                        isFederated: resolvedPrimary.isFederated,
+                        kind: resolvedPrimary.kind,
+                        size: '13',
+                        look: BADGE_PLACEMENT,
+                      })
+                    : null,
                 )
                   .frame({ minWidth: 'none' })
                   .align('end')
@@ -1069,4 +1067,4 @@ const rowStyles = StyleSheet.create({
 export const NotificationItem = React.memo(NotificationItemComponent);
 
 /** The identity marker sits centred on the name line, 4pt after the name. */
-const BADGE_PLACEMENT = { alignSelf: 'center', marginLeft: 4 } as const;
+const BADGE_PLACEMENT = defineModifier((v) => v.alignSelf('center').margin('left', 'xs'));

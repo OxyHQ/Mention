@@ -166,6 +166,8 @@ const MENU_GLYPH = Icon(RiMoreFill)
 
 /** The name's column shrinks with the identity line, so a long name ellipsizes. */
 const NAME_COLUMN = defineModifier((v) => v.shrink('normal'));
+/** The identity marker sits centred on the name line, 4pt after the name. */
+const BADGE_PLACEMENT = defineModifier((v) => v.alignSelf('center').margin('left', 'xs'));
 const SHRINK_STYLE = { minWidth: 0, flexShrink: 1 } as const;
 
 /** The row's inks that are not language chains, as Bloom paints its own: once per palette. */
@@ -1486,14 +1488,12 @@ function PostRow(props: PostItemProps): Child {
           .frame({ minWidth: 'none' })
           .lines(1)
       : null;
-  const identityBadge = Embed(
-    <AccountBadge
-      isFederated={user.isFederated}
-      kind={user.kind}
-      size={13}
-      style={{ alignSelf: 'center', marginLeft: 4 }}
-    />,
-  );
+  const identityBadge = AccountBadge({
+    isFederated: user.isFederated,
+    kind: user.kind,
+    size: '13',
+    look: BADGE_PLACEMENT,
+  });
 
   const identity = isCollabByline
     ? Embed(

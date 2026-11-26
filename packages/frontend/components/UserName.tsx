@@ -8,6 +8,7 @@ import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 import { AccountBadge } from '@/components/AccountBadge';
 import type { UserNameProps, UserNameSize } from '@/components/Profile/types';
 import {
+  defineModifier,
   defineTokens,
   Embed,
   HStack,
@@ -18,6 +19,7 @@ import {
   type FontSizeName,
   type IconSizeToken,
   type PaddingToken,
+  type ViewModifier,
 } from '@oxy.so/bloom-language';
 
 /** The verified badge's blue, an app colour: the same in both schemes and under every preset. */
@@ -26,12 +28,17 @@ const BADGE = defineTokens({ color: { verified: VERIFIED_BADGE_COLOR } });
 interface NameSize {
   /** The name's font size. */
   font: FontSizeName;
-  /** The side of every glyph beside the name: the font size, in points and as a token. */
-  side: number;
+  /** The side of every glyph beside the name: the font size. */
   glyph: IconSizeToken;
-  /** How far the glyphs sit below the row's centre, onto the text's baseline, in points and as a token. */
-  nudge: number;
+  /** How far the glyphs sit below the row's centre, onto the text's baseline. */
   nudgeToken: PaddingToken;
+  /** The account badge's nudge: on every platform, as its own view's offset. */
+  badgeLook: ViewModifier;
+}
+
+/** A view nudged down onto the name's baseline. */
+function nudged(y: PaddingToken): ViewModifier {
+  return defineModifier((v) => v.offset({ y }));
 }
 
 /**
@@ -39,10 +46,10 @@ interface NameSize {
  * of it (18% for the title size), rounded to a whole point.
  */
 const NAME_SIZES: Record<UserNameSize, NameSize> = {
-  sm: { font: '14', side: 14, glyph: '14', nudge: 1, nudgeToken: '1' },
-  md: { font: 'md', side: 15, glyph: '15', nudge: 1, nudgeToken: '1' },
-  lg: { font: '16', side: 16, glyph: 'sm', nudge: 1, nudgeToken: '1' },
-  xl: { font: '24', side: 24, glyph: 'lg', nudge: 4, nudgeToken: 'xs' },
+  sm: { font: '14', glyph: '14', nudgeToken: '1', badgeLook: nudged('1') },
+  md: { font: 'md', glyph: '15', nudgeToken: '1', badgeLook: nudged('1') },
+  lg: { font: '16', glyph: 'sm', nudgeToken: '1', badgeLook: nudged('1') },
+  xl: { font: '24', glyph: 'lg', nudgeToken: 'xs', badgeLook: nudged('xs') },
 };
 
 /**
@@ -74,7 +81,7 @@ const UserName = view(function UserName({
   lineSpacing,
   handleTrailing,
 }: UserNameProps) {
-  const { font, side, glyph, nudge, nudgeToken } = NAME_SIZES[size];
+  const { font, glyph, nudgeToken, badgeLook } = NAME_SIZES[size];
 
   // Opt-in centered layout (default `'start'` keeps every existing caller
   // byte-unchanged): center the name row + handle line for a stacked, centered
@@ -190,17 +197,15 @@ const UserName = view(function UserName({
     // both, and nothing at all for an ordinary local account. Inert unless the
     // caller passed the handler for the marker it draws; forwarded, never chosen
     // between here.
-    Embed(
-      <AccountBadge
-        isFederated={isFederated}
-        kind={kind}
-        onExplainNetwork={onExplainNetwork}
-        onExplainChannel={onExplainChannel}
-        size={side}
-        tone="foreground"
-        style={{ transform: [{ translateY: nudge }] }}
-      />,
-    ),
+    AccountBadge({
+      isFederated,
+      kind,
+      onExplainNetwork,
+      onExplainChannel,
+      size: glyph,
+      tone: 'foreground',
+      look: badgeLook,
+    }),
     isAgent
       ? Icon(RiSparklingLine)
           .size(glyph)
