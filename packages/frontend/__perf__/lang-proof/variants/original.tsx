@@ -1,3 +1,6 @@
+// DEV ONLY: Settings -> Notifications as it shipped before the `.bloom` port
+// (components/settings/pages/notifications.tsx at 815844431, verbatim), kept to
+// measure against the port (`../README.md`).
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
 import { useViewerSettingsSection } from '@/hooks/useViewerSettings';

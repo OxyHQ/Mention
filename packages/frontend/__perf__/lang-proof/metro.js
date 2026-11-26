@@ -1,8 +1,8 @@
 // DEV ONLY: the Metro side of the Bloom language proof app (README.md here).
 // Loaded by `metro.config.js` only when `BLOOM_LANG_PROOF=1`.
 //
-// The notification-settings screen (the TypeScript original and its `.bloom`
-// port) imports three app hooks; for the screen's own files, and nothing else,
+// The notification-settings screen (its `.bloom` port and the two TypeScript
+// variants it is measured against) imports three app hooks; for the screen's own files, and nothing else,
 // those imports resolve to the deterministic stand-ins in `stand-ins/`, the same
 // modules the Jest harness mocks them with.
 const path = require('node:path');
@@ -14,7 +14,11 @@ const STAND_INS = {
 };
 
 /** The screen files whose imports are redirected (extension stripped). */
-const SCREENS = ['components/settings/pages/notifications'];
+const SCREENS = [
+  'components/settings/pages/notifications',
+  '__perf__/lang-proof/variants/original',
+  '__perf__/lang-proof/variants/cleaned',
+];
 
 function withProofStandIns(config, projectRoot) {
   const screens = SCREENS.map((screen) => path.join(projectRoot, screen));

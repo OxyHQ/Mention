@@ -1,4 +1,4 @@
-import { Profiler, useState, type ComponentType, type ProfilerOnRenderCallback } from 'react';
+import { Profiler, useState, type ProfilerOnRenderCallback } from 'react';
 import { View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -18,11 +18,15 @@ import {
   settleSave,
   type ProofBranch,
 } from './fixture';
+import { PROOF_SCREENS, loadScreen, type ProofScreen } from './screens';
 
 /**
  * DEV ONLY. The Bloom language proof's cost harness for Settings ->
  * Notifications (`__perf__/lang-proof/README.md`). Run with
- * `bun run test:perf __perf__/lang-proof` (`PROOF_SCREEN=bloom` for the port).
+ * `bun run test:perf __perf__/lang-proof`. It measures the three forms of the
+ * screen (`./screens.tsx`: `original`, `cleaned`, `bloom`; `PROOF_SCREEN=a,b`
+ * picks some) in one process, interleaved run by run in a rotating order, so
+ * the machine's load falls on each alike.
  *
  * Mounts the REAL screen under Mention's real Bloom provider, i18n and React
  * Query. Replaced: the three app hooks the screen reads, by the same
@@ -43,10 +47,13 @@ import {
  *     render alone.
  * Milliseconds are Jest on a development React: relative evidence for TS
  * against `.bloom` on the same machine, not device frame times. Results land
- * in `__perf__/lang-proof/results/<screen>.json`.
+ * in `__perf__/lang-proof/results/compare.json` (`PROOF_OUT` to rename).
  */
 
-const SCREEN = process.env.PROOF_SCREEN ?? 'ts';
+const SCREENS = (process.env.PROOF_SCREEN ?? PROOF_SCREENS.join(',')).split(',') as ProofScreen[];
+for (const screen of SCREENS) {
+  if (!PROOF_SCREENS.includes(screen)) throw new Error(`Unknown PROOF_SCREEN ${screen}`);
+}
 const RUNS = Number(process.env.PROOF_PERF_RUNS ?? 200);
 const WARMUP = Number(process.env.PROOF_PERF_WARMUP ?? 30);
 
@@ -60,15 +67,6 @@ jest.mock('@oxy.so/bloom/toast', () => {
 });
 
 const toastCalls: unknown[][] = require('@oxy.so/bloom/toast').__calls;
-
-function loadScreen(): ComponentType {
-  switch (SCREEN) {
-    case 'ts':
-      return require('@/components/settings/pages/notifications.tsx').default;
-    default:
-      throw new Error(`Unknown PROOF_SCREEN ${SCREEN}`);
-  }
-}
 
 // ── The cost walk ─────────────────────────────────────────────────
 
@@ -173,28 +171,32 @@ function isSaving(renderer: TestRenderer.ReactTestRenderer): boolean {
 
 // ── The harness ───────────────────────────────────────────────────
 
-const Screen = loadScreen();
-const handle: { setShown: (shown: boolean) => void } = { setShown: () => undefined };
+const draws = Object.fromEntries(SCREENS.map((screen) => [screen, loadScreen(screen)])) as Record<
+  ProofScreen,
+  ReturnType<typeof loadScreen>
+>;
+const handle: { show: (screen: ProofScreen | null) => void } = { show: () => undefined };
 let profiled = 0;
 const onRender: ProfilerOnRenderCallback = (_id, _phase, actualDuration) => {
   profiled += actualDuration;
 };
 
 function Host() {
-  const [shown, setShown] = useState(true);
-  handle.setShown = setShown;
+  const [screen, setScreen] = useState<ProofScreen | null>(null);
+  handle.show = setScreen;
   return (
     <View testID="measured">
-      {shown ? (
-        <Profiler id="screen" onRender={onRender}>
-          <Screen />
+      {screen ? (
+        <Profiler key={screen} id={screen} onRender={onRender}>
+          {draws[screen]()}
         </Profiler>
       ) : null}
     </View>
   );
 }
 
-function mount(): TestRenderer.ReactTestRenderer {
+/** The provider tree with nothing in it; `handle.show` mounts a screen. */
+function mountHost(): TestRenderer.ReactTestRenderer {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
@@ -211,6 +213,15 @@ function mount(): TestRenderer.ReactTestRenderer {
   return renderer;
 }
 
+function mount(screen: ProofScreen): TestRenderer.ReactTestRenderer {
+  const renderer = mountHost();
+  act(() => handle.show(screen));
+  return renderer;
+}
+
+/** The screens in a different order each run, so none always goes first. */
+const rotation = (run: number) => SCREENS.map((_, i) => SCREENS[(i + run) % SCREENS.length]);
+
 const sorted = (values: number[]) => [...values].sort((a, b) => a - b);
 const quantile = (values: number[], q: number) => {
   const s = sorted(values);
@@ -223,18 +234,20 @@ const summary = (values: number[]) => ({
   min: ms(sorted(values)[0]),
 });
 
+type Branch = ProofBranch | 'saving';
 const results: {
   meta: Record<string, unknown>;
-  cost: Partial<Record<string, Cost>>;
-  timing: Record<string, unknown>;
+  cost: Partial<Record<ProofScreen, Partial<Record<Branch, Cost>>>>;
+  timing: Partial<Record<ProofScreen, Record<string, unknown>>>;
 } = {
   meta: {
-    screen: SCREEN,
+    screens: SCREENS,
     runtime: `node ${process.version}, jest-expo (${process.env.EXPO_OS ?? 'ios'}), React development build`,
     machine: `${cpus()[0]?.model ?? 'unknown cpu'} x${cpus().length}`,
+    compiler: require('@oxy.so/bloom-language-compiler/package.json').version,
     runs: RUNS,
     warmup: WARMUP,
-    note: 'ms are relative Jest timings, not device frame times; cost counts are exact',
+    note: 'interleaved per run in a rotating order; ms are relative Jest timings, not device frame times; cost counts are exact',
   },
   cost: {},
   timing: {},
@@ -248,17 +261,20 @@ beforeAll(async () => {
 afterAll(() => {
   const dir = join(__dirname, 'results');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${SCREEN}.json`), `${JSON.stringify(results, null, 2)}\n`);
+  writeFileSync(
+    join(dir, process.env.PROOF_OUT ?? 'compare.json'),
+    `${JSON.stringify(results, null, 2)}\n`,
+  );
   console.log(JSON.stringify(results, null, 2));
 });
 
-describe(`notification settings (${SCREEN})`, () => {
+describe.each(SCREENS.map((screen) => [screen]))('notification settings (%s)', (screen) => {
   it.each<[ProofBranch]>([['pending'], ['signedOut'], ['loading'], ['loaded']])(
     'costs, %s',
     (branch) => {
       setProofBranch(branch);
-      const renderer = mount();
-      results.cost[branch] = cost(renderer);
+      const renderer = mount(screen);
+      results.cost[screen] = { ...results.cost[screen], [branch]: cost(renderer) };
       act(() => renderer.unmount());
     },
   );
@@ -269,14 +285,14 @@ describe(`notification settings (${SCREEN})`, () => {
     savedPatches.length = 0;
     navigations.length = 0;
     toastCalls.length = 0;
-    const renderer = mount();
+    const renderer = mount(screen);
     expect(propsWhere(renderer, SWITCH)).toHaveLength(7);
     expect(isSaving(renderer)).toBe(false);
 
     act(() => pressSwitch(renderer, 1));
     expect(savedPatches).toEqual([{ likes: false }]);
     expect(isSaving(renderer)).toBe(true);
-    results.cost.saving = cost(renderer);
+    results.cost[screen] = { ...results.cost[screen], saving: cost(renderer) };
     await act(async () => settleSave('resolve'));
     expect(isSaving(renderer)).toBe(false);
 
@@ -298,59 +314,70 @@ describe(`notification settings (${SCREEN})`, () => {
     expect(navigations).toEqual(['/settings/notifications/subscriptions']);
     act(() => renderer.unmount());
   });
+});
 
+describe('notification settings, timed together', () => {
   it('times mount and update', async () => {
     setProofBranch('loaded');
     setSaveMode('hold');
-    const renderer = mount();
+    const renderer = mountHost();
+    const series = () => Object.fromEntries(SCREENS.map((s) => [s, [] as number[]]));
+    const mountWall = series();
+    const mountProfiled = series();
+    const pressWall = series();
+    const pressProfiled = series();
+    const settleWall = series();
+    const settleProfiled = series();
+    const updateWall = series();
 
-    const mountWall: number[] = [];
-    const mountProfiled: number[] = [];
     for (let run = 0; run < WARMUP + RUNS; run += 1) {
-      act(() => handle.setShown(false));
-      profiled = 0;
-      const start = performance.now();
-      act(() => handle.setShown(true));
-      const wall = performance.now() - start;
-      if (run >= WARMUP) {
-        mountWall.push(wall);
-        mountProfiled.push(profiled);
+      for (const screen of rotation(run)) {
+        act(() => handle.show(null));
+        profiled = 0;
+        const start = performance.now();
+        act(() => handle.show(screen));
+        const wall = performance.now() - start;
+        if (run >= WARMUP) {
+          mountWall[screen].push(wall);
+          mountProfiled[screen].push(profiled);
+        }
       }
     }
 
-    const pressWall: number[] = [];
-    const pressProfiled: number[] = [];
-    const settleWall: number[] = [];
-    const settleProfiled: number[] = [];
-    const updateWall: number[] = [];
     for (let run = 0; run < WARMUP + RUNS; run += 1) {
-      profiled = 0;
-      const start = performance.now();
-      act(() => pressSwitch(renderer, 1));
-      const pressed = performance.now();
-      const pressRender = profiled;
-      profiled = 0;
-      await act(async () => settleSave('resolve'));
-      const settled = performance.now();
-      if (run >= WARMUP) {
-        pressWall.push(pressed - start);
-        pressProfiled.push(pressRender);
-        settleWall.push(settled - pressed);
-        settleProfiled.push(profiled);
-        updateWall.push(settled - start);
+      for (const screen of rotation(run)) {
+        act(() => handle.show(screen));
+        profiled = 0;
+        const start = performance.now();
+        act(() => pressSwitch(renderer, 1));
+        const pressed = performance.now();
+        const pressRender = profiled;
+        profiled = 0;
+        await act(async () => settleSave('resolve'));
+        const settled = performance.now();
+        expect(isSaving(renderer)).toBe(false);
+        act(() => handle.show(null));
+        if (run >= WARMUP) {
+          pressWall[screen].push(pressed - start);
+          pressProfiled[screen].push(pressRender);
+          settleWall[screen].push(settled - pressed);
+          settleProfiled[screen].push(profiled);
+          updateWall[screen].push(settled - start);
+        }
       }
     }
-    expect(isSaving(renderer)).toBe(false);
     act(() => renderer.unmount());
 
-    results.timing = {
-      mountWall: summary(mountWall),
-      mountProfilerActual: summary(mountProfiled),
-      togglePressWall: summary(pressWall),
-      togglePressProfilerActual: summary(pressProfiled),
-      saveSettleWall: summary(settleWall),
-      saveSettleProfilerActual: summary(settleProfiled),
-      updateTotalWall: summary(updateWall),
-    };
-  }, 600_000);
+    for (const screen of SCREENS) {
+      results.timing[screen] = {
+        mountWall: summary(mountWall[screen]),
+        mountProfilerActual: summary(mountProfiled[screen]),
+        togglePressWall: summary(pressWall[screen]),
+        togglePressProfilerActual: summary(pressProfiled[screen]),
+        saveSettleWall: summary(settleWall[screen]),
+        saveSettleProfilerActual: summary(settleProfiled[screen]),
+        updateTotalWall: summary(updateWall[screen]),
+      };
+    }
+  }, 1_800_000);
 });

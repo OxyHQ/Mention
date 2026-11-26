@@ -36,7 +36,26 @@ module.exports = {
       require.resolve('@oxy.so/bloom-language-compiler/jest'),
       { upstream: harnessBabel },
     ],
+    // `.bloom` modules (Bloom's own language): compiled to TypeScript, then the same Babel.
+    '\\.bloom$': [
+      require.resolve('@oxy.so/bloom-language-compiler/jest'),
+      { upstream: harnessBabel },
+    ],
   },
+  // Jest's default extensions, and `.bloom`.
+  moduleFileExtensions: [
+    'js',
+    'mjs',
+    'cjs',
+    'jsx',
+    'ts',
+    'mts',
+    'cts',
+    'tsx',
+    'json',
+    'node',
+    'bloom',
+  ],
   rootDir: '.',
   testMatch: ['<rootDir>/**/__perf__/**/*.perf.tsx'],
   testPathIgnorePatterns: ['/node_modules/'],

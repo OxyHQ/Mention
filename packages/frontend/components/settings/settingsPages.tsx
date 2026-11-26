@@ -32,7 +32,8 @@ import Page10 from './pages/interests';
 import Page11 from './pages/language';
 import Page12 from './pages/live-presence';
 import Page13 from './pages/notifications/subscriptions';
-import Page14 from './pages/notifications';
+import { NotificationSettingsScreen } from './pages/notifications.bloom';
+import { toElement } from '@oxy.so/bloom-language';
 import Page15 from './pages/privacy/blocked';
 import Page16 from './pages/privacy/hidden-words';
 import Page17 from './pages/privacy/hide-counts';
@@ -134,7 +135,8 @@ export function useMentionSettingsPages(): MentionSettingsPages {
       title: t('settings.notifications.title', {
         defaultValue: 'Notifications',
       }),
-      content: <Page14 />,
+      // A `.bloom` view is a node factory: drawn into React with `toElement`.
+      content: toElement(NotificationSettingsScreen()),
     },
     'privacy/blocked': {
       title: t('settings.privacy.blockedProfiles'),

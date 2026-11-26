@@ -29,6 +29,9 @@
     // affects how the type-checker is configured.
     "noEmit": false,
 
+    // `import … from './X.bloom'` reads bloomc's `X.d.bloom.ts` beside it (Bloom's own language).
+    "allowArbitraryExtensions": true,
+
     // App-local path alias used throughout the frontend (`@/components/...`).
     "paths": {
       "@/*": ["./*"]

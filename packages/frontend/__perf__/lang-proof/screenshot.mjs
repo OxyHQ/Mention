@@ -2,7 +2,7 @@
 /**
  * DEV ONLY: captures and compares the proof app's pixels (README.md here).
  *
- *   node __perf__/lang-proof/screenshot.mjs capture <export dir> <out dir> [screen=ts]
+ *   node __perf__/lang-proof/screenshot.mjs capture <export dir> <out dir> [screen=original]
  *     Serves a `BLOOM_LANG_PROOF=1` web export, opens `/?screen=<screen>&state=<branch>`
  *     for every branch in Chrome (light scheme, reduced motion, 1x and 2x) and writes
  *     `<out dir>/<screen>-<branch>@<scale>x.png`: the screen's frame only.
@@ -58,7 +58,7 @@ function serve(root) {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-async function capture(exportDir, outDir, screen = 'ts') {
+async function capture(exportDir, outDir, screen = 'original') {
   const { chromium } = require('playwright-core');
   const executablePath = process.env.CHROME_PATH;
   if (!executablePath) throw new Error('Set CHROME_PATH to a Chrome binary');

@@ -1,0 +1,222 @@
+{
+  "meta": {
+    "screens": ["original", "cleaned", "bloom"],
+    "runtime": "node v24.21.0, jest-expo (ios), React development build",
+    "machine": "Intel(R) Core(TM) i9-14900K x32",
+    "compiler": "1.4.0-local",
+    "runs": 200,
+    "warmup": 30,
+    "note": "interleaved per run in a rotating order; ms are relative Jest timings, not device frame times; cost counts are exact"
+  },
+  "cost": {
+    "original": {
+      "pending": {
+        "fibers": 110,
+        "hostFibers": 27,
+        "hooks": 355,
+        "contexts": 54
+      },
+      "signedOut": {
+        "fibers": 17,
+        "hostFibers": 4,
+        "hooks": 19,
+        "contexts": 3
+      },
+      "loading": {
+        "fibers": 110,
+        "hostFibers": 27,
+        "hooks": 355,
+        "contexts": 54
+      },
+      "loaded": {
+        "fibers": 413,
+        "hostFibers": 111,
+        "hooks": 535,
+        "contexts": 273
+      },
+      "saving": {
+        "fibers": 434,
+        "hostFibers": 116,
+        "hooks": 556,
+        "contexts": 279
+      }
+    },
+    "cleaned": {
+      "pending": {
+        "fibers": 109,
+        "hostFibers": 27,
+        "hooks": 354,
+        "contexts": 54
+      },
+      "signedOut": {
+        "fibers": 16,
+        "hostFibers": 4,
+        "hooks": 18,
+        "contexts": 3
+      },
+      "loading": {
+        "fibers": 109,
+        "hostFibers": 27,
+        "hooks": 354,
+        "contexts": 54
+      },
+      "loaded": {
+        "fibers": 396,
+        "hostFibers": 111,
+        "hooks": 534,
+        "contexts": 257
+      },
+      "saving": {
+        "fibers": 417,
+        "hostFibers": 116,
+        "hooks": 555,
+        "contexts": 263
+      }
+    },
+    "bloom": {
+      "pending": {
+        "fibers": 109,
+        "hostFibers": 27,
+        "hooks": 354,
+        "contexts": 54
+      },
+      "signedOut": {
+        "fibers": 16,
+        "hostFibers": 4,
+        "hooks": 18,
+        "contexts": 3
+      },
+      "loading": {
+        "fibers": 109,
+        "hostFibers": 27,
+        "hooks": 354,
+        "contexts": 54
+      },
+      "loaded": {
+        "fibers": 396,
+        "hostFibers": 111,
+        "hooks": 534,
+        "contexts": 257
+      },
+      "saving": {
+        "fibers": 417,
+        "hostFibers": 116,
+        "hooks": 555,
+        "contexts": 263
+      }
+    }
+  },
+  "timing": {
+    "original": {
+      "mountWall": {
+        "median": 25.924,
+        "p95": 37.125,
+        "min": 10.698
+      },
+      "mountProfilerActual": {
+        "median": 22,
+        "p95": 31,
+        "min": 9
+      },
+      "togglePressWall": {
+        "median": 9.165,
+        "p95": 15.817,
+        "min": 5.969
+      },
+      "togglePressProfilerActual": {
+        "median": 7,
+        "p95": 13,
+        "min": 4
+      },
+      "saveSettleWall": {
+        "median": 17.799,
+        "p95": 28.394,
+        "min": 13.483
+      },
+      "saveSettleProfilerActual": {
+        "median": 6,
+        "p95": 12,
+        "min": 3
+      },
+      "updateTotalWall": {
+        "median": 27.261,
+        "p95": 40.885,
+        "min": 19.823
+      }
+    },
+    "cleaned": {
+      "mountWall": {
+        "median": 24.426,
+        "p95": 43.389,
+        "min": 9.017
+      },
+      "mountProfilerActual": {
+        "median": 21,
+        "p95": 33,
+        "min": 6
+      },
+      "togglePressWall": {
+        "median": 8.675,
+        "p95": 16.086,
+        "min": 5.809
+      },
+      "togglePressProfilerActual": {
+        "median": 7,
+        "p95": 14,
+        "min": 3
+      },
+      "saveSettleWall": {
+        "median": 17.489,
+        "p95": 29.874,
+        "min": 13.312
+      },
+      "saveSettleProfilerActual": {
+        "median": 6,
+        "p95": 12,
+        "min": 3
+      },
+      "updateTotalWall": {
+        "median": 26.662,
+        "p95": 42.475,
+        "min": 19.194
+      }
+    },
+    "bloom": {
+      "mountWall": {
+        "median": 23.539,
+        "p95": 35.062,
+        "min": 8.715
+      },
+      "mountProfilerActual": {
+        "median": 20,
+        "p95": 31,
+        "min": 6
+      },
+      "togglePressWall": {
+        "median": 7.806,
+        "p95": 12.466,
+        "min": 5.073
+      },
+      "togglePressProfilerActual": {
+        "median": 6,
+        "p95": 10,
+        "min": 3
+      },
+      "saveSettleWall": {
+        "median": 10.837,
+        "p95": 18.574,
+        "min": 9.063
+      },
+      "saveSettleProfilerActual": {
+        "median": 0,
+        "p95": 2,
+        "min": 0
+      },
+      "updateTotalWall": {
+        "median": 19.378,
+        "p95": 30.384,
+        "min": 14.509
+      }
+    }
+  }
+}
