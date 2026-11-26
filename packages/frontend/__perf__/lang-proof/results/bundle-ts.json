@@ -1,0 +1,34 @@
+{
+  "dir": "production web export of 815844431 (origin/feat/mention-on-language), tree shaking on, --source-maps external",
+  "total": {
+    "files": 1231,
+    "minified": 30605602,
+    "gzip": 11421462,
+    "brotli": 9468197
+  },
+  "entry": {
+    "files": 3,
+    "minified": 9856928,
+    "gzip": 2968648,
+    "brotli": 2207622
+  },
+  "modules": {
+    "components/settings/pages/notifications.tsx": {
+      "chunks": [
+        {
+          "chunk": "_expo/static/js/web/MentionSettingsModal-dfa88aee4dd0d7039bb5f7e076989304.js",
+          "module": {
+            "minified": 5320,
+            "gzip": 1282,
+            "brotli": 1061
+          },
+          "chunkSizes": {
+            "minified": 148065,
+            "gzip": 38278,
+            "brotli": 30510
+          }
+        }
+      ]
+    }
+  }
+}

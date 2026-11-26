@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "screen": "ts",
+    "runtime": "node v24.21.0, jest-expo (ios), React development build",
+    "machine": "Intel(R) Core(TM) i9-14900K x32",
+    "runs": 200,
+    "warmup": 30,
+    "note": "ms are relative Jest timings, not device frame times; cost counts are exact"
+  },
+  "cost": {
+    "pending": {
+      "fibers": 110,
+      "hostFibers": 27,
+      "hooks": 355,
+      "contexts": 54
+    },
+    "signedOut": {
+      "fibers": 17,
+      "hostFibers": 4,
+      "hooks": 19,
+      "contexts": 3
+    },
+    "loading": {
+      "fibers": 110,
+      "hostFibers": 27,
+      "hooks": 355,
+      "contexts": 54
+    },
+    "loaded": {
+      "fibers": 413,
+      "hostFibers": 111,
+      "hooks": 535,
+      "contexts": 273
+    },
+    "saving": {
+      "fibers": 434,
+      "hostFibers": 116,
+      "hooks": 556,
+      "contexts": 279
+    }
+  },
+  "timing": {
+    "mountWall": {
+      "median": 8.609,
+      "p95": 16.278,
+      "min": 7.37
+    },
+    "mountProfilerActual": {
+      "median": 7,
+      "p95": 12,
+      "min": 5
+    },
+    "togglePressWall": {
+      "median": 7.23,
+      "p95": 11.068,
+      "min": 5.098
+    },
+    "togglePressProfilerActual": {
+      "median": 6,
+      "p95": 10,
+      "min": 2
+    },
+    "saveSettleWall": {
+      "median": 14.405,
+      "p95": 20.095,
+      "min": 11.946
+    },
+    "saveSettleProfilerActual": {
+      "median": 5,
+      "p95": 8,
+      "min": 2
+    },
+    "updateTotalWall": {
+      "median": 22.01,
+      "p95": 30.339,
+      "min": 17.282
+    }
+  }
+}
