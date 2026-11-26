@@ -76,8 +76,8 @@ jest.mock('@oxy.so/bloom/subtle-hover', () => ({
 }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostLaneChip.bloom', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/ContentWarning.bloom', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostLocation', () => ({ __esModule: true, postLocation: () => null }));

@@ -71,12 +71,12 @@ import { usePostSelector } from '../../stores/postsStore';
 import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/postContextRowLayout';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
-import PostLaneChip from '../Post/PostLaneChip';
+import PostLaneChip from '../Post/PostLaneChip.bloom';
 import PostCrosspostRow from '../Post/PostCrosspostRow';
-import PostCommunityRow from '../Post/PostCommunityRow';
-import ContentWarning from '../Post/ContentWarning';
+import PostCommunityRow from '../Post/PostCommunityRow.bloom';
+import ContentWarning from '../Post/ContentWarning.bloom';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
-import PostCorrectionNotice from '../Post/PostCorrectionNotice';
+import PostCorrectionNotice from '../Post/PostCorrectionNotice.bloom';
 import PostDetailStats from '../Post/PostDetailStats';
 import { postLocation } from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
@@ -1367,7 +1367,9 @@ function PostRow(props: PostItemProps): Child {
   // A reply belongs to its thread's community, so only a post that starts one says it.
   if (communityHandle && !viewPost.replyContext) {
     contextRows.push(
-      Embed(<PostCommunityRow handle={communityHandle} href={communityHref} />).id('community'),
+      PostCommunityRow({ handle: communityHandle, href: communityHref ?? undefined }).id(
+        'community',
+      ),
     );
   }
   if (viewPost.crosspost) {
@@ -1593,13 +1595,11 @@ function PostRow(props: PostItemProps): Child {
   );
   const postBody: Child[] = [
     spoilerText
-      ? Embed(
-          <ContentWarning
-            text={spoilerText}
-            revealed={isContentWarningOpen}
-            onToggle={toggleContentWarning}
-          />,
-        )
+      ? ContentWarning({
+          text: spoilerText,
+          revealed: isContentWarningOpen,
+          onToggle: toggleContentWarning,
+        })
       : null,
     content.title && !isContentGated
       ? Embed(
@@ -1646,7 +1646,7 @@ function PostRow(props: PostItemProps): Child {
         )
       : null,
     corrections && viewPostId && !isContentGated
-      ? Embed(<PostCorrectionNotice postId={viewPostId} count={corrections.count} />)
+      ? PostCorrectionNotice({ postId: viewPostId, count: corrections.count })
       : null,
   ];
 

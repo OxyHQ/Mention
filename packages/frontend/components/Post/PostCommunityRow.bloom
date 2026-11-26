@@ -1,0 +1,49 @@
+import { ProfileHoverCard } from "../ProfileHoverCard"
+import { contextGlyphInk, contextRowTokens } from "./postContextRowLayout"
+import { Link, type Href } from "@/lib/navigation/router"
+import { RiGroupLine } from "@oxy.so/bloom/icons/RiGroupLine"
+import { useTranslation } from "react-i18next"
+
+// "in !technology@lemmy.world" — the community a federated post was written in.
+//
+// The post is its writer's: the byline is theirs and this row only says where
+// they posted it, the way Lemmy names a community (`!name@instance`). It links
+// to the community's profile, which lists its posts.
+// The community's canonical handle (`post.community`, normalized).
+// Its profile, or null when it has no route.
+// Colour for the leading glyph, from the active theme.
+
+pub default view PostCommunityRow(handle: String, href: Href?, iconColor: String? = none) {
+  let { t } = useTranslation()
+
+  let label = Text(t("post.inCommunity", handle: handle))
+    .foreground("muted")
+    .font("sm")
+    .weight("semibold")
+    .lines(1)
+
+  body {
+    // The hover card and the link each hand their props to the host they wrap.
+    ProfileHoverCard(username: handle) {
+      HStack {
+        VStack { Icon(RiGroupLine).size(contextRowTokens.iconSize.glyph).modifier(contextGlyphInk) }
+        .margin("left", "-lg")
+        .margin("right", contextRowTokens.space.iconGap)
+        if let href = href {
+          Link(
+            // The row lives inside the post's own press target: opening the
+            // community must not open the post underneath it as well.
+            href: href,
+            push: true,
+            asChild: true,
+            onPress: { event in event.stopPropagation() },
+          ) { label }
+        } else {
+          label
+        }
+      }
+      .align("center")
+      .frame(height: contextRowTokens.space.row)
+    }
+  }
+}
