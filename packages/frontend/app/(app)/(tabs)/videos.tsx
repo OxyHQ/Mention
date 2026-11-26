@@ -236,6 +236,8 @@ const appColors = defineTokens({
     scrim: 'rgba(0, 0, 0, 0.45)',
     /** The opaque black the header's scrim fades from over the reels. */
     black: '#000000',
+    /** The verified badge beside the author's name. */
+    verified: VERIFIED_BADGE_COLOR,
   },
 });
 /** The pause affordance's disc is an 88pt square. */
@@ -923,135 +925,119 @@ const VideoItem = memo<VideoItemProps>(
               )}
           </>
         )}
-        {/* `box-none`: the overlay container spans the bottom half of the
-                surface, but only its interactive leaves (author press, follow,
-                caption toggle, action buttons) should capture touches — empty
-                regions must fall through to the tap layer below (single-tap pause
-                / double-tap like). Without this the overlay (zIndex 5, above the
-                zIndex-2 tap layer) would swallow taps on the lower half. */}
-        <View
-          style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]}
-          pointerEvents="box-none"
-        >
-          <LinearGradient
-            colors={GRADIENT_COLORS}
-            locations={GRADIENT_LOCATIONS}
-            style={styles.gradientOverlay}
-          />
-
-          {LtoElement(
+        {LtoElement(
+          // `box-none`: the overlay container spans the bottom half of the
+          // surface, but only its interactive leaves (author press, follow,
+          // caption toggle, action buttons) should capture touches — empty
+          // regions must fall through to the tap layer below (single-tap pause
+          // / double-tap like). Without this the overlay (zIndex 5, above the
+          // zIndex-2 tap layer) would swallow taps on the lower half.
+          HStack(
+            LEmbed(
+              <LinearGradient
+                colors={GRADIENT_COLORS}
+                locations={GRADIENT_LOCATIONS}
+                style={styles.gradientOverlay}
+              />,
+            ),
             LVStack(
-              LEmbed(
-                isActive && item.viewerState.isBoosted && (
-                  <VideoRepostBubble
-                    visible
-                    onAddThought={item.metadata.quotesDisabled ? undefined : () => onQuote(item.id)}
-                  />
-                ),
-              ),
-              LEmbed(
-                toElement(
-                  VStack(
-                    HStack(
-                      HStack(
-                        Embed(
-                          <Avatar
-                            source={item.user?.avatar ?? undefined}
-                            size={32}
-                            variant={MEDIA_VARIANT_AVATAR}
-                            verified={item.user?.verified || false}
-                            style={styles.userAvatar}
-                          />,
-                        ),
-                        VStack(
-                          HStack(
-                            RawText(userName)
-                              .foreground(appColors.color.hexFFFFFF)
-                              .font('sm')
-                              .weight('semibold')
-                              .textShadow('0 1px 3px rgb(0 0 0 / 0.8)')
-                              .lines(1)
-                              .shrink('normal'),
-                            Embed(
-                              item.user?.verified && (
-                                <RiVerifiedBadgeFill
-                                  width={14}
-                                  height={14}
-                                  fill={VERIFIED_BADGE_COLOR}
-                                  style={styles.verifiedIcon}
-                                />
-                              ),
-                            ),
-                          )
-                            .align('center')
-                            .spacing('xs'),
-                          HStack(
-                            Icon(RiMusic2Line).size('13').foreground(appColors.color.hexFFFFFF),
-                            RawText(t('videos.original_audio'), ' · @', userHandle)
-                              .foreground(appColors.color.hexFFFFFF)
-                              .font('xs')
-                              .weight('medium')
-                              .textShadow('0 1px 3px rgb(0 0 0 / 0.8)')
-                              .lines(1)
-                              .shrink('normal'),
-                          )
-                            .align('center')
-                            .spacing('6')
-                            .margin('top', '2xs')
-                            .allowsHitTesting(false),
-                        ).grow(),
-                      )
-                        .frame({ minWidth: 'none' })
-                        .align('center')
-                        .spacing('10')
-                        .shrink('normal')
-                        .onPress(handleProfilePress),
-                      Embed(
-                        showOnVideoFollow &&
-                          item.user?.id &&
-                          toElement(
-                            VStack(
-                              Embed(
-                                <FollowButton
-                                  userId={item.user.id}
-                                  username={userHandle}
-                                  size="sm"
-                                />,
-                              ),
-                            ).shrink('never'),
-                          ),
-                      ),
-                    )
-                      .align('center')
-                      .spacing('md')
-                      .allowsHitTesting('children'),
-                    postText
-                      ? VStack(
-                          Embed(
-                            <LinkifiedText
-                              text={postText}
-                              style={styles.postText}
-                              linkStyle={styles.postLink}
-                              numberOfLines={captionExpanded ? undefined : 1}
-                            />,
-                          ),
-                          showCaptionToggle
-                            ? RawText(t(captionExpanded ? 'videos.less' : 'videos.more'))
-                                .foreground('white/85')
-                                .font('sm')
-                                .weight('bold')
-                                .textShadow('0 1px 2px rgb(0 0 0 / 0.8)')
-                                .margin('top', '2xs')
-                                .onPress(toggleCaption)
-                                .role('button')
-                            : null,
-                        ).margin('top', 'xs')
-                      : null,
+              isActive && item.viewerState.isBoosted
+                ? LEmbed(
+                    <VideoRepostBubble
+                      visible
+                      onAddThought={
+                        item.metadata.quotesDisabled ? undefined : () => onQuote(item.id)
+                      }
+                    />,
                   )
-                    .spacing('xs')
-                    .allowsHitTesting('children'),
-                ),
-              ),
+                : null,
+              VStack(
+                HStack(
+                  HStack(
+                    Embed(
+                      <Avatar
+                        source={item.user?.avatar ?? undefined}
+                        size={32}
+                        variant={MEDIA_VARIANT_AVATAR}
+                        verified={item.user?.verified || false}
+                        style={styles.userAvatar}
+                      />,
+                    ),
+                    VStack(
+                      HStack(
+                        RawText(userName)
+                          .foreground(appColors.color.hexFFFFFF)
+                          .font('sm')
+                          .weight('semibold')
+                          .textShadow('0 1px 3px rgb(0 0 0 / 0.8)')
+                          .lines(1)
+                          .shrink('normal'),
+                        item.user?.verified
+                          ? Icon(RiVerifiedBadgeFill)
+                              .size('14')
+                              .foreground(appColors.color.verified)
+                              .margin('left', '2xs')
+                          : null,
+                      )
+                        .align('center')
+                        .spacing('xs'),
+                      HStack(
+                        Icon(RiMusic2Line).size('13').foreground(appColors.color.hexFFFFFF),
+                        RawText(t('videos.original_audio'), ' · @', userHandle)
+                          .foreground(appColors.color.hexFFFFFF)
+                          .font('xs')
+                          .weight('medium')
+                          .textShadow('0 1px 3px rgb(0 0 0 / 0.8)')
+                          .lines(1)
+                          .shrink('normal'),
+                      )
+                        .align('center')
+                        .spacing('6')
+                        .margin('top', '2xs')
+                        .allowsHitTesting(false),
+                    ).grow(),
+                  )
+                    .frame({ minWidth: 'none' })
+                    .align('center')
+                    .spacing('10')
+                    .shrink('normal')
+                    .onPress(handleProfilePress),
+                  showOnVideoFollow && item.user?.id
+                    ? VStack(
+                        Embed(
+                          <FollowButton userId={item.user.id} username={userHandle} size="sm" />,
+                        ),
+                      ).shrink('never')
+                    : null,
+                )
+                  .align('center')
+                  .spacing('md')
+                  .allowsHitTesting('children'),
+                postText
+                  ? VStack(
+                      Embed(
+                        <LinkifiedText
+                          text={postText}
+                          style={styles.postText}
+                          linkStyle={styles.postLink}
+                          numberOfLines={captionExpanded ? undefined : 1}
+                        />,
+                      ),
+                      showCaptionToggle
+                        ? RawText(t(captionExpanded ? 'videos.less' : 'videos.more'))
+                            .foreground('white/85')
+                            .font('sm')
+                            .weight('bold')
+                            .textShadow('0 1px 2px rgb(0 0 0 / 0.8)')
+                            .margin('top', '2xs')
+                            .onPress(toggleCaption)
+                            .role('button')
+                        : null,
+                    ).margin('top', 'xs')
+                  : null,
+              )
+                .spacing('xs')
+                .allowsHitTesting('children'),
             )
               .padding('bottom', 'none')
               .frame({ minWidth: 'none' })
@@ -1060,9 +1046,7 @@ const VideoItem = memo<VideoItemProps>(
               .grow()
               .zIndex('6')
               .allowsHitTesting('children'),
-          )}
 
-          {LtoElement(
             LVStack(
               LEmbed(
                 <PostActions
@@ -1089,8 +1073,17 @@ const VideoItem = memo<VideoItemProps>(
               .spacing('none')
               .zIndex('6')
               .allowsHitTesting('children'),
-          )}
-        </View>
+          )
+            .justify('between')
+            .align('end')
+            .padding('horizontal', 'lg')
+            .padding('top', 'xl')
+            .padding('bottom', bottomBarHeight + 20)
+            .background('transparent')
+            .zIndex('5')
+            .position({ bottom: 'none', left: 'none', right: 'none' })
+            .allowsHitTesting('children'),
+        )}
       </Animated.View>
     );
   },
@@ -2130,20 +2123,6 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#FFFFFF',
   },
-  overlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 16,
-    backgroundColor: 'transparent',
-    zIndex: 5,
-  },
   gradientOverlay: {
     position: 'absolute',
     bottom: 0,
@@ -2194,9 +2173,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  verifiedIcon: {
-    marginLeft: 2,
   },
   caption: {
     marginTop: 4,
