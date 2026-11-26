@@ -22,7 +22,7 @@
  * COST: per BATCH of authors — never per post and never per author — one SQL
  * statement plus one batched curator follower-count resolution (a Redis MGET, and
  * a single bulk Oxy call only for curators not yet cached). It runs ONLY on the
- * user-summary cache-fill path (`PostHydrationService.resolveUserSummaries`), so a
+ * user-summary cache-fill path (`resolveUserSummaries`), so a
  * warm feed pays nothing and the RANKING path pays nothing at all.
  *
  * FAIL-SOFT: any error yields NO score for the affected authors, which the signal

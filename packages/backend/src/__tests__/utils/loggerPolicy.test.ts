@@ -122,7 +122,8 @@ const REQUIRED_SCANNED_FILES = [
   'server.ts',
   'src/controllers/feed.controller.ts',
   'src/db/postgres.ts',
-  'src/services/PostHydrationService.ts',
+  'src/services/postHydration/userSummaries.ts',
+  'src/services/postHydration/viewerContext.ts',
   'src/services/safety/viewerSafety.ts',
 ];
 

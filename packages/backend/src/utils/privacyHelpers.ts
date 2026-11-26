@@ -492,7 +492,7 @@ export interface ViewerGraphContext {
  * pair, for a caller that hydrates posts without a feed request's context to
  * thread through.
  *
- * `PostHydrationService.buildViewerContext`'s unthreaded fallback resolves
+ * `buildViewerContext`'s (`services/postHydration/viewerContext.ts`) unthreaded fallback resolves
  * these as two SEPARATE sequential round trips — blocked+restricted, THEN
  * following+followers — because each half predates the other's threading
  * support. Nothing in the second half depends on the first, so a caller that

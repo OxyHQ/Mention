@@ -136,10 +136,10 @@ const BASELINE = [
       'outbox-failure classification the public NetworkConnector surface does not expose.',
   },
   {
-    file: 'src/services/PostHydrationService.ts',
+    file: 'src/services/postHydration/userSummaries.ts',
     protocol: 'activitypub',
     reason:
-      'TRACKED DEBT, not endorsed: the single most product-central service in the app reaches into ' +
+      'TRACKED DEBT, not endorsed: the most product-central service in the app (post hydration) reaches into ' +
       'actor.service/constants/bridgy directly for federated-author display fields. This is exactly the ' +
       'coupling issue #701 exists to shrink — narrow it to the NetworkConnector surface before adding a ' +
       'third protocol.',

@@ -456,7 +456,7 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
 
 ## Feed Performance
 
-- Hydration author-batch: `PostHydrationService.buildUserMap`
+- Hydration author-batch: `buildUserMap` (`services/postHydration/authorMaps.ts`)
   batch-resolves authors via `oxyServices.getUsersByIds`.
   `services/userSummaryCache.ts` caches the raw canonical Oxy `User` (as
   `PostUser`) + followerCount and the other ranking-side account facts in

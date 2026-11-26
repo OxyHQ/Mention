@@ -248,12 +248,25 @@ describe('signPosts has exactly one reader', () => {
     expect(mentions).toEqual([...ALLOWED].sort());
   });
 
-  it('does not let PostHydrationService read the flag for itself', () => {
-    const source = readFileSync(path.join(BACKEND_SRC, 'services/PostHydrationService.ts'), 'utf8');
-    // Vacuity floor: the file really was read.
-    expect(source.length).toBeGreaterThan(1000);
+  it('does not let post hydration read the flag for itself', () => {
+    const hydrationFiles = [
+      path.join(BACKEND_SRC, 'services/PostHydrationService.ts'),
+      ...readdirSync(path.join(BACKEND_SRC, 'services/postHydration'))
+        .filter((name) => name.endsWith('.ts'))
+        .map((name) => path.join(BACKEND_SRC, 'services/postHydration', name)),
+    ];
+    // Vacuity floor: the facade and its modules really were found.
+    expect(hydrationFiles.length).toBeGreaterThan(5);
 
-    expect(source).toContain("from './channelWriterDisclosure'");
-    expect(stripComments(source)).not.toContain('signPosts');
+    for (const file of hydrationFiles) {
+      expect(stripComments(readFileSync(file, 'utf8')), file).not.toContain('signPosts');
+    }
+
+    // The disclosure helper is consumed where the signing channels are resolved.
+    const authorMaps = readFileSync(
+      path.join(BACKEND_SRC, 'services/postHydration/authorMaps.ts'),
+      'utf8',
+    );
+    expect(authorMaps).toContain("from '../channelWriterDisclosure'");
   });
 });

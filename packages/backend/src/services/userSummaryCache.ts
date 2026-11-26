@@ -5,7 +5,7 @@ import { LocalTtlCache } from '../utils/localTtlCache';
 
 /**
  * Redis-backed cache for resolved post-author identities (the canonical Oxy
- * {@link PostUser} that {@link PostHydrationService.resolveUserSummaries}
+ * {@link PostUser} that `resolveUserSummaries` (`services/postHydration/userSummaries.ts`)
  * passes through UNCHANGED from Oxy, plus the author's follower count for
  * ranking's authority signal).
  *
