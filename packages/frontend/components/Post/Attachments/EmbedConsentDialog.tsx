@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, type DialogControlProps } from '@oxy.so/bloom/dialog';
+import type { DialogControlProps } from '@oxy.so/bloom/dialog';
 import {
   EXTERNAL_EMBED_SOURCES,
   externalEmbedLabels,
@@ -12,6 +12,7 @@ import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import {
   Admonition as LAdmonition,
   Button as LButton,
+  Dialog,
   RawText,
   Text as LText,
   VStack,
@@ -60,57 +61,56 @@ export function EmbedConsentDialog({ control, source, onAccept }: EmbedConsentDi
 
   const title = t('settings.externalMedia.consentTitle', { defaultValue: 'External Media' });
 
-  return (
-    <Dialog control={control} title={title} label={title}>
-      {toElement(
-        VStack(
-          RawText(
-            t('settings.externalMedia.consentBody', {
-              source: label,
-              defaultValue: `This content is hosted by ${label}. Do you want to enable external media?`,
+  return toElement(
+    Dialog(
+      VStack(
+        RawText(
+          t('settings.externalMedia.consentBody', {
+            source: label,
+            defaultValue: `This content is hosted by ${label}. Do you want to enable external media?`,
+          }),
+        )
+          .font('16')
+          .leading('easy')
+          .foreground('foreground'),
+        LAdmonition(
+          LText(
+            t('settings.externalMedia.banner', {
+              defaultValue:
+                'External media may allow websites to collect information about you and your device. No information is sent or requested until you press the "play" button.',
             }),
+          ),
+        ).style('info'),
+        VStack(
+          LButton(
+            LText(t('settings.externalMedia.enableAll', { defaultValue: 'Enable external media' })),
           )
-            .font('16')
-            .leading('easy')
-            .foreground('foreground'),
-          LAdmonition(
+            .style('solid')
+            .tint('accent')
+            .size('lg')
+            .onPress(onShowAll),
+          LButton(
             LText(
-              t('settings.externalMedia.banner', {
-                defaultValue:
-                  'External media may allow websites to collect information about you and your device. No information is sent or requested until you press the "play" button.',
+              t('settings.externalMedia.enableOne', {
+                source: label,
+                defaultValue: `Enable ${label} only`,
               }),
             ),
-          ).style('info'),
-          VStack(
-            LButton(
-              LText(
-                t('settings.externalMedia.enableAll', { defaultValue: 'Enable external media' }),
-              ),
-            )
-              .style('solid')
-              .tint('accent')
-              .size('lg')
-              .onPress(onShowAll),
-            LButton(
-              LText(
-                t('settings.externalMedia.enableOne', {
-                  source: label,
-                  defaultValue: `Enable ${label} only`,
-                }),
-              ),
-            )
-              .style('subtle')
-              .tint('neutral')
-              .size('lg')
-              .onPress(onShowOne),
-            LButton(LText(t('settings.externalMedia.noThanks', { defaultValue: 'No thanks' })))
-              .style('plain')
-              .tint('neutral')
-              .size('lg')
-              .onPress(onHide),
-          ).spacing('md'),
-        ).spacing('lg'),
-      )}
-    </Dialog>
+          )
+            .style('subtle')
+            .tint('neutral')
+            .size('lg')
+            .onPress(onShowOne),
+          LButton(LText(t('settings.externalMedia.noThanks', { defaultValue: 'No thanks' })))
+            .style('plain')
+            .tint('neutral')
+            .size('lg')
+            .onPress(onHide),
+        ).spacing('md'),
+      ).spacing('lg'),
+    )
+      .title(title)
+      .label(title)
+      .control(control),
   );
 }
