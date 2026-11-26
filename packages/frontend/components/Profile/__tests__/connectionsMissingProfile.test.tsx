@@ -83,7 +83,9 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: ({ username }: { username?: string }) => username,
 }));
 jest.mock('@oxy.so/core/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
-jest.mock('@/lib/actorCache', () => ({ cacheActors: jest.fn() }));
+jest.mock('@/lib/actorCache', () => ({
+  actorWriter: () => ({ cacheActors: jest.fn(), cacheActor: jest.fn() }),
+}));
 jest.mock('@/utils/authErrors', () => ({ isAuthError: () => false }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

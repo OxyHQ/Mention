@@ -8,6 +8,7 @@ import { AppProviders } from '../AppProviders';
 import { presentSheet } from '@/utils/sheet';
 import { useVideoPlayback } from '@oxy.so/bloom/video-playback';
 import { usePostInteractions, type PostInteractions } from '@/components/Feed/postInteractions';
+import { signOutForTests } from '@/test-support/accountScope';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
@@ -99,6 +100,17 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: undefined, isAuthResolved: true, canUsePrivateApi: false }),
   useOxy: () => ({ activeSessionId: null }),
 }));
+
+// `AccountScopeFollower` (OxyProvider's first child) follows the runtime's
+// subject; the real one is ESM-only source with no host here. Signed out, never
+// changing: the follower itself stays the real one, in its real position.
+jest.mock('@oxy.so/services/runtime', () => {
+  const runtime = {
+    getSnapshot: () => ({ account: null }),
+    subscribe: () => () => {},
+  };
+  return { useOxyRuntime: () => runtime };
+});
 
 jest.mock('react-i18next', () => ({
   I18nextProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -197,6 +209,7 @@ afterEach(() => {
     for (const renderer of mounted.splice(0)) renderer.unmount();
   });
   jest.requireMock<{ __reset: () => void }>('@oxy.so/bloom/surfaces').__reset();
+  signOutForTests();
 });
 
 const oxyServices = {} as OxyServices;
