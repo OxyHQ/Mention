@@ -5,7 +5,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  *
  * `getPostById` resolves all four (`resolveViewerPrivacyAndGraph`) and threads
  * the result into `hydratePosts` as `viewerPrivacy`/`viewerGraph`. If a future
- * change stops threading either one, `PostHydrationService.buildViewerContext`
+ * change stops threading either one, `buildViewerContext`
  * falls back to fetching it AGAIN, on the SAME `oxyClient` instance — so the
  * regression this guards against shows up as a call count of 2, not 1.
  *

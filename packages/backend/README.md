@@ -13,7 +13,7 @@ backend. The production service listens on port 3000 and serves both
 - `src/runtimeApp.ts` creates concrete Oxy and rate-limit dependencies.
 - `server.ts` owns process bootstrap, Socket.IO, background schedulers, listen,
   and shutdown.
-- `src/services/PostHydrationService.ts` is the only authority for post DTOs.
+- `src/services/PostHydrationService.ts` (the facade) and the modules in `src/services/postHydration/` are the only authority for post DTOs.
 - `src/connectors/` isolates ActivityPub and AT Protocol integrations.
 - `src/mtn/` contains the feed engine.
 - `drizzle/` contains the versioned schema migrations, applied by `src/db/migrate.ts`.

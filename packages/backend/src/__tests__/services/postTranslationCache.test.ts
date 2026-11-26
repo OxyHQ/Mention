@@ -298,11 +298,21 @@ describe('machine translation cache', () => {
         .map((file) => path.relative(srcRoot, file));
       expect(callers).toEqual([path.join('controllers', 'posts', 'translation.ts')]);
 
-      const hydrationSource = fs.readFileSync(
+      const hydrationDirectory = path.join(srcRoot, 'services', 'postHydration');
+      const hydrationFiles = [
         path.join(srcRoot, 'services', 'PostHydrationService.ts'),
-        'utf8',
-      );
-      expect(hydrationSource).not.toMatch(/PostTranslationService|utils\/inference/);
+        ...fs
+          .readdirSync(hydrationDirectory)
+          .filter((name) => name.endsWith('.ts'))
+          .map((name) => path.join(hydrationDirectory, name)),
+      ];
+      // Vacuity floor: the facade and its modules really were found.
+      expect(hydrationFiles.length).toBeGreaterThan(5);
+      for (const file of hydrationFiles) {
+        expect(fs.readFileSync(file, 'utf8'), file).not.toMatch(
+          /PostTranslationService|utils\/inference/,
+        );
+      }
     });
 
     it('serves exact, then same-base, then the primary — with zero inference calls', async () => {

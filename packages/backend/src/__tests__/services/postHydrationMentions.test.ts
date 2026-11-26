@@ -4,7 +4,7 @@ import type { PostUser } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 /**
- * Unit tests for the mention-placeholder replacement in {@link PostHydrationService}:
+ * Unit tests for the mention-placeholder replacement in {@link replaceMentionPlaceholders}:
  *  - item 1: a SINGLE regex pass replaces every `[mention:<id>]` placeholder
  *    (no per-mention split/join loop), preserving the `[@displayName](handle)`
  *    output and leaving unresolved mentions as their raw placeholder, and
@@ -58,20 +58,7 @@ vi.mock('../../services/userSummaryCache', () => ({
   invalidate: vi.fn(async () => undefined),
 }));
 
-import { PostHydrationService } from '../../services/PostHydrationService';
-
-/** Precise structural view of the private method under test (no `as any`). */
-interface MentionReplacer {
-  replaceMentionPlaceholders(
-    text: string,
-    mentions: string[],
-    mentionCache: Map<string, PostUser>,
-  ): Promise<string>;
-}
-
-function asReplacer(service: PostHydrationService): MentionReplacer {
-  return service as unknown as MentionReplacer;
-}
+import { replaceMentionPlaceholders } from '../../services/postHydration/mentions';
 
 /** A minimal canonical Oxy user shape sufficient for `toCachedUser`. */
 function makeOxyUser(id: string, username: string, displayName: string) {
@@ -85,21 +72,18 @@ function makeOxyUser(id: string, username: string, displayName: string) {
   };
 }
 
-describe('PostHydrationService.replaceMentionPlaceholders', () => {
-  let service: PostHydrationService;
-
+describe('replaceMentionPlaceholders', () => {
   beforeEach(() => {
     cacheStore.clear();
     getUserById.mockReset();
     getUsersByIds.mockReset();
-    service = new PostHydrationService();
   });
 
   it('replaces every occurrence of a placeholder in a single pass', async () => {
     getUsersByIds.mockResolvedValue([makeOxyUser('u1', 'alice', 'Alice')]);
 
     const text = 'hi [mention:u1] and again [mention:u1]!';
-    const result = await asReplacer(service).replaceMentionPlaceholders(text, ['u1'], new Map());
+    const result = await replaceMentionPlaceholders(text, ['u1'], new Map());
 
     expect(result).toBe('hi [@Alice](alice) and again [@Alice](alice)!');
     // Batched: a single bulk fetch, never the per-id getUserById fallback.
@@ -114,11 +98,7 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
     ]);
 
     const text = '[mention:u1] meet [mention:u2]';
-    const result = await asReplacer(service).replaceMentionPlaceholders(
-      text,
-      ['u1', 'u2'],
-      new Map(),
-    );
+    const result = await replaceMentionPlaceholders(text, ['u1', 'u2'], new Map());
 
     expect(result).toBe('[@Alice](alice) meet [@Bob](bob)');
     expect(getUsersByIds).toHaveBeenCalledTimes(1);
@@ -130,11 +110,7 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
       ['u1', { id: 'u1', username: 'alice', name: { displayName: 'Alice' } }],
     ]);
 
-    const result = await asReplacer(service).replaceMentionPlaceholders(
-      'hello [mention:u1]',
-      ['u1'],
-      mentionCache,
-    );
+    const result = await replaceMentionPlaceholders('hello [mention:u1]', ['u1'], mentionCache);
 
     expect(result).toBe('hello [@Alice](alice)');
     // Already cached → no bulk fetch, no per-id fetch.
@@ -148,11 +124,7 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
     getUsersByIds.mockResolvedValue([]);
     getUserById.mockRejectedValue(new Error('not found'));
 
-    const result = await asReplacer(service).replaceMentionPlaceholders(
-      'who is [mention:u9]?',
-      ['u9'],
-      new Map(),
-    );
+    const result = await replaceMentionPlaceholders('who is [mention:u9]?', ['u9'], new Map());
 
     expect(result).toBe('who is [mention:u9]?');
   });
@@ -163,7 +135,7 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
       ['victim', { id: 'victim', username: 'victim', name: { displayName: 'Victim' } }],
     ]);
 
-    const result = await asReplacer(service).replaceMentionPlaceholders(
+    const result = await replaceMentionPlaceholders(
       'declared [mention:attacker], raw spoof [mention:victim]',
       ['attacker'],
       mentionCache,
@@ -178,7 +150,7 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
     getUsersByIds.mockResolvedValue([makeOxyUser('u1', 'alice', 'Alice')]);
 
     const text = '[mention:u1] and [mention:u2]';
-    const result = await asReplacer(service).replaceMentionPlaceholders(
+    const result = await replaceMentionPlaceholders(
       text,
       ['u1'], // u2 is not declared as a mention
       new Map(),

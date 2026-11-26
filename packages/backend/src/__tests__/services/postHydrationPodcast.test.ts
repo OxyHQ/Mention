@@ -1,14 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { PostAttachmentBundle, PostContent } from '@mention/shared-types';
 import { resolveVariant } from '../../services/postVariants';
 
 /**
- * Unit test for the podcast branch of {@link PostHydrationService.buildAttachments}:
+ * Unit test for the podcast branch of {@link buildAttachments}:
  * old post/cache objects can carry provider snapshots, but hydration must expose
  * only the opaque reference. A post without a reference omits the attachment.
  *
- * `buildAttachments` is private, so it is exercised through a precise structural
- * interface (no `as any`). It performs no DB / network I/O for the podcast
+ * `buildAttachments` is called directly. It performs no DB / network I/O for the podcast
  * branch, so the client imports are stubbed only so the service module
  * imports cleanly (mirrors the mention-hydration test harness).
  *
@@ -32,33 +31,14 @@ vi.mock('../../services/userSummaryCache', () => ({
   mset: vi.fn(async () => undefined),
 }));
 
-import { PostHydrationService } from '../../services/PostHydrationService';
-
-/** Precise structural view of the private method under test (no `as any`). */
-interface AttachmentBuilder {
-  buildAttachments(
-    post: { content?: Partial<PostContent> },
-    pollMap: Map<string, Record<string, unknown>>,
-    resolved: ReturnType<typeof resolveVariant>,
-  ): PostAttachmentBundle;
-}
-
-function asBuilder(service: PostHydrationService): AttachmentBuilder {
-  return service as unknown as AttachmentBuilder;
-}
+import { buildAttachments } from '../../services/postHydration/dto';
 
 /** Build the bundle the way hydration does: on the reader's resolved rendition. */
-function buildBundle(service: PostHydrationService, content: PostContent): PostAttachmentBundle {
-  return asBuilder(service).buildAttachments({ content }, new Map(), resolveVariant(content));
+function buildBundle(content: PostContent): PostAttachmentBundle {
+  return buildAttachments({ content }, new Map(), resolveVariant(content));
 }
 
-describe('PostHydrationService.buildAttachments — podcast', () => {
-  let service: PostHydrationService;
-
-  beforeEach(() => {
-    service = new PostHydrationService();
-  });
-
+describe('buildAttachments — podcast', () => {
   it('projects legacy metadata to a reference on the attachment bundle', () => {
     const podcast = {
       syraPodcastId: 'show-123',
@@ -68,13 +48,13 @@ describe('PostHydrationService.buildAttachments — podcast', () => {
       showUrl: 'https://syra.fm/podcasts/show-123',
     };
 
-    const attachments = buildBundle(service, { podcast });
+    const attachments = buildBundle({ podcast });
 
     expect(attachments.podcast).toEqual({ syraPodcastId: 'show-123' });
   });
 
   it('omits podcast from the bundle when the post has no podcast', () => {
-    const attachments = buildBundle(service, { text: 'hello' });
+    const attachments = buildBundle({ text: 'hello' });
 
     expect(attachments.podcast).toBeUndefined();
   });

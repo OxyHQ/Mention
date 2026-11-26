@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type {
   MediaItem,
   PostContentVariant,
@@ -16,8 +16,8 @@ import type {
  * `content.text` exists ONLY here, in the served DTO. Storage keeps the body once,
  * on the rendition it belongs to.
  *
- * `buildContent` is private, so it is exercised through a precise structural
- * interface (no `as any`), the same harness the podcast attachment test uses.
+ * `buildContent` is called directly, the same way the podcast attachment test
+ * calls `buildAttachments`.
  */
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -34,46 +34,17 @@ vi.mock('../../services/userSummaryCache', () => ({
   mset: vi.fn(async () => undefined),
 }));
 
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { buildContent, buildInlineVariants } from '../../services/postHydration/dto';
 import { resolveVariant, resolveViewerTag } from '../../services/postVariants';
-
-interface ContentBuilder {
-  buildContent(
-    post: { content?: Partial<StoredPostContent> },
-    pollMap: Map<string, Record<string, unknown>>,
-    viewerContext: { includeFullArticleBody?: boolean } | undefined,
-    resolved: ReturnType<typeof resolveVariant>,
-    inlineVariants: PostContentVariant[] | undefined,
-  ): Record<string, unknown>;
-  buildInlineVariants(
-    content: StoredPostContent,
-    servedTag: string | undefined,
-    postMentions: string[],
-    mentionCache: Map<string, PostUser>,
-    includeFullArticleBody: boolean,
-  ): Promise<PostContentVariant[] | undefined>;
-}
-
-function asBuilder(service: PostHydrationService): ContentBuilder {
-  return service as unknown as ContentBuilder;
-}
 
 /** Hydrate `content` the way the service does, for a reader with `candidates`. */
 async function hydrateContent(
-  service: PostHydrationService,
   content: StoredPostContent,
   candidates: string[],
 ): Promise<Record<string, unknown>> {
-  const builder = asBuilder(service);
   const resolved = resolveVariant(content, resolveViewerTag(candidates, content));
-  const inline = await builder.buildInlineVariants(content, resolved.tag, [], new Map(), true);
-  return builder.buildContent(
-    { content },
-    new Map(),
-    { includeFullArticleBody: true },
-    resolved,
-    inline,
-  );
+  const inline = await buildInlineVariants(content, resolved.tag, [], new Map(), true);
+  return buildContent({ content }, new Map(), { includeFullArticleBody: true }, resolved, inline);
 }
 
 const media: MediaItem[] = [{ id: 'img-1', type: 'image', alt: 'A cat' }];
@@ -86,30 +57,24 @@ const bilingual: StoredPostContent = {
   ],
 };
 
-describe('PostHydrationService — localized content DTO', () => {
-  let service: PostHydrationService;
-
-  beforeEach(() => {
-    service = new PostHydrationService();
-  });
-
+describe('post hydration — localized content DTO', () => {
   it('serves the reader’s language in content.text and names it in textLang', async () => {
-    const english = await hydrateContent(service, bilingual, ['en-GB']);
+    const english = await hydrateContent(bilingual, ['en-GB']);
 
     expect(english.text).toBe('Hello world');
     expect(english.textLang).toBe('en-US');
   });
 
   it('serves the primary to a reader with no language preference (crawler, OG, MCP)', async () => {
-    const anonymous = await hydrateContent(service, bilingual, []);
+    const anonymous = await hydrateContent(bilingual, []);
 
     expect(anonymous.text).toBe('Hola mundo');
     expect(anonymous.textLang).toBe('es-ES');
   });
 
   it('localizes the alt text of the SHARED images for the language served', async () => {
-    const english = await hydrateContent(service, bilingual, ['en-US']);
-    const spanish = await hydrateContent(service, bilingual, ['es-ES']);
+    const english = await hydrateContent(bilingual, ['en-US']);
+    const spanish = await hydrateContent(bilingual, ['es-ES']);
 
     const englishMedia = english.media as MediaItem[];
     const spanishMedia = spanish.media as MediaItem[];
@@ -119,7 +84,7 @@ describe('PostHydrationService — localized content DTO', () => {
   });
 
   it('ships the author renditions inline so the reader can switch language with no round trip', async () => {
-    const dto = await hydrateContent(service, bilingual, ['en-US']);
+    const dto = await hydrateContent(bilingual, ['en-US']);
     const variants = dto.variants as PostContentVariant[];
 
     expect(variants.map((variant) => variant.tag)).toEqual(['es-ES', 'en-US']);
@@ -134,7 +99,7 @@ describe('PostHydrationService — localized content DTO', () => {
       variants: [{ tag: 'es-ES', source: 'author', text: 'Hola mundo' }],
     };
 
-    const dto = await hydrateContent(service, monolingual, ['es-ES']);
+    const dto = await hydrateContent(monolingual, ['es-ES']);
 
     expect(dto.variants).toBeUndefined();
     expect(dto.text).toBe('Hola mundo');
@@ -150,7 +115,7 @@ describe('PostHydrationService — localized content DTO', () => {
       ],
     };
 
-    const dto = await hydrateContent(service, withMachine, ['de-AT']);
+    const dto = await hydrateContent(withMachine, ['de-AT']);
     const variants = dto.variants as PostContentVariant[];
 
     expect(dto.text).toBe('Hallo Welt');
@@ -169,7 +134,7 @@ describe('PostHydrationService — localized content DTO', () => {
       ],
     };
 
-    const dto = await hydrateContent(service, withMachine, ['es-ES']);
+    const dto = await hydrateContent(withMachine, ['es-ES']);
     const variants = dto.variants as PostContentVariant[];
 
     expect(variants.every((variant) => variant.source === 'author')).toBe(true);

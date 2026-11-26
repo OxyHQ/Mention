@@ -76,7 +76,7 @@ export class FeedRankingService {
    * Backed by the shared Redis user-summary cache + a single bulk Oxy fetch for
    * cold authors, so the common case (warm cache) is one Redis round trip with no
    * Oxy call. The curation score is computed and cached alongside the identity on
-   * that same cache-fill (`PostHydrationService.applyStarterPackScores`), so it
+   * that same cache-fill (`applyStarterPackScores` (`services/postHydration/userSummaries.ts`)), so it
    * costs NO extra query here. Authors whose value is unavailable are simply absent
    * from the relevant map and fall back to a neutral multiplier.
    */
