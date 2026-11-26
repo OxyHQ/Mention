@@ -1,28 +1,18 @@
-import React, { Activity, useMemo } from 'react';
+import { Activity, useMemo } from 'react';
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
-import { Platform, Text } from 'react-native';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
+import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { asTextStyle } from '@/types/webStyles';
 import { useTopicRailStore } from '@/stores/topicRailStore';
 
-import { Embed, HStack, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 
-// `cursor` is a web-only CSS property absent from RN's `TextStyle` — author it
-// through the shared extended TextStyle and bridge at the consumption point
-// rather than using an `as any` cast (same pattern as SideBar/SearchBar).
-const LINK_STYLE = Platform.OS === 'web' ? asTextStyle({ cursor: 'pointer' }) : undefined;
-
-// The footer's small print, at 12.5px (no type step or font token has it), so
-// it keeps React Native's Text over the theme's muted ink.
-const useFooterStyles = createTokenStyles((t) => ({
-  note: { color: t.mutedForeground, fontSize: 12.5 },
-  noteInset: { paddingTop: 2 },
-  linkInset: { paddingRight: 12, paddingBottom: 4 },
-}));
+/** The footer's small print: React Native's Text at 12.5px in the theme's muted ink. */
+function footerNote(label: string) {
+  return RawText(label).foreground('muted').font('12.5');
+}
 
 // Static footer links that don't depend on translations — URLs never change
 const STATIC_FOOTER_URLS = [
@@ -61,7 +51,6 @@ function RightBarContent() {
 }
 
 function RightBarFooter() {
-  const footerStyles = useFooterStyles();
   const { t } = useTranslation();
 
   const footerLinks = useMemo(
@@ -76,33 +65,19 @@ function RightBarFooter() {
   return toElement(
     VStack(
       HStack(
-        Embed(
-          footerLinks.map((link) => (
-            <FooterLink key={link.label} label={link.label} url={link.url} />
-          )),
+        footerLinks.map((link) =>
+          footerNote(link.label)
+            .padding('right', 'md')
+            .padding('bottom', 'xs')
+            .cursor('pointer')
+            .onPress(() => openExternalLink(link.url))
+            .id(link.label),
         ),
       ).wrap(),
-      Embed(
-        <Text style={[footerStyles.note, footerStyles.noteInset]}>
-          Made with ❤️ in the 🌎 by Oxy&trade;.
-        </Text>,
-      ) /* No legal notice under the links on purpose: "Mention" carries no
+      footerNote('Made with ❤️ in the 🌎 by Oxy™.').padding('top', '2xs'),
+      /* No legal notice under the links on purpose: "Mention" carries no
                   trademark claim here, and Oxy's work is under its own licenses,
-                  not an all-rights-reserved copyright line. */,
+                  not an all-rights-reserved copyright line. */
     ).padding('bottom', 'md'),
   );
 }
-
-// Extracted to its own component so that each link's onPress is stable via the
-// component identity rather than a new arrow function created in the parent's map.
-const FooterLink = React.memo(function FooterLink({ label, url }: { label: string; url: string }) {
-  const footerStyles = useFooterStyles();
-  return (
-    <Text
-      style={[footerStyles.note, footerStyles.linkInset, LINK_STYLE]}
-      onPress={() => openExternalLink(url)}
-    >
-      {label}
-    </Text>
-  );
-});
