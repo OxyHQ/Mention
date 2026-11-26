@@ -4,9 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { StyleSheet, TouchableOpacity, type ViewStyle } from 'react-native';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
-import { useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +25,6 @@ import {
   Embed as LEmbed,
   ScrollView,
   toElement as LtoElement,
-  VStack as LVStack,
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
@@ -67,124 +64,99 @@ function officialBadge(label: string) {
     .spacing('3');
 }
 
-/** The card's box, as its classes drew it; its fill is the muted token. */
-const CARD_STYLE: ViewStyle = { borderRadius: 16, padding: 16, gap: 8 };
+/** The subscribe pill's 90pt floor, off the space scale. */
+const labelersTokens = defineTokens({ space: { subscribeMin: 90 } });
 
 const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: LabelerCardProps) => {
   const router = useRouter();
-  const theme = useTheme();
-  const colorTokens = useColorTokens();
   const { t } = useTranslation();
 
   const id = String(labeler._id || labeler.id);
   const labelCount = labeler.labelDefinitions?.length ?? 0;
 
   return toElement(
-    Embed((render) =>
-      LtoElement(
-        LVStack(
-          LEmbed(
-            render(
-              HStack(
-                HStack(
-                  RawText(labeler.name)
-                    .font('16')
-                    .leading('normal')
-                    .weight('bold')
-                    .foreground('foreground')
-                    .lines(1),
-                  labeler.isOfficial
-                    ? officialBadge(t('labelers.official', { defaultValue: 'Official' }))
-                    : null,
-                )
-                  .flex('1')
-                  .align('center')
-                  .spacing('sm')
-                  .wrap(),
-                Embed(
-                  <TouchableOpacity
-                    style={[
-                      styles.subscribeBtn,
-                      labeler.isSubscribed
-                        ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
-                        : { backgroundColor: theme.colors.primary },
-                    ]}
-                    onPress={() => onSubscribeToggle(id, !!labeler.isSubscribed)}
-                    disabled={subscribing}
-                    activeOpacity={0.7}
-                  >
-                    {render(
-                      subscribing
-                        ? Loading().style('inline').size('sm')
-                        : RawText(
-                            labeler.isSubscribed
-                              ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
-                              : t('labelers.subscribe', { defaultValue: 'Subscribe' }),
-                          )
-                            .font('sm')
-                            .weight('semibold')
-                            .foreground(labeler.isSubscribed ? 'foreground' : 'white'),
-                    )}
-                  </TouchableOpacity>,
-                ),
-              )
-                .align('start')
-                .justify('between')
-                .spacing('md'),
-            ),
-          ),
-          LEmbed(
-            labeler.description
-              ? render(
-                  RawText(labeler.description)
-                    .font('14')
-                    .leading('20px')
-                    .foreground('muted')
-                    .lines(2),
-                )
-              : null,
-          ),
-          LEmbed(
-            render(
-              HStack(
-                RawText(
-                  t('labelers.subscriberCount', {
-                    count: labeler.subscriberCount,
-                    defaultValue: '{{count}} subscribers',
-                  }),
-                )
-                  .font('sm')
-                  .foreground('muted'),
-                RawText('·').font('sm').foreground('muted'),
-                RawText(
-                  t('labelers.labelCount', {
-                    count: labelCount,
-                    defaultValue: '{{count}} labels',
-                  }),
-                )
-                  .font('sm')
-                  .foreground('muted'),
-              )
-                .align('center')
-                .spacing('6'),
-            ),
-          ),
+    VStack(
+      HStack(
+        HStack(
+          RawText(labeler.name)
+            .font('16')
+            .leading('normal')
+            .weight('bold')
+            .foreground('foreground')
+            .lines(1),
+          labeler.isOfficial
+            ? officialBadge(t('labelers.official', { defaultValue: 'Official' }))
+            : null,
         )
-          .padding('all', 'lg')
-          .background('mutedFill')
-          .corner('lg')
+          .flex('1')
+          .align('center')
           .spacing('sm')
-          .onPress(() => router.push(`/moderation/labelers/${id}`))
+          .wrap(),
+        VStack(
+          subscribing
+            ? Loading().style('inline').size('sm')
+            : RawText(
+                labeler.isSubscribed
+                  ? t('labelers.unsubscribe', { defaultValue: 'Unsubscribe' })
+                  : t('labelers.subscribe', { defaultValue: 'Subscribe' }),
+              )
+                .font('sm')
+                .weight('semibold')
+                .foreground(labeler.isSubscribed ? 'foreground' : 'white'),
+        )
+          .padding('horizontal', '14')
+          .padding('vertical', '6')
+          .frame({ minWidth: labelersTokens.space.subscribeMin })
+          .align('center')
+          .justify('center')
+          .background(labeler.isSubscribed ? 'transparent' : 'primary')
+          // The unsubscribed pill's 1pt edge has no colour of its own: the platform's default.
+          .border(labeler.isSubscribed ? 'border' : undefined, 'thin')
+          .corner('xl')
+          .onPress(() => onSubscribeToggle(id, !!labeler.isSubscribed))
+          .disabled(subscribing)
           .pressFade('70'),
-      ),
-    ),
+      )
+        .align('start')
+        .justify('between')
+        .spacing('md'),
+      labeler.description
+        ? RawText(labeler.description).font('14').leading('20px').foreground('muted').lines(2)
+        : null,
+      HStack(
+        RawText(
+          t('labelers.subscriberCount', {
+            count: labeler.subscriberCount,
+            defaultValue: '{{count}} subscribers',
+          }),
+        )
+          .font('sm')
+          .foreground('muted'),
+        RawText('·').font('sm').foreground('muted'),
+        RawText(
+          t('labelers.labelCount', {
+            count: labelCount,
+            defaultValue: '{{count}} labels',
+          }),
+        )
+          .font('sm')
+          .foreground('muted'),
+      )
+        .align('center')
+        .spacing('6'),
+    )
+      .padding('all', 'lg')
+      .background('mutedFill')
+      .corner('lg')
+      .spacing('sm')
+      .onPress(() => router.push(`/moderation/labelers/${id}`))
+      .pressFade('70'),
   );
 });
 
 LabelerCard.displayName = 'LabelerCard';
 
 export default screen(function LabelersScreen() {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   const queryClient = useQueryClient();
@@ -349,16 +321,4 @@ export default screen(function LabelersScreen() {
       .backLabel(t('common.back', { defaultValue: 'Back' }))
       .inPage(),
   );
-});
-
-const styles = StyleSheet.create({
-  subscribeBtn: {
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    minWidth: 90,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

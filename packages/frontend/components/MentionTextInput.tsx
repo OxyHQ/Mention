@@ -9,7 +9,6 @@ import {
   memo,
 } from 'react';
 import {
-  View,
   TextInput,
   StyleSheet,
   type TextInputProps,
@@ -384,19 +383,23 @@ const MentionTextInput = memo(
               {...textInputProps}
             />,
           ),
-          Embed(
-            showMentionPicker && mentionQuery.length > 0 && (
-              <View style={styles.pickerContainer}>
-                <MentionPicker
-                  users={pickerUsers}
-                  loading={pickerLoading}
-                  activeIndex={activeIndex}
-                  onActiveIndexChange={setActiveIndex}
-                  onSelect={handleMentionSelect}
-                />
-              </View>
-            ),
-          ),
+          // The picker above the input, raised over the whole screen.
+          showMentionPicker && mentionQuery.length > 0
+            ? VStack(
+                Embed(
+                  <MentionPicker
+                    users={pickerUsers}
+                    loading={pickerLoading}
+                    activeIndex={activeIndex}
+                    onActiveIndexChange={setActiveIndex}
+                    onSelect={handleMentionSelect}
+                  />,
+                ),
+              )
+                .margin('bottom', 'sm')
+                .zIndex('1000')
+                .position({ left: 'none', right: 'none', bottom: '100%' })
+            : null,
         ),
       );
     },
@@ -423,14 +426,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
       }),
     }),
-  },
-  pickerContainer: {
-    position: 'absolute',
-    bottom: '100%',
-    left: 0,
-    right: 0,
-    marginBottom: 8,
-    zIndex: 1000,
   },
 });
 

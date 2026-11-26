@@ -1,9 +1,8 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
-import { Field } from '@oxy.so/bloom/field';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { formatTimeInput } from '@/utils/dateUtils';
@@ -221,20 +220,22 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 
           {toElement(
             HStack(
-              Embed(
-                <Field
-                  label={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
-                  style={styles.dateField}
-                >
+              // Both fields are full-width by default, so two of them in a row fight over the
+              // same 100%: the date takes the remaining space at its own width (`auto`).
+              LField(
+                t('compose.schedule.dateLabel', { defaultValue: 'Date' }),
+                Embed(
                   <DatePicker
                     value={customDate}
                     onChange={setCustomDate}
                     minDate={today}
                     accessibilityLabel={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
                     testID="scheduleSheetDatePicker"
-                  />
-                </Field>,
-              ),
+                  />,
+                ),
+              )
+                .frame({ width: 'auto', minWidth: 'none' })
+                .grow(),
               // The time keeps the width of its box (`Field` is full-width by default).
               LField(
                 t('compose.schedule.timeLabel', { defaultValue: 'Time' }),
@@ -280,15 +281,5 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 
 /** The off-scale steps, named once: the current schedule's `mb-4.5`, the time field's 112pt. */
 const scheduleTokens = defineTokens({ space: { currentBottom: 18, timeWidth: 112 } });
-
-const styles = StyleSheet.create({
-  // `Field` is full-width by default, so two of them in a row fight over the same
-  // 100%: the date takes the remaining space, the time keeps the width of its box.
-  dateField: {
-    flex: 1,
-    minWidth: 0,
-    width: 'auto',
-  },
-});
 
 export default ScheduleSheet;
