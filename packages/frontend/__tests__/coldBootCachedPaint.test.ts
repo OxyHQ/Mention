@@ -2,10 +2,10 @@ import path from 'node:path';
 
 /**
  * A returning signed-in session paints from the device's cache before any network, even when this
- * app once recorded a sign-out (`@oxy.so/services` 14.24.0, patched: patches/README.md). The intent
+ * app once recorded a sign-out (the fix in `@oxy.so/services` 14.24.2). The intent
  * outlives the device signing back in through another app, and while the cache refused, every cold
  * start waited for the registry classification and the mint (Pixel 8a: about 3 s, 6 to 7 s on a
- * slow connection). The installed cache is the gate: the patch must be applied.
+ * slow connection). The installed cache is the gate: an older Services fails it.
  */
 type CachedBootModule = {
   createCachedBootStore: (

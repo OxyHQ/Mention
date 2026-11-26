@@ -585,22 +585,3 @@ later reaped).
 
 Mention ships (2) as `patches/expo-updates@58.0.21.patch`. It's enough on its
 own, but (1) is the root cause.
-
-# @oxy.so/services 14.24.0
-
-A returning signed-in session paints from the device's cache before any network
-(`ui/session/cachedBoot.ts`, `readSession`). The cache refused whenever this app
-had once recorded a sign-out (`isAutomaticIdentitySignInSuppressed`), and that
-intent is not cleared when the device signs back in through another app, while
-the holder's own mint restores the session either way. On such a device every
-cold start took the first-boot path: the registry classification, the offline
-probe and the mint before the first frame, about 3 s on the owner's Pixel 8a and
-6 to 7 s on a slow connection; a 5 s classification timeout resolved signed out
-first. With the paint the first frame is at 1.1 to 1.2 s (release, Pixel 8a)
-and the mint lands after it. The intent still keeps the boot from creating a
-session on its own, a sign-out still deletes the cached profile, and the
-background check still signs out a session the server ended.
-
-The hunk is the fix in `@oxy.so/services` 14.24.2 (oxy
-`fix/cold-boot-never-waits`), applied to `src/` (what Metro bundles on native)
-and both `lib/` builds. Remove this patch when Mention moves to 14.24.2 or later.
