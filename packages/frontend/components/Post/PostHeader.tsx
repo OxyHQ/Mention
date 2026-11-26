@@ -1,7 +1,7 @@
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { POST_AVATAR_SIZE } from '@/styles/shared';
 import React, { useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import type { AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 
@@ -31,6 +31,7 @@ import {
   toElement,
   type IconComponent,
   defineModifier,
+  defineTokens,
 } from '@oxy.so/bloom-language';
 
 /** The name's column shrinks with the identity line, so a long name ellipsizes. */
@@ -57,7 +58,9 @@ function indicator(icon: IconComponent, label: string, message: string) {
 // context-specific padding, so this deliberately differs from the feed (12px),
 // compose (16px) and detail (16px) horizontal paddings.
 const HPAD = 8;
-const ROW_GAP = 8;
+
+/** The identity line's gap, and the content column's (the context rows' offset math uses it). */
+const header = defineTokens({ space: { row: 8, content: HEADER_CONTENT_GAP } });
 
 /**
  * Vertical gap between the header's name row and the first content node in its
@@ -457,15 +460,13 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   });
   const identityHandle =
     hasDisplayName && user.handle
-      ? toElement(
-          RawText(`${detail ? '' : '\u00A0'}@${user.handle}`)
-            .foreground('muted')
-            .font('md')
-            .leading('close')
-            .frame({ minWidth: 'none' })
-            .shrink('first')
-            .lines(1),
-        )
+      ? RawText(`${detail ? '' : '\u00A0'}@${user.handle}`)
+          .foreground('muted')
+          .font('md')
+          .leading('close')
+          .frame({ minWidth: 'none' })
+          .shrink('first')
+          .lines(1)
       : null;
   const identityBadge = AccountBadge({
     isFederated: user.isFederated,
@@ -474,164 +475,156 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     look: BADGE_PLACEMENT,
   });
 
+  // Bluesky-style identity line: the display name takes the space it needs (no
+  // width cap); the @handle gives way first (shrinks aggressively); the trailing
+  // "\u00B7 time" never wraps and stays visible. With NO display name the @handle
+  // becomes the bold primary (rendered ONCE here \u2014 the trailing muted handle is
+  // suppressed), never blank.
+  const identity = isCollabByline
+    ? HStack(
+        RawText(
+          ...headerAuthors.flatMap((a, i) => {
+            const isLast = i === headerAuthors.length - 1;
+            // A channel signing with its writer is not a list of
+            // co-authors: the channel published it and a person wrote
+            // it, so the byline reads "Notas de Nate by Nate". `and`
+            // would claim they authored it jointly.
+            const separator =
+              i === 0
+                ? ''
+                : isLast
+                  ? bylineNamesWriter
+                    ? t('collab.by', { defaultValue: ' by ' })
+                    : t('collab.and', { defaultValue: ' and ' })
+                  : ', ';
+            // Each first name links to that author's own profile; falls
+            // back to a plain span when the author has no resolvable handle.
+            return [
+              separator,
+              linkAuthors && a.href
+                ? Embed(
+                    <Link href={a.href} push onPress={stopAtLink} accessibilityLabel={a.firstName}>
+                      {a.firstName}
+                    </Link>,
+                  )
+                : RawText(a.firstName),
+            ];
+          }),
+        )
+          .frame({ minWidth: 'none' })
+          .foreground('foreground')
+          .font('md')
+          .weight('semibold')
+          .leading('close')
+          .shrink('normal')
+          .lines(2),
+      )
+        .frame({ minWidth: 'none' })
+        .align('end')
+        .shrink('normal')
+    : // The whole identity line \u2014 name, `@handle` and the federated badge \u2014 is
+      // one hover target, so pointing at ANY part of it previews the author (the
+      // avatar is its own target above).
+      Embed((render) => (
+        <ProfileHoverCard
+          username={user.handle}
+          disable={disableHoverCard}
+          style={{ minWidth: 0, flexShrink: 1 }}
+        >
+          {render(
+            detail
+              ? VStack(HStack(identityName, identityBadge).align('center'), identityHandle)
+                  .align('start')
+                  .frame({ minWidth: 'none' })
+              : HStack(identityName, identityHandle, identityBadge)
+                  .align('end')
+                  .shrink('normal')
+                  .frame({ minWidth: 'none' }),
+          )}
+        </ProfileHoverCard>
+      ));
+  const time =
+    timeSlot ??
+    (!detail && timeText ? (
+      postHref ? (
+        <Link
+          href={postHref}
+          push
+          asChild
+          onPress={(event) => {
+            stopAtLink(event);
+            onPressTime?.();
+          }}
+        >
+          {timeText}
+        </Link>
+      ) : (
+        timeText
+      )
+    ) : null);
+
   return toElement(
     HStack(
       compact ? null : Embed(avatar),
-      Embed(
-        <View style={styles.content}>
-          {contextTop}
-          <View style={compact ? styles.identityLineCompact : styles.identityLine}>
-            {compact ? avatar : null}
-            {/* Bluesky-style identity line: the display name takes the space it
-          needs (no width cap); the @handle gives way first (shrinks
-          aggressively); the trailing "\u00B7 time" never wraps and stays visible.
-          With NO display name the @handle becomes the bold primary (rendered
-          ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
-            {isCollabByline ? (
-              toElement(
-                HStack(
-                  RawText(
-                    ...headerAuthors.flatMap((a, i) => {
-                      const isLast = i === headerAuthors.length - 1;
-                      // A channel signing with its writer is not a list of
-                      // co-authors: the channel published it and a person wrote
-                      // it, so the byline reads "Notas de Nate by Nate". `and`
-                      // would claim they authored it jointly.
-                      const separator =
-                        i === 0
-                          ? ''
-                          : isLast
-                            ? bylineNamesWriter
-                              ? t('collab.by', { defaultValue: ' by ' })
-                              : t('collab.and', { defaultValue: ' and ' })
-                            : ', ';
-                      // Each first name links to that author's own profile; falls
-                      // back to a plain span when the author has no resolvable handle.
-                      return [
-                        separator,
-                        linkAuthors && a.href
-                          ? Embed(
-                              <Link
-                                href={a.href}
-                                push
-                                onPress={stopAtLink}
-                                accessibilityLabel={a.firstName}
-                              >
-                                {a.firstName}
-                              </Link>,
-                            )
-                          : RawText(a.firstName),
-                      ];
-                    }),
-                  )
-                    .frame({ minWidth: 'none' })
-                    .foreground('foreground')
-                    .font('md')
-                    .weight('semibold')
-                    .leading('close')
-                    .shrink('normal')
-                    .lines(2),
-                )
-                  .frame({ minWidth: 'none' })
-                  .align('end')
-                  .shrink('normal'),
+      // The content column: the context rows, the identity line, the byline and
+      // what the caller puts below them.
+      VStack(
+        contextTop ? Embed(contextTop) : null,
+        HStack(
+          compact ? Embed(avatar) : null,
+          identity,
+          time ? Embed(time) : null,
+          isEdited
+            ? // `flexShrink: 0` because an indicator glyph has no width to give up
+              // and the identity line's other children are already shrink-ranked
+              // against each other — the `@handle` is what yields.
+              //
+              // `alignSelf: 'center'` for the same reason {@link AccountBadge} above
+              // uses `self-center`: this row is `items-end`, so a child's BOTTOM
+              // edge is the shared line — and a text box's bottom is its descender,
+              // several pixels below the letters. An icon hung from that line reads
+              // as sunk. Centring it against the row puts it on the text's optical
+              // middle, where the badge already sits.
+              indicator(
+                RiPencilLine,
+                t('post.editedIndicator', { defaultValue: 'Edited' }),
+                t('post.editedToast', { defaultValue: 'This post was edited' }),
               )
-            ) : (
-              // The whole identity line \u2014 name, `@handle` and the federated badge
-              // \u2014 is one hover target, so pointing at ANY part of it previews the
-              // author (the avatar is its own target above).
-              <ProfileHoverCard
-                username={user.handle}
-                disable={disableHoverCard}
-                style={{ minWidth: 0, flexShrink: 1 }}
-              >
-                <View style={detail ? styles.identityDetail : styles.identity}>
-                  {detail ? (
-                    <>
-                      {toElement(HStack(identityName, identityBadge).align('center'))}
-                      {identityHandle}
-                    </>
-                  ) : (
-                    <>
-                      {toElement(identityName)}
-                      {identityHandle}
-                      {identityBadge ? toElement(identityBadge) : null}
-                    </>
-                  )}
-                </View>
-              </ProfileHoverCard>
-            )}
-            {timeSlot ??
-              (!detail &&
-                timeText &&
-                (postHref ? (
-                  <Link
-                    href={postHref}
-                    push
-                    asChild
-                    onPress={(event) => {
-                      stopAtLink(event);
-                      onPressTime?.();
-                    }}
-                  >
-                    {timeText}
-                  </Link>
-                ) : (
-                  timeText
-                )))}
-            {isEdited
-              ? // `flexShrink: 0` because an indicator glyph has no width to give up
-                // and the identity line's other children are already shrink-ranked
-                // against each other — the `@handle` is what yields.
-                //
-                // `alignSelf: 'center'` for the same reason {@link AccountBadge} above
-                // uses `self-center`: this row is `items-end`, so a child's BOTTOM
-                // edge is the shared line — and a text box's bottom is its descender,
-                // several pixels below the letters. An icon hung from that line reads
-                // as sunk. Centring it against the row puts it on the text's optical
-                // middle, where the badge already sits.
-                toElement(
-                  indicator(
-                    RiPencilLine,
-                    t('post.editedIndicator', { defaultValue: 'Edited' }),
-                    t('post.editedToast', { defaultValue: 'This post was edited' }),
-                  ),
-                )
-              : null}
-            {isPrivateMention
-              ? // Same placement and alignment as the edited marker above.
-                toElement(
-                  indicator(
-                    RiLockLine,
-                    t('privateMentions.badge', { defaultValue: 'Private mention' }),
-                    t('privateMentions.onlyMentioned', {
-                      defaultValue: 'Only visible to the people mentioned',
-                    }),
-                  ).testID('post-private-mention-badge'),
-                )
-              : null}
-            {laneSlot}
-            {showBoost &&
-              toElement(
-                // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
-                VStack(Icon(RiRepeat2Line).size('14').foreground('muted'))
-                  .role('image')
-                  .label('Reposted'),
-              )}
-            {showReply &&
-              toElement(
-                HStack(
-                  Icon(RiChat3Fill).size('xs').foreground('muted'),
-                  RawText('Replied').foreground('muted').font('xs').leading('16px'),
-                )
-                  .align('center')
-                  .spacing('sm'),
-              )}
-          </View>
-          {bylineSlot}
-          {children ? toElement(VStack(Embed(children))) : null}
-        </View>,
-      ),
+            : null,
+          isPrivateMention
+            ? // Same placement and alignment as the edited marker above.
+              indicator(
+                RiLockLine,
+                t('privateMentions.badge', { defaultValue: 'Private mention' }),
+                t('privateMentions.onlyMentioned', {
+                  defaultValue: 'Only visible to the people mentioned',
+                }),
+              ).testID('post-private-mention-badge')
+            : null,
+          laneSlot ? Embed(laneSlot) : null,
+          showBoost
+            ? // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
+              VStack(Icon(RiRepeat2Line).size('14').foreground('muted'))
+                .role('image')
+                .label('Reposted')
+            : null,
+          showReply
+            ? HStack(
+                Icon(RiChat3Fill).size('xs').foreground('muted'),
+                RawText('Replied').foreground('muted').font('xs').leading('16px'),
+              )
+                .align('center')
+                .spacing('sm')
+            : null,
+        )
+          .align(compact ? 'center' : 'end')
+          .spacing(header.space.row),
+        bylineSlot ? Embed(bylineSlot) : null,
+        children ? VStack(Embed(children)) : null,
+      )
+        .flex('1')
+        .frame({ minWidth: 'none' })
+        .spacing(header.space.content),
     )
       .padding('horizontal', paddingHorizontal)
       .align('start')
@@ -640,16 +633,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 };
 
 export default React.memo(PostHeader);
-
-// The header's frame, as React Native views: the identity line's children are
-// ranked against each other for space (see the identity line below).
-const styles = StyleSheet.create({
-  content: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', minWidth: 0, gap: HEADER_CONTENT_GAP },
-  identityLine: { flexDirection: 'row', alignItems: 'flex-end', gap: ROW_GAP },
-  identityLineCompact: { flexDirection: 'row', alignItems: 'center', gap: ROW_GAP },
-  identity: { flexDirection: 'row', alignItems: 'flex-end', flexShrink: 1, minWidth: 0 },
-  identityDetail: { alignItems: 'flex-start', minWidth: 0 },
-});
 
 /** The identity marker sits centred on the name line, 4pt after the name. */
 const BADGE_PLACEMENT = defineModifier((v) => v.alignSelf('center').margin('left', 'xs'));
