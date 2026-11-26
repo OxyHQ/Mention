@@ -19,7 +19,7 @@ export function FollowingAvatars() {
   const ids = enabled ? (graph.data?.followingIds.slice(0, 3) ?? []) : [];
   const profiles = useQuery({
     // The viewer's own: whom they follow is theirs, and so is this answer.
-    queryKey: [...viewerQueryKeys.viewerFollowing(viewerId), 'profiles', ids.join(',')],
+    queryKey: viewerQueryKeys.viewerFollowingProfiles(viewerId, ids),
     queryFn: () => oxyServices.users.getMany(ids),
     enabled: enabled && ids.length > 0,
     staleTime: 2 * 60 * 1000,

@@ -588,6 +588,9 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'recommendations', 'infinite', excludeTypesCsv] as const,
   newestUsers: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'newest-users'] as const,
   viewerFollowing: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'following'] as const,
+  /** The profiles of some of the accounts the viewer follows (one batch read). */
+  viewerFollowingProfiles: (viewerId: ViewerId, ids: readonly string[]) =>
+    [...viewerQueryKeys.viewerFollowing(viewerId), 'profiles', ids.join(',')] as const,
   postActivity: (viewerId: ViewerId, userId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'post-activity', userId ?? ''] as const,
   /** Syra podcast shows the viewer is subscribed to (the podcast card's save button). */

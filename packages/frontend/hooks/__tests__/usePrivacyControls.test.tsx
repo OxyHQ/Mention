@@ -2,6 +2,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { queryClient } from '@/lib/queryClient';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 import {
   setPrivacyListMembership,
   usePrivacyControls,
@@ -21,6 +22,8 @@ function Probe() {
 }
 
 function signIn(viewerId: string) {
+  // The session's account too: a membership is written only for the account signed in.
+  signInAs(viewerId, queryClient);
   (useAuth as jest.Mock).mockReturnValue({
     oxyServices: { privacy: { blocked: mockBlocked, restricted: mockRestricted } },
     canUsePrivateApi: true,
@@ -46,7 +49,10 @@ describe('usePrivacyControls', () => {
   beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   });
-  afterEach(() => queryClient.clear());
+  afterEach(() => {
+    queryClient.clear();
+    signOutForTests();
+  });
 
   it('reads the lists once for every mounted feed, and again only for another viewer', async () => {
     mockBlocked.mockResolvedValue([{ blockedId: 'blocked-by-a' }]);
@@ -94,6 +100,30 @@ describe('usePrivacyControls', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(seen.at(-1)?.blockedSet.has('just-blocked')).toBe(false);
+    act(() => renderer.unmount());
+  });
+
+  it('writes a membership accepted for an account that is no longer signed in nowhere', async () => {
+    mockBlocked.mockResolvedValue([]);
+    mockRestricted.mockResolvedValue([]);
+    signIn('viewer-d');
+    seen.length = 0;
+    const renderer = await render(<Probe />);
+
+    await act(async () => {
+      // A block viewer-c's session sent, accepted after the switch to viewer-d.
+      setPrivacyListMembership('viewer-c', 'blocked', 'c-private-block', true);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(seen.at(-1)?.blockedSet.has('c-private-block')).toBe(false);
+    expect(
+      JSON.stringify(
+        queryClient
+          .getQueryCache()
+          .getAll()
+          .map((q) => q.state.data),
+      ),
+    ).not.toContain('c-private-block');
     act(() => renderer.unmount());
   });
 

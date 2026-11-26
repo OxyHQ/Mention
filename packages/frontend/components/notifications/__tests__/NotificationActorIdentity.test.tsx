@@ -117,7 +117,6 @@ jest.mock('../notificationDescriptors', () => ({
     actionPhrase: () => 'liked your post',
   }),
 }));
-jest.mock('@/lib/utils', () => ({ cn: (...args: unknown[]) => args.filter(Boolean).join(' ') }));
 jest.mock('@/utils/sheet', () => ({ presentSheet: jest.fn(), presentCancelableSheet: jest.fn() }));
 jest.mock('@/components/common/ActionMenu', () => ({
   showActionMenu: jest.fn(),

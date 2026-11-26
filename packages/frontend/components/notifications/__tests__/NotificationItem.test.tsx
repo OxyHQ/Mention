@@ -215,9 +215,6 @@ jest.mock('../notificationDescriptors', () => ({
 }));
 
 jest.mock('@/hooks/useCachedUser', () => ({ useUserById: () => undefined }));
-jest.mock('@/lib/utils', () => ({
-  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
-}));
 
 const mockPresentSheet = jest.fn();
 jest.mock('@/utils/sheet', () => ({
