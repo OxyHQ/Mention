@@ -205,7 +205,10 @@
     "zod": "catalog:",
     "zustand": "^5.0.16",
     "@mercaria.co/sdk": "0.8.0",
-    "@peable.to/sdk": "catalog:"
+    "@peable.to/sdk": "catalog:",
+    "@oxy.so/bloom-language": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/motion-next/packs/a4/oxy.so-bloom-language-0.1.0-a4.tgz",
+    "@oxy.so/bloom-language-compiler": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/motion-next/packs/a4/oxy.so-bloom-language-compiler-0.1.0-a4.tgz",
+    "@oxy.so/bloom-lens": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/motion-next/packs/a4/oxy.so-bloom-lens-0.1.0-a4.tgz"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

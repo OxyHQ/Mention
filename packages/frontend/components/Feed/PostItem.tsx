@@ -1319,8 +1319,7 @@ const renderNestedPost: NestedPostRenderer = (post, nestingDepth, openPostEngage
 // the JSX row unless the build sets EXPO_PUBLIC_BLOOM_LANGUAGE_ROW=1. The
 // language row is required only when chosen, so the JSX row's build and tests
 // never evaluate it.
-const PostRowComponent: typeof MemoPostItem = USE_LANGUAGE_ROW
-  ? (require('./LanguagePostItem') as typeof import('./LanguagePostItem')).default
-  : MemoPostItem;
+// LOCAL MEASUREMENT BUILD (uncommitted): the JSX row only, so the published Bloom bundles too.
+const PostRowComponent: typeof MemoPostItem = MemoPostItem;
 
 export default PostRowComponent;
