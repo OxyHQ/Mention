@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 import { getPlayerAspect, type EmbedPlayerParams } from '@/utils/embedPlayer';
 import { ExternalEmbedPoster } from './ExternalEmbedPoster';
 
@@ -41,31 +41,37 @@ export function ExternalEmbedPlayer({
     [params.type, thumb, expectsThumb],
   );
 
-  return (
-    <View style={[{ width: '100%' }, aspect, { overflow: 'hidden' }]}>
-      {active ? (
-        <iframe
-          src={params.playerUri}
-          // The document is served with `Referrer-Policy: no-referrer`, so this
-          // request would carry no `Referer` and YouTube would answer error 153
-          // (`ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER`) instead of the
-          // player. An element-level policy overrides the document's, and this
-          // one sends the ORIGIN only — never the path of the page the reader is
-          // on — and only to the embed hosts `frame-src` already allows. The
-          // site-wide policy is deliberately left alone.
-          referrerPolicy="strict-origin-when-cross-origin"
-          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-          allowFullScreen
-          onLoad={() => setLoading(false)}
-          style={{ border: 0, width: '100%', height: '100%', backgroundColor: 'transparent' }}
-        />
-      ) : null}
+  // The row's width, the player's shape (a ratio, or a fixed height), clipped.
+  const box = VStack(
+    active
+      ? Embed(
+          <iframe
+            src={params.playerUri}
+            // The document is served with `Referrer-Policy: no-referrer`, so this
+            // request would carry no `Referer` and YouTube would answer error 153
+            // (`ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER`) instead of the
+            // player. An element-level policy overrides the document's, and this
+            // one sends the ORIGIN only — never the path of the page the reader is
+            // on — and only to the embed hosts `frame-src` already allows. The
+            // site-wide policy is deliberately left alone.
+            referrerPolicy="strict-origin-when-cross-origin"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            allowFullScreen
+            onLoad={() => setLoading(false)}
+            style={{ border: 0, width: '100%', height: '100%', backgroundColor: 'transparent' }}
+          />,
+        )
+      : null,
+    Embed(
       <ExternalEmbedPoster
         thumb={thumb}
         active={active}
         loading={loading}
         onPressPlay={onPressPlay}
-      />
-    </View>
+      />,
+    ),
+  ).frame({ width: 'full', height: aspect.height });
+  return toElement(
+    (aspect.aspectRatio === undefined ? box : box.aspectRatio(aspect.aspectRatio)).clipped(),
   );
 }
