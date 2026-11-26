@@ -36,11 +36,12 @@ jest.mock('@oxy.so/bloom/agent-avatar', () => ({
   useAvatarRendererCapabilities: () => ({ sharedLiveRendering: false }),
 }));
 
+// The real `User` the row reads, and a write that stores nothing: the row is
+// given no held copy of anybody (see above), even by the edit itself.
 jest.mock('@oxy.so/services/ui/client', () => ({
+  ...require('@/test-support/oxyUsers').oxyUsers,
+  storeUsers: jest.fn(),
   useAuth: () => ({ user: { id: 'viewer-1' } }),
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
 }));
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
 jest.mock('@/stores/postsStore', () => ({
@@ -137,6 +138,9 @@ import { NotificationItem } from '../NotificationItem';
 import { useUserById } from '@/hooks/useCachedUser';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
+import { openAccountStore, signOutForTests } from '@/test-support/accountScope';
+import { User } from '@oxy.so/services/ui/client';
+import { type Store, withStore } from '@oxy.so/bloom-data';
 // Rows draw language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
@@ -178,6 +182,16 @@ function groupedLike(): GroupedNotification {
 
 let mounted: TestRenderer.ReactTestRenderer | null = null;
 let queryClient: QueryClient | null = null;
+let store: Store;
+
+/** Whether the account's `User` holds anybody: these must run with it empty. */
+function heldUsers(): string[] {
+  return withStore(store, () => User.ids());
+}
+
+beforeEach(() => {
+  store = openAccountStore();
+});
 
 function renderRow(item: GroupedNotification = groupedLike()) {
   queryClient = new QueryClient({
@@ -219,6 +233,7 @@ afterEach(() => {
   queryClient?.clear();
   queryClient = null;
   resetIdentityUpdates();
+  signOutForTests();
   jest.clearAllMocks();
 });
 
@@ -244,6 +259,8 @@ describe('a grouped notification follows every actor it names', () => {
     expect(avatars).not.toEqual(expect.arrayContaining(['secondary-before']));
     // and the primary is untouched
     expect(avatars).toEqual(expect.arrayContaining(['primary-before']));
+    // The overlay carried it: nobody is held in the account's `User`.
+    expect(heldUsers()).toEqual([]);
   });
 
   it('repaints the primary actor too', () => {
@@ -256,6 +273,7 @@ describe('a grouped notification follows every actor it names', () => {
     const avatars = stripAvatars(renderer);
     expect(avatars).toEqual(expect.arrayContaining(['primary-after']));
     expect(avatars).not.toEqual(expect.arrayContaining(['primary-before']));
+    expect(heldUsers()).toEqual([]);
   });
 
   it('leaves a row alone when somebody else is edited', () => {

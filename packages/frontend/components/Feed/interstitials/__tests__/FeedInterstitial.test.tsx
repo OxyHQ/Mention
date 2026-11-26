@@ -37,6 +37,7 @@ import { SuggestedStarterPacksInterstitial } from '../SuggestedStarterPacksInter
 import { SuggestedUsersInterstitial } from '../SuggestedUsersInterstitial';
 import { TrendingTopicsInterstitial } from '../TrendingTopicsInterstitial';
 import { resetReaderState } from '@/stores/readerStateStore';
+import { openAccountStore, signInAs, signOutForTests } from '@/test-support/accountScope';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
@@ -169,26 +170,13 @@ jest.mock('@oxy.so/services/ui/client', () => {
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
+    // The real `User` and `storeUsers`: the bands prime the account's actor
+    // cache with the suggestions they fetch, and the avatar backfill
+    // (`utils/userEnrichment`) skips ids `User` already holds. These tests
+    // assert what a band RENDERS and REPORTS, not cache contents (the merge is
+    // the SDK's own contract).
+    ...require('@/test-support/oxyUsers').oxyUsers,
     useAuth: () => mockAuth,
-    useAuthStore: { getState: () => mockAuth },
-    // The real by-id cache key, ported: the bands' avatar backfill
-    // (`utils/userEnrichment`) reads `queryKeys.users.detail(id)` to skip
-    // already-cached ids, so a stub-less mock would throw the moment a band
-    // prewarms.
-    queryKeys: {
-      users: {
-        detail: (id: string) => ['users', 'detail', id],
-        details: () => ['users', 'detail'],
-      },
-    },
-    // The SDK's canonical merge-upsert — the ONE path the bands seed the actor
-    // cache through (`upsertCachedUsers` for the fetched suggestions,
-    // `upsertCachedUser` inside the avatar backfill). No-ops here: these tests
-    // assert what a band RENDERS and REPORTS, not cache contents (the merge is the
-    // SDK's own contract), but the exports must exist or priming throws the moment
-    // a band fetches suggestions.
-    upsertCachedUser: jest.fn(),
-    upsertCachedUsers: jest.fn(),
     // Faithful to the two modes the real button has, including the one behavior
     // the starter-pack band depends on: in multi-user mode with nobody left to
     // follow it renders NOTHING, so a pack the viewer already followed through
@@ -832,6 +820,9 @@ const TITLES: Record<FeedInterstitialKind, string> = {
 };
 
 beforeEach(() => {
+  // The bands' viewer is the signed-in account, with an empty actor cache.
+  openAccountStore();
+  signInAs(mockAuth.user.id);
   // Dismissals belong to the session, not the band; every case starts a new one.
   resetReaderState();
   mockIsDesktop = true;
@@ -860,6 +851,7 @@ afterEach(() => {
   renderers.length = 0;
   clients.forEach((client) => client.clear());
   clients.length = 0;
+  signOutForTests();
 });
 
 // ── Who to follow ───────────────────────────────────────────────────────────

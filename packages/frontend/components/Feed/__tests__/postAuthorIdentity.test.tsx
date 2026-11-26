@@ -33,8 +33,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
 jest.mock('@oxy.so/services/ui/client', () => ({
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
+  ...require('@/test-support/oxyUsers').oxyUsers,
 }));
 jest.mock('@oxy.so/core', () => ({
   ...jest.requireActual('@oxy.so/core'),
@@ -164,6 +163,7 @@ jest.mock('@/components/ui/AccountAvatarGroup', () => {
 import PostItem from '../PostItem';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { noteIdentityChanged } from '@/lib/actorCache';
+import { openAccountStore, signOutForTests } from '@/test-support/accountScope';
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
@@ -221,11 +221,16 @@ function rowText(renderer: TestRenderer.ReactTestRenderer): string {
   return out.join('');
 }
 
+beforeEach(() => {
+  openAccountStore();
+});
+
 afterEach(() => {
   const renderer = mounted;
   if (renderer) act(() => renderer.unmount());
   mounted = null;
   resetIdentityUpdates();
+  signOutForTests();
   jest.clearAllMocks();
 });
 

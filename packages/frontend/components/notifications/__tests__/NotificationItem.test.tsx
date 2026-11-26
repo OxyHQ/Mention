@@ -49,8 +49,8 @@ const NOTIF_ID = 'notif-1';
 const VIEWER_ID = 'viewer-1';
 
 jest.mock('@oxy.so/services/ui/client', () => ({
+  ...require('@/test-support/oxyUsers').oxyUsers,
   useAuth: () => ({ user: { id: 'viewer-1' } }),
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
 }));
 
 // ── Module boundaries ───────────────────────────────────────────────────────
@@ -174,9 +174,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
-jest.mock('@oxy.so/services', () => ({
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
-}));
+jest.mock('@oxy.so/services', () => ({}));
 
 jest.mock('@oxy.so/core', () => ({
   ...jest.requireActual('@oxy.so/core'),
