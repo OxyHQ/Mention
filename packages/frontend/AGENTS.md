@@ -19,5 +19,5 @@ bun run build            # web export with tree shaking
 
 - Frontend rules and gotchas: [docs/frontend-rules.md](../../docs/frontend-rules.md); React Compiler findings: [docs/frontend-compiler-notes.md](../../docs/frontend-compiler-notes.md).
 - Coverage ratchet: run `coverage:record` only when `coverage:check` asks, and commit `coverage-baseline.json` with it ([TESTING-POLICY](./docs/TESTING-POLICY.md)).
-- Keep `import('hls.js')` a single call site; a second dynamic import moves the demuxer into the eager chunk.
-- Gate HLS support on `MediaSource.isTypeSupported`, never `canPlayType`.
+- Keep `import('hls.js')` a single call site; a second dynamic import moves the demuxer into the eager chunk. Gate: `validate:source-rules`.
+- Gate HLS support on `MediaSource.isTypeSupported`, never `canPlayType`. Gate: `validate:source-rules`.

@@ -79,7 +79,8 @@ scroll. Bloom preserves the top and bottom gutters around bounded columns.
 The web host keeps `html`, `body` and `#root` at `height: 100%` with visible
 overflow: bounded panels inherit the usable height, excluding classic horizontal
 scrollbars, while document pages can overflow naturally. Do not use `100vh` as
-the host minimum height; it adds the scrollbar height back into Deck.
+the host minimum height; it adds the scrollbar height back into Deck
+(gate: `validate:source-rules`).
 Bloom also owns the final inline gutter and the sticky sidebar overlap surface.
 Its shared CSS responds to document scroll; Mention adds no scroll listener or
 route-specific sidebar paint.
@@ -91,7 +92,7 @@ for all internal routes, with back/forward and restored scroll positions.
 Bloom’s panel router when embedded on web, and to Expo otherwise. Native
 imports use Expo directly. Screens and nested layouts come from the same app route tree; profiles keep their chrome mounted
 when changing tabs. Use `useRouter()`, never the global `router` singleton in
-reusable screens. Modified clicks retain canonical URLs for new tabs.
+reusable screens (gate: `validate:source-rules`). Modified clicks retain canonical URLs for new tabs.
 Virtualized lists use the Bloom scroll owner; only that owner restores a panel’s
 history offset. Column reselect, scroll and profile colors are scoped too.
 Each route declares its chrome through `Screen`, `header` and
@@ -276,7 +277,7 @@ for display.
 
 - **Import runtime values from `@mention/shared-types` public subpaths; reserve its root for types.** The CommonJS root also exports Zod schemas, pulling a second, CommonJS Zod runtime beside the ESM runtime already used by the frontend. Use `/job`, `/lane`, `/realtime`, `/communityNotes`, `/post`, `/feed`, or `/mtn/config` as appropriate. Gate: `sharedTypesEntryIsolation.test.ts`; verify the production bundle after changing entry boundaries.
 - **React Query keys and effect deps MUST include `isAuthenticated` / `user?.id`** — SSO restore takes 5–25 s, and keying on `oxyServices` or `[]` fetches once while anonymous and never recovers. Gate private endpoints on `useAuth().canUsePrivateApi`, not just `isAuthenticated` (`usePrivacyControls`'s infinite-401 pattern). Jest does not reproduce this; verify in a real foregrounded tab.
-- **Web lists are Bloom's `VirtualList`.** It windows against the Screen's scroller (window or element-kind panel) and owns `onEndReached`, origin measurement and retained-screen idling. Do not add an app-local virtualizer or a load-more sentinel; a missing capability goes into Bloom. Why a direct `@tanstack/react-virtual` caller freezes under the React Compiler: `docs/frontend-compiler-notes.md`.
+- **Web lists are Bloom's `VirtualList`.** It windows against the Screen's scroller (window or element-kind panel) and owns `onEndReached`, origin measurement and retained-screen idling. Do not add an app-local virtualizer or a load-more sentinel; a missing capability goes into Bloom. Gate: `validate:source-rules`. Why a direct `@tanstack/react-virtual` caller freezes under the React Compiler: `docs/frontend-compiler-notes.md`.
 - **Bind the root Bloom provider to Expo Router.** Pass the stable `expoRouterScrollAdapter` so saved offsets and measurements include the nearest route identity and focus. Bloom's universal default is inert; a static shell panel id alone cannot identify different pages. Deck keeps its own navigation scope.
 - **Restore layout with the same identity as its content.** Web route `Slot` navigation legitimately unmounts lists. Pass the canonical viewer/feed, saved-query, notification-tab or profile-media identity as Bloom's `restorationKey` so measured heights survive alongside the saved offset. Mention's list wrappers require that identity; never fall back to a route-only or tab-only key. Bloom owns the bounded measurement store. Profile grids keep the profile shell as their sole offset owner.
 - **"Can the reader see it?" is Bloom's `useScreenVisible()`** (its Screen is active and the app is in the foreground; `useAppForeground()` for the app half alone). Impressions, live feed updates, reference cards and video playback gate on it — never on `useIsFocused`, `AppState` or `visibilitychange` per feature. It is only as good as the Screen's `active`: a native route screen stays mounted under a pushed one, so every route Screen that renders posts passes `active={isFocused}`.
