@@ -20,6 +20,7 @@ import type { AppRoutes } from '../appRoutes';
 import {
   ANDROID_SIGNING_CERT_SHA256,
   MENTION_APP_ID,
+  MENTION_APP_IDS,
   createAppAssociationRouter,
 } from '../routes/appAssociation.routes';
 import {
@@ -122,16 +123,17 @@ describe('app association documents', () => {
     expect(res.headers['content-type']).toMatch(/^application\/json\b/);
     expect(res.headers.location).toBeUndefined();
     expect(apexProxy).not.toHaveBeenCalled();
-    expect(res.body).toEqual([
-      {
+    expect(res.body).toEqual(
+      MENTION_APP_IDS.map((packageName) => ({
         relation: ['delegate_permission/common.handle_all_urls'],
         target: {
           namespace: 'android_app',
-          package_name: MENTION_APP_ID,
+          package_name: packageName,
           sha256_cert_fingerprints: [...ANDROID_SIGNING_CERT_SHA256],
         },
-      },
-    ]);
+      })),
+    );
+    expect(res.body[0].target.package_name).toBe(MENTION_APP_ID);
   });
 
   it("serves Stripe's Apple Pay domain file on the apex, byte for byte, without the SPA", async () => {
@@ -185,7 +187,7 @@ describe('app association documents', () => {
       .expect(200);
     expect(aasa.headers['content-type']).toMatch(/^application\/json\b/);
     expect(aasa.body.applinks.details).toEqual([
-      expect.objectContaining({ appIDs: [`ABCDE12345.${MENTION_APP_ID}`] }),
+      expect.objectContaining({ appIDs: MENTION_APP_IDS.map((id) => `ABCDE12345.${id}`) }),
     ]);
     // Backend-owned apex surfaces must stay in the browser; the catch-all is last.
     const components = aasa.body.applinks.details[0].components as Array<Record<string, unknown>>;
@@ -203,12 +205,16 @@ describe('app association documents', () => {
       config.appAssociation.androidSigningCertSha256 = [playFingerprint, playFingerprint];
       const { app } = createTestApp();
       const apple = await request(app).get('/.well-known/apple-app-site-association').expect(200);
-      expect(apple.body.applinks.details[0].appIDs).toEqual([`ABCDE12345.${MENTION_APP_ID}`]);
+      expect(apple.body.applinks.details[0].appIDs).toEqual(
+        MENTION_APP_IDS.map((id) => `ABCDE12345.${id}`),
+      );
       const android = await request(app).get('/.well-known/assetlinks.json').expect(200);
-      expect(android.body[0].target.sha256_cert_fingerprints).toEqual([
-        ...ANDROID_SIGNING_CERT_SHA256,
-        playFingerprint,
-      ]);
+      for (const statement of android.body) {
+        expect(statement.target.sha256_cert_fingerprints).toEqual([
+          ...ANDROID_SIGNING_CERT_SHA256,
+          playFingerprint,
+        ]);
+      }
     } finally {
       Object.assign(config.appAssociation, previous);
     }

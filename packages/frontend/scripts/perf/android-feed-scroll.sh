@@ -31,7 +31,7 @@ ADB_BIN=${ADB:-adb}
 ADB_ARGS=()
 [ -n "${ADB_SERIAL:-}" ] && ADB_ARGS=(-s "$ADB_SERIAL")
 adb_() { "$ADB_BIN" "${ADB_ARGS[@]}" "$@"; }
-PKG=earth.mention.app
+PKG=${PKG:-org.mention.app}
 OUT=${OUT_DIR:-./feed-scroll-results}/$LABEL
 mkdir -p "$OUT"
 HERE=$(cd "$(dirname "$0")" && pwd)

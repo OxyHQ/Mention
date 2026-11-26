@@ -23,7 +23,20 @@ import { config } from '../config';
 import { APPLE_PAY_DOMAIN_ASSOCIATION } from './applePayDomainAssociation';
 
 /** `android.package` / `ios.bundleIdentifier` of the production app. */
-export const MENTION_APP_ID = 'earth.mention.app';
+export const MENTION_APP_ID = 'org.mention.app';
+
+/**
+ * Ids the app was built with before, still claiming the same links until their
+ * last installed build is gone. `earth.mention.app` was the id until 2.2.0; it
+ * only ever reached Google Play internal testing, and stays here while the
+ * owner's phones still run that build. Each entry still has to be signed with
+ * {@link ANDROID_SIGNING_CERT_SHA256}, so it grants nothing a new package does
+ * not. Remove it once those builds are replaced by `org.mention.app`.
+ */
+export const RETIRING_MENTION_APP_IDS = ['earth.mention.app'] as const;
+
+/** Every id these documents name: the current app first, then the retiring ones. */
+export const MENTION_APP_IDS = [MENTION_APP_ID, ...RETIRING_MENTION_APP_IDS] as const;
 
 /**
  * SHA-256 fingerprints of every certificate a production Android build of
@@ -47,7 +60,7 @@ export const MENTION_APP_ID = 'earth.mention.app';
  * - `FA:C6:17:45:...:3B:9C`, the React Native template DEBUG keystore
  *   (`CN=Android Debug`, password `android`). Its private key ships inside
  *   countless npm packages, so trusting it would let anyone sign an
- *   `earth.mention.app` that owns our links. A build made without the
+ *   `org.mention.app` that owns our links. A build made without the
  *   `OXY_UPLOAD_*` Gradle properties falls back to that key and will never
  *   verify, by design.
  */
@@ -77,18 +90,15 @@ const APPLE_APP_LINK_COMPONENTS = [
 function buildAssetLinks(
   additionalFingerprints: readonly string[] = config.appAssociation.androidSigningCertSha256,
 ) {
-  return [
-    {
-      relation: ['delegate_permission/common.handle_all_urls'],
-      target: {
-        namespace: 'android_app',
-        package_name: MENTION_APP_ID,
-        sha256_cert_fingerprints: [
-          ...new Set([...ANDROID_SIGNING_CERT_SHA256, ...additionalFingerprints]),
-        ],
-      },
+  const fingerprints = [...new Set([...ANDROID_SIGNING_CERT_SHA256, ...additionalFingerprints])];
+  return MENTION_APP_IDS.map((packageName) => ({
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: packageName,
+      sha256_cert_fingerprints: fingerprints,
     },
-  ];
+  }));
 }
 
 function buildAppleAppSiteAssociation(teamId: string | null = config.appAssociation.appleTeamId) {
@@ -97,7 +107,7 @@ function buildAppleAppSiteAssociation(teamId: string | null = config.appAssociat
     applinks: {
       details: [
         {
-          appIDs: [`${teamId}.${MENTION_APP_ID}`],
+          appIDs: MENTION_APP_IDS.map((appId) => `${teamId}.${appId}`),
           components: APPLE_APP_LINK_COMPONENTS,
         },
       ],

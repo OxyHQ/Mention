@@ -33,9 +33,13 @@ module.exports = (_config) => {
    * SAME device by giving it a distinct applicationId/bundleId + name. Build the
    * dev variant with `APP_VARIANT=development`; production is the default.
    * Both packages are present in `google-services.json` so the build passes;
-   * FCM push for `earth.mention.app`(.dev) requires those packages to be
+   * FCM push for `org.mention.app`(.dev) requires those packages to be
    * registered in the Firebase console (project mention-a7a53) and the real
    * `google-services.json` swapped in — until then the entries are placeholders.
+   *
+   * The ids were `earth.mention.app`(.dev) until 2.2.0. Mention was only on
+   * Google Play internal testing, so the rename is a new Play app with no one
+   * to migrate.
    */
   /**
    * Endpoints the Android home-screen widgets talk to.
@@ -62,8 +66,7 @@ module.exports = (_config) => {
     'oxy_dk_ba07b16e89bd180d2b58c09b02db550e727fa598ed73e2f2';
 
   const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development';
-  const APP_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app';
-  const IOS_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app';
+  const APP_ID = IS_DEV_VARIANT ? 'org.mention.app.dev' : 'org.mention.app';
   const APP_NAME = IS_DEV_VARIANT ? 'Mention (Dev)' : 'Mention';
 
   return {
@@ -82,7 +85,7 @@ module.exports = (_config) => {
       },
       ios: {
         supportsTablet: true,
-        bundleIdentifier: IOS_ID,
+        bundleIdentifier: APP_ID,
         // Universal Links. iOS fetches the AASA from this domain; the backend
         // serves it (`packages/backend/src/routes/appAssociation.routes.ts`).
         associatedDomains: ['applinks:mention.earth'],
@@ -106,7 +109,7 @@ module.exports = (_config) => {
         // source-built RN coordinator preserves JS overlay/guard ownership.
         // This requires a native rebuild, not only a JavaScript update.
         predictiveBackGestureEnabled: true,
-        // google-services.json carries both earth.mention.app and its .dev
+        // google-services.json carries both org.mention.app and its .dev
         // variant so either build passes; real FCM needs those registered
         // in Firebase and the file swapped (see the app-variant note above).
         googleServicesFile: process.env.GOOGLE_SERVICES_JSON || '../../google-services.json',

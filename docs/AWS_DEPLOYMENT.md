@@ -48,7 +48,7 @@ The native apps ship outside AWS:
 
 | Surface                              | How it ships                                                                                                                                   | Workflow                                              |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Android binary (`earth.mention.app`) | Signed AAB + APK built on Oxy's build machine, GitHub release `android-v<version>`, only when `packages/frontend` `version` has no release yet | `.github/workflows/android-release.yml` (calls oxy's) |
+| Android binary (`org.mention.app`) | Signed AAB + APK built on Oxy's build machine, GitHub release `android-v<version>`, only when `packages/frontend` `version` has no release yet | `.github/workflows/android-release.yml` (calls oxy's) |
 | OTA update (iOS and Android JS)      | Oxy Updates, channel `production`, on every push to main touching the app; GitHub trusted publishing, no secret                                | `.github/workflows/publish-update.yml`                |
 
 The app `version` is both the OTA runtime and the store build number

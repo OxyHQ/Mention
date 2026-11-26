@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:606858345554:android:7a52d83ecb5de8e042f38b",
         "android_client_info": {
-          "package_name": "earth.mention.app"
+          "package_name": "org.mention.app"
         }
       },
       "oauth_client": [],
@@ -28,7 +28,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:606858345554:android:7a52d83ecb5de8e042fd0b",
         "android_client_info": {
-          "package_name": "earth.mention.app.dev"
+          "package_name": "org.mention.app.dev"
         }
       },
       "oauth_client": [],
