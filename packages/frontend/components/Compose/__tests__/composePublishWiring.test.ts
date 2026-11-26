@@ -95,23 +95,20 @@ describe('handlePost', () => {
  * draft" used to write a second copy with no id, and "Discard" only closed.
  */
 describe('the save-draft prompt', () => {
-  function action(label: string): string {
-    const start = screen.indexOf(`label: t('${label}'`);
-    if (start < 0) throw new Error(`No ${label} action in ComposeScreen`);
-    return screen.slice(start, screen.indexOf('\n            },', start));
-  }
+  // The ORDER (store, then close; delete, then close) is pinned behaviourally in
+  // composeDialogActions.test.ts; this pins that the screen feeds it the draft
+  // manager, so both exits act on the draft this session has been keeping.
+  const at = screen.indexOf('discardDraftDialogActions({');
+  const wiring = screen.slice(at, screen.indexOf('})}', at));
 
-  it('saves into the session draft, and closes only once the write has landed', () => {
-    const save = action('compose.saveDraft');
-    expect(save).toContain('await saveDraftNow(draftSnapshot)');
-    expect(save.indexOf('await saveDraftNow')).toBeLessThan(save.indexOf('dismiss()'));
-    expect(save).not.toMatch(/\bsaveDraft\(\{/);
+  it('saves into the session draft', () => {
+    expect(at).toBeGreaterThan(-1);
+    expect(wiring).toContain('saveDraft: () => saveDraftNow(draftSnapshot)');
+    expect(wiring).not.toMatch(/\bsaveDraft\(\{/);
   });
 
-  it('deletes the session draft before closing on Discard', () => {
-    const discard = action('common.discard');
-    expect(discard).toContain('await discardDraft()');
-    expect(discard.indexOf('await discardDraft()')).toBeLessThan(discard.indexOf('dismiss()'));
+  it('deletes the session draft on Discard', () => {
+    expect(wiring).toContain('discardDraft,');
   });
 });
 
