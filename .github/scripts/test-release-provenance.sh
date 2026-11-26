@@ -50,7 +50,13 @@ jobs_json() { printf '{"jobs":[{"name":"Test backend","conclusion":"success"},{"
 
 fixture verified "{\"workflow_runs\":[$(run_json 11 merge_group success)]}" 11 "$(jobs_json success)"
 fixture none '{"workflow_runs":[]}'
-fixture failed-run "{\"workflow_runs\":[$(run_json 12 merge_group failure)]}" 12 "$(jobs_json success)"
+# A Seldon-raced queue run concludes `cancelled` (a race loser) and a rescued
+# one `failure` (a Seldon lane rerun hosted): their green CI complete vouches.
+# A rescued run with a red gate, or one still running, never does.
+fixture rescued-run "{\"workflow_runs\":[$(run_json 12 merge_group failure)]}" 12 "$(jobs_json success)"
+fixture raced-run "{\"workflow_runs\":[$(run_json 19 merge_group cancelled)]}" 19 "$(jobs_json success)"
+fixture rescued-red-gate "{\"workflow_runs\":[$(run_json 20 merge_group failure)]}" 20 "$(jobs_json failure)"
+fixture unfinished-run "{\"workflow_runs\":[$(run_json 21 merge_group '')]}" 21 "$(jobs_json success)"
 fixture red-gate "{\"workflow_runs\":[$(run_json 13 merge_group success)]}" 13 "$(jobs_json failure)"
 fixture other-sha "{\"workflow_runs\":[$(run_json 14 merge_group success OxyHQ/Mention .github/workflows/ci.yml fedcba9876543210fedcba9876543210fedcba98)]}" 14 "$(jobs_json success)"
 fixture other-workflow "{\"workflow_runs\":[$(run_json 15 merge_group success OxyHQ/Mention .github/workflows/evil.yml)]}" 15 "$(jobs_json success)"
@@ -92,7 +98,9 @@ expect 'unverified-fallback-releases' '0 release=true ' "$(run none "${fallback[
 
 # Nothing but a green merge_group run of ci.yml, for this SHA, in this repo,
 # with a green `CI complete`, counts as verified.
-for name in failed-run red-gate other-sha other-workflow fork pull-request; do
+expect 'rescued-run-releases' '0 release=true ' "$(run rescued-run "${push[@]}")"
+expect 'raced-run-releases' '0 release=true ' "$(run raced-run "${push[@]}")"
+for name in rescued-red-gate unfinished-run red-gate other-sha other-workflow fork pull-request; do
   expect "$name-does-not-verify" '0 release=false ' "$(run "$name" "${push[@]}")"
 done
 

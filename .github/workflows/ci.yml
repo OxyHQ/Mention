@@ -177,7 +177,8 @@ jobs:
 
   race-finish:
     needs: race
-    if: needs.race.outputs.race == 'true'
+    # `!cancelled()`: an ancestor skipped on this event (provenance, a twin) must not skip it.
+    if: ${{ !cancelled() && needs.race.outputs.race == 'true' }}
     uses: OxyHQ/oxy/.github/workflows/seldon-race-finish.yml@main
     permissions:
       actions: read
