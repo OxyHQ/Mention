@@ -1,0 +1,189 @@
+// Settings -> Notifications, in Bloom's own language (`.bloom`, spec draft 0).
+// The hand port of `notifications.tsx` for the language proof: the route keeps
+// using the TypeScript screen until the port compiles and measures the same
+// (`__perf__/lang-proof/README.md`). Written for the spec as it should be: under
+// draft 0 each `t(…)` passed to a String is B0601 and `Partial<Prefs>(…)` does not
+// parse (the README's friction list, items 1 and 2).
+
+import { useTranslation } from "react-i18next"
+import { logger } from "@oxy.so/core/logger"
+import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client"
+import { SettingsSkeleton } from "@/components/loading/ContentSkeleton"
+import { useSettingsRouter } from "@/context/MentionSettingsContext"
+import { useViewerSettingsSection } from "@/hooks/useViewerSettings"
+
+/// The viewer's notification preferences; a field the server has not stored is on.
+struct Prefs {
+  pushEnabled: Bool = true
+  likes: Bool = true
+  boosts: Bool = true
+  follows: Bool = true
+  mentions: Bool = true
+  replies: Bool = true
+  quotes: Bool = true
+}
+
+/// One preference (at runtime the field's name, as `keyof` would be).
+enum PrefKey {
+  pushEnabled
+  likes
+  boosts
+  follows
+  mentions
+  replies
+  quotes
+}
+
+fn isOn(prefs: Prefs, key: PrefKey) -> Bool {
+  match key {
+    case .pushEnabled => prefs.pushEnabled
+    case .likes => prefs.likes
+    case .boosts => prefs.boosts
+    case .follows => prefs.follows
+    case .mentions => prefs.mentions
+    case .replies => prefs.replies
+    case .quotes => prefs.quotes
+  }
+}
+
+/// The one-field patch `update` sends (the server merges it).
+fn patch(key: PrefKey, value: Bool) -> Partial<Prefs> {
+  match key {
+    case .pushEnabled => Partial<Prefs>(pushEnabled: value)
+    case .likes => Partial<Prefs>(likes: value)
+    case .boosts => Partial<Prefs>(boosts: value)
+    case .follows => Partial<Prefs>(follows: value)
+    case .mentions => Partial<Prefs>(mentions: value)
+    case .replies => Partial<Prefs>(replies: value)
+    case .quotes => Partial<Prefs>(quotes: value)
+  }
+}
+
+pub default view NotificationSettingsScreen {
+  let { t } = useTranslation()
+  let router = useSettingsRouter()
+  let { canUsePrivateApi, isPrivateApiPending } = useAuth()
+  let section = useViewerSettingsSection("notificationPreferences")
+  // The section's types are mapped (`Partial<…[K]>`), so they are Foreign until annotated.
+  let stored: Partial<Prefs> = section.value
+  let loading: Bool = section.isLoading
+  let update: async (Partial<Prefs>) -> Unit = section.update
+
+  @state saving = false
+
+  let prefs = Prefs(..stored)
+
+  async fn updatePreference(key: PrefKey, value: Bool) {
+    saving = true
+    match await update(patch(key, value)) {
+      case .ok(_) => {}
+      case .err(error) => {
+        logger.error("Error updating notification preferences", error)
+        toast(
+          t("settings.notifications.saveError", defaultValue: "Failed to save notification preference"),
+          type: "error",
+        )
+      }
+    }
+    saving = false
+  }
+
+  /// A preference's row: its title, what it does, and its switch.
+  fn toggleRow(key: PrefKey, title: String, description: String) -> View {
+    GroupedSectionItem(title)
+      .wrapControl()
+      .description(description)
+      .trailing(
+        Toggle(Binding(get: isOn(prefs, key), set: { on in updatePreference(key, on) }))
+          .label(title)
+      )
+  }
+
+  body {
+    if isPrivateApiPending {
+      VStack { SettingsSkeleton() }
+        .spacing("lg")
+    } else if !canUsePrivateApi {
+      VStack {
+        OxyAuthPrompt(
+          label: t("settings.notifications.signInRequired", defaultValue: "Sign in to manage notifications"),
+          description: t("settings.notifications.signInRequiredDesc", defaultValue: "Choose what alerts you receive and how."),
+        )
+      }
+      .spacing("lg")
+    } else if loading {
+      VStack { SettingsSkeleton() }
+        .spacing("lg")
+    } else {
+      VStack {
+        if saving {
+          Loading()
+            .style("inline")
+            .size("sm")
+        }
+        VStack {
+          SettingsSection(t("settings.notifications.sections.general", defaultValue: "General")) {
+            GroupedSection {
+              toggleRow(
+                .pushEnabled,
+                t("settings.notifications.push", defaultValue: "Push notifications"),
+                t("settings.notifications.pushDesc", defaultValue: "Receive push notifications on your device"),
+              )
+            }
+          }
+          SettingsSection(t("settings.notifications.sections.activity", defaultValue: "Activity from others")) {
+            GroupedSection {
+              GroupedSectionItem(t("subscription.list.title", defaultValue: "Activity notifications"))
+                .wrapControl()
+                .description(t("subscription.list.entryDesc", defaultValue: "Accounts that notify you when they post"))
+                .trailing(
+                  Button(Text(t("common.open", defaultValue: "Open")))
+                    .size("sm")
+                    .style("subtle")
+                    .tint("neutral")
+                    .onPress { router.push("/settings/notifications/subscriptions") }
+                    .label(t("subscription.list.title", defaultValue: "Activity notifications"))
+                )
+            }
+          }
+          SettingsSection(t("settings.notifications.sections.types", defaultValue: "Notification types")) {
+            GroupedSection {
+              toggleRow(
+                .likes,
+                t("settings.notifications.likes", defaultValue: "Likes"),
+                t("settings.notifications.likesDesc", defaultValue: "When someone likes your post"),
+              )
+              toggleRow(
+                .boosts,
+                t("settings.notifications.boosts", defaultValue: "Boosts"),
+                t("settings.notifications.boostsDesc", defaultValue: "When someone boosts your post"),
+              )
+              toggleRow(
+                .follows,
+                t("settings.notifications.follows", defaultValue: "New followers"),
+                t("settings.notifications.followsDesc", defaultValue: "When someone follows you"),
+              )
+              toggleRow(
+                .mentions,
+                t("settings.notifications.mentions", defaultValue: "Mentions"),
+                t("settings.notifications.mentionsDesc", defaultValue: "When someone mentions you in a post"),
+              )
+              toggleRow(
+                .replies,
+                t("settings.notifications.replies", defaultValue: "Replies"),
+                t("settings.notifications.repliesDesc", defaultValue: "When someone replies to your post"),
+              )
+              toggleRow(
+                .quotes,
+                t("settings.notifications.quotes", defaultValue: "Quote posts"),
+                t("settings.notifications.quotesDesc", defaultValue: "When someone quotes your post"),
+              )
+            }
+          }
+        }
+        .spacing("lg")
+      }
+      .spacing("lg")
+    }
+  }
+}
