@@ -167,7 +167,7 @@ jobs:
   # other. CI complete takes the raced jobs' verdict from the race.
   race:
     needs: provenance
-    if: ${{ !cancelled() && vars.CI_SELDON_RACE == 'true' && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork }}
+    if: ${{ !cancelled() && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork }}
     uses: OxyHQ/oxy/.github/workflows/seldon-race-start.yml@main
     permissions:
       actions: read
@@ -187,7 +187,7 @@ jobs:
     # would otherwise skip the dependent too; it runs unless provenance
     # positively answered verified.
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
     concurrency:
       group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-Build, lint and typecheck
     permissions: &race-lane-permissions
