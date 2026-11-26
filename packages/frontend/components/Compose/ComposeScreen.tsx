@@ -207,6 +207,7 @@ import { MentionSearchContext, useCreateMentionSearchCache } from '@/context/Men
 
 // Keep this in sync with PostItem constants
 import { HPAD, BOTTOM_LEFT_PAD } from '@/components/Compose/composeLayout';
+import { discardDraftDialogActions } from '@/components/Compose/composeDialogActions';
 import { deriveComposeEligibility } from '@/components/Compose/composeEligibility';
 // Lazy load sheets - only loaded when user opens them
 const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedSheet'));
@@ -4409,39 +4410,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             'compose.saveDraftDescription',
             'Would you like to save this as a draft to edit later?',
           )}
-          actions={[
-            {
-              label: t('compose.saveDraft', 'Save draft'),
-              color: 'default',
-              onPress: async () => {
-                try {
-                  await saveDraftNow(draftSnapshot);
-                  dismiss();
-                } catch (error) {
-                  logger.error('Failed to save draft', error);
-                }
-              },
-            },
-            {
-              label: t('common.discard', 'Discard'),
-              color: 'destructive',
-              onPress: async () => {
-                try {
-                  await discardDraft();
-                } catch (error) {
-                  // The author chose to throw this work away; a stored copy that
-                  // could not be deleted must not keep them in the composer.
-                  logger.error('Failed to delete the discarded draft', error);
-                  toast(t('compose.deleteDraftError', 'Failed to delete draft'), { type: 'error' });
-                }
-                dismiss();
-              },
-            },
-            {
-              label: t('compose.keepEditing', 'Keep editing'),
-              color: 'cancel',
-            },
-          ]}
+          actions={discardDraftDialogActions({
+            t,
+            saveDraft: () => saveDraftNow(draftSnapshot),
+            discardDraft,
+            dismiss,
+            reportError: (message, error) => logger.error(message, error),
+            notifyError: (message) => toast(message, { type: 'error' }),
+          })}
         />
 
         {/* Clear all confirmation prompt */}
