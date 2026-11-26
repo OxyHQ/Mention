@@ -388,6 +388,9 @@
     "clearAll": {
       "a11y": "清除全部内容"
     },
+    "actions": {
+      "a11y": "编辑器操作"
+    },
     "languages": {
       "add": "添加语言",
       "makeMain": "设为主要语言",

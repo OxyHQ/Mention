@@ -388,6 +388,9 @@
     "clearAll": {
       "a11y": "Clear all content"
     },
+    "actions": {
+      "a11y": "Composer actions"
+    },
     "languages": {
       "add": "Add a language",
       "makeMain": "Make main language",

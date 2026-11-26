@@ -388,6 +388,9 @@
     "clearAll": {
       "a11y": "Limpar todo o conteúdo"
     },
+    "actions": {
+      "a11y": "Ações do editor"
+    },
     "languages": {
       "add": "Adicionar um idioma",
       "makeMain": "Tornar idioma principal",

@@ -388,6 +388,9 @@
     "clearAll": {
       "a11y": "Tüm içeriği temizle"
     },
+    "actions": {
+      "a11y": "Düzenleyici işlemleri"
+    },
     "languages": {
       "add": "Dil ekle",
       "makeMain": "Ana dil yap",

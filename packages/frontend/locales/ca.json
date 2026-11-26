@@ -388,6 +388,9 @@
     "clearAll": {
       "a11y": "Esborra tot el contingut"
     },
+    "actions": {
+      "a11y": "Accions de l'editor"
+    },
     "languages": {
       "add": "Afegeix un idioma",
       "makeMain": "Fes-lo l'idioma principal",
