@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import type { NotificationIntent } from '@/types/notificationIntent';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 
 let mockUserId: string | null = 'A';
 let mockEpoch = 1;
@@ -24,7 +25,35 @@ type RowActions = {
 };
 const mockRows: Record<string, RowActions> = {};
 const mockToast = jest.fn();
-const mockAuthListeners = new Set<() => void>();
+/** Account-scope subscriptions still open: every surface must release its own. */
+const mockAuthListeners = new Set<object>();
+/**
+ * The rendered viewer (`useAuth`, the session) and the signed-in account (the
+ * scope), moved together. The scope drops a scratch client, not the rendered
+ * one, and React Query gets back the synchronous scheduler this file runs on
+ * (an account change restores its default one, `dropAccountQueries`).
+ */
+function setViewer(id: string | null) {
+  mockUserId = id;
+  signInAs(id);
+  notifyManager.setScheduler((callback) => callback());
+}
+// The real account scope, with its subscriptions counted.
+jest.mock('@/lib/accountScope', () => {
+  const actual = jest.requireActual('@/lib/accountScope');
+  return {
+    ...actual,
+    subscribeAccount: (listener: () => void) => {
+      const subscription = {};
+      mockAuthListeners.add(subscription);
+      const unsubscribe = actual.subscribeAccount(listener);
+      return () => {
+        mockAuthListeners.delete(subscription);
+        unsubscribe();
+      };
+    },
+  };
+});
 const mockTokenListeners = new Set<() => void>();
 const mockT = (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key;
 const mockAuth = {
@@ -51,13 +80,6 @@ const mockAuth = {
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ ...mockAuth, user: { id: mockUserId } }),
   OxyAuthPrompt: () => null,
-  useAuthStore: {
-    getState: () => ({ user: mockUserId ? { id: mockUserId } : null }),
-    subscribe: (listener: () => void) => {
-      mockAuthListeners.add(listener);
-      return () => mockAuthListeners.delete(listener);
-    },
-  },
 }));
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
@@ -203,7 +225,7 @@ function ui() {
   );
 }
 beforeEach(() => {
-  mockUserId = 'A';
+  setViewer('A');
   mockEpoch = 1;
   mockAuthListeners.clear();
   mockTokenListeners.clear();
@@ -230,6 +252,7 @@ afterEach(() => {
   const current = renderer;
   if (current) act(() => current.unmount());
   client.clear();
+  signOutForTests();
 });
 
 it('keeps a same-viewer offline mutation queued and sends it after reconnecting', async () => {
@@ -284,7 +307,7 @@ function markAllButton() {
 }
 async function switchAwayAndReturn(kind: 'switch' | 'aba' | 'logout' | 'relogin') {
   mockEpoch++;
-  mockUserId = kind === 'logout' || kind === 'relogin' ? null : 'B';
+  setViewer(kind === 'logout' || kind === 'relogin' ? null : 'B');
   const current = renderer;
   if (!current) throw new Error('Screen is not mounted');
   act(() => {
@@ -293,7 +316,7 @@ async function switchAwayAndReturn(kind: 'switch' | 'aba' | 'logout' | 'relogin'
   renderer = undefined;
   if (kind === 'aba' || kind === 'relogin') {
     mockEpoch++;
-    mockUserId = 'A';
+    setViewer('A');
   } else if (kind === 'logout') return;
   if (!mockUserId) throw new Error('Expected a signed-in fixture');
   seed(client, mockUserId, [{ ...notification('new'), recipientId: mockUserId }]);
@@ -366,7 +389,7 @@ it('aborts the owned confirmation on logout without unmounting the screen', asyn
   const signal = (mockConfirm.mock.calls[0][0] as { signal: AbortSignal }).signal;
   expect(signal.aborted).toBe(false);
   await act(async () => {
-    mockUserId = null;
+    setViewer(null);
     mockEpoch++;
     for (const listener of mockTokenListeners) listener();
     await tick();
@@ -391,8 +414,8 @@ for (const change of ['viewer', 'epoch', 'unmount'] as const) {
     const signal = (mockConfirm.mock.calls[0][0] as { signal: AbortSignal }).signal;
     await act(async () => {
       if (change === 'viewer') {
-        mockUserId = 'B';
-        for (const listener of mockAuthListeners) listener();
+        // The runtime's switch: the scope tells its subscribers synchronously.
+        setViewer('B');
       } else if (change === 'epoch') {
         mockEpoch++;
         for (const listener of mockTokenListeners) listener();
@@ -467,7 +490,7 @@ it('keeps the confirmation owned after its answer until its visual exit finishes
   expect(mockMarkAll).toHaveBeenCalledTimes(1);
   expect(signal.aborted).toBe(false);
   await act(async () => {
-    mockUserId = 'B';
+    setViewer('B');
     mockEpoch++;
     for (const listener of mockTokenListeners) listener();
     await tick();
@@ -566,7 +589,7 @@ it('still reports and resynchronizes an ordinary read error', async () => {
 it('refuses a stale row action before the previous screen unmounts', async () => {
   await mount();
   mockEpoch++;
-  mockUserId = 'B';
+  setViewer('B');
   await act(async () => {
     mockRows.one.onMarkAsRead(['one']);
     await tick();
@@ -967,9 +990,9 @@ it('an old rendered row cannot recapture a new epoch after ABA without a render'
   const oldRow = mockRows.one;
   const initial = oldRow.captureIntent();
   expect(initial).toEqual({ viewerId: 'A', epoch: 1 });
-  mockUserId = 'B';
+  setViewer('B');
   mockEpoch++;
-  mockUserId = 'A';
+  setViewer('A');
   mockEpoch++;
   expect(oldRow.captureIntent()).toBeNull();
   await act(async () => {
