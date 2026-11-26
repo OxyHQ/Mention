@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TrendingService } from '../../services/TrendingService';
+import { TrendingService } from '../../services/trending/TrendingService';
 import type { DistributedLock } from '../../utils/redisLock';
 
 /**

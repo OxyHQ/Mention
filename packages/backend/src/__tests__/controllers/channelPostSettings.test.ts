@@ -30,11 +30,11 @@ import {
 } from '../helpers/postFixtures';
 
 const postCreationCreate = vi.fn();
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: { create: (...args: unknown[]) => postCreationCreate(...args) },
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: vi.fn(() => ({ id: 'unknown', username: '' })),
@@ -54,7 +54,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 const isChannelAccount = vi.fn();
-vi.mock('../../services/publishAsAccount', () => ({
+vi.mock('../../services/accounts/publishAsAccount', () => ({
   isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
   assertCanPublishAsAccount: vi.fn(async (params: { callerId: string | null }) => ({
     authorId: params.callerId,

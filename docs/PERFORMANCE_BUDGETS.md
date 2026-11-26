@@ -665,7 +665,7 @@ keeps a single request's numbers together**.
 Read them together. `postHydrationStatementBudget.test.ts` pins one hydration
 at seven statements whether it hydrates one post or twenty, so a route that is
 slow with a small `queryCount` is slow somewhere else, and `oxyCallCount` is
-where to look first: `buildViewerContext` (`services/postHydration/viewerContext.ts`) resolves the
+where to look first: `buildViewerContext` (`services/posts/postHydration/viewerContext.ts`) resolves the
 viewer's blocked, restricted, following and follower sets live for any caller
 that does not thread a pre-resolved `viewerGraph` — which the feed path does
 and post detail, notifications, profile and search do not.

@@ -43,7 +43,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: mocks.hydratePosts },
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -68,7 +68,7 @@ vi.mock('../../utils/push', () => ({
   sendPushToUser: vi.fn(),
   formatPushForNotification: vi.fn(),
 }));
-vi.mock('../../services/viewerFollowGraph', () => ({
+vi.mock('../../services/feed/viewerFollowGraph', () => ({
   loadFollowedAuthorIds: mocks.loadFollowedAuthorIds,
 }));
 

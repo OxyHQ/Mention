@@ -6,7 +6,7 @@ import {
   getShell,
   invalidateShellDocument,
   resetShellDocumentForTests,
-} from '../services/webShellDocument';
+} from '../services/webshell/webShellDocument';
 
 /**
  * The shell document is a promise that the chunks it names exist. The Worker

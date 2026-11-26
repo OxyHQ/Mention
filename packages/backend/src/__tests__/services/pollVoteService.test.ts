@@ -28,7 +28,11 @@ import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { uuidv7 } from '@oxy.so/db';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
-import { loadPollHeader, loadPollSummary, pollVoteService } from '../../services/PollVoteService';
+import {
+  loadPollHeader,
+  loadPollSummary,
+  pollVoteService,
+} from '../../services/posts/PollVoteService';
 
 let db: Database;
 const createdPollIds: string[] = [];

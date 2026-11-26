@@ -19,8 +19,11 @@ import {
 } from '../db/promotions/promotionRepository';
 import { posts } from '../db/schema/posts';
 import { postPromotions } from '../db/schema/promotions';
-import { PromotionLifecycleJob, settlePromotions } from '../services/promotion/lifecycle';
-import { recordPromotionImpressions } from '../services/promotion/impressions';
+import {
+  PromotionLifecycleJob,
+  settlePromotions,
+} from '../services/monetization/promotion/lifecycle';
+import { recordPromotionImpressions } from '../services/monetization/promotion/impressions';
 
 let db: Database;
 const created: string[] = [];

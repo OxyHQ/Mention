@@ -50,7 +50,7 @@ function postId(): string {
   return `${NS}-${randomUUID()}`;
 }
 
-/** The MTN URI shape `services/postGates.ts` mints, which embeds the post AUTHOR's id. */
+/** The MTN URI shape `services/posts/access/postGates.ts` mints, which embeds the post AUTHOR's id. */
 function postUri(writer: string, id: string): string {
   return `mtn://${writer}/app.mention.feed.post/${id}`;
 }

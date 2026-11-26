@@ -2,7 +2,7 @@
  * One-shot: ask Clarity to index the links of posts that were stored before
  * every storage route warmed them, newest first.
  *
- * Every NEW post is warmed at store time (`services/postEnrichment`), and an
+ * Every NEW post is warmed at store time (`services/posts/postEnrichment`), and an
  * older one is warmed the first time anybody reads it (hydration enqueues the
  * crawl). This fills in the rest, so an old post's link card does not wait for
  * its first reader.
@@ -31,7 +31,7 @@ import { and, desc, eq, gte, lt } from 'drizzle-orm';
 import { findPostRecords } from '../db/posts/postRepository';
 import { connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { warmClarityDocumentsForPosts } from '../services/postEnrichment/clarityDocumentStep';
+import { warmClarityDocumentsForPosts } from '../services/posts/postEnrichment/clarityDocumentStep';
 import { chronoKeyset } from '../utils/chronoCursor';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';

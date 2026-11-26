@@ -1,7 +1,7 @@
 /**
  * Fakes of the caller's Oxy account access (`oxy.accountAccessFor`, bound to a
  * request by `callerAccountAccess` in `utils/oxyHelpers`) for the gates in
- * `services/publishAsAccount`.
+ * `services/accounts/publishAsAccount`.
  *
  * Built from the SAME member rows the tests already describe an account with,
  * and answering the way the SDK does: the caller's row → their effective
@@ -10,7 +10,7 @@
  */
 import type { AccountMember } from '@oxy.so/core';
 import { OxyAccessError, type OxyAccountAccess } from '@oxy.so/core/server';
-import type { AccountAccessReader } from '../../services/publishAsAccount';
+import type { AccountAccessReader } from '../../services/accounts/publishAsAccount';
 
 /** One account's effective access, as `accountAccessFor` answers it. */
 export function accountAccessGrant(

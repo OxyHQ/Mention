@@ -1,8 +1,8 @@
 import { EXPLORE_RANKING_VERSION } from '../feed/CursorBuilder';
-import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
+import { eligibleActivitySubscriptionAuthors } from '../../services/notifications/activitySubscriptionInterest';
 import { ApiError, respondWithApiError } from '../../utils/error';
-import { canSeeUnratedMaterial } from '../../services/contentAccessBatcher';
-import { revalidateAnonymousFeed } from '../../services/revalidateAnonymousFeed';
+import { canSeeUnratedMaterial } from '../../services/moderation/contentAccessBatcher';
+import { revalidateAnonymousFeed } from '../../services/feed/revalidateAnonymousFeed';
 /**
  * MTN Feed Controller
  *
@@ -46,7 +46,7 @@ import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteractions } from '../feed/FeedInteractionTracker';
 import { parseFeedInteractionBatch } from '../feed/interactionTelemetry';
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
-import { ownerHasProfileAffectingLane } from '../../services/laneVisibility';
+import { ownerHasProfileAffectingLane } from '../../services/feed/laneVisibility';
 import { logger } from '../../utils/logger';
 import { recordFeedFailure } from '../feed/feedMetrics';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
@@ -55,16 +55,16 @@ import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
 import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
-import { feedSeenPostsService } from '../../services/FeedSeenPostsService';
-import { anonFeedCache, type AnonFeedEntry } from '../../services/anonFeedCache';
-import { anonFreshMsFor } from '../../services/anonFeedFreshness';
-import { hasUnresolvedAuthor } from '../../services/revalidateAnonymousFeed';
+import { feedSeenPostsService } from '../../services/feed/FeedSeenPostsService';
+import { anonFeedCache, type AnonFeedEntry } from '../../services/feed/anonFeedCache';
+import { anonFreshMsFor } from '../../services/feed/anonFeedFreshness';
+import { hasUnresolvedAuthor } from '../../services/feed/revalidateAnonymousFeed';
 import {
   captureHydrationRevisions,
   type HydrationRevisions,
-} from '../../services/hydrationRevisions';
-import { loadMuteWords } from '../../services/safety/viewerSafety';
-import { assignThreadState } from '../../services/ThreadSlicingService';
+} from '../../services/posts/hydrationRevisions';
+import { loadMuteWords } from '../../services/moderation/safety/viewerSafety';
+import { assignThreadState } from '../../services/posts/ThreadSlicingService';
 
 /**
  * Re-derive the flat `items` mirror from `slices`.

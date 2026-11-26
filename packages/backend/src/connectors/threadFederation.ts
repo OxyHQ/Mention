@@ -81,8 +81,8 @@
 
 import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
-import { isFediverseSharingEnabled } from '../services/fediverseSharing';
-import { postCreationService } from '../services/PostCreationService';
+import { isFediverseSharingEnabled } from '../services/federation/fediverseSharing';
+import { postCreationService } from '../services/posts/PostCreationService';
 
 /** How a batch's entries relate to one another, which decides two behaviours. */
 export type BatchFederationShape =

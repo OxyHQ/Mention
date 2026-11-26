@@ -1,8 +1,8 @@
 import type { PostUser } from '@mention/shared-types';
 import { getFollowingIds, type OxyClient } from '../../utils/privacyHelpers';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { mergeFederatedFollowIds } from '../viewerFollowGraph';
-import { resolveCommunities } from '../publishAsAccount';
+import { mergeFederatedFollowIds } from '../feed/viewerFollowGraph';
+import { resolveCommunities } from '../accounts/publishAsAccount';
 
 /**
  * The communities the viewer joined — hosted here or remote (Lemmy, PieFed,

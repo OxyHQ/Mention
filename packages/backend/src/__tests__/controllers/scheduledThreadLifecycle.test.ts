@@ -33,11 +33,11 @@ const hoisted = vi.hoisted(() => ({
  */
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: { claimAndPublishScheduledPost: hoisted.claim },
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: (id: string) => ({ id, username: '', name: { displayName: 'Unknown' } }),
@@ -50,7 +50,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerAccountAccess: vi.fn(() => undefined),
 }));
 
-vi.mock('../../services/PostRecentReplierService', () => ({
+vi.mock('../../services/posts/PostRecentReplierService', () => ({
   repairRecentRepliersAfterPostDelete: vi.fn(async () => undefined),
 }));
 

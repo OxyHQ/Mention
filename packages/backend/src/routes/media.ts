@@ -31,19 +31,22 @@ import {
   lookupCacheRow,
   bumpAccess,
   recordAccessAndMaybeEnqueue,
-} from '../services/mediaCache/cacheStore';
-import { decideProxyServe } from '../services/mediaCache/policy';
+} from '../services/media/mediaCache/cacheStore';
+import { decideProxyServe } from '../services/media/mediaCache/policy';
 import {
   MEDIA_IMAGE_TYPE_PREFIX,
   contentTypeFamily,
   contentTypeFamilyFromString,
   isAllowedMediaType,
   isHlsManifestType,
-} from '../services/mediaCache/mediaTypes';
-import { cachedMediaCdnUrl, isMediaCacheEnabled } from '../services/mediaCache/oxyMediaStore';
-import { isNegativelyCached, markNegativelyCached } from '../services/mediaCache/negativeCache';
+} from '../services/media/mediaCache/mediaTypes';
+import { cachedMediaCdnUrl, isMediaCacheEnabled } from '../services/media/mediaCache/oxyMediaStore';
+import {
+  isNegativelyCached,
+  markNegativelyCached,
+} from '../services/media/mediaCache/negativeCache';
 import { classifyUpstreamStatus } from './mediaProxyStatus';
-import { verifyGifMediaRequest } from '../services/gifLibrary/gifMediaProxy';
+import { verifyGifMediaRequest } from '../services/media/gifLibrary/gifMediaProxy';
 
 const router = express.Router();
 

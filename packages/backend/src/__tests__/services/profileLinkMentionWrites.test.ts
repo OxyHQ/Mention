@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 /**
  * A PASTED PROFILE LINK REACHES `post.mentions`, AND THAT IS THE POINT.
  *
- * `services/profileLinkMentions.test.ts` pins the fold itself. This pins the
+ * `services/posts/profileLinkMentions.test.ts` pins the fold itself. This pins the
  * CONSEQUENCE at the real write boundary: driven through `PostCreationService.create`,
  * a profile link the author pasted ends up in the post's stored `mentions`
  * allowlist and rings the mentioned person's notification — the same allowlist
@@ -61,7 +61,7 @@ vi.mock('../../services/serviceRegistry', () => ({
   registerPostCreator: vi.fn(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
 }));
 
@@ -80,7 +80,7 @@ vi.mock('../../db/federation/actorRepository', () => ({ findActorByUri, findActo
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, serviceScope } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 
 const scope = serviceScope('profile-link-mention-writes');
 
@@ -206,7 +206,7 @@ describe('POST /posts — a pasted profile link becomes a real mention', () => {
     //
     // That the FOLD preserves the picker's entry ahead of the pasted one is a
     // real property and is still asserted, on the fold's own in-memory return,
-    // in `services/profileLinkMentions.test.ts`.
+    // in `services/posts/profileLinkMentions.test.ts`.
     expect([...post.mentions].sort()).toEqual(['oxy_picked', ALICE_OXY_ID].sort());
   });
 });

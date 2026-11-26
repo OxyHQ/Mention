@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { config } from '../config';
 import { describe, it, expect } from 'bun:test';
-import { cutAtWord } from '../services/webShellRenderer';
+import { cutAtWord } from '../services/webshell/webShellRenderer';
 import type { HydratedPost } from '@mention/shared-types';
 import {
   escapeHtml,
@@ -15,7 +15,7 @@ import {
   mapReplyComment,
   type OgData,
   type PostOgSafety,
-} from '../services/webShellRenderer';
+} from '../services/webshell/webShellRenderer';
 
 const SHELL =
   '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title>' +

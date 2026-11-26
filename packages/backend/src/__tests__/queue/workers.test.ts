@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../db/accountErasures/accountErasureRepository', () => ({
   findErasedAccountUsernames: mocks.findErasedAccountUsernames,
 }));
-vi.mock('../../services/accountErasure/AccountErasureService', () => ({
+vi.mock('../../services/accounts/accountErasure/AccountErasureService', () => ({
   processAccountErasure: mocks.processAccountErasure,
 }));
 
@@ -28,7 +28,7 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
   },
 }));
 
-vi.mock('../../services/FederationJobScheduler', () => ({
+vi.mock('../../services/federation/FederationJobScheduler', () => ({
   federationJobScheduler: {},
 }));
 

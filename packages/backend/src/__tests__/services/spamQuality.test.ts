@@ -6,7 +6,7 @@ import {
   visibleText,
   type DeterministicScores,
   type ScoreContext,
-} from '../../services/contentClassification/spamQuality';
+} from '../../services/moderation/contentClassification/spamQuality';
 
 /**
  * Unit tests for the deterministic spam/quality/toxicity heuristics. All inputs

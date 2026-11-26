@@ -1,4 +1,4 @@
-import { HIDDEN_TOPIC_MULTIPLIER } from '../../../../services/ranking/signals/negativePenalty';
+import { HIDDEN_TOPIC_MULTIPLIER } from '../../../../services/feed/ranking/signals/negativePenalty';
 /**
  * Discovery / media source modules — the Videos, Media, Explore candidate
  * queries and the anonymous/never-blank "popular" fallbacks. Each reproduces the
@@ -66,7 +66,7 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
  * function is what makes that unrepresentable.
  *
  * It is deliberately NOT the same expression as
- * `services/ranking/nativeEngagement.ts` `nativeWeightedEngagement`, which scores
+ * `services/feed/ranking/nativeEngagement.ts` `nativeWeightedEngagement`, which scores
  * the candidates this query returns. The four counters it weighs are the ones a
  * write path maintains and that carry signal at selection time: `saves` is
  * written but measures 0 across the discovery corpus, and ordering CANDIDATES by

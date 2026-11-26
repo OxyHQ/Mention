@@ -46,7 +46,7 @@
  *     same window, which is a handful of rows that can be deleted afterwards. So
  *     unknown reads as not-a-channel, deliberately.
  *
- * The account lookup itself lives in `services/publishAsAccount` — the one place
+ * The account lookup itself lives in `services/accounts/publishAsAccount` — the one place
  * that knows what a channel account IS — and goes through the Redis-cached
  * identity path post hydration already fills for every author it renders, so on
  * the reply hot path this gate costs a batched Redis read rather than an Oxy
@@ -56,7 +56,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { isChannelAccount } from '../services/publishAsAccount';
+import { isChannelAccount } from '../services/accounts/publishAsAccount';
 
 /** A refusal carrying the status the HTTP layer should answer with. */
 export class ChannelReplyError extends Error {

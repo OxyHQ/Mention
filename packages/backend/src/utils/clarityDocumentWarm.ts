@@ -13,7 +13,7 @@ import { logger } from './logger';
  * `documentsPending`, and the app asks for it (`stores/pendingDocuments.ts`).
  * Only the author's request starts it. Enriching a STORED post for every later
  * reader is a different job with a different shape (batched, detached, and run
- * by every storage route): see `services/postEnrichment/`. Do not add a new
+ * by every storage route): see `services/posts/postEnrichment/`. Do not add a new
  * enrichment here.
  */
 export async function warmClarityDocumentForText(text: string | undefined): Promise<void> {

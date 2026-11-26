@@ -1,8 +1,8 @@
 import {
   eligibleSocialActors,
   networkEngagementExistsSql,
-} from '../../../../services/socialFeedEvidence';
-import { getNetworkEngagerCounts } from '../../../../services/networkEngagement';
+} from '../../../../services/feed/socialFeedEvidence';
+import { getNetworkEngagerCounts } from '../../../../services/engagement/networkEngagement';
 import { viewerLanguageSql } from '../../feedLanguage';
 /**
  * Social-graph + content source modules.

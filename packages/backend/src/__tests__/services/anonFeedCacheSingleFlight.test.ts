@@ -4,7 +4,7 @@ vi.mock('../../utils/cache', () => ({
   createCache: () => ({ get: vi.fn(async () => undefined), set: vi.fn(async () => undefined) }),
 }));
 
-import { ANON_JOIN_DEADLINE_MS, anonFeedCache } from '../../services/anonFeedCache';
+import { ANON_JOIN_DEADLINE_MS, anonFeedCache } from '../../services/feed/anonFeedCache';
 
 /**
  * An expired anonymous page is missed by every request that arrives before the

@@ -38,13 +38,13 @@ const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn
 // Mock only the boundary the slicer depends on. `resolveUserSummaries` is the
 // canonical, batched/Redis-cached author resolver exported by
 // PostHydrationService.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { threadSlicingService } from '../../services/ThreadSlicingService';
+import { threadSlicingService } from '../../services/posts/ThreadSlicingService';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('thread-slicing-reply-context');

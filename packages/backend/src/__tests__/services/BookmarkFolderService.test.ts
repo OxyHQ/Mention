@@ -27,7 +27,7 @@ import {
   listBookmarkFoldersForViewer,
   normalizeBookmarkFolder,
   updateBookmarkFolderForViewer,
-} from '../../services/BookmarkFolderService';
+} from '../../services/accounts/BookmarkFolderService';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
 const scope = postScope('bookmark-folder-service');

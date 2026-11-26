@@ -26,15 +26,15 @@ import {
   mergeMediaItem,
   readPersistedMediaFields,
   type MediaMetadataEnrichment,
-} from '../services/MediaMetadataService';
-import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
+} from '../services/media/MediaMetadataService';
+import { invalidate as invalidatePostDetailCache } from '../services/posts/postDetailCache';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {
   applyFileMediaMetadata,
   type FileMediaMetadataWrite,
-} from '../services/mediaMetadataPersistence';
+} from '../services/media/mediaMetadataPersistence';
 import {
   reconcileVideoMetadata,
   readVideoReconciliationOptions,

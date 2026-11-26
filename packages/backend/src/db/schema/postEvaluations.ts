@@ -11,8 +11,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 import { posts } from './posts';
-import type { ShadowUsageReconciliation } from '../../services/contentClassification/jevReceipt';
-import type { ShadowSignals } from '../../services/contentClassification/jevShadow';
+import type { ShadowUsageReconciliation } from '../../services/moderation/contentClassification/jevReceipt';
+import type { ShadowSignals } from '../../services/moderation/contentClassification/jevShadow';
 
 export const POST_EVALUATION_STATES = [
   'claimed',

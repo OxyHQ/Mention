@@ -96,17 +96,17 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   signRequest: vi.fn(),
 }));
 
-vi.mock('../../../services/PollVoteService', () => ({
+vi.mock('../../../services/posts/PollVoteService', () => ({
   pollVoteService: {
     recordVoteByOptionText: (...args: unknown[]) => mocks.recordVoteByOptionText(...args),
   },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
 
@@ -117,7 +117,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
   isFediverseSharingEnabledFromUser: vi.fn(),
 }));

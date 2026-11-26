@@ -78,7 +78,7 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -87,11 +87,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));
 
-vi.mock('../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 
@@ -121,7 +121,7 @@ import { userSettings } from '../../db/schema/userProfile';
 import { insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
 import { PostType, PostVisibility } from '@mention/shared-types';
 // Importing the service is what registers it with the (mocked) registry above.
-import '../../services/PostCreationService';
+import '../../services/posts/PostCreationService';
 import { activityPubConnector as federationService } from '../../connectors/activitypub/ActivityPubConnector';
 
 /**

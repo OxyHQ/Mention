@@ -57,7 +57,7 @@ import {
 } from '../connectors/instagram/media.mapper';
 import { igUserIdFromActorUri, instagramUsernameOfActor } from '../connectors/instagram/constants';
 import { persistOne } from '../connectors/instagram/importer';
-import { enqueueMediaMetadataEnrich } from '../services/mediaMetadataEnrichJob';
+import { enqueueMediaMetadataEnrich } from '../services/media/mediaMetadataEnrichJob';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';

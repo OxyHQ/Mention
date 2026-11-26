@@ -32,7 +32,7 @@ import { accountAccessGrant, accountAccessReader } from '../helpers/accountAcces
 
 const resolveUserSummaries = vi.hoisted(() => vi.fn());
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries,
 }));
 
@@ -45,7 +45,7 @@ import {
   isChannelAccount,
   PublishAsAccessError,
   resolveAccountKind,
-} from '../../services/publishAsAccount';
+} from '../../services/accounts/publishAsAccount';
 
 const CALLER = 'caller-1';
 const CHANNEL = 'channel-1';

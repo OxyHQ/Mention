@@ -1,5 +1,5 @@
 import { canParticipateInDeployment } from '@mention/shared-types/deployment';
-import type { AuthenticatedPresenceSocket } from '../services/SocketPresenceLifecycle';
+import type { AuthenticatedPresenceSocket } from '../services/notifications/SocketPresenceLifecycle';
 import type http from 'node:http';
 import type { OxyMiddleware } from '@oxy.so/core/server';
 import { OXY_TELEMETRY_REQUEST_HEADERS } from '@oxy.so/telemetry';

@@ -1,6 +1,6 @@
 import { resolvePageLimit, resolvePageNumber } from '@oxy.so/utils/paging';
 import { Router, type Request, type Response } from 'express';
-import { trendingService } from '../services/TrendingService';
+import { trendingService } from '../services/trending/TrendingService';
 import { TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { errorResponse } from '../utils/error';

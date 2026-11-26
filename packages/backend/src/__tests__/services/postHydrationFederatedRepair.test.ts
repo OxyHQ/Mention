@@ -45,7 +45,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
 
 // Cache misses exercise Oxy outages; the cache-hit case models a previously
 // fetched public Oxy DTO. Writes are isolated from other suites.
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: (...args: unknown[]) => cachedSummaries(...args),
   mset: vi.fn(async () => undefined),
   invalidate: vi.fn(async () => undefined),
@@ -56,7 +56,7 @@ import {
   degradedActorSummary,
   isFallbackUserSummary,
   resetOxyUserFailureMemory,
-} from '../../services/PostHydrationService';
+} from '../../services/posts/PostHydrationService';
 
 /**
  * This file's own federated author. It must not be an id another suite seeds an

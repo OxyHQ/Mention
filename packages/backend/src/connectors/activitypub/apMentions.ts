@@ -10,7 +10,7 @@ import {
   resolveProfileLinkIdentity,
   type MentionActorResolution,
   type RemoteMentionResolver,
-} from '../../services/profileLinkMentions';
+} from '../../services/posts/profileLinkMentions';
 import { actorService } from './actor.service';
 import { getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
@@ -45,7 +45,7 @@ import { OWN_DOMAINS } from './ownDomain';
  * `https://mastodon.social/@alice` into a post, or the origin's tag failed to
  * resolve — is resolved the same way and rewritten into the same placeholder, but
  * STRICTLY LOOKUP-ONLY: see {@link resolveProfileLinkIdentity}, which lives in
- * `services/profileLinkMentions` because a post composed HERE now asks the same
+ * `services/posts/profileLinkMentions` because a post composed HERE now asks the same
  * question of the same URL at ITS write boundary.
  *
  * Anchor↔tag matching is BY HREF (never the ambiguous bare `@username` text): the
@@ -257,7 +257,7 @@ function collectContentProfileHrefs(
  *
  * Fail-soft and lookup-only per link (see {@link resolveProfileLinkIdentity}): a
  * link that resolves to nothing is left exactly as it is today. The resolution
- * itself lives in `services/profileLinkMentions`, because the NATIVE write
+ * itself lives in `services/posts/profileLinkMentions`, because the NATIVE write
  * boundary asks the identical question about the identical URL — a profile link
  * has to mean the same thing whether the author was federated or local.
  */

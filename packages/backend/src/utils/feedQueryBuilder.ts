@@ -84,7 +84,7 @@ export function notARepostSql(): SQL {
  * reaches us as TWO objects, and both are kept — they have independent
  * permalinks, replies, likes, edits and moderation state, and merging them would
  * destroy all of that to fix a rendering problem. What a reader should see is one
- * card, so `services/PostEquivalenceService` marks every non-preferred member of
+ * card, so `services/posts/PostEquivalenceService` marks every non-preferred member of
  * an equivalence cluster and this excludes them.
  *
  * IT IS A QUERY TERM, NOT A POST-FETCH FILTER, AND THAT IS THE POINT.

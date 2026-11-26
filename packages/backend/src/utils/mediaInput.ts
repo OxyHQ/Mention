@@ -1,5 +1,5 @@
 import { config } from '../config';
-import { normalizeAlt } from '../services/MediaMetadataService';
+import { normalizeAlt } from '../services/media/MediaMetadataService';
 
 /**
  * A media entry accepted from a request body, normalized to the persisted shape.

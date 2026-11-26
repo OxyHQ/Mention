@@ -2,8 +2,8 @@ import { describe, it, expect } from 'bun:test';
 import {
   detectBotShape,
   type BotShapeFeatures,
-} from '../../services/contentClassification/botSignals';
-import { SPAM_QUALITY_CONFIG } from '../../services/contentClassification/spamQuality';
+} from '../../services/moderation/contentClassification/botSignals';
+import { SPAM_QUALITY_CONFIG } from '../../services/moderation/contentClassification/spamQuality';
 
 /**
  * Unit tests for the pure bot-shape detector. `features` mirrors the structural

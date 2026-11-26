@@ -4,7 +4,7 @@ import {
   nativeWeightedEngagement,
   type EngagementCounts,
   type EngagementWeights,
-} from '../services/ranking/nativeEngagement';
+} from '../services/feed/ranking/nativeEngagement';
 
 /**
  * Unit tests for the shared native-weighted engagement composite (Phase 2).

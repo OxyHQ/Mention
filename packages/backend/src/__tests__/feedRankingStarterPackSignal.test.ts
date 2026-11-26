@@ -18,14 +18,14 @@ vi.mock('../utils/redis', () => ({
   }),
 }));
 
-import { FeedRankingService } from '../services/FeedRankingService';
-import { curatorAuthority } from '../services/starterPackCuration';
+import { FeedRankingService } from '../services/feed/FeedRankingService';
+import { curatorAuthority } from '../services/accounts/starterPackCuration';
 
 /**
  * `starterPackBoost` — the RANKING side of starter-pack curation.
  *
  * The curation POLICY (which packs count, dedupe by curator, the score bound) is
- * covered in `services/starterPackCuration.test.ts`. This suite covers the scorer:
+ * covered in `services/accounts/starterPackCuration.test.ts`. This suite covers the scorer:
  * the score → multiplier map, its clamps, and the fact that it is inert unless the
  * feed definition enables it (so no other feed — and no golden master — moves).
  */

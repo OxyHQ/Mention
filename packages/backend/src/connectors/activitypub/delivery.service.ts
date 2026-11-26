@@ -23,7 +23,7 @@ import {
 import { actorService } from './actor.service';
 import { buildLocalActorObject, loadProfileBanner } from './actorObject';
 import { enqueueDelivery } from '../../queue/producers';
-import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
+import { isFediverseSharingEnabled } from '../../services/federation/fediverseSharing';
 
 /**
  * Mention's outbound DELIVERY service.

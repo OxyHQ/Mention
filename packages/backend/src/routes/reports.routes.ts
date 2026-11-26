@@ -11,10 +11,10 @@ import {
 } from '../db/moderation/reportRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { DuplicateReportError, createReport } from '../services/moderation/ReportIntakeService';
-import { viewerOperatesAccount } from '../services/operatedAccountAccess';
+import { viewerOperatesAccount } from '../services/accounts/operatedAccountAccess';
 import { callerAccountAccess } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
-import { pausePromotionForReportedPost } from '../services/promotion/buyerPromotions';
+import { pausePromotionForReportedPost } from '../services/monetization/promotion/buyerPromotions';
 
 const router = Router();
 

@@ -38,7 +38,7 @@ const { resolveUserSummaries, listAccountMembers } = vi.hoisted(() => ({
   listAccountMembers: vi.fn(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
+vi.mock('../../services/posts/PostHydrationService', () => ({ resolveUserSummaries }));
 
 // Spread over the real module: `mute.routes` reaches only
 // `callerAccountAccess`, but the guard beneath it is free to grow a

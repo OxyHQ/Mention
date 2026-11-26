@@ -29,7 +29,7 @@ import { MEDIA_WITHHELD_REASONS } from './postContent';
 
 /**
  * The kinds of Mention entity that use an Oxy file — the BASE names. The
- * registry in `services/oxyFiles/fileReferenceEntities.ts` says, for each, which
+ * registry in `services/media/oxyFiles/fileReferenceEntities.ts` says, for each, which
  * table holds the file id, how "in use" is decided and what Oxy entity type it
  * is sent as (`post` is sharded: `post.00` … `post.31`). Documented in
  * `docs/oxy-files.md`.
@@ -195,7 +195,7 @@ export const oxyFileReferenceReconciliations = pgTable(
 
 /**
  * The event types Oxy sends (`FILE_EVENT_TYPES` in `@oxy.so/core/server`,
- * pinned to it in `services/oxyFiles/fileEvents.ts`).
+ * pinned to it in `services/media/oxyFiles/fileEvents.ts`).
  */
 export const OXY_FILE_EVENT_TYPES = [
   'file.deleted',

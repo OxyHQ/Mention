@@ -63,9 +63,9 @@ vi.mock('../../utils/redis', () => ({
 }));
 
 /** Owners resolve through Oxy; stubbed so a lane's byline is deterministic. */
-vi.mock('../../services/PostHydrationService', async () => {
-  const actual = await vi.importActual<typeof import('../../services/PostHydrationService')>(
-    '../../services/PostHydrationService',
+vi.mock('../../services/posts/PostHydrationService', async () => {
+  const actual = await vi.importActual<typeof import('../../services/posts/PostHydrationService')>(
+    '../../services/posts/PostHydrationService',
   );
   return {
     ...actual,

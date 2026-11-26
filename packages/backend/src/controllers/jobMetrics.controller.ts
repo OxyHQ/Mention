@@ -20,7 +20,7 @@ import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { requireEmployerAuthority } from '../services/jobAuthority';
+import { requireEmployerAuthority } from '../services/jobsBoard/jobAuthority';
 import { getJobById } from '../db/jobs/jobRepository';
 import { getJobMetricsSummary, recordJobMetricEvent } from '../db/jobs/jobMetricsRepository';
 

@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import {
   activitySubscriptionSignal,
   ACTIVITY_SUBSCRIPTION_BOOST,
-} from '../services/ranking/signals/activitySubscription';
-import { FeedRankingService } from '../services/FeedRankingService';
-import { buildSignalContext } from '../services/ranking/signalContext';
+} from '../services/feed/ranking/signals/activitySubscription';
+import { FeedRankingService } from '../services/feed/FeedRankingService';
+import { buildSignalContext } from '../services/feed/ranking/signalContext';
 import { feedCandidate } from './fixtures/feedCandidate';
 import {
   forYouDefinition,

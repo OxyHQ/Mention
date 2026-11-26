@@ -12,7 +12,7 @@ import type { FeedTuning } from '@mention/shared-types';
 import type {
   RankingUserBehavior,
   FeedRankingSettings,
-} from '../../services/ranking/signalContext';
+} from '../../services/feed/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import type { FeedSettings } from '../../db/userProfile/userSettingsRecord';
 

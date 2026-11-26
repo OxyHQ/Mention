@@ -28,7 +28,10 @@ import { assembleShellRecords } from '../../../../db/posts/postRepository';
 import { listDeliverablePromotions, utcDay } from '../../../../db/promotions/promotionRepository';
 import { posts } from '../../../../db/schema/posts';
 import { postPromotionImpressions, postPromotions } from '../../../../db/schema/promotions';
-import { isAheadOfSchedule, promotionMultiplier } from '../../../../services/promotion/pacing';
+import {
+  isAheadOfSchedule,
+  promotionMultiplier,
+} from '../../../../services/monetization/promotion/pacing';
 import { logger } from '../../../../utils/logger';
 import { authorNotInSql, excludeSeenSql, notARepostSql } from '../../../../utils/feedQueryBuilder';
 import { notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';

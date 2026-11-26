@@ -1,7 +1,7 @@
 import { resolvePageLimit } from '@oxy.so/utils/paging';
 import type { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { listPrivateMentionConversationsPage } from '../../services/privateMentionService';
+import { listPrivateMentionConversationsPage } from '../../services/posts/privateMentionService';
 import { decodeChronoCursor } from '../../utils/chronoCursor';
 import { respondWithApiError } from '../../utils/error';
 import { logger } from '../../utils/logger';

@@ -28,7 +28,7 @@ vi.mock('../../runtime/socketServer', () => ({
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
-import { broadcastPostEngagement } from '../../services/postEngagementBroadcast';
+import { broadcastPostEngagement } from '../../services/engagement/postEngagementBroadcast';
 
 /**
  * The author whose privacy decides what may be sent. Namespaced, because vitest

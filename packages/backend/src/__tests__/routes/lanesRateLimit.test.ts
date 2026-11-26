@@ -92,7 +92,7 @@ vi.mock('../../config', async (importOriginal) => {
   };
 });
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: async () => new Map(),
 }));
 

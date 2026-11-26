@@ -4,8 +4,8 @@ import { getDb } from '../../db/postgres';
 import { moderationReportEvidenceFiles } from '../../db/schema/moderation';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { isOxyFileId } from '../postMediaVisibility';
-import { describeOxyError, oxyErrorCode, oxyErrorStatus } from '../oxyFiles/oxyErrors';
+import { isOxyFileId } from '../posts/access/postMediaVisibility';
+import { describeOxyError, oxyErrorCode, oxyErrorStatus } from '../media/oxyFiles/oxyErrors';
 import type { ModerationResource } from './subjects/types';
 
 /**

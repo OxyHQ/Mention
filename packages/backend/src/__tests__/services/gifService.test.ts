@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../config', () => ({ getKlipyAppKey: () => 'key' }));
 
-import { getTrendingGifs, searchGifs } from '../../services/gifService';
+import { getTrendingGifs, searchGifs } from '../../services/media/gifService';
 
 const params = { page: 2, perPage: 5, customerId: 'c1' };
 

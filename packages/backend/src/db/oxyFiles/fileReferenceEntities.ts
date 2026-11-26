@@ -4,9 +4,9 @@
  *
  * Three consumers read it, and they must agree, which is why it is one table:
  *
- *  - the reference drain (`services/oxyFiles/fileReferenceSync.ts`) asks {@link FileReferenceEntity.pairsInUse}
+ *  - the reference drain (`services/media/oxyFiles/fileReferenceSync.ts`) asks {@link FileReferenceEntity.pairsInUse}
  *    whether a pair the triggers marked is still in use, and tells Oxy;
- *  - the nightly reconciliation (`services/oxyFiles/fileReferenceReconciliation.ts`) sends
+ *  - the nightly reconciliation (`services/media/oxyFiles/fileReferenceReconciliation.ts`) sends
  *    {@link FileReferenceEntity.inventory} as the full truth for each Oxy
  *    entity type;
  *  - the federated-media deletion drain asks {@link filesInUseByFederatedMedia}
@@ -77,7 +77,7 @@ export function shardSql(column: SQL, shards: number): SQL {
 
 /**
  * "This text is an Oxy file id" in SQL: the rule of `isOxyFileId`
- * (`services/postMediaVisibility.ts`) and of `mention_mark_file_reference`.
+ * (`services/posts/access/postMediaVisibility.ts`) and of `mention_mark_file_reference`.
  */
 function isOxyFileIdSql(column: SQL): SQL {
   return sql`(btrim(${column}) <> '' and ${column} not like 'temp-%' and ${column} !~* '^https?://')`;

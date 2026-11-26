@@ -6,7 +6,7 @@ vi.mock('../../services/moderation/crowdSourceClient', () => ({
 }));
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * Reply context is a property of the POST, so it must survive a plain
@@ -109,7 +109,7 @@ vi.mock('../../db/posts/postRepository', async (importOriginal) => {
 });
 
 const cacheStore = new Map<string, CachedUserSummary>();
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -125,7 +125,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 
 function makePostRow(id: string, authorId: string, extra: Record<string, unknown> = {}) {
   return {

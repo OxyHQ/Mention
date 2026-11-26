@@ -1,0 +1,107 @@
+/**
+ * Marking notifications read — the ONE implementation, shared by the REST route
+ * and the socket handler.
+ *
+ * ## Why this module exists
+ *
+ * Two implementations of the same state can silently disagree about where it
+ * lives: a notification marked read over the socket would come back UNREAD on
+ * the next load, with nothing in any log. One implementation, writing
+ * `notifications` in Postgres, is what prevents that — and it also makes both
+ * call sites emit the same enriched wire DTO for the same event.
+ *
+ * ## Recipient scoping lives in the UPDATE's predicate
+ *
+ * Not a read followed by a write: an id naming someone else's notification
+ * updates no row and reports nothing, with no window in which the ownership that
+ * was checked differs from the ownership that was written.
+ *
+ * ## The scope is a LIST, and that is what makes the narrowing visible
+ *
+ * A viewer's inbox is their own rows plus every CHANNEL they operate — a channel
+ * has no session of its own, so its notifications are reachable no other way
+ * (`services/notifications/notificationInbox`). Both functions therefore take the resolved id
+ * set rather than one id, so a caller that means "just this person" has to say
+ * so. The socket handlers in `server.ts` do exactly that, deliberately and with
+ * their reason written beside them; passing a bare `userId` would have been the
+ * same narrowing made by accident and invisible in review.
+ */
+
+import { and, eq, inArray } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { notifications } from '../../db/schema/discovery';
+import { resolveKnownUsers } from '../../utils/knownUsers';
+import { toPopulatedActor } from '../../utils/notificationActor';
+import { serializeNotification } from '../../utils/notificationUtils';
+
+/** The wire shape both the REST response and the socket event carry. */
+export type EnrichedNotification = ReturnType<typeof serializeNotification> & {
+  actorId_populated: ReturnType<typeof toPopulatedActor>;
+};
+
+/**
+ * Enrich a single notification with its actor profile the SAME way the GET list
+ * handler does, through the same cached resolver. `actorId` holds an Oxy user
+ * id, NOT a relation. An unresolved actor leaves the neutral identity, so the
+ * read-state write is never blocked.
+ */
+export async function enrichNotificationActor(
+  notification: typeof notifications.$inferSelect,
+): Promise<EnrichedNotification> {
+  const actorId = notification.actorId;
+  const actor = (await resolveKnownUsers([actorId])).get(actorId);
+  return {
+    ...serializeNotification(notification),
+    actorId_populated: toPopulatedActor(actor, actorId),
+  };
+}
+
+/**
+ * Mark one notification read, within `recipientIds` — the viewer plus any
+ * channel they operate.
+ *
+ * @returns The enriched notification, or `undefined` when no notification with
+ *   that id belongs to any of those recipients — which the caller must treat as
+ *   "not theirs, or not there", never as a write that silently did nothing.
+ */
+export async function markNotificationRead(
+  recipientIds: readonly string[],
+  notificationId: string,
+): Promise<EnrichedNotification | undefined> {
+  // An empty scope must match NOTHING. Drizzle renders `inArray(col, [])` as a
+  // false constant, so this is already the safe direction — asserted rather than
+  // assumed, because the alternative rendering would mark every row in the table
+  // read for a caller whose scope failed to resolve.
+  if (recipientIds.length === 0) return undefined;
+
+  const [notification] = await getDb()
+    .update(notifications)
+    .set({ read: true })
+    .where(
+      and(
+        eq(notifications.id, notificationId),
+        inArray(notifications.recipientId, [...recipientIds]),
+      ),
+    )
+    .returning();
+
+  if (!notification) return undefined;
+  return enrichNotificationActor(notification);
+}
+
+/**
+ * Mark every notification addressed to `recipientIds` read.
+ *
+ * Clears the CHANNEL rows too. A channel's inbox is shared by its operators (one
+ * row per event, not one per operator), so this is deliberately a shared action:
+ * leaving them out would leave the badge permanently non-zero with no control
+ * that clears it.
+ */
+export async function markAllNotificationsRead(recipientIds: readonly string[]): Promise<void> {
+  if (recipientIds.length === 0) return;
+
+  await getDb()
+    .update(notifications)
+    .set({ read: true })
+    .where(inArray(notifications.recipientId, [...recipientIds]));
+}

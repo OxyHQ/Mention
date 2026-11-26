@@ -48,7 +48,7 @@ vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: unknown[]) => rows) },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: (id: string) => ({

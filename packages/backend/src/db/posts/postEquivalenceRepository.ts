@@ -2,7 +2,7 @@
  * The ONLY module that knows a cross-post cluster is two tables plus one
  * write-time projection on `posts`.
  *
- * `services/PostEquivalenceService` decides WHAT is equivalent; this decides
+ * `services/posts/PostEquivalenceService` decides WHAT is equivalent; this decides
  * nothing and only writes it down. The split matters because the projection
  * (`posts.crosspost_collapsed`) and the authority (`post_equivalence_members.
  * preferred`) must never disagree — a collapsed post whose cluster does not

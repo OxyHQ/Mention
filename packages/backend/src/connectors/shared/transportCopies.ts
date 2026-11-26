@@ -18,7 +18,7 @@ import type { TransportCopyFacts } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 import { eq } from 'drizzle-orm';
 import { POST_CLASSIFICATION_PENDING } from '../../db/posts/postRecord';
-import { authorVariants } from '../../services/postVariants';
+import { authorVariants } from '../../services/posts/postVariants';
 import { logger } from '../../utils/logger';
 
 /**

@@ -9,7 +9,7 @@ topics into ranking is a later step and needs a reviewed topic list (today
 
 ## What is asked
 
-`packages/backend/src/services/contentClassification/jevLane.ts` builds the lane
+`packages/backend/src/services/moderation/contentClassification/jevLane.ts` builds the lane
 and `jevRequest.ts` beside it builds the request:
 
 - independent `noul` propositions for spam, internal repetition and each of the

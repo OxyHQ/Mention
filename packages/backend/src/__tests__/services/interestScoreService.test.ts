@@ -31,7 +31,7 @@ vi.mock('../../utils/redis', () => ({ getRedisClient: mocks.getRedisClient }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { InterestScoreService } from '../../services/InterestScoreService';
+import { InterestScoreService } from '../../services/feed/InterestScoreService';
 
 const signalsClient = { pushInterests: mocks.pushInterests, pushEndorsements: vi.fn() };
 

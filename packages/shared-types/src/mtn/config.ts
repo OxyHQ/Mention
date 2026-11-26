@@ -398,7 +398,7 @@ export const MtnConfig = {
        * is a strong, human-in-the-loop endorsement — precisely the thing raw
        * engagement counts miss for a good author with a thin follow graph.
        *
-       * SCORE (see `services/starterPackCuration.ts`), per author A:
+       * SCORE (see `services/accounts/starterPackCuration.ts`), per author A:
        *   candidate packs = packs where A ∈ members
        *                     AND owner !== A                  (rule 1)
        *                     AND useCount >= minUseCount      (rule 2)
@@ -469,7 +469,7 @@ export const MtnConfig = {
           max: 1.5,
           /**
            * TTL (seconds) of the DEDICATED curator follower-count cache
-           * (`curatorfollowers:v1:<id>` — see `services/curatorFollowerCounts.ts`).
+           * (`curatorfollowers:v1:<id>` — see `services/feed/curatorFollowerCounts.ts`).
            * Deliberately much longer than the 10-minute identity cache: a follower
            * count is a coarse, slow-moving input to a bounded log-scale factor, so
            * an hour-stale value cannot move the multiplier meaningfully, and the

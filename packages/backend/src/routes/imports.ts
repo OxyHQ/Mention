@@ -16,7 +16,7 @@ import {
   MAX_IMPORT_LINKS_PER_ITEM,
   MAX_IMPORT_MEDIA_PER_ITEM,
   postImportService,
-} from '../services/PostImportService';
+} from '../services/posts/PostImportService';
 import { sanitizeArticle } from '../controllers/posts/composeInput';
 import { logger } from '../utils/logger';
 

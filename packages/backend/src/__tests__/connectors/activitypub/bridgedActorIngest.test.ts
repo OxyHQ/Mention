@@ -53,7 +53,7 @@ vi.mock('../../../connectors/oxyIdentity', async () => {
     observeOxySource: vi.fn(observeOxySourceDouble(mocks.signedFetch, mocks.resolveOxyIdentity)),
   };
 });
-vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
+vi.mock('../../../services/accounts/userSummaryCache', () => ({ invalidate: vi.fn() }));
 
 // Only the network call is stubbed. The bridge policy, the boilerplate patterns,
 // the field sanitizer and `htmlToPlainText` are all the real ones — they are what

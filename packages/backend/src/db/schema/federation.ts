@@ -353,7 +353,7 @@ export const FEDERATED_MEDIA_DELETION_STATES = [
  *
  * A row is written IN THE SAME TRANSACTION that deletes the posts using the
  * file, so a deletion can never be lost between "the post is gone" and "delete
- * its media". The drain (`services/mediaCache/federatedMediaDeletion.ts`) then,
+ * its media". The drain (`services/media/mediaCache/federatedMediaDeletion.ts`) then,
  * per file and under an advisory lock the post insert also takes:
  *
  *  - `pending`  → re-checks every reference (a file id can be SHARED: Oxy stores
@@ -425,7 +425,7 @@ export const federatedMediaPosters = pgTable(
 /**
  * The states of a federated banner mirror. `failed` is NOT terminal: every row
  * that is not `mirrored` is retried on a backoff (see
- * `services/federatedBannerMirror.ts`), so a banner is never lost to one bad
+ * `services/federation/federatedBannerMirror.ts`), so a banner is never lost to one bad
  * answer.
  */
 export const FEDERATED_BANNER_MIRROR_STATES = ['pending', 'mirrored', 'failed'] as const;

@@ -34,29 +34,29 @@
 
 import type { FeedInteractionEventName, PostContent } from '@mention/shared-types';
 import type { PostRecordClassification } from '../db/posts/postRecord';
-import { resolveVariant } from '../services/postVariants';
+import { resolveVariant } from '../services/posts/postVariants';
 import type { FeedTuning } from '@mention/shared-types';
 import { getBaseLanguage } from '@oxy.so/core';
 import { explainRanking } from '../mtn/feed/RankingExplainer';
-import { readTrustedScores } from '../services/contentClassification/trustedScores';
+import { readTrustedScores } from '../services/moderation/contentClassification/trustedScores';
 import {
   buildBehaviorSets,
   type RankablePost,
   type RankingUserBehavior,
-} from '../services/ranking/signalContext';
+} from '../services/feed/ranking/signalContext';
 import type {
   BaselineContentClassifier,
   BaselineSignals,
   ClassifyInput,
-} from '../services/BaselineContentClassifier';
-import type { FeedRankingService } from '../services/FeedRankingService';
+} from '../services/moderation/BaselineContentClassifier';
+import type { FeedRankingService } from '../services/feed/FeedRankingService';
 import type {
   CandidatePost,
   FeedEngineContext,
   DiscoveryGateBucket,
 } from '../mtn/feed/engine/types';
 import { originForFederation } from '../mtn/feed/feedMetrics';
-import type { CachedUserSummary } from '../services/userSummaryCache';
+import type { CachedUserSummary } from '../services/accounts/userSummaryCache';
 import type {
   FeedQualityLabel,
   LabeledActor,
@@ -795,8 +795,10 @@ async function main(): Promise<void> {
   const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import(
     '../db/posts/postRepository.js'
   );
-  const { baselineContentClassifier } = await import('../services/BaselineContentClassifier.js');
-  const { feedRankingService } = await import('../services/FeedRankingService.js');
+  const { baselineContentClassifier } = await import(
+    '../services/moderation/BaselineContentClassifier.js'
+  );
+  const { feedRankingService } = await import('../services/feed/FeedRankingService.js');
   const { registerAllModules } = await import('../mtn/feed/engine/index.js');
   const { feedModuleRegistry } = await import('../mtn/feed/engine/FeedModuleRegistry.js');
   const { resolveDiscoveryGate, resolvePhase2bSignals } = await import(

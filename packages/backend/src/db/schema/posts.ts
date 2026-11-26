@@ -273,7 +273,7 @@ export const posts = pgTable(
      * reader surface has to be able to exclude these IN THE QUERY, or a page of
      * 20 rows renders 12 cards and pagination silently under-fills. The
      * authority is `post_equivalence_members.preferred`; this column is
-     * maintained beside it by `services/PostEquivalenceService`, which is the
+     * maintained beside it by `services/posts/PostEquivalenceService`, which is the
      * only writer of either.
      */
     crosspostCollapsed: boolean().notNull().default(false),
@@ -1155,7 +1155,7 @@ export const POST_EQUIVALENCE_KINDS = ['crosspost'] as const;
 
 /**
  * `post_equivalence_clusters.confidence` — the evidence hierarchy, STRONGEST
- * FIRST. The order is load-bearing: `services/PostEquivalenceService` takes the
+ * FIRST. The order is load-bearing: `services/posts/PostEquivalenceService` takes the
  * strongest evidence available and refuses to weaken an existing cluster.
  *
  *  - `declared`        the source states it: an explicit cross-post / canonical
@@ -1236,7 +1236,7 @@ export const postEquivalenceClusters = pgTable(
  *
  * `preferred` marks the rendered representative, and the partial unique index is
  * what makes "exactly one" a schema fact rather than a convention. Choosing it is
- * DETERMINISTIC (see `services/PostEquivalenceService`) — a declared original
+ * DETERMINISTIC (see `services/posts/PostEquivalenceService`) — a declared original
  * first, then the richer media, then the earliest publication, then the id — so
  * that re-running the choice on the same members always lands on the same post.
  * Arrival order is deliberately not part of it.

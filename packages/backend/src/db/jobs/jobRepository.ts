@@ -105,7 +105,7 @@ function slugCandidate(title: string, attempt: number): string {
 
 /**
  * A create request whose location has already been RESOLVED against Clarity
- * (`services/jobPlaces.ts`) — the repository stores locations, it never
+ * (`services/jobsBoard/jobPlaces.ts`) — the repository stores locations, it never
  * accepts a client's claim about one.
  */
 export interface CreateJobParams extends Omit<CreateMentionJobRequest, 'location'> {
@@ -304,7 +304,7 @@ export interface ClaritySyncResult {
   error?: string;
 }
 
-/** Record the outcome of one Clarity `jobs.ingest` attempt — see `services/clarityJobsAdapter.ts`. */
+/** Record the outcome of one Clarity `jobs.ingest` attempt — see `services/jobsBoard/clarityJobsAdapter.ts`. */
 export async function recordClaritySync(jobId: string, result: ClaritySyncResult): Promise<void> {
   const db = getDb();
   const values: Partial<typeof mentionJobs.$inferInsert> = {

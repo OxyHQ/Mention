@@ -114,9 +114,9 @@ Commerce belongs to Mercaria, and Mention reaches it only as
 | `MercariaProduct`/`MercariaStore`/`MercariaCollection` and every ref type | Rendering, ordering and failure policy for a hydrated card |
 | Typed errors (not found, gone, retryable) and canonical links | Configuration: `MERCARIA_API_URL`, `MERCARIA_WEB_URL`, timeout |
 
-`services/commerce/mercariaClient.ts` holds the one lazily created client:
+`services/monetization/commerce/mercariaClient.ts` holds the one lazily created client:
 public catalog reads through the published SDK workload factory (no viewer token), a 5s timeout, and unset origins meaning the SDK's own.
-`services/commerce/mercariaHydration.ts` turns persisted refs, read as unknown
+`services/monetization/commerce/mercariaHydration.ts` turns persisted refs, read as unknown
 data, into one state each and never throws:
 
 | State | Meaning |

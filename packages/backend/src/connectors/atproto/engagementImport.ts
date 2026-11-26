@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { findKnownOxyUserIdsByActorUris } from '../../db/federation/actorRepository';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { materializeEngagementRelationship } from '../../services/PostEngagementCommandService';
+import { materializeEngagementRelationship } from '../../services/engagement/PostEngagementCommandService';
 import { logger } from '../../utils/logger';
 import { isDid, PUBLIC_APPVIEW } from './constants';
 import { importAtprotoRepost, importPostViews, type AtprotoPostView } from './post.mapper';

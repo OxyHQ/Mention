@@ -8,7 +8,7 @@ import { operatesAccount, operatesAccountNode } from '../operatedAccounts';
  * It has to give the SAME answer the backend gives, because the backend refuses
  * the action and this only declines to offer it: if the two disagree, one of them
  * is drawing a button the other 400s. So the cases below are the two families
- * `services/publishAsAccount.ts` distinguishes, and each admission is paired with
+ * `services/accounts/publishAsAccount.ts` distinguishes, and each admission is paired with
  * the near-miss that must be refused — a member without `account:act_as` is the
  * one that tells "reads the permission" apart from "reads membership".
  */

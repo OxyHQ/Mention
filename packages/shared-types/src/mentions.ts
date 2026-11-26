@@ -62,7 +62,7 @@ export const MAX_MENTIONS_PER_POST = 2 * MAX_MENTION_NOTIFICATIONS_PER_POST;
  *
  * It lives HERE, next to {@link MAX_MENTIONS_PER_POST}, because three separate
  * places have to agree on it or the composer promises a mention the write
- * boundary will not store: the fold itself (`services/profileLinkMentions`), the
+ * boundary will not store: the fold itself (`services/posts/profileLinkMentions`), the
  * endpoint that answers "would this URL become a mention" for the composer, and
  * the composer's own candidate selection (`utils/composerProfileLinks`). This is
  * a ceiling, not the number of links a given body may resolve — that is narrowed

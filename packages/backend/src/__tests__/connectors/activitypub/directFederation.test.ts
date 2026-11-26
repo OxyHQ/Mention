@@ -69,7 +69,7 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   safeFetch: vi.fn(),
   assertSafePublicUrl: vi.fn().mockResolvedValue({ ok: true }),
 }));
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: async () => true,
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({

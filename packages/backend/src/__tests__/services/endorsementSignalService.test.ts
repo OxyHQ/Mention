@@ -41,7 +41,7 @@ import { endorsementOutbox } from '../../db/schema/outbox';
  * about them.
  */
 const EXTRA_SCOPE_IDS = ['bfe-no-such-pack', 'list_9', 'pack_9', 'pack_1'];
-import { EndorsementSignalService } from '../../services/EndorsementSignalService';
+import { EndorsementSignalService } from '../../services/feed/EndorsementSignalService';
 
 /** List ids this file created, so teardown never touches another suite's rows. */
 const seededListIds: string[] = [];

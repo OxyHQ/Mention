@@ -8,9 +8,12 @@ import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { findActorByUri, findActorsByUris } from '../../db/federation/actorRepository';
 import { setFederatedAuthorPinnedPost } from '../../db/posts/postRepository';
-import { normalizeAlt } from '../../services/MediaMetadataService';
+import { normalizeAlt } from '../../services/media/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
-import { isProfileLikeHref, resolveProfileLinkIdentity } from '../../services/profileLinkMentions';
+import {
+  isProfileLikeHref,
+  resolveProfileLinkIdentity,
+} from '../../services/posts/profileLinkMentions';
 import { previewableUrls } from '../../utils/clarityDocuments';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
@@ -22,7 +25,7 @@ import {
 } from '../shared/upstreamPostKey';
 import { absorbTransportCopy, transportCopyFacts } from '../shared/transportCopies';
 import { findRecordedTransportCopies } from '../../db/posts/postTransportCopyRepository';
-import { toStoredContent } from '../../services/postVariants';
+import { toStoredContent } from '../../services/posts/postVariants';
 import {
   linkPreviewKey,
   remoteLinkPreview,

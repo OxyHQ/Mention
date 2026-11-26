@@ -29,7 +29,7 @@ vi.mock('../../utils/oxyHelpers', async () => {
   return { getServiceOxyClient: () => client };
 });
 
-import { cachedMediaCdnUrl } from '../../services/mediaCache/oxyMediaStore';
+import { cachedMediaCdnUrl } from '../../services/media/mediaCache/oxyMediaStore';
 
 const FILE_ID = 'oxyfile123';
 

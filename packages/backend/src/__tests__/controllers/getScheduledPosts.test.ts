@@ -49,7 +49,7 @@ vi.mock('../../utils/oxyHelpers', async () => ({
   })),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: hoisted.resolveUserSummaries,
   degradedActorSummary: (id: string) => ({

@@ -50,7 +50,7 @@ import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
-import { deleteFederatedPostSubtree } from '../services/FederatedPostDeletionService';
+import { deleteFederatedPostSubtree } from '../services/federation/FederatedPostDeletionService';
 import { isStoredBridgeFlattenedRetweet } from '../connectors/activitypub/flattenedRetweet';
 import { REVIEWED_REPOST_TRANSPORT_HOSTS } from '../connectors/activitypub/repostTransportPolicy';
 import { getRemoteHost } from '../connectors/shared/url';

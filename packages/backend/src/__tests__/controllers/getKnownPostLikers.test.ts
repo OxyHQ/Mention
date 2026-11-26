@@ -52,7 +52,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ users: { get: vi.fn(), getMany: vi.fn(async () => []) } }),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: hoisted.resolveUserSummaries,
   degradedActorSummary: (id: string) => ({
@@ -252,7 +252,7 @@ describe('getKnownPostLikers', () => {
     const actor = scope.user('subject-denied');
     await seedLike(actor);
     viewerFollows([actor]);
-    const { postHydrationService } = await import('../../services/PostHydrationService');
+    const { postHydrationService } = await import('../../services/posts/PostHydrationService');
     vi.mocked(postHydrationService.hydratePosts).mockResolvedValueOnce([]);
     const result = await callEndpoint({ user: { id: VIEWER } });
     expect(result).toMatchObject({ status: 404, body: { message: 'Post not found' } });

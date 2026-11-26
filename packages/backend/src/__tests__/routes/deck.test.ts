@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DeckWorkspaceState } from '@mention/shared-types/deck';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { deckWorkspaces } from '../../db/schema/deck';
-import { ERASURE_STEPS } from '../../services/accountErasure/erasureSteps';
+import { ERASURE_STEPS } from '../../services/accounts/accountErasure/erasureSteps';
 import deckRoutes from '../../routes/deck.routes';
 
 const users: string[] = [];

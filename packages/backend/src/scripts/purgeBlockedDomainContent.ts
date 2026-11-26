@@ -196,8 +196,8 @@ import {
 import { canonicalFederationHost } from '@oxy.so/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
-import { materializeEngagementTombstone } from '../services/PostEngagementCommandService';
-import { deleteCachedMedia, isMediaCacheEnabled } from '../services/mediaCache/oxyMediaStore';
+import { materializeEngagementTombstone } from '../services/engagement/PostEngagementCommandService';
+import { deleteCachedMedia, isMediaCacheEnabled } from '../services/media/mediaCache/oxyMediaStore';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import {

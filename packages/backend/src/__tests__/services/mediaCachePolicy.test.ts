@@ -6,14 +6,14 @@ import {
   isVideoType,
   maxBytesForType,
   type CacheLookup,
-} from '../../services/mediaCache/policy';
+} from '../../services/media/mediaCache/policy';
 import {
   MEDIA_CACHE_BACKOFF_BASE_MS,
   MEDIA_CACHE_BACKOFF_MAX_MS,
   MEDIA_CACHE_MAX_FAIL_COUNT,
   MEDIA_CACHE_MAX_IMAGE_BYTES,
   MEDIA_CACHE_MAX_VIDEO_BYTES,
-} from '../../services/mediaCache/constants';
+} from '../../services/media/mediaCache/constants';
 
 describe('media cache policy — decideProxyServe (state machine)', () => {
   it('miss (no row) → stream from remote AND enqueue a first cache attempt', () => {

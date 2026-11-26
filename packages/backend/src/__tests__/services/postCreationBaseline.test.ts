@@ -56,7 +56,7 @@ vi.mock('../../services/serviceRegistry', () => ({
 // broadcasting `feed:updated`. These tests pass `skipSocketEmit: true`, so the
 // hydration path is never exercised; mock it to a no-op so importing
 // PostCreationService does not pull in the heavy `../../server` module graph.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
 }));
 
@@ -75,8 +75,8 @@ import {
   trackPost,
   withDeadlockRetry,
 } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
-import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
+import { postCreationService } from '../../services/posts/PostCreationService';
+import { baselineContentClassifier } from '../../services/moderation/BaselineContentClassifier';
 import { PostVisibility } from '@mention/shared-types';
 import type { PostRecord } from '../../db/posts/postRecord';
 

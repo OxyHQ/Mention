@@ -33,7 +33,7 @@ import {
 import {
   materializeEngagementRelationship,
   materializeEngagementTombstone,
-} from '../../../services/PostEngagementCommandService';
+} from '../../../services/engagement/PostEngagementCommandService';
 import {
   BRIDGY_FED_BSKY_HOST,
   bridgyActorUriForDid,

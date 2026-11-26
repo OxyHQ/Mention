@@ -18,7 +18,7 @@ export const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
 // paginates), yet the underlying catalog is effectively immutable for a given
 // id — a short-lived cache removes redundant round-trips to the Syra API
 // without risking staleness. Mirrors the fail-open Redis pattern used by
-// `services/fediverseSharing.ts`: the shared {@link getRedisClient} singleton,
+// `services/federation/fediverseSharing.ts`: the shared {@link getRedisClient} singleton,
 // {@link withRedisFallback} degrades to a no-op when Redis is unavailable, and
 // every failure path treats the cache as a MISS (never throws, never blocks a
 // resolve). Cache read/write failures are logged at `warn` — the cache is best

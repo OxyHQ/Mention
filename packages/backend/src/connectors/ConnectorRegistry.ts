@@ -1,10 +1,10 @@
-import { authorsMayFederate, postAuthorIds } from '../services/postPublicationPolicy';
+import { authorsMayFederate, postAuthorIds } from '../services/posts/access/postPublicationPolicy';
 import { accountsWithClosedAudience } from '../db/userProfile/profileAudience';
 import { loadPostRecord } from '../db/posts/postRepository';
 import type { PostContent } from '@mention/shared-types';
 import type { LocalNetworkEvent, NetworkConnector } from '@oxy.so/federation';
 import { logger } from '../utils/logger';
-import { isFediverseSharingEnabled } from '../services/fediverseSharing';
+import { isFediverseSharingEnabled } from '../services/federation/fediverseSharing';
 import { toFederationPostPayload } from '../services/serviceRegistry';
 import type { FederatablePost, PostFederator } from '../services/serviceRegistry';
 

@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
   resolveUserSummaries: vi.fn(),
 }));
 
-vi.mock('../../../services/PostHydrationService', () => ({
+vi.mock('../../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: h.resolveUserSummaries.mockImplementation(
     async (ids: string[]) =>
       new Map(ids.map((id) => [id, { user: { id, kind: h.kinds.get(id) } }])),

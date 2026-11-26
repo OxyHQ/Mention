@@ -18,8 +18,8 @@
  */
 
 import { logger } from '../../utils/logger';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
-import { resolveUserSummaries } from '../../services/PostHydrationService';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
+import { resolveUserSummaries } from '../../services/posts/PostHydrationService';
 
 /**
  * Resolve author identity for a candidate pool in ONE batch, or `undefined` when

@@ -57,7 +57,7 @@ import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 
 // Deterministic ranking: likes ARE the score, so a ranked preset's order is the
 // engine's, not the scoring model's. (The scoring model has its own suites.)
-vi.mock('../services/FeedRankingService', () => ({
+vi.mock('../services/feed/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {
       for (const post of posts) {
@@ -71,7 +71,7 @@ vi.mock('../services/FeedRankingService', () => ({
 
 // Hydration reaches Oxy for author identity; the ids under test are already on
 // the candidate, so a passthrough is the whole of what this suite needs.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (posts: unknown[]) => posts),
@@ -85,7 +85,7 @@ vi.mock('../services/PostHydrationService', () => ({
 // that read never settles, so the whole for_you page times out. This suite is
 // about ENGINE orchestration — affinity has its own suite — so the lane is
 // stubbed to contribute nothing, exactly as ranking and hydration are.
-vi.mock('../services/ContentAffinityService', () => ({
+vi.mock('../services/feed/ContentAffinityService', () => ({
   ContentAffinityService: class {
     async getContentCandidates() {
       return [];
@@ -95,7 +95,7 @@ vi.mock('../services/ContentAffinityService', () => ({
   default: { getContentCandidates: vi.fn(async () => []) },
 }));
 
-vi.mock('../services/FeedSeenPostsService', () => ({
+vi.mock('../services/feed/FeedSeenPostsService', () => ({
   feedSeenPostsService: {
     getSeenPostIds: vi.fn(async () => []),
     markPostsAsSeen: vi.fn(async () => undefined),

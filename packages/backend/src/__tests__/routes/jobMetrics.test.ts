@@ -43,7 +43,7 @@ const EMPLOYER_ID = `employer-${run}`;
 const EMPLOYER_OPERATOR_ID = `operator-${run}`;
 const STRANGER_ID = `stranger-${run}`;
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
     for (const id of ids) {

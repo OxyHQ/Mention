@@ -2,10 +2,10 @@ import {
   attachSocialFeedContext,
   eligibleSocialActors,
   eligibleSocialPostIds,
-} from '../../../services/socialFeedEvidence';
+} from '../../../services/feed/socialFeedEvidence';
 import { EXPLORE_RANKING_VERSION } from '../CursorBuilder';
 import { encodeChronoCursor } from '../../../utils/chronoCursor';
-import { eligibleActivitySubscriptionAuthors } from '../../../services/activitySubscriptionInterest';
+import { eligibleActivitySubscriptionAuthors } from '../../../services/notifications/activitySubscriptionInterest';
 import { activitySubscriptionMatches } from '../activitySubscriptionMatches';
 /**
  * Feed Engine
@@ -27,10 +27,10 @@ import {
   type SlicedFeedResponse,
 } from '@mention/shared-types';
 import { getDiscoveryGateRolloutMode } from '../../../config';
-import { feedRankingService } from '../../../services/FeedRankingService';
-import { feedSeenPostsService } from '../../../services/FeedSeenPostsService';
-import { postHydrationService } from '../../../services/PostHydrationService';
-import { threadSlicingService } from '../../../services/ThreadSlicingService';
+import { feedRankingService } from '../../../services/feed/FeedRankingService';
+import { feedSeenPostsService } from '../../../services/feed/FeedSeenPostsService';
+import { postHydrationService } from '../../../services/posts/PostHydrationService';
+import { threadSlicingService } from '../../../services/posts/ThreadSlicingService';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { ScoreCursor, didCursorAdvance } from '../CursorBuilder';
 import { diversifyByAuthor } from '../diversifyByAuthor';

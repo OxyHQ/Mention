@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // Keep the real source, keyset SQL, slicer and engine. Account hydration is not
 // relevant to whether the engine strands or over-delivers source candidates.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (posts: unknown[]) => posts),

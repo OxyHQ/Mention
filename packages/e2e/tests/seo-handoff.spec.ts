@@ -5,7 +5,7 @@ import {
   mapHomepageOg,
   renderShellWithOg,
   type OgData,
-} from '../../backend/src/services/webShellRenderer';
+} from '../../backend/src/services/webshell/webShellRenderer';
 import { API_ORIGIN, APP_ORIGIN, CANDIDATE_ORIGIN, PROFILE_HANDLE } from '../environment';
 
 const profilePath = `/@${PROFILE_HANDLE}`;

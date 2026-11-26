@@ -19,7 +19,7 @@ vi.mock('../utils/redis', () => ({
   }),
 }));
 
-import { FeedRankingService } from '../services/FeedRankingService';
+import { FeedRankingService } from '../services/feed/FeedRankingService';
 
 /**
  * PHASE 2b OPT-IN RANKING SIGNALS.

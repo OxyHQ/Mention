@@ -44,7 +44,7 @@ vi.mock('../../utils/inference', () => ({
   inferenceChat: vi.fn(),
   isInferenceEnabled: () => false,
 }));
-vi.mock('../../services/TopicService', () => ({
+vi.mock('../../services/topics/TopicService', () => ({
   topicService: {
     resolveNames: mocks.resolveNames,
     updatePopularityFromTrending: mocks.updatePopularityFromTrending,
@@ -54,7 +54,7 @@ vi.mock('../../services/TopicService', () => ({
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { trendBatches, trending } from '../../db/schema/discovery';
 import { posts } from '../../db/schema/posts';
-import { trendingService } from '../../services/TrendingService';
+import { trendingService } from '../../services/trending/TrendingService';
 import { cleanupOldTrends, saveTrendingBatch } from '../../services/trending/trendBatchStore';
 import { getTrendingHistory } from '../../services/trending/trendHistory';
 import type { TrendItem } from '../../services/trending/trendItems';

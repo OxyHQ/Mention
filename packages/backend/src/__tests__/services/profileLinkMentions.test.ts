@@ -66,7 +66,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 import { MAX_MENTIONS_PER_POST, MAX_PROFILE_LINKS_PER_BODY } from '@mention/shared-types/mentions';
-import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
+import { foldProfileLinkMentions } from '../../services/posts/profileLinkMentions';
 
 /** This instance's own web host, as the federation domain policy sees it. */
 const OWN_HOST = 'mention.earth';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { detectLowEffort } from '../../services/contentClassification/lowEffort';
-import { SPAM_QUALITY_CONFIG } from '../../services/contentClassification/spamQuality';
+import { detectLowEffort } from '../../services/moderation/contentClassification/lowEffort';
+import { SPAM_QUALITY_CONFIG } from '../../services/moderation/contentClassification/spamQuality';
 
 /**
  * Unit tests for the pure low-effort detector. Inputs isolate one shape at a time

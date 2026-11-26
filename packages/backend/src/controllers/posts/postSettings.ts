@@ -20,7 +20,7 @@ import { logger } from '../../utils/logger';
 import { callerAccountAccess } from '../../utils/oxyHelpers';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
 import { postIsAuthoredByChannel } from '../../utils/channelReplyGate';
-import { postManagementRefusal } from '../../services/postManagementAccess';
+import { postManagementRefusal } from '../../services/posts/access/postManagementAccess';
 import { sendSuccessResponse } from '../../utils/apiHelpers';
 
 // Update post settings (pin, hide counts, reply permissions, review replies)

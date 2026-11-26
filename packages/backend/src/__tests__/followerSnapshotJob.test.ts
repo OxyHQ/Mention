@@ -28,12 +28,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
-import type { CachedUserSummary } from '../services/userSummaryCache';
+import type { CachedUserSummary } from '../services/accounts/userSummaryCache';
 
 const resolveUserSummaries = vi.fn((_ids: string[]) => Promise.resolve(summaries));
 let summaries = new Map<string, CachedUserSummary>();
 
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: (ids: string[]) => resolveUserSummaries(ids),
 }));
 
@@ -46,7 +46,7 @@ import {
   FOLLOWER_SNAPSHOT_CHECK_INTERVAL_MS,
   FOLLOWER_SNAPSHOT_INTERVAL_MS,
   FOLLOWER_SNAPSHOT_START_DELAY_MS,
-} from '../services/followerSnapshotJob';
+} from '../services/accounts/followerSnapshotJob';
 
 let db: Database;
 const createdAuthorIds: string[] = [];

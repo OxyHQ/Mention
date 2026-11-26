@@ -60,12 +60,12 @@ import { posts } from '../../db/schema/posts';
 import {
   isRetryableTransactionError,
   reconcileEngagementProjections,
-} from '../../services/EngagementProjectionReconciliationService';
+} from '../../services/engagement/EngagementProjectionReconciliationService';
 import {
   loadRecentReplierIds,
   recordRecentReplierForPost,
   repairRecentRepliersAfterPostDelete,
-} from '../../services/PostRecentReplierService';
+} from '../../services/posts/PostRecentReplierService';
 import { withDeadlockRetry } from '../helpers/serviceFixtures';
 import { logger } from '../../utils/logger';
 

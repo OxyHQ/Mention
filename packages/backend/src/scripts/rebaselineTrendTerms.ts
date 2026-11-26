@@ -35,14 +35,14 @@
  */
 
 import { and, asc, gt, gte, type SQL } from 'drizzle-orm';
-import { resolveVariant } from '../services/postVariants';
+import { resolveVariant } from '../services/posts/postVariants';
 import { connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
 import {
   baselineContentClassifier,
   BASELINE_CLASSIFIER_VERSION,
-} from '../services/BaselineContentClassifier';
+} from '../services/moderation/BaselineContentClassifier';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 

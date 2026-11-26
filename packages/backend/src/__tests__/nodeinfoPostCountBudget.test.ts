@@ -35,7 +35,7 @@ import { inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { nodeinfoStatisticsCached } from '../runtimeApp';
 import { posts } from '../db/schema/posts';
-import { measureNodeinfoStatistics } from '../services/nodeinfoStatistics';
+import { measureNodeinfoStatistics } from '../services/federation/nodeinfoStatistics';
 
 /** Restored on teardown: the flag is process-global and workers are reused. */
 let previousInstrumentationSetting = false;

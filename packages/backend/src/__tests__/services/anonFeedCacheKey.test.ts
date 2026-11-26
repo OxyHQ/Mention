@@ -15,7 +15,7 @@ import { describe, expect, it } from 'bun:test';
  * work exists to fix, reintroduced one layer above the queries.
  */
 
-import { anonFeedCache } from '../../services/anonFeedCache';
+import { anonFeedCache } from '../../services/feed/anonFeedCache';
 
 const base = { namespace: 'mtn', type: 'for_you', limit: 30 } as const;
 

@@ -2,7 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { connectPostgres, closePostgres, getDb } from '../../../db/postgres';
 import { accountStorefronts, commerceStoreDailyMetrics } from '../../../db/schema/commerce';
 import { eq } from 'drizzle-orm';
-import { commerceMetricsSummary, recordCommerceMetric } from '../../../services/commerce/metrics';
+import {
+  commerceMetricsSummary,
+  recordCommerceMetric,
+} from '../../../services/monetization/commerce/metrics';
 import { seedPost, postScope, clearPostScope } from '../../helpers/postFixtures';
 const scope = postScope('commerce-metrics');
 const accountId = 'commerce-metrics-store';

@@ -1,26 +1,32 @@
-import { canReadAccount, resolveReadableCommercePost } from '../services/commerce/access';
+import {
+  canReadAccount,
+  resolveReadableCommercePost,
+} from '../services/monetization/commerce/access';
 import {
   commerceMetricsSummary,
   recordCommerceMetric,
   type CommerceMetricTarget,
-} from '../services/commerce/metrics';
+} from '../services/monetization/commerce/metrics';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireOxyAuth, getRequiredOxyUserId, type OxyAuthRequest } from '@oxy.so/core/server';
 import { isMercariaError, parseMercariaRef } from '@mercaria.co/sdk';
 import type { CommerceReference } from '@mention/shared-types/commerce';
-import { getMercariaClient } from '../services/commerce/mercariaClient';
-import { hydrateCommerceReferences } from '../services/commerce/mercariaHydration';
+import { getMercariaClient } from '../services/monetization/commerce/mercariaClient';
+import { hydrateCommerceReferences } from '../services/monetization/commerce/mercariaHydration';
 import {
   connectStorefront,
   disconnectStorefront,
   lookupStorefront,
   readStorefront,
   StorefrontOwnershipError,
-} from '../services/commerce/storefronts';
-import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
+} from '../services/monetization/commerce/storefronts';
+import {
+  assertCanPublishAsAccount,
+  PublishAsAccessError,
+} from '../services/accounts/publishAsAccount';
 import { callerAccountAccess } from '../utils/oxyHelpers';
-import { isAccountErased } from '../services/accountErasure/erasedAccounts';
+import { isAccountErased } from '../services/accounts/accountErasure/erasedAccounts';
 import {
   operatedAccountSettingsRateLimiter,
   postDocumentsRateLimiter,

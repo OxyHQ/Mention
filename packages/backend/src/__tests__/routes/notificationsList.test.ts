@@ -40,7 +40,7 @@ vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: mocks.hydratePosts },
 }));
 
@@ -72,7 +72,7 @@ vi.mock('../../utils/push', () => ({
   formatPushForNotification: vi.fn(),
 }));
 
-vi.mock('../../services/viewerFollowGraph', () => ({
+vi.mock('../../services/feed/viewerFollowGraph', () => ({
   loadFollowedAuthorIds: mocks.loadFollowedAuthorIds,
 }));
 

@@ -6,16 +6,16 @@ const { records, hydrate, authorize } = vi.hoisted(() => ({
   authorize: vi.fn(),
 }));
 vi.mock('../../db/posts/postRepository', () => ({ loadPostRecords: records }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
   postHydrationService: { hydratePosts: hydrate, authorizeAnonymousRecords: authorize },
 }));
-import { UNRATED_MATERIAL_ITEM } from '../../services/contentAccessBatcher';
-import { postRevision } from '../../services/hydrationRevisions';
+import { UNRATED_MATERIAL_ITEM } from '../../services/moderation/contentAccessBatcher';
+import { postRevision } from '../../services/posts/hydrationRevisions';
 import {
   hasUnresolvedAuthor,
   revalidateAnonymousFeed,
-} from '../../services/revalidateAnonymousFeed';
+} from '../../services/feed/revalidateAnonymousFeed';
 // Cache fixtures only need the fields exercised by the cache boundary. The real
 // hydrator owns the full DTO and is covered by its database-backed suites.
 const cached = (id: string, text: string): HydratedPost =>

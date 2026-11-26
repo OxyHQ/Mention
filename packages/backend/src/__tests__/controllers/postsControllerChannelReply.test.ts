@@ -40,13 +40,15 @@ import type { OxyAuthRequest } from '@oxy.so/core/server';
 const create = vi.hoisted(() => vi.fn());
 const isChannelAccount = vi.hoisted(() => vi.fn());
 
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: { create },
 }));
 
 // The post read gate has its own suites; this one is about what happens past it.
-vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
+  canRequestReadPost: vi.fn(async () => true),
+}));
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: vi.fn(() => ({ id: 'unknown', username: '' })),
@@ -71,7 +73,7 @@ vi.mock('../../utils/clarityDocumentWarm', () => ({
 // The REAL channel reply gate, over a mocked account-kind lookup — the point of
 // this suite is that the gate runs on this route, so stubbing it would assert
 // nothing. Only the Oxy answer is mocked; the row lookup underneath it is real.
-vi.mock('../../services/publishAsAccount', async (importOriginal) => ({
+vi.mock('../../services/accounts/publishAsAccount', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   isChannelAccount,
 }));
@@ -80,7 +82,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { createPost } from '../../controllers/posts/createPost';
-import { canRequestReadPost } from '../../services/postReadAccess';
+import { canRequestReadPost } from '../../services/posts/access/postReadAccess';
 
 const scope = serviceScope('posts-controller-channel-reply');
 const OPERATOR = scope.user('operator');
@@ -251,7 +253,7 @@ describe('POST /posts — a channel post takes no replies', () => {
 describe('POST /posts — publishing never waits on a link crawl', () => {
   it("answers while Clarity is still resolving the post's link", async () => {
     const { warmClarityDocumentForText } = await import('../../utils/clarityDocumentWarm');
-    const { postHydrationService } = await import('../../services/PostHydrationService');
+    const { postHydrationService } = await import('../../services/posts/PostHydrationService');
     // A crawl that never finishes: the old awaited warm would hang here.
     vi.mocked(warmClarityDocumentForText).mockReturnValueOnce(new Promise(() => {}));
     vi.mocked(postHydrationService.hydratePosts).mockResolvedValueOnce([

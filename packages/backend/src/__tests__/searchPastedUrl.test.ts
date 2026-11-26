@@ -55,7 +55,7 @@ const mocks = vi.hoisted(() => ({
 
 // Identity hydration: the route is judged on WHICH rows it selected, and a real
 // hydration would need Oxy for identities it does not decide anything with here.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: object[]) => rows) },
 }));
 
@@ -77,12 +77,12 @@ vi.mock('../runtime/oxyClient', () => ({
  * query itself would mean racing `statement_timeout` against a pooled
  * connection, which is a flake, not a test.
  */
-vi.mock('../services/safety/viewerSafety', () => ({
+vi.mock('../services/moderation/safety/viewerSafety', () => ({
   loadShowSensitiveContent: mocks.loadShowSensitiveContent,
   loadMuteWords: mocks.loadMuteWords,
 }));
 
-vi.mock('../services/viewerFollowGraph', () => ({
+vi.mock('../services/feed/viewerFollowGraph', () => ({
   loadFollowedAuthorIds: vi.fn(async () => new Set<string>()),
 }));
 

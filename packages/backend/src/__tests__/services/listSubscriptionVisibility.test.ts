@@ -38,7 +38,7 @@ import {
   LIST_ENTITY_TYPE,
   MAX_SUBSCRIBED_LISTS_FOR_FEED,
   MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED,
-} from '../../services/ListSubscriptionService';
+} from '../../services/accounts/ListSubscriptionService';
 import { logger } from '../../utils/logger';
 import { listsSource } from '../../mtn/feed/engine/sources/forYouSources';
 import type { FeedEngineContext } from '../../mtn/feed/engine/types';

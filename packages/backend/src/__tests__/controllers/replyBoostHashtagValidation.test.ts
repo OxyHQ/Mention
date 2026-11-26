@@ -23,7 +23,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydratePosts: vi.fn(async (objs: object[]) => objs),
     canViewerReadPostId: vi.fn(async () => true),

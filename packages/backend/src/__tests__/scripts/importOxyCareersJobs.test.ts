@@ -37,7 +37,7 @@ vi.mock('../../utils/clarityClient', () => ({
   }),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map<string, unknown>();
     for (const id of ids) {

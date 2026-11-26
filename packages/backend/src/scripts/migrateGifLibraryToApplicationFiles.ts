@@ -68,9 +68,9 @@ import { connectPostgres, getDb } from '../db/postgres';
 import {
   deleteRetiredGifCacheFile,
   isMediaStoreThrottled,
-} from '../services/mediaCache/oxyMediaStore';
-import { describeOxyError, oxyErrorStatus } from '../services/oxyFiles/oxyErrors';
-import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
+} from '../services/media/mediaCache/oxyMediaStore';
+import { describeOxyError, oxyErrorStatus } from '../services/media/oxyFiles/oxyErrors';
+import { invalidate as invalidatePostDetailCache } from '../services/posts/postDetailCache';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';

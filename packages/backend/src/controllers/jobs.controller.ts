@@ -27,9 +27,9 @@ import {
   toMentionJobPosting,
   type MentionJobRow,
 } from '../db/jobs/jobRepository';
-import { assertCanManageJob, listOperatedJobEmployerIds } from '../services/jobAuthority';
-import { PublishAsAccessError } from '../services/publishAsAccount';
-import { syncJobToClarityInBackground } from '../services/clarityJobsAdapter';
+import { assertCanManageJob, listOperatedJobEmployerIds } from '../services/jobsBoard/jobAuthority';
+import { PublishAsAccessError } from '../services/accounts/publishAsAccount';
+import { syncJobToClarityInBackground } from '../services/jobsBoard/clarityJobsAdapter';
 
 function jobNotFound(res: Response) {
   return res.status(404).json({ error: 'Not found', message: 'Job not found' });

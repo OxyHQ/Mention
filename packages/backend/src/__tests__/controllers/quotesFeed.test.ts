@@ -24,8 +24,10 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 const hydratePosts = vi.fn();
 
 // The post read gate has its own suites; this one is about what happens past it.
-vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
+  canRequestReadPost: vi.fn(async () => true),
+}));
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: (...a: unknown[]) => hydratePosts(...a) },
 }));
 
@@ -47,7 +49,7 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { feedController } from '../../controllers/feed.controller';
-import { canRequestReadPost } from '../../services/postReadAccess';
+import { canRequestReadPost } from '../../services/posts/access/postReadAccess';
 
 const AUTHOR = 'oxy-quote-author';
 const created: string[] = [];

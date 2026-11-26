@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
-import { postHydrationService } from '../services/PostHydrationService';
+import { postHydrationService } from '../services/posts/PostHydrationService';
 import { createScopedOxyClient, callerOxyUser } from '../utils/oxyHelpers';
 import { safetyRequesterFor } from '../utils/safetyRequester';
 import { logger } from '../utils/logger';

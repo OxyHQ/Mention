@@ -87,7 +87,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 // Import AFTER mocks are registered.
-import { LeaderElection } from '../../services/LeaderElection';
+import { LeaderElection } from '../../services/scheduling/LeaderElection';
 
 const LOCK_KEY = 'mention:scheduler:leader';
 

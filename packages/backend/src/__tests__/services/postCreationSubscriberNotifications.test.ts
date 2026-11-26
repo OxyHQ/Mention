@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { PostVisibility } from '@mention/shared-types';
-import { isSubscriberNotificationEligible } from '../../services/PostCreationService';
+import { isSubscriberNotificationEligible } from '../../services/posts/PostCreationService';
 
 describe('PostCreationService subscriber notification eligibility', () => {
   it.each([

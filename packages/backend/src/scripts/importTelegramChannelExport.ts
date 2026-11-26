@@ -44,13 +44,13 @@ import { closeAdminScriptResources, registerAdminScriptServices } from './lib/ad
 import { connectPostgres } from '../db/postgres';
 import { findImportsBySourceIds } from '../db/imports/postImportRepository';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveUserSummaries } from '../services/posts/PostHydrationService';
 import {
   MAX_IMPORT_BATCH_ITEMS,
   MAX_IMPORT_MEDIA_PER_ITEM,
   postImportService,
   type ImportItemInput,
-} from '../services/PostImportService';
+} from '../services/posts/PostImportService';
 import { PostVisibility } from '@mention/shared-types';
 
 const SCRIPT_NAME = 'importTelegramChannelExport';

@@ -66,11 +66,11 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 

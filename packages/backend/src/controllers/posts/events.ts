@@ -1,5 +1,5 @@
-import { eventAccessFor } from '../../services/eventRequestAccess';
-import { resolveUserSummaries } from '../../services/PostHydrationService';
+import { eventAccessFor } from '../../services/events/eventRequestAccess';
+import { resolveUserSummaries } from '../../services/posts/PostHydrationService';
 import type { Response } from 'express';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { EventEdit, EventRegistration, EventCancel } from '@oxy.so/mention-contracts';
@@ -10,7 +10,7 @@ import {
   getEventState,
   listEventAttendees,
   registerForEvent,
-} from '../../services/EventAttendanceService';
+} from '../../services/events/EventAttendanceService';
 import { logger } from '../../utils/logger';
 
 const Cancel = EventCancel;

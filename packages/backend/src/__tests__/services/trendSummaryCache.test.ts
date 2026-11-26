@@ -39,7 +39,7 @@ import { config } from '../../config';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { trendBatches, trending } from '../../db/schema/discovery';
 import { metrics } from '../../utils/metrics';
-import { trendingService } from '../../services/TrendingService';
+import { trendingService } from '../../services/trending/TrendingService';
 
 const seededTrendingIds: string[] = [];
 const seededBatchIds: string[] = [];

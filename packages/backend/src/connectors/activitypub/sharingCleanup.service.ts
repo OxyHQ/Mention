@@ -5,7 +5,7 @@ import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { AP_CONTEXT } from '@oxy.so/federation';
 import { actorUrl } from './constants';
-import { getFediverseSharingStateById } from '../../services/fediverseSharing';
+import { getFediverseSharingStateById } from '../../services/federation/fediverseSharing';
 
 /**
  * Only returned when every inbound follower was fully torn down (bridged, or

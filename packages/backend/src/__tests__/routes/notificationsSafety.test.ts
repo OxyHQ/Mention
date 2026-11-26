@@ -35,7 +35,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  *
  * The viewer's preferences are real rows too:
  * `user_settings.privacy_show_sensitive_content` and `mute_words`, read back
- * through `services/safety/viewerSafety`.
+ * through `services/moderation/safety/viewerSafety`.
  */
 
 import express from 'express';
@@ -86,7 +86,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // viewer" so these cases stay about the sensitive-content and muted-word gates.
 // Pinned rather than left real: the live resolver reads Redis and Oxy, neither
 // of which decides anything this file asserts.
-vi.mock('../../services/notificationInbox', () => ({
+vi.mock('../../services/notifications/notificationInbox', () => ({
   resolveNotificationInboxIds: async (viewerId: string) => [viewerId],
 }));
 
@@ -114,7 +114,7 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
 }));
 
 // Redis. A miss is the honest default and forces the cold Oxy path above.
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),
 }));
@@ -129,8 +129,8 @@ vi.mock('../../services/userSummaryCache', () => ({
  * the union it computes (Oxy ∪ accepted federated follows) real while making
  * the route's own decision to call it observable.
  */
-vi.mock('../../services/viewerFollowGraph', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../services/viewerFollowGraph')>();
+vi.mock('../../services/feed/viewerFollowGraph', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/feed/viewerFollowGraph')>();
   mocks.loadFollowedAuthorIds.mockImplementation(actual.loadFollowedAuthorIds);
   return { ...actual, loadFollowedAuthorIds: mocks.loadFollowedAuthorIds };
 });

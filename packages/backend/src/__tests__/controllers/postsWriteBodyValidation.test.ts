@@ -40,7 +40,7 @@ const { created, ids } = vi.hoisted(() => ({
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 vi.mock('../../connectors/threadFederation', () => ({ federatePostBatchDetached: vi.fn() }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -79,7 +79,7 @@ vi.mock('../../db/polls/pollRepository', async (importOriginal) => ({
  * counted. The values it records are the ones the CONTROLLER resolved, which is
  * the subject — `visibility` and `replyPermission` are read straight off them.
  */
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: {
     create: vi.fn(async (params: Record<string, unknown>) => {
       created.push(params);

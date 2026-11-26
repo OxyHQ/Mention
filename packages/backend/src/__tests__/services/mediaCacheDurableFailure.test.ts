@@ -30,7 +30,7 @@ vi.mock('../../db/federation/mediaDeletionRepository', () => ({
   databaseNow: vi.fn(async () => new Date()),
 }));
 
-vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
+vi.mock('../../services/media/mediaCache/oxyMediaStore', () => ({
   MediaStoreUnavailableError: class MediaStoreUnavailableError extends Error {},
   OxyMediaOwnedElsewhereError: mocks.OwnedElsewhere,
   isMediaStoreThrottled: (error: unknown) => error instanceof mocks.Throttled,
@@ -54,7 +54,7 @@ vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
 // own `import()` then resolves from the module cache. The mocks above are
 // hoisted, so they apply to this import exactly as they do to the tests'.
 beforeAll(async () => {
-  await import('../../services/mediaCache/cacheWorker');
+  await import('../../services/media/mediaCache/cacheWorker');
 }, 60_000);
 
 function upstreamResponse(statusCode: number, headers: Record<string, unknown>) {
@@ -79,7 +79,7 @@ describe('durable federated media failure classification', () => {
       upstreamResponse(200, { 'content-type': 'text/html', 'content-length': '42' }),
     );
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker'
+      '../../services/media/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -95,7 +95,7 @@ describe('durable federated media failure classification', () => {
       }),
     );
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker'
+      '../../services/media/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -113,7 +113,7 @@ describe('durable federated media failure classification', () => {
     mocks.safeFetch.mockResolvedValue({ response: body });
     mocks.uploadFederatedMedia.mockRejectedValue(new mocks.OwnedElsewhere());
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker'
+      '../../services/media/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -131,7 +131,7 @@ describe('durable federated media failure classification', () => {
     mocks.safeFetch.mockResolvedValue({ response: body });
     mocks.uploadFederatedMedia.mockRejectedValue(new mocks.Throttled(42_000));
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker'
+      '../../services/media/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -147,7 +147,7 @@ describe('durable federated media failure classification', () => {
   it('still treats upstream 404/410 as permanently unavailable media', async () => {
     mocks.safeFetch.mockResolvedValue(upstreamResponse(410, {}));
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker'
+      '../../services/media/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -216,8 +216,8 @@ describe('federated banner download policy', () => {
   async function mirror(url = 'https://files.example/header.png') {
     const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] =
       await Promise.all([
-        import('../../services/mediaCache/cacheWorker'),
-        import('../../services/mediaCache/policy'),
+        import('../../services/media/mediaCache/cacheWorker'),
+        import('../../services/media/mediaCache/policy'),
       ]);
     return persistRemoteMediaForFederatedOwnerDetailed(
       url,
@@ -393,7 +393,7 @@ describe('federated banner download policy', () => {
       }),
     );
     const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker'
+      '../../services/media/mediaCache/cacheWorker'
     );
 
     await expect(
@@ -417,7 +417,7 @@ describe('federated banner download policy', () => {
 describe('media download policy intersection', () => {
   it('cannot re-admit a type the generic policy rejects, nor raise a per-type cap', async () => {
     const { isAllowedByDownloadPolicy, maxBytesForDownload } = await import(
-      '../../services/mediaCache/policy'
+      '../../services/media/mediaCache/policy'
     );
     const permissive = {
       allowedContentTypePrefixes: ['image/', 'video/', 'text/'],

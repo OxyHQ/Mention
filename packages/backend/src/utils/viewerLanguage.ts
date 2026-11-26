@@ -90,7 +90,7 @@ export function languageLadder(
  *
  * FRESHNESS IS PUSHED, not polled: oxy-api broadcasts `oxy:user:invalidate`
  * with the user's id on every profile write, and
- * `services/userInvalidationSubscriber` drops this entry
+ * `services/accounts/userInvalidationSubscriber` drops this entry
  * ({@link invalidateViewerLanguages}), so a reorder applies on the reader's next
  * request. The TTL is only the safety net for a lost broadcast, the same bound
  * the identity cache uses.

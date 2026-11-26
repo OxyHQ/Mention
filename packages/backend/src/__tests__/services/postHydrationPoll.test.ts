@@ -31,7 +31,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { asc, eq, inArray } from 'drizzle-orm';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
   getUserById: vi.fn(),
@@ -63,7 +63,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -80,7 +80,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
 const scope = postScope('post-hydration-poll');

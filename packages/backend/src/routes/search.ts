@@ -8,9 +8,9 @@ import { QUERY_CANCELED, sqlStateOf } from '@oxy.so/db';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postMedia, postMentions } from '../db/schema/postContent';
 import { findPostSearchPage } from '../services/search/postSearch';
-import { collectReadable } from '../services/readablePage';
+import { collectReadable } from '../services/webshell/readablePage';
 import { logger } from '../utils/logger';
-import { postHydrationService } from '../services/PostHydrationService';
+import { postHydrationService } from '../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../utils/hydrationOptions';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
@@ -22,13 +22,16 @@ import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
-import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
+import {
+  loadMuteWords,
+  loadShowSensitiveContent,
+} from '../services/moderation/safety/viewerSafety';
 import {
   NO_FOLLOWED_AUTHORS,
   compileMuteWords,
   isMutedSubject,
-} from '../services/safety/muteWordMatcher';
-import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
+} from '../services/moderation/safety/muteWordMatcher';
+import { loadFollowedAuthorIds } from '../services/feed/viewerFollowGraph';
 import { searchRateLimiter } from '../middleware/security';
 
 const router = express.Router();
@@ -507,7 +510,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       };
 
       // The page, `hasMore` and the cursor describe READABLE posts only — see
-      // `services/readablePage.ts`. Taken from the raw rows, they answered
+      // `services/webshell/readablePage.ts`. Taken from the raw rows, they answered
       // "does a hidden post match this query" (`from:` a private profile, a
       // keyword, `limit=1`) and the cursor carried the hidden row's id.
       const entries = await collectReadable({ want: limitNum + 1, fetchAfter, hydrate });

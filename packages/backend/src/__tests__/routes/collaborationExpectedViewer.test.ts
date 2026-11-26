@@ -4,7 +4,7 @@ import { OxyServer } from '@oxy.so/core/server';
 import { afterAll, beforeEach, expect, it, vi } from 'vitest';
 
 const effects = vi.hoisted(() => ({ accept: vi.fn(), decline: vi.fn(), hydrate: vi.fn() }));
-vi.mock('../../services/PostCollaborationService', () => ({
+vi.mock('../../services/posts/PostCollaborationService', () => ({
   postCollaborationService: {
     accept: effects.accept,
     decline: effects.decline,
@@ -12,8 +12,8 @@ vi.mock('../../services/PostCollaborationService', () => ({
   },
   CollabStateError: class extends Error {},
 }));
-vi.mock('../../services/PostHydrationService', async (original) => ({
-  ...(await original<typeof import('../../services/PostHydrationService')>()),
+vi.mock('../../services/posts/PostHydrationService', async (original) => ({
+  ...(await original<typeof import('../../services/posts/PostHydrationService')>()),
   postHydrationService: { hydratePosts: effects.hydrate },
 }));
 vi.mock('../../utils/oxyHelpers', async (original) => ({

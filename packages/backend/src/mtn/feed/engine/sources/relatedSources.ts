@@ -28,7 +28,7 @@ import { authorFollowerSnapshots, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
-import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../../../../services/followerSnapshotJob';
+import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../../../../services/accounts/followerSnapshotJob';
 import { clamp } from '@oxy.so/utils/text';
 import { logger } from '../../../../utils/logger';
 import { notARepostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';

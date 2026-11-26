@@ -1,4 +1,4 @@
-import { commerceLinksByPost } from '../../services/commerce/federationLinks';
+import { commerceLinksByPost } from '../../services/monetization/commerce/federationLinks';
 import { logger } from '../../utils/logger';
 import { isInstagramSourceActivityId } from '../shared/instagramSourceKey';
 import {
@@ -29,8 +29,8 @@ import {
   type MediaItem,
   type PostContent,
 } from '@mention/shared-types';
-import { authorVariants, resolveVariant } from '../../services/postVariants';
-import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
+import { authorVariants, resolveVariant } from '../../services/posts/postVariants';
+import { isFediverseSharingEnabled } from '../../services/federation/fediverseSharing';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { lookupOxyUsers } from '../../utils/oxyUserLookup';
 import type { LocalBoostEventPayload } from '@oxy.so/federation';

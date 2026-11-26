@@ -31,7 +31,7 @@ const { resolveUserSummaries, listAccountMembers } = vi.hoisted(() => ({
 
 // Oxy owns identity and is reached over HTTP; the ROW is what this suite is
 // about, so the identity resolver is the one thing still doubled.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries,
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));

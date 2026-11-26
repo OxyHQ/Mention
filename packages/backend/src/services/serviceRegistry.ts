@@ -1,6 +1,6 @@
 import type { MediaItem } from '@mention/shared-types';
 import type { PostRecord } from '../db/posts/postRecord';
-import type { CreatePostParams } from './PostCreationService';
+import type { CreatePostParams } from './posts/PostCreationService';
 
 /**
  * Late-bound registry that breaks the runtime circular dependency between the

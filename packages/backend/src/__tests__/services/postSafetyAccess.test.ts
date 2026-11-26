@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SafetyDecision } from '@oxy.so/contracts';
-import { postSafetyMaterial } from '../../services/contentClassification/safetyAssessment';
+import { postSafetyMaterial } from '../../services/moderation/contentClassification/safetyAssessment';
 const { contents, assessments } = vi.hoisted(() => ({
   contents: vi.fn(),
   assessments: vi.fn(),
@@ -11,7 +11,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 vi.mock('../../db/posts/postSafetyRepository', () => ({ loadPostSafetyAssessments: assessments }));
-import { loadPostSafetyDecisions } from '../../services/postSafetyAccess';
+import { loadPostSafetyDecisions } from '../../services/posts/access/postSafetyAccess';
 const allowed: SafetyDecision = { allowed: true, reason: 'allowed', policyVersion: '2' };
 const post = (id: string, author = 'author') => ({
   id,

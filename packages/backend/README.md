@@ -13,7 +13,17 @@ backend. The production service listens on port 3000 and serves both
 - `src/runtimeApp.ts` creates concrete Oxy and rate-limit dependencies.
 - `server.ts` owns process bootstrap, Socket.IO, background schedulers, listen,
   and shutdown.
-- `src/services/PostHydrationService.ts` (the facade) and the modules in `src/services/postHydration/` are the only authority for post DTOs.
+- `src/services/posts/PostHydrationService.ts` (the facade) and the modules in `src/services/posts/postHydration/` are the only authority for post DTOs.
+- `src/services/` is organised by domain, not by kind. Each folder owns one area and
+  imports a sibling domain's files directly (there are no barrels):
+  `posts` (create, delete, hydrate, read access in `posts/access`), `engagement`,
+  `feed` (ranking signals, `ranking/`), `search`, `trending`, `topics`, `moderation`
+  (reports, safety, classification, community notes), `federation`, `media`
+  (metadata, `mediaCache`, `oxyFiles`, `gifLibrary`), `notifications` (inbox, presence),
+  `accounts` (identity, erasure, channel deletion, user summaries, lists),
+  `communities`, `monetization` (memberships, commerce, promotion), `jobsBoard`,
+  `events`, `scheduling` (leader election, scheduled posts), `webshell`.
+  `serviceRegistry.ts` stays at the root: it is the dependency-injection hub.
 - `src/connectors/` isolates ActivityPub and AT Protocol integrations.
 - `src/mtn/` contains the feed engine.
 - `drizzle/` contains the versioned schema migrations, applied by `src/db/migrate.ts`.

@@ -40,7 +40,7 @@ import { inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
-import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../services/followerSnapshotJob';
+import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../services/accounts/followerSnapshotJob';
 import { authorFollowerSnapshots, posts } from '../db/schema';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';

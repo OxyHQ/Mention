@@ -1,7 +1,7 @@
 import { inArray } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { postSafetyAssessments } from '../schema/postSafety';
-import { POST_SAFETY_ASSESSMENT_VERSION } from '../../services/contentClassification/safetyAssessment';
+import { POST_SAFETY_ASSESSMENT_VERSION } from '../../services/moderation/contentClassification/safetyAssessment';
 
 /** Only the trusted classification worker writes this table; no request input reaches it. */
 export async function savePostSafetyAssessment(

@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   redisSetEx: vi.fn(),
 }));
 
-vi.mock('../../services/revalidateAnonymousFeed', () => ({
+vi.mock('../../services/feed/revalidateAnonymousFeed', () => ({
   revalidateAnonymousFeed: mocks.revalidate,
 }));
 
@@ -27,7 +27,7 @@ vi.mock('../../utils/redis', () => ({
   }),
 }));
 
-import { anonFeedCache } from '../../services/anonFeedCache';
+import { anonFeedCache } from '../../services/feed/anonFeedCache';
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -89,7 +89,7 @@ collection GETs (Mention); a Bluesky profile is 1 `getProfile` (Oxy).
 ## Consent
 
 Oxy owns `privacySettings.fediverseSharing`; Mention does not persist a second
-copy. `packages/backend/src/services/fediverseSharing.ts` is the backend read
+copy. `packages/backend/src/services/federation/fediverseSharing.ts` is the backend read
 path and owns the Mention-side cache. SDK reads bypass the SDK's independent
 GET cache so consent decisions use one cache authority.
 
@@ -523,7 +523,7 @@ Oxy-first deployment order, dry-run/apply report, mute preservation and reversal
 ### 3. A cross-post is one card and two stored objects
 
 Proving two accounts are one person says nothing about their posts, so
-`services/PostEquivalenceService.ts` is a separate concept with its own evidence
+`services/posts/PostEquivalenceService.ts` is a separate concept with its own evidence
 hierarchy: a declared original on the object, the same first-party media asset,
 one object carrying the other's permalink, and a conservative content fallback.
 One more tier, `imported-copy`, pairs a post Oxy Move imported with the

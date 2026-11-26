@@ -5,7 +5,7 @@ This page covers the trigger, the guarantees, exactly what is deleted and what i
 kept (and why), federation, the operator script, and how to verify a run.
 Origin: [OxyHQ/Mention#1169](https://github.com/OxyHQ/Mention/issues/1169).
 
-The code is `packages/backend/src/services/accountErasure/`. The table-by-table
+The code is `packages/backend/src/services/accounts/accountErasure/`. The table-by-table
 disposition is `erasureMap.ts`; this page summarises it and the map is the
 authority.
 
@@ -165,7 +165,7 @@ never federated and get no Delete.
 ## Channels and other managed accounts
 
 A channel is an Oxy account (`kind: 'channel'`). Deleting one in Mention runs
-Mention's own cascade first (`services/channelDeletion/`, the order is explained
+Mention's own cascade first (`services/accounts/channelDeletion/`, the order is explained
 in `routes/channelDeletion.routes.ts`), and then the client archives the account
 in Oxy (`DELETE /accounts/:id`).
 

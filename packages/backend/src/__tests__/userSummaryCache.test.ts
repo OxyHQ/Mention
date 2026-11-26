@@ -35,7 +35,7 @@ vi.mock('../utils/redis', () => ({
   }),
 }));
 
-import { invalidate, mget, mset } from '../services/userSummaryCache';
+import { invalidate, mget, mset } from '../services/accounts/userSummaryCache';
 import { logger } from '../utils/logger';
 
 const summaryFor = (id: string) => ({

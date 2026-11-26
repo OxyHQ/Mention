@@ -13,13 +13,13 @@ vi.mock('../../queue/workers', () => ({
   startWorkers: mocks.workers,
   shutdownQueues: mocks.queuesStop,
 }));
-vi.mock('../../services/EngagementOutboxDispatcher', () => ({
+vi.mock('../../services/engagement/EngagementOutboxDispatcher', () => ({
   engagementOutboxDispatcher: { start: mocks.engagement, stop: mocks.engagementStop },
 }));
 vi.mock('../../services/moderation/ModerationOutboxDispatcher', () => ({
   moderationOutboxDispatcher: { start: mocks.moderation, stop: mocks.moderationStop },
 }));
-vi.mock('../../services/LeaderElection', () => ({
+vi.mock('../../services/scheduling/LeaderElection', () => ({
   leaderElection: { start: mocks.leader, stop: mocks.leaderStop },
 }));
 vi.mock('../../runtime/schedulers', () => ({ startSchedulers: vi.fn(), stopSchedulers: vi.fn() }));

@@ -9,8 +9,8 @@ import {
   type ProfileLinkMentionsResponse,
 } from '@mention/shared-types';
 import { RedisStore } from '../middleware/rateLimitStore';
-import { resolveProfileLinkIdentity } from '../services/profileLinkMentions';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveProfileLinkIdentity } from '../services/posts/profileLinkMentions';
+import { resolveUserSummaries } from '../services/posts/PostHydrationService';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
 

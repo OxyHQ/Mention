@@ -25,14 +25,14 @@ import { inArray } from 'drizzle-orm';
 // The collaborators the router imports for identity resolution, cache eviction
 // and endorsement sync. All three reach outside this batch (Oxy over HTTP, Redis,
 // the endorsement outbox), and none of them is the code under test.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
   isFallbackUserSummary: vi.fn().mockReturnValue(false),
 }));
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   invalidate: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('../../services/EndorsementSignalService', () => ({
+vi.mock('../../services/feed/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
     syncScopeMembershipChange: vi.fn().mockResolvedValue(undefined),
@@ -43,7 +43,7 @@ vi.mock('../../services/EndorsementSignalService', () => ({
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { starterPackMembers, starterPackUses, starterPacks } from '../../db/schema/lists';
 import starterPackRoutes from '../../routes/starterPacks';
-import { resolveUserSummaries } from '../../services/PostHydrationService';
+import { resolveUserSummaries } from '../../services/posts/PostHydrationService';
 
 let db: Database;
 

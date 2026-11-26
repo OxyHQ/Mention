@@ -34,8 +34,8 @@ import {
   loadUserSettings,
   updateUserSettings,
 } from '../../db/userProfile/userSettingsRepository';
-import { loadShowSensitiveContent } from '../../services/safety/viewerSafety';
-import { LabelService } from '../../services/LabelService';
+import { loadShowSensitiveContent } from '../../services/moderation/safety/viewerSafety';
+import { LabelService } from '../../services/moderation/LabelService';
 
 const created: string[] = [];
 

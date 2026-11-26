@@ -28,7 +28,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { deleteUserBehavior, loadUserBehavior } from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { userPreferenceService } from '../../services/UserPreferenceService';
+import { userPreferenceService } from '../../services/feed/UserPreferenceService';
 
 const scope = serviceScope('user-pref-region');
 const VIEWER = scope.user('viewer');

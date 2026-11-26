@@ -30,7 +30,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  */
 
 const resolveUserSummaries = vi.fn();
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
 }));
 

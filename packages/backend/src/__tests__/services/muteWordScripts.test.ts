@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { compileMuteWords, isMutedSubject } from '../../services/safety/muteWordMatcher';
+import { compileMuteWords, isMutedSubject } from '../../services/moderation/safety/muteWordMatcher';
 
 /**
  * Muting across writing systems, pinned against the REAL matcher.

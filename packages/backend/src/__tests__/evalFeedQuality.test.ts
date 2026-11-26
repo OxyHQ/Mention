@@ -19,7 +19,7 @@ import {
   type LabelResolverDeps,
   type LabeledActor,
 } from '../scripts/fixtures/feedQualityLabels';
-import { baselineContentClassifier } from '../services/BaselineContentClassifier';
+import { baselineContentClassifier } from '../services/moderation/BaselineContentClassifier';
 import {
   minLengthFilter,
   lowEffortGateFilter,
@@ -27,7 +27,7 @@ import {
   minQualityFilter,
 } from '../mtn/feed/engine/filters';
 import type { CandidatePost } from '../mtn/feed/engine/types';
-import type { RankablePost } from '../services/ranking/signalContext';
+import type { RankablePost } from '../services/feed/ranking/signalContext';
 import type { FilterModule } from '../mtn/feed/engine/types';
 import { feedCandidate, postStats } from './fixtures/feedCandidate';
 

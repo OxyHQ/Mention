@@ -3,7 +3,7 @@ import { loadPostRecord } from '../../../db/posts/postRepository';
 import type { PostRecord } from '../../../db/posts/postRecord';
 import { config } from '../../../config';
 import { getOwnerId, normalizeAuthorship } from '../../../utils/postAuthorship';
-import { getPrimaryVariant } from '../../postVariants';
+import { getPrimaryVariant } from '../../posts/postVariants';
 import { evidenceMediaOf } from '../reportEvidence';
 import type {
   ModerationContextResource,

@@ -13,7 +13,7 @@ import { getDb } from '../../../db/postgres';
 import { postContentVariants } from '../../../db/schema/postContent';
 import { posts } from '../../../db/schema/posts';
 import type { PostRecord } from '../../../db/posts/postRecord';
-import { BASELINE_CLASSIFIER_VERSION } from '../../../services/BaselineContentClassifier';
+import { BASELINE_CLASSIFIER_VERSION } from '../../../services/moderation/BaselineContentClassifier';
 
 const scope = federationScope('inbound-update-security');
 
@@ -88,11 +88,11 @@ vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: vi.fn(),
 }));
 
@@ -103,7 +103,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
   getPostFederator: vi.fn(),
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => mocks.isFediverseSharingEnabled(...args),
 }));
 

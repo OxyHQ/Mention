@@ -29,7 +29,7 @@ import { inArray } from 'drizzle-orm';
 // Imported at module load but never touched by GET /lists — stub so importing the
 // router never drags in the feed controller / Oxy service / Redis chain.
 vi.mock('../../controllers/feed.controller', () => ({ feedController: {} }));
-vi.mock('../../services/EndorsementSignalService', () => ({
+vi.mock('../../services/feed/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
     syncScopeMembershipChange: vi.fn().mockResolvedValue(undefined),

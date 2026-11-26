@@ -7,7 +7,7 @@ import { inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { userSettings } from '../db/schema/userProfile';
 import { setRuntimeOxyClient } from '../runtime/oxyClient';
-import { registerLocalAccountsOnce } from '../services/applicationAccountRegistrationJob';
+import { registerLocalAccountsOnce } from '../services/accounts/applicationAccountRegistrationJob';
 
 const ids = ['appacct-a', 'appacct-b', 'appacct-c'];
 

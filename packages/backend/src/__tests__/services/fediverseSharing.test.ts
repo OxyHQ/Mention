@@ -44,7 +44,7 @@ import {
   getFediverseSharingStateByUsername,
   getFediverseSharingStateById,
   invalidateFediverseSharing,
-} from '../../services/fediverseSharing';
+} from '../../services/federation/fediverseSharing';
 
 describe('fediverseSharing', () => {
   beforeEach(() => {

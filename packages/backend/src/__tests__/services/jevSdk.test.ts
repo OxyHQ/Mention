@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { Kaana } from '@kaana.ai/sdk';
 import type { DecisionRequest, DecisionSuccess } from '@kaana.ai/contracts';
-import { createJevShadowEvaluation } from '../../services/contentClassification/jevSdk';
+import { createJevShadowEvaluation } from '../../services/moderation/contentClassification/jevSdk';
 
 const release = { evaluationVersion: 'shadow-v1', supportedLanguages: ['en', 'es'] };
 const topics = [

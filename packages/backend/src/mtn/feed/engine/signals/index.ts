@@ -59,7 +59,7 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   localBoost: 'localBoost',
   languageMismatchPenalty: 'languageMismatchPenalty',
   // Opt-in — curation signal. A bounded lift for authors OTHER people curated into
-  // starter packs that were actually used (see `services/starterPackCuration.ts`).
+  // starter packs that were actually used (see `services/accounts/starterPackCuration.ts`).
   starterPackBoost: 'starterPackBoost',
   trustTierBoost: 'trustTierBoost',
 };

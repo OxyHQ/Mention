@@ -48,7 +48,7 @@ import {
 import {
   recordRecentReplierForPost,
   type RecentReplyLike,
-} from '../services/PostRecentReplierService';
+} from '../services/posts/PostRecentReplierService';
 
 /** Posts scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;

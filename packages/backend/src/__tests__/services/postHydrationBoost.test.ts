@@ -13,7 +13,7 @@ import {
 } from '../../__tests__/helpers/federationFixtures';
 
 const scope = federationScope('hydration-boost');
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 
 /**
@@ -113,7 +113,7 @@ vi.mock('../../services/moderation/crowdSourceClient', () => ({
   getCrowdSourceClient: () => ({ communityNotes: { shown: async () => [] } }),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -130,8 +130,8 @@ vi.mock('../../services/userSummaryCache', () => ({
 // Load the real handler with the test module, outside individual request deadlines.
 import { feedController } from '../../controllers/feed.controller';
 import { logger } from '../../utils/logger';
-import { PostHydrationService } from '../../services/PostHydrationService';
-import { UNRATED_MATERIAL_ITEM } from '../../services/contentAccessBatcher';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
+import { UNRATED_MATERIAL_ITEM } from '../../services/moderation/contentAccessBatcher';
 
 function makeOxyUser(id: string, username: string, displayName: string) {
   return {

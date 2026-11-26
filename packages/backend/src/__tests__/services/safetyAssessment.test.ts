@@ -5,7 +5,7 @@ import {
   postSafetyMaterial,
   safetyVerdictSchema,
   type SafetyMaterialPost,
-} from '../../services/contentClassification/safetyAssessment';
+} from '../../services/moderation/contentClassification/safetyAssessment';
 
 const content: StoredPostContent = {
   variants: [{ source: 'author', tag: 'en', text: 'We planted a tree in the garden.' }],

@@ -1,6 +1,6 @@
 import express, { type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { searchGifs, getTrendingGifs, type GifResponse } from '../services/gifService';
+import { searchGifs, getTrendingGifs, type GifResponse } from '../services/media/gifService';
 import {
   type GifImportCandidate,
   type GifRecord,
@@ -11,13 +11,13 @@ import {
   mapKlipyItemsToCandidates,
   recordUse,
   searchLocal,
-} from '../services/gifLibrary/gifLibraryService';
+} from '../services/media/gifLibrary/gifLibraryService';
 import {
   GIF_DEFAULT_DIMENSION,
   GIF_LIBRARY_WRITE_ENABLED,
   GIF_LOCAL_HITS_LIMIT,
-} from '../services/gifLibrary/constants';
-import { signGifMediaUrl, unwrapGifMediaUrl } from '../services/gifLibrary/gifMediaProxy';
+} from '../services/media/gifLibrary/constants';
+import { signGifMediaUrl, unwrapGifMediaUrl } from '../services/media/gifLibrary/gifMediaProxy';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';

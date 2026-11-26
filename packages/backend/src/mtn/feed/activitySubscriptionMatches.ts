@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { postAuthorships, postSubscriptions } from '../../db/schema';
-import { eligibleActivitySubscriptionAuthors } from '../../services/activitySubscriptionInterest';
+import { eligibleActivitySubscriptionAuthors } from '../../services/notifications/activitySubscriptionInterest';
 import type { CandidatePost, FeedEngineContext } from './engine/types';
 
 /** One bounded membership read for shell coauthors missed by the dedicated bell window. */

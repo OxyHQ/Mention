@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
-import { applyFileEvent } from '../../services/oxyFiles/fileEvents';
+import { applyFileEvent } from '../../services/media/oxyFiles/fileEvents';
 import { oxyFileStates, oxyFileEvents, oxyFileReferenceSync } from '../../db/schema/oxyFiles';
 import { fileReferenceEntity, pairKey } from '../../db/oxyFiles/fileReferenceEntities';
 import express from 'express';
@@ -26,7 +26,7 @@ const state = vi.hoisted(() => ({
   upload: vi.fn(),
   download: vi.fn(),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: async (ids: string[]) =>
     new Map(ids.map((id) => [id, { user: { id, kind: 'organization', name: {} } }])),
 }));
@@ -109,7 +109,7 @@ import {
 } from '../../db/schema/memberships';
 import { posts } from '../../db/schema/posts';
 import { membershipRoutes, publicMembershipRoutes } from '../../routes/memberships';
-import { membershipGrantsAccess } from '../../services/memberships/access';
+import { membershipGrantsAccess } from '../../services/monetization/memberships/access';
 
 const app = express();
 app.use(express.json());

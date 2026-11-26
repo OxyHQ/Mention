@@ -6,7 +6,7 @@
  * authoritative record and lifecycle for a job IT authored — created by an
  * eligible Oxy account (organization/project), published through Mention's
  * employer dashboard, and mirrored to Clarity's index through
- * `clarity.jobs.ingest` (see `services/clarityJobsAdapter.ts` in the backend).
+ * `clarity.jobs.ingest` (see `services/jobsBoard/clarityJobsAdapter.ts` in the backend).
  * Mention never stores Clarity's external-index corpus, and Clarity never
  * becomes the source of truth for a Mention-authored job.
  */
@@ -87,7 +87,7 @@ export type MentionJobStatus = (typeof MENTION_JOB_STATUSES)[number];
 /**
  * v1 employer eligibility (issue #952 "First-party Mention-authored jobs").
  * `channel`, `bot` and `personal` accounts may never be named as a job's
- * employer — enforced backend-side by `services/jobAuthority.ts`, which layers
+ * employer — enforced backend-side by `services/jobsBoard/jobAuthority.ts`, which layers
  * this restriction on top of `assertCanPublishAsAccount`'s own kind gate.
  */
 export const MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS = ['organization', 'project'] as const;

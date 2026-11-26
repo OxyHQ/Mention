@@ -37,7 +37,7 @@ import type { OxyAuthRequest } from '@oxy.so/core/server';
 const resolveUserSummaries = vi.hoisted(() => vi.fn());
 const checkFollowAccess = vi.hoisted(() => vi.fn());
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
 }));
 

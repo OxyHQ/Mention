@@ -1,8 +1,8 @@
 import type { MediaItem } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { recordAccessAndMaybeEnqueue } from '../../services/mediaCache/cacheStore';
-import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
-import { mediaMetadataService } from '../../services/MediaMetadataService';
+import { recordAccessAndMaybeEnqueue } from '../../services/media/mediaCache/cacheStore';
+import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/media/mediaCache/cacheWorker';
+import { mediaMetadataService } from '../../services/media/MediaMetadataService';
 import { isAbsoluteHttpUrl, getRemoteHost } from './url';
 import type { ApMediaType } from '../activitypub/apMedia';
 

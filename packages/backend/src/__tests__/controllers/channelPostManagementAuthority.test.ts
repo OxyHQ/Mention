@@ -13,7 +13,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
  *
  * `postManagementRefusal` now proves CURRENT membership against Oxy's account
  * graph on every one of them. This suite is the gate's reachability check: the
- * service test beside it (`services/postManagementAccess.test.ts`) pins what the
+ * service test beside it (`services/posts/access/postManagementAccess.test.ts`) pins what the
  * gate answers, and would stay green for a route that never calls it.
  *
  * ## The shape of each case, and why the pair is the point
@@ -65,7 +65,7 @@ vi.mock('../../utils/oxyHelpers', async () => ({
 // `resolveUserSummaries` is how `resolveAccountKind` learns that the authoring
 // account is a channel — the question `assertCanPublishAsAccount` asks before it
 // reads a member list, and the one `updatePost` asks to decide the edit window.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: object[]) => rows) },
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
@@ -83,7 +83,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));
 
-vi.mock('../../services/PostCollaborationService', () => ({
+vi.mock('../../services/posts/PostCollaborationService', () => ({
   postCollaborationService: {
     resolveCollaboratorRefs: vi.fn(async () => []),
     attachCollaborators: vi.fn(),
@@ -96,7 +96,7 @@ vi.mock('../../services/PostCollaborationService', () => ({
 
 // The publish PIPELINE is the subject of its own suite; what matters here is who
 // may start it, so the claim is observed rather than executed.
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: { claimAndPublishScheduledPost: oxy.claimAndPublishScheduledPost },
 }));
 

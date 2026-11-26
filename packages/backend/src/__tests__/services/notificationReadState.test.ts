@@ -27,7 +27,7 @@ import { notifications } from '../../db/schema/discovery';
 import {
   markAllNotificationsRead,
   markNotificationRead,
-} from '../../services/notificationReadState';
+} from '../../services/notifications/notificationReadState';
 
 /** Namespaces every row this file writes, so a parallel file cannot collide. */
 const OWNER_PREFIX = 'oxy-notif-read-';

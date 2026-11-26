@@ -15,9 +15,9 @@ const enrichFromOxy = vi.fn();
 const needsOxyRetry = vi.fn();
 const rejectedHls = new Map<string, string>();
 
-vi.mock('../../services/MediaMetadataService', async (importOriginal) => ({
+vi.mock('../../services/media/MediaMetadataService', async (importOriginal) => ({
   // The real comparison: what counts as a change is part of what is under test.
-  ...(await importOriginal<typeof import('../../services/MediaMetadataService')>()),
+  ...(await importOriginal<typeof import('../../services/media/MediaMetadataService')>()),
   mediaMetadataService: {
     enrichFromOxyWithRejections: async (...args: unknown[]) => ({
       items: await enrichFromOxy(...args),
@@ -43,7 +43,7 @@ import {
   processMediaMetadataEnrichJob,
   patchPostMediaMetadata,
   MediaMetadataPendingError,
-} from '../../services/mediaMetadataEnrichJob';
+} from '../../services/media/mediaMetadataEnrichJob';
 
 const OXY_ID = '65fdc8c8c8c8c8c8c8c8c8c8';
 const AUTHOR = 'oxy-media-author';

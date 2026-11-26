@@ -14,7 +14,7 @@ import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../../db/posts/postRepository';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { config } from '../../config';
 import { queryString } from '../../utils/queryParams';

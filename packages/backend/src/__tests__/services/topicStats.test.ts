@@ -30,7 +30,7 @@ vi.mock('../../utils/inference', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { topicStats } from '../../db/schema/discovery';
-import { topicService } from '../../services/TopicService';
+import { topicService } from '../../services/topics/TopicService';
 
 let db: Database;
 const createdTopicIds: string[] = [];

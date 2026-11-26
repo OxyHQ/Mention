@@ -17,25 +17,28 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   userPreferenceService,
   readInteractionSurface,
-} from '../../services/UserPreferenceService';
+} from '../../services/feed/UserPreferenceService';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { callerOxyUser } from '../../utils/oxyHelpers';
 import { queryString } from '../../utils/queryParams';
-import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../../services/postEngagementBroadcast';
+import {
+  emitPostEngagement,
+  POST_ENGAGEMENT_EVENTS,
+} from '../../services/engagement/postEngagementBroadcast';
 import {
   EngagementPostNotFoundError,
   savePostCommand,
   unsavePostCommand,
-} from '../../services/PostEngagementCommandService';
-import type { EngagementPostSnapshot } from '../../services/PostEngagementCommandService';
-import { canRequestReadPost } from '../../services/postReadAccess';
+} from '../../services/engagement/PostEngagementCommandService';
+import type { EngagementPostSnapshot } from '../../services/engagement/PostEngagementCommandService';
+import { canRequestReadPost } from '../../services/posts/access/postReadAccess';
 import {
   loadEngagementCountPrivacy,
   visibleEngagementCounts,
-} from '../../services/engagementCountPrivacy';
-import { collectReadable, DEFAULT_SCAN_BUDGET } from '../../services/readablePage';
+} from '../../services/engagement/engagementCountPrivacy';
+import { collectReadable, DEFAULT_SCAN_BUDGET } from '../../services/webshell/readablePage';
 import { chronoKeyset, decodeChronoCursor, encodeChronoCursor } from '../../utils/chronoCursor';
 import {
   BookmarkFolderInputError,
@@ -43,7 +46,7 @@ import {
   createBookmarkFolderForViewer,
   listBookmarkFoldersForViewer,
   updateBookmarkFolderForViewer,
-} from '../../services/BookmarkFolderService';
+} from '../../services/accounts/BookmarkFolderService';
 import { POST_PAGE_LIMIT } from './postPageBounds';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
 

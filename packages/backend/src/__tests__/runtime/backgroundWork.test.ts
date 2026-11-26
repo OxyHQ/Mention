@@ -132,7 +132,10 @@ describe('drainBackgroundWork', () => {
 
 describe('the post-create broadcast is registered', () => {
   it('hands the broadcast to trackBackgroundWork, not to a bare void', () => {
-    const source = readFileSync(join(__dirname, '../../services/PostCreationService.ts'), 'utf8');
+    const source = readFileSync(
+      join(__dirname, '../../services/posts/PostCreationService.ts'),
+      'utf8',
+    );
 
     expect(source).toContain('trackBackgroundWork(this.broadcastCreatedPost())');
     // The shape this replaced. Its return would make the fix silently absent

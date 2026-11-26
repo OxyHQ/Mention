@@ -20,7 +20,7 @@ import { Router, type Response } from 'express';
 import type { CommunityBansResponse, JoinedCommunitiesResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getRequiredOxyUserId } from '@oxy.so/core/server';
-import { PublishAsAccessError } from '../services/publishAsAccount';
+import { PublishAsAccessError } from '../services/accounts/publishAsAccount';
 import { listJoinedCommunities } from '../services/communities/joinedCommunities';
 import { CommunityPostError } from '../services/communities/communityPosting';
 import {

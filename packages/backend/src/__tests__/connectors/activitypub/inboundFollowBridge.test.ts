@@ -76,15 +76,15 @@ vi.mock('../../../utils/notificationUtils', () => ({
   createBatchNotifications: vi.fn(),
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabledFromUser: (...args: unknown[]) =>
     mocks.isFediverseSharingEnabledFromUser(...args),
 }));

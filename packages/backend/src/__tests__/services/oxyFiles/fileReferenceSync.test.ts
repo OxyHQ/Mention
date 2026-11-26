@@ -34,7 +34,7 @@ import {
   clearFileReferencesBeforeDelete,
   drainFileReferenceSync,
   fileReferenceBackoffMs,
-} from '../../../services/oxyFiles/fileReferenceSync';
+} from '../../../services/media/oxyFiles/fileReferenceSync';
 
 type Reference = { fileId: string; entityType: string; entityId: string };
 

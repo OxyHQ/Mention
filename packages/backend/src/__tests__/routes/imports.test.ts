@@ -5,7 +5,7 @@ import { generateKeyPairSync, sign } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The content-import API (`routes/imports.ts` + `services/PostImportService.ts`)
+ * The content-import API (`routes/imports.ts` + `services/posts/PostImportService.ts`)
  * against REAL rows, driven over HTTP.
  *
  * The gate is exercised with the REAL `oxy.middleware.auth()`: service tokens
@@ -64,7 +64,7 @@ vi.mock('../../services/serviceRegistry', () => ({
 
 // Account kinds come from the identity summary. Only the channel fixture
 // reports a kind, so every other author reads as an ordinary account.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map<string, unknown>();
@@ -102,8 +102,8 @@ vi.mock('../../connectors/outboundFederation', () => ({
 // makes the mention test able to fail: a create that still ran the fold would
 // come back with Bob in `mentions`, and the `[mention:<bob>]` in the text would
 // reconcile against it.
-vi.mock('../../services/profileLinkMentions', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../services/profileLinkMentions')>();
+vi.mock('../../services/posts/profileLinkMentions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../services/posts/profileLinkMentions')>();
   return {
     ...actual,
     foldProfileLinkMentions: vi.fn(async (_content: unknown, ids: unknown) => ({
@@ -128,7 +128,7 @@ import {
   trackPost,
 } from '../helpers/serviceFixtures';
 import importsRouter from '../../routes/imports';
-import { postImportService } from '../../services/PostImportService';
+import { postImportService } from '../../services/posts/PostImportService';
 
 const scope = serviceScope('content-imports');
 const ALICE = scope.user('alice');

@@ -26,8 +26,10 @@ vi.mock('../../queue/producers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../queue/producers')>()),
   enqueueAccountErasure,
 }));
-vi.mock('../../services/accountErasure/AccountErasureService', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/accountErasure/AccountErasureService')>()),
+vi.mock('../../services/accounts/accountErasure/AccountErasureService', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../services/accounts/accountErasure/AccountErasureService')
+  >()),
   processAccountErasure,
 }));
 
@@ -40,7 +42,7 @@ import {
   pullAccountEvents,
   reconcileAccountEvents,
   retryUnfinishedErasures,
-} from '../../services/accountErasure/AccountEventReconciliationJob';
+} from '../../services/accounts/accountErasure/AccountEventReconciliationJob';
 import {
   readAccountEventCursor,
   recordAccountErasureRequest,

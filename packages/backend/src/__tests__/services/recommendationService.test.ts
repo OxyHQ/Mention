@@ -26,14 +26,14 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // The OxyRankingClient default export is replaced; the service accepts an
 // injected client via its constructor, but it also imports the default for the
 // no-arg singleton path, so we mock the module to be safe.
-vi.mock('../../services/OxyRankingClient', () => ({
+vi.mock('../../services/feed/OxyRankingClient', () => ({
   oxyRankingClient: { rank: mocks.rank, newest: mocks.newest },
   OxyRankingClient: class {},
 }));
 
 // Content-affinity is injected via the constructor; mock the module so the
 // imported singleton/class are inert.
-vi.mock('../../services/ContentAffinityService', () => ({
+vi.mock('../../services/feed/ContentAffinityService', () => ({
   contentAffinityService: { getContentCandidates: mocks.getContentCandidates },
   ContentAffinityService: class {},
 }));
@@ -43,8 +43,8 @@ import {
   buildBoostsFromCandidates,
   MAX_RECOMMENDATION_OFFSET,
   RecommendationsUnavailableError,
-} from '../../services/RecommendationService';
-import { ForegroundRankingError } from '../../services/ForegroundOxyProfileClient';
+} from '../../services/feed/RecommendationService';
+import { ForegroundRankingError } from '../../services/accounts/ForegroundOxyProfileClient';
 import { decodeOffsetCursor, encodeOffsetCursor } from '../../utils/offsetCursor';
 import { logger } from '../../utils/logger';
 

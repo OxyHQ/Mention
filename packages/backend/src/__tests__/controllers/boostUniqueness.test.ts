@@ -32,14 +32,14 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 vi.mock('../../connectors/outboundFederation', () => ({
   federateAsResolvedActor: vi.fn(async () => undefined),
 }));
-vi.mock('../../services/AffinityEventService', () => ({
+vi.mock('../../services/feed/AffinityEventService', () => ({
   affinityEventService: { record: vi.fn(async () => undefined) },
 }));
-vi.mock('../../services/UserPreferenceService', () => ({
+vi.mock('../../services/feed/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
   readInteractionSurface: vi.fn(() => undefined),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (rows: { id: string }[]) => rows) },
 }));
 vi.mock('../../utils/oxyHelpers', () => ({

@@ -13,7 +13,7 @@ import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import type { FeedContext } from '../FeedAPI';
 import type { PostRecord } from '../../../db/posts/postRecord';
 import type { OxyClient } from '../../../utils/privacyHelpers';
-import type { CachedUserSummary } from '../../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../../services/accounts/userSummaryCache';
 
 /**
  * A candidate post as returned by a source, before hydration.
@@ -52,7 +52,7 @@ export type CandidatePost = PostRecord & {
   _discovery?: boolean;
   /** Candidate currently supplied only by public followed-actor activity. */
   _socialOnly?: boolean;
-  /** Rank multiplier of the post's paid promotion (`services/promotion/pacing`); the `promotion` signal reads it. */
+  /** Rank multiplier of the post's paid promotion (`services/monetization/promotion/pacing`); the `promotion` signal reads it. */
   promotionBoost?: number;
   /**
    * SHELL marker. Stamped `true` by a source (today, only For You's lanes —

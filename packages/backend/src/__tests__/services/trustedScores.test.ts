@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { readTrustedScores } from '../../services/contentClassification/trustedScores';
-import { BASELINE_CLASSIFIER_VERSION } from '../../services/BaselineContentClassifier';
+import { readTrustedScores } from '../../services/moderation/contentClassification/trustedScores';
+import { BASELINE_CLASSIFIER_VERSION } from '../../services/moderation/BaselineContentClassifier';
 import type { PostClassificationScores } from '@mention/shared-types';
 
 /**

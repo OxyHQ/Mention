@@ -25,13 +25,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { mockResolveUserSummaries } = vi.hoisted(() => ({
   mockResolveUserSummaries: vi.fn(),
 }));
 
-vi.mock('../../services/PostHydrationService', async () => {
+vi.mock('../../services/posts/PostHydrationService', async () => {
   // The REAL degraded summary, so a change to its shape breaks this test rather
   // than being masked by a hand-written stub.
   const { degradedActorSummary } = await import('../../utils/degradedActorSummary');

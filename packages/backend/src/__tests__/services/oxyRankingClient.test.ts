@@ -13,7 +13,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 import {
   OXY_RECOMMENDATION_EXCLUDE_IDS_MAX,
   OxyRankingClient,
-} from '../../services/OxyRankingClient';
+} from '../../services/feed/OxyRankingClient';
 
 const CLIENT_ID = 'app_mention_123';
 

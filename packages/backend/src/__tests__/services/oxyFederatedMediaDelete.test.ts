@@ -11,8 +11,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
  * privacy obligation and must still go out.
  */
 
-vi.mock('../../services/mediaCache/constants', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/mediaCache/constants')>()),
+vi.mock('../../services/media/mediaCache/constants', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/media/mediaCache/constants')>()),
   MEDIA_CACHE_WRITE_ENABLED: false,
 }));
 
@@ -63,7 +63,7 @@ import {
   OxyMediaStoreRequestError,
   OxyMediaStoreThrottledError,
   resetWriteBudgetCooldowns,
-} from '../../services/mediaCache/oxyMediaStore';
+} from '../../services/media/mediaCache/oxyMediaStore';
 
 let server: http.Server;
 

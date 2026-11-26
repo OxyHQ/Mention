@@ -15,7 +15,7 @@ import { describe, expect, it } from 'bun:test';
  * link previews were then missed the same way; scheduled posts were missed on
  * both. Three omissions, one cause.
  *
- * The fix was structural — `services/postEnrichment/` owns the fan-out, every
+ * The fix was structural — `services/posts/postEnrichment/` owns the fan-out, every
  * route calls `enrichIngestedPosts` — so the guard is structural too. It is
  * SELF-EXTENDING: it derives the enrichment set from the directory rather than
  * from a list written here, so a step added tomorrow is covered without anyone
@@ -45,7 +45,7 @@ const NON_STEP_MODULES = new Set(['index.ts', 'types.ts']);
  * hand.
  */
 const INGEST_ROUTES = [
-  'services/PostCreationService.ts',
+  'services/posts/PostCreationService.ts',
   'connectors/activitypub/outbox.service.ts',
   'connectors/activitypub/inbox.service.ts',
   'connectors/atproto/post.mapper.ts',
@@ -83,7 +83,7 @@ function registeredStepsBlock(indexSource: string): string {
 
 describe('post-ingest enrichment — every step is registered in the fan-out', () => {
   const steps = stepModules();
-  const indexSource = readSource('services/postEnrichment/index.ts');
+  const indexSource = readSource('services/posts/postEnrichment/index.ts');
   const registered = registeredStepsBlock(indexSource);
 
   it('finds the enrichment steps on disk (vacuity floor)', () => {
@@ -130,7 +130,7 @@ describe('post-ingest enrichment — no ingest route enriches by hand', () => {
   it.each(INGEST_ROUTES)('%s does not import an enrichment step directly', (route) => {
     const source = readSource(route);
 
-    // Importing the fan-out (`services/postEnrichment`) is the whole point and
+    // Importing the fan-out (`services/posts/postEnrichment`) is the whole point and
     // is allowed. Reaching PAST it into a step module is the mistake this guard
     // exists for — it is how an enrichment ends up on one route only.
     const deepImports = [...source.matchAll(/from ['"][^'"]*postEnrichment\/([\w./]+)['"]/g)]
@@ -146,7 +146,7 @@ describe('post-ingest enrichment — no ingest route enriches by hand', () => {
   it('both storage routes call the converged entry point', () => {
     // The two routes that actually WRITE a post. The other ingest routes reach
     // storage through `PostCreationService`, so they inherit its call.
-    const creation = readSource('services/PostCreationService.ts');
+    const creation = readSource('services/posts/PostCreationService.ts');
     const backfill = readSource('connectors/activitypub/outbox.service.ts');
 
     expect(creation).toContain('enrichIngestedPosts');
@@ -184,7 +184,10 @@ describe('post-ingest enrichment — every raw post write enriches', () => {
 
   it('finds the raw post writers (vacuity floor)', () => {
     expect(writers).toEqual(
-      expect.arrayContaining(['services/PostCreationService.ts', 'controllers/feed.controller.ts']),
+      expect.arrayContaining([
+        'services/posts/PostCreationService.ts',
+        'controllers/feed.controller.ts',
+      ]),
     );
   });
 

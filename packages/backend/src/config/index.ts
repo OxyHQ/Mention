@@ -306,7 +306,7 @@ const environmentSchema = z
     // Deliberately the shortest cache TTL here: it holds an AUTHORIZATION answer
     // (which channels' inboxes a person may read), and its staleness window is
     // exactly how long a removed operator keeps reading. See
-    // `services/notificationInbox.ts`.
+    // `services/notifications/notificationInbox.ts`.
     NOTIFICATION_INBOX_CACHE_TTL_SECONDS: integerFromEnv(60, { minimum: 1 }),
     DWELL_AGGREGATE_TTL_SECONDS: integerFromEnv(7 * 24 * 60 * 60, { minimum: 1 }),
     SYRA_PODCAST_CACHE_TTL_SECONDS: integerFromEnv(300, { minimum: 1 }),
@@ -491,7 +491,7 @@ const environmentSchema = z
     // Mercaria (commerce, #951). Optional, and deliberately WITHOUT a default
     // here: absent means `@mercaria.co/sdk`'s own production origins, so no
     // Mercaria hostname is written anywhere in Mention. Set them only to point
-    // at a staging or local Mercaria. `services/commerce/mercariaClient.ts` is
+    // at a staging or local Mercaria. `services/monetization/commerce/mercariaClient.ts` is
     // the one reader.
     MERCARIA_API_URL: optionalHttpOrigin,
     MERCARIA_WEB_URL: optionalHttpOrigin,

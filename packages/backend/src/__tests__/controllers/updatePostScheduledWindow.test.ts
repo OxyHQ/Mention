@@ -58,7 +58,7 @@ vi.mock('../../utils/oxyHelpers', async () => ({
   ),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: hoisted.resolveUserSummaries,
   degradedActorSummary: (id: string) => ({
@@ -72,7 +72,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 // imports. This mock named a lowercase path and therefore applied to nothing:
 // the real service ran, and every `hoisted.*` collaborator spy below was
 // permanently uncalled, which reads identically to the branch not being taken.
-vi.mock('../../services/PostCollaborationService', () => ({
+vi.mock('../../services/posts/PostCollaborationService', () => ({
   postCollaborationService: {
     resolveCollaboratorRefs: hoisted.resolveCollaboratorRefs,
     attachCollaborators: hoisted.attachCollaborators,

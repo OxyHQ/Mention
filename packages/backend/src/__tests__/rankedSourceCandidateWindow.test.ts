@@ -66,13 +66,13 @@ const rankByLikes = vi.fn(async (candidates: CandidatePost[]): Promise<Candidate
 // is referenced from inside a function body — naming it directly as the property
 // value reads it during hoisting and dies with "Cannot access before
 // initialization".
-vi.mock('../services/FeedRankingService', () => ({
+vi.mock('../services/feed/FeedRankingService', () => ({
   feedRankingService: { rankPosts: (candidates: CandidatePost[]) => rankByLikes(candidates) },
 }));
 
 // One single-item slice per candidate, order preserved: the real slicer runs its
 // own legacy-store queries for thread children, and grouping is not what is under test.
-vi.mock('../services/ThreadSlicingService', () => ({
+vi.mock('../services/posts/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (candidates: CandidatePost[]) => ({
       slices: candidates.map((post) => ({
@@ -87,7 +87,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
 
 // Hydration is the one collaborator that would reach Oxy over the network. It is
 // a pass-through, so every id asserted below is a real row read out of Postgres.
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (records: unknown[]) => records),
@@ -97,7 +97,7 @@ vi.mock('../services/PostHydrationService', () => ({
 
 // An empty seen set on every page, so the pool the engine sees is never narrowed
 // by anything except the thing under test.
-vi.mock('../services/FeedSeenPostsService', () => ({
+vi.mock('../services/feed/FeedSeenPostsService', () => ({
   feedSeenPostsService: {
     getSeenPostIds: vi.fn(async () => []),
     markPostsAsSeen: vi.fn(async () => undefined),

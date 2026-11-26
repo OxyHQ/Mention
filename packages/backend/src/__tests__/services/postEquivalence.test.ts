@@ -10,7 +10,7 @@ import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepositor
 import { upsertActor } from '../../db/federation/actorRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
-import { recheckCrosspostClusters } from '../../services/CrosspostReconciliationJob';
+import { recheckCrosspostClusters } from '../../services/federation/CrosspostReconciliationJob';
 import { findClusterByPostId } from '../../db/posts/postEquivalenceRepository';
 import * as equivalenceRepository from '../../db/posts/postEquivalenceRepository';
 import {
@@ -20,7 +20,7 @@ import {
   networkLabel,
   reevaluateClusterForPost,
   sharedMediaIdentifier,
-} from '../../services/PostEquivalenceService';
+} from '../../services/posts/PostEquivalenceService';
 
 /**
  * ONE CARD FOR A CROSS-POST, TWO OBJECTS IN STORAGE.
@@ -698,7 +698,7 @@ describe('a cluster that has stopped being true', () => {
     const [renderedId] = await visibleIds();
     const survivorId = renderedId === instagram ? threads : instagram;
 
-    const { deletePostSubtree } = await import('../../services/PostDeletionCascade');
+    const { deletePostSubtree } = await import('../../services/posts/PostDeletionCascade');
     await deletePostSubtree(renderedId, undefined);
     created.splice(created.indexOf(renderedId), 1);
 

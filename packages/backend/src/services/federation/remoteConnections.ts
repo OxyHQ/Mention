@@ -38,7 +38,7 @@ import { crawlRemoteGraphInBackground, graphNode } from '../../connectors/remote
 import { UserPrivacyManager } from '../../mtn/UserPrivacyManager';
 import { decodeOffsetCursor, encodeOffsetCursor } from '../../utils/offsetCursor';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { resolveUserSummaries } from '../PostHydrationService';
+import { resolveUserSummaries } from '../posts/PostHydrationService';
 
 export type ConnectionKind = 'followers' | 'following';
 

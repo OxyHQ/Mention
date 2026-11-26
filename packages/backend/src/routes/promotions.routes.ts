@@ -20,8 +20,8 @@ import {
   cancelPromotionPurchase,
   listBuyerPromotions,
   promotionView,
-} from '../services/promotion/buyerPromotions';
-import { startPromotionPurchase } from '../services/promotion/purchase';
+} from '../services/monetization/promotion/buyerPromotions';
+import { startPromotionPurchase } from '../services/monetization/promotion/purchase';
 import { ageBandOf } from '../utils/ageBand';
 import { logger } from '../utils/logger';
 

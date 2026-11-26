@@ -6,7 +6,7 @@ import {
   MAX_POST_DOCUMENTS_BATCH,
   type LinkPreviewResponse,
 } from '@mention/shared-types';
-import { loadPendingPostDocuments } from '../../services/postDocuments';
+import { loadPendingPostDocuments } from '../../services/posts/postDocuments';
 import { isOwnProfileLink, resolveClarityDocuments } from '../../utils/clarityDocuments';
 import { logger } from '../../utils/logger';
 import { createScopedOxyClient, callerOxyUser } from '../../utils/oxyHelpers';

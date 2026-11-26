@@ -1,7 +1,7 @@
 /**
  * `resolveTrendStory` (the `trending` row lookup every `trend|<term>` page
  * resolves before it can match posts) is cached for 30s — see its doc comment
- * in `services/trendStoryCache.ts`.
+ * in `services/trending/trendStoryCache.ts`.
  *
  * The global test setup mocks `utils/redis` with an always-`isReady: false`
  * client (so ordinary tests never depend on a real Redis instance — see
@@ -47,7 +47,7 @@ import { posts } from '../../db/schema/posts';
 import { trending, trendStoryPosts } from '../../db/schema/discovery';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { metrics } from '../../utils/metrics';
-import { resolveTrendStory } from '../../services/trendStoryCache';
+import { resolveTrendStory } from '../../services/trending/trendStoryCache';
 
 const seededIds: string[] = [];
 const seededPostIds: string[] = [];

@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /** Keep the media cache front inert so the tests hit on-demand extraction. */
-vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
+vi.mock('../../services/media/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: () => false,
   cachedMediaCdnUrl: vi.fn(),
 }));

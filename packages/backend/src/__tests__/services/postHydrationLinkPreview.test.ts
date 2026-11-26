@@ -8,7 +8,7 @@ vi.mock('../../db/posts/postSafetyRepository', () => ({
 }));
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 import type { ClarityDocument } from '@oxy.so/contracts';
 
 /**
@@ -77,7 +77,7 @@ function chainable(rows: unknown[] | null) {
   return q;
 }
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -91,7 +91,7 @@ vi.mock('../../services/userSummaryCache', () => ({
   }),
 }));
 
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import { FEDERATION_DOMAIN } from '../../connectors/activitypub/constants';
 
 function makeOxyUser(id: string, username: string, displayName: string) {

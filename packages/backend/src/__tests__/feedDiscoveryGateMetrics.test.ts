@@ -16,12 +16,12 @@ const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>) => {
   for (const p of posts) p.finalScore = 1;
   return posts;
 });
-vi.mock('../services/FeedRankingService', () => ({
+vi.mock('../services/feed/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)),
   },
 }));
-vi.mock('../services/ThreadSlicingService', () => ({
+vi.mock('../services/posts/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (posts: Array<Record<string, unknown>>) => ({
       slices: posts.map((post) => ({
@@ -33,14 +33,14 @@ vi.mock('../services/ThreadSlicingService', () => ({
     })),
   },
 }));
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
     hydratePosts: vi.fn(async (posts: unknown[]) => posts),
   },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
-vi.mock('../services/FeedSeenPostsService', () => ({
+vi.mock('../services/feed/FeedSeenPostsService', () => ({
   feedSeenPostsService: {
     getSeenPostIds: vi.fn(async () => []),
     markPostsAsSeen: vi.fn(async () => undefined),

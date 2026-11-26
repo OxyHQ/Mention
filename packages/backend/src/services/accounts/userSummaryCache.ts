@@ -1,0 +1,200 @@
+import type { PostUser } from '@mention/shared-types';
+import { config } from '../../config';
+import { createCache } from '../../utils/cache';
+import { LocalTtlCache } from '../../utils/localTtlCache';
+
+/**
+ * Redis-backed cache for resolved post-author identities (the canonical Oxy
+ * {@link PostUser} that `resolveUserSummaries` (`services/posts/postHydration/userSummaries.ts`)
+ * passes through UNCHANGED from Oxy, plus the author's follower count for
+ * ranking's authority signal).
+ *
+ * WHY THIS EXISTS — hydrating a feed used to issue ONE `getUserById` HTTP request
+ * per unique author on every render (the classic M+1). The same authors appear
+ * across consecutive feed pages and across viewers, so resolving them once and
+ * caching the raw Oxy user collapses that fan-out to a single batched Oxy call
+ * for the cache MISSES only.
+ *
+ * This cache does NOT reshape identity — Oxy owns the user shape. It only stores
+ * the Oxy user verbatim (so the feed doesn't re-fetch it) and the follower count.
+ *
+ * Design constraints:
+ *  - Storage, TTL and the fail-open contract come from the shared
+ *    {@link createCache} primitive — this module owns only the key, the value
+ *    shape and the BATCH access pattern hydration needs.
+ *  - When Redis is unavailable (no `REDIS_URL`, or the server is down) every
+ *    operation degrades to a no-op: hydration still works, it just resolves
+ *    every author from Oxy each time.
+ *  - Only public identity is cached — never auth-scoped or viewer-scoped data.
+ *    The Oxy user is identical for every viewer, so a single shared entry per
+ *    author id is correct. It is invalidated ({@link invalidate}) when the
+ *    federated-actor identity bridge re-resolves a user (avatar/name refresh).
+ */
+
+/**
+ * Redis key prefix for cached user identities. Bumped whenever the cached VALUE
+ * schema changes so stale entries are never read back with missing fields:
+ *  - `v2` — raw Oxy user (replaced the old flat summary).
+ *  - `v3` — adds the account's BCP-47 `languages` (ranking-side, see
+ *    {@link CachedUserSummary}).
+ *  - `v4` — adds the bounded `starterPackScore` (ranking-side, see
+ *    {@link CachedUserSummary}).
+ *  - `v5` — the cached Oxy user now carries `kind` (the account
+ *    classification), which the reply gate reads off `user.kind`.
+ *  - `v7` — adds `accountCreatedAt` and `reputationTier` (ranking-side, see
+ *    {@link CachedUserSummary}).
+ *
+ *  - `v8` — preserves the canonical stored `character`; the old selective
+ *    hydration mapper dropped it even when Oxy supplied one.
+ *  - `v9` — adds the account's `color`, which paints a bot's `character`
+ *    (contracts 7: a character carries no paint of its own).
+ *
+ * `languages` (v3) is gone again without a bump: Oxy's public user projection
+ * never carries an account's languages, so the field was always empty, and a
+ * `v7` entry that still holds one is read back with it ignored. The viewer's own
+ * languages come from `loadViewerLanguages` (`utils/viewerLanguage`).
+ */
+const USER_SUMMARY_PREFIX = 'usersummary:v9:';
+
+/**
+ * TTL for a cached summary. Display name / avatar / verification change rarely;
+ * ten minutes keeps the feed fresh while still absorbing the burst of repeated
+ * lookups within a browsing session. Tunable via env without a redeploy.
+ */
+const SUMMARY_TTL_SECONDS = config.cache.userSummaryTtlSeconds;
+
+/**
+ * The cached value: the raw canonical Oxy {@link PostUser} plus the RANKING-side
+ * facts about that account which never belong on a post DTO — the follower count
+ * (authority signal), the starter-pack curation score (the `starterPackBoost`
+ * signal) and the account's age and standing.
+ *
+ * All of them are OPTIONAL: a user whose count was unavailable or whom nobody
+ * curated simply omits the field and the corresponding signal falls back to its
+ * neutral multiplier.
+ *
+ * The account `kind` is NOT one of them — it lives on `user.kind`, because it is
+ * part of the Oxy user DTO rather than a Mention-side signal. `services/accounts/publishAsAccount`
+ * reads it from there, which is what keeps ONE copy of it: a second field here
+ * would be free to disagree with the one the DTO ships.
+ */
+export interface CachedUserSummary {
+  user: PostUser;
+  followerCount?: number;
+  /**
+   * The bounded starter-pack CURATION score for this account — how strongly OTHER
+   * people curated them into starter packs that newcomers actually used (see
+   * `services/accounts/starterPackCuration.ts`). Computed once per cache-fill (one batched
+   * aggregation for the whole author batch) and read back on every warm hydration,
+   * so the `starterPackBoost` ranking signal costs no per-post query. RANKING-side
+   * only: like `followerCount`, it never ships on the {@link PostUser} DTO.
+   * Absent ⇒ uncurated (or unresolvable) ⇒ the signal is exactly neutral.
+   */
+  starterPackScore?: number;
+  /**
+   * When the Oxy account was created, as the ISO string Oxy sends. Read by the
+   * `minAccountAge` filter, which until this field existed was a documented
+   * no-op: it looked for a `createdAt` on the lean candidate, where no author
+   * has ever been.
+   *
+   * Oxy has always sent it — `UserService.formatUserResponse` emits it and the
+   * response contract passes unknown keys through — so nothing had to change
+   * there. It was dropped here, by a serializer that names its fields one by one.
+   */
+  accountCreatedAt?: string;
+  /**
+   * The account's Oxy standing (`new` | `trusted` | `high_trust` | `verified`),
+   * for the `trustTierBoost` ranking signal.
+   *
+   * `restricted` is not in that range and never will be: Oxy's
+   * `discoverableUserPredicate()` drops those rows before the serializer runs, so
+   * an account low enough to be sanctioned does not arrive with a low tier — it
+   * does not arrive at all, and resolves here as the degraded placeholder.
+   * A signal reading this must therefore not treat absence as bad standing.
+   */
+  reputationTier?: string;
+}
+
+/** Hash-free key: Oxy user ids are already short and bounded, so embed them directly. */
+function keyFor(userId: string): string {
+  return `${USER_SUMMARY_PREFIX}${userId}`;
+}
+
+const cache = createCache({ name: 'UserSummaryCache', ttlSeconds: SUMMARY_TTL_SECONDS });
+
+/**
+ * How long this task keeps a summary it read from Redis, and how many it keeps.
+ *
+ * The same few hundred authors fill every feed page this task serves, so each
+ * hydration was paying a Redis `MGET` and a JSON parse per author for entries
+ * that had not changed. A short-lived, bounded in-process copy answers those.
+ *
+ * Kept SHORT because it is per task: {@link invalidate} clears it on the task
+ * that runs it, and `userInvalidationSubscriber` — which runs on EVERY task —
+ * clears it everywhere on each identity change Oxy broadcasts. A Mention-side
+ * invalidation that Oxy does not broadcast (a starter-pack score) reaches the
+ * other tasks within this TTL.
+ */
+/**
+ * The in-process copy. It holds ONLY what Redis returned — never a value merely
+ * written — so it is a strict front for the shared cache and never knows
+ * something Redis does not.
+ */
+const local = new LocalTtlCache<CachedUserSummary>({ ttlMs: 15_000, maxEntries: 5_000 });
+
+/**
+ * Batch-read cached summaries for many user ids: this task's short-lived copy
+ * first, then a single Redis round-trip for the rest.
+ *
+ * Returns a map of `userId -> CachedUserSummary` containing ONLY the hits;
+ * misses are simply absent so the caller can compute the miss set. Degrades to
+ * an empty map (all misses) whenever Redis is unavailable.
+ */
+export async function mget(userIds: string[]): Promise<Map<string, CachedUserSummary>> {
+  const result = new Map<string, CachedUserSummary>();
+  const remoteIds: string[] = [];
+  for (const userId of userIds) {
+    const hit = local.get(userId);
+    if (hit) result.set(userId, hit);
+    else remoteIds.push(userId);
+  }
+  if (remoteIds.length === 0) {
+    return result;
+  }
+
+  const values = await cache.getMany<CachedUserSummary>(remoteIds.map(keyFor));
+  values.forEach((value, index) => {
+    if (!value) return;
+    result.set(remoteIds[index], value);
+    local.set(remoteIds[index], value);
+  });
+  return result;
+}
+
+/**
+ * Write resolved summaries back to the cache with a TTL. A write failure must
+ * never affect hydration, so any error degrades to a no-op.
+ *
+ * Callers decide what is CACHEABLE: {@link PostHydrationService} passes only
+ * genuinely resolved authors here, never the degraded `'Unknown user'` summary
+ * it hands the renderer for an author Oxy could not resolve.
+ */
+export async function mset(entries: Map<string, CachedUserSummary>): Promise<void> {
+  if (entries.size === 0) {
+    return;
+  }
+
+  await cache.setMany([...entries].map(([userId, value]) => [keyFor(userId), value] as const));
+}
+
+/**
+ * Evict cached identities for a set of user ids — this task's copy and the
+ * shared Redis entry — so the next hydration re-reads the authoritative Oxy user. Called from the federated-actor identity bridge
+ * ({@link resolveOxyExternalUser}) after a successful re-resolve — an avatar or
+ * display-name refresh on a federated actor must not be masked by a warm 10-min
+ * cache entry. A failure degrades to a no-op (the entry simply ages out via TTL).
+ */
+export async function invalidate(userIds: string[]): Promise<void> {
+  for (const userId of userIds) local.delete(userId);
+  await cache.delete(userIds.map(keyFor));
+}

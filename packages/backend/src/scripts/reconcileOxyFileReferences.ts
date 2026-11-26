@@ -29,7 +29,7 @@ import { connectPostgres } from '../db/postgres';
 import {
   runFileReferenceReconciliation,
   type ReconcileMode,
-} from '../services/oxyFiles/fileReferenceReconciliation';
+} from '../services/media/oxyFiles/fileReferenceReconciliation';
 import { logger } from '../utils/logger';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';

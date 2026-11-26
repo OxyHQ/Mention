@@ -32,7 +32,7 @@ import {
   otherTransportsIn,
   resolveTargetConnector,
 } from '../connectors/transportFollows';
-import { isFediverseSharingEnabled } from '../services/fediverseSharing';
+import { isFediverseSharingEnabled } from '../services/federation/fediverseSharing';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';

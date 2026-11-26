@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const canViewerReadPostId =
   vi.fn<(postId: string, viewerId: string, options?: unknown) => Promise<boolean>>();
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     canViewerReadPostId: (...args: [string, string, unknown?]) => canViewerReadPostId(...args),
   },
@@ -19,7 +19,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 const { registerContentRoomHandlers, MAX_POST_ROOMS_PER_SOCKET } = await import(
-  '../../services/ContentRoomLifecycle'
+  '../../services/events/ContentRoomLifecycle'
 );
 
 type Handler = (...args: unknown[]) => void;

@@ -48,7 +48,7 @@ vi.mock('../../services/serviceRegistry', () => ({
 
 // Mocked to a no-op so importing PostCreationService does not pull in the heavy
 // `../../server` module graph via the socket-emit hydration path.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
 }));
 
@@ -68,7 +68,7 @@ import {
   trackPost,
   withDeadlockRetry,
 } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { PostVisibility } from '@mention/shared-types';
 import type { PostRecord } from '../../db/posts/postRecord';
 

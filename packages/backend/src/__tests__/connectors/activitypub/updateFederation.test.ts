@@ -51,7 +51,7 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
   resolveAvatarUrl: (ref: string) => `https://cloud.oxy.so/${ref}`,
 }));
-vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
+vi.mock('../../../services/federation/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture(), getUserById }),
 }));

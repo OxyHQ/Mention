@@ -25,7 +25,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../db/postgres';
 import { clearPostScope, postScope, seedLane, seedPost } from './helpers/postFixtures';
 import type { PostRecord } from '../db/posts/postRecord';
-import type { CachedUserSummary } from '../services/userSummaryCache';
+import type { CachedUserSummary } from '../services/accounts/userSummaryCache';
 
 const scope = postScope('lane-hydration');
 const AUTHOR_ID = scope.user('author');
@@ -52,12 +52,12 @@ vi.mock('../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('../services/userSummaryCache', () => ({
+vi.mock('../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map<string, CachedUserSummary>()),
   mset: vi.fn(async () => undefined),
 }));
 
-import { PostHydrationService } from '../services/PostHydrationService';
+import { PostHydrationService } from '../services/posts/PostHydrationService';
 
 let service: PostHydrationService;
 

@@ -35,7 +35,7 @@ import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privac
 import {
   excludedDisplayModesForTab,
   loadExcludedLaneIds,
-} from '../../../../services/laneVisibility';
+} from '../../../../services/feed/laneVisibility';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import {
   chronoKeyset,
@@ -44,7 +44,7 @@ import {
 } from '../../../../utils/chronoCursor';
 import { notARepostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from '../../../../services/trending/termSpace';
-import { resolveTrendStory } from '../../../../services/trendStoryCache';
+import { resolveTrendStory } from '../../../../services/trending/trendStoryCache';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import { escapeRegExp } from '@oxy.so/utils/text';
@@ -249,7 +249,7 @@ export const keywordsSource: SourceModule = {
  * § Profile feed.)
  */
 // `resolveTrendStory` (the `trending` row lookup, 30s-cached) now lives in
-// `services/trendStoryCache.ts` — its own file, matching `userSummaryCache.ts`/
+// `services/trending/trendStoryCache.ts` — its own file, matching `userSummaryCache.ts`/
 // `postDetailCache.ts`, and independently mockable in a test the way this
 // large multi-source file itself is not.
 
@@ -357,7 +357,7 @@ function buildAuthoredConditions(
     notCollapsedCrosspostSql(),
   ];
 
-  // The author's own curation (see `services/laneVisibility` for which modes are
+  // The author's own curation (see `services/feed/laneVisibility` for which modes are
   // excluded from which tab).
   //
   // The `is null` branch is REQUIRED: SQL's `lane_id not in (…)`

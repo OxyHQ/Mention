@@ -18,11 +18,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearPostScope, postScope, readPostRow, seedLane, track } from '../helpers/postFixtures';
 
-vi.mock('../../services/PostRecentReplierService', () => ({
+vi.mock('../../services/posts/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
 }));
-vi.mock('../../services/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -30,12 +30,12 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({ safety: adultSafetyFixture() })),
 }));
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
-vi.mock('../../services/MediaMetadataService', () => ({
+vi.mock('../../services/media/MediaMetadataService', () => ({
   mediaMetadataService: { enrichFromOxy: vi.fn(async (media: unknown[]) => media) },
   readPersistedMediaFields: vi.fn(() => ({})),
 }));
 
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { LaneAssignmentError } from '../../utils/laneAssignment';
 
 const scope = postScope('post-creation-lane');

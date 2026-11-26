@@ -81,7 +81,7 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
   isPermanentlyUnavailableOutboxReason: vi.fn(() => false),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
 }));
 
@@ -90,7 +90,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
-vi.mock('../../services/fediverseSharing', () => ({
+vi.mock('../../services/federation/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => isFediverseSharingEnabled(...args),
 }));
 

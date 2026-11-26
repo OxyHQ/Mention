@@ -33,15 +33,15 @@ const service = vi.hoisted(() => ({
 
 const posts = vi.hoisted(() => ({ loadPostRecords: vi.fn(), hydratePosts: vi.fn() }));
 
-vi.mock('../../services/communityNotes/CommunityNotesService', async () => {
+vi.mock('../../services/moderation/communityNotes/CommunityNotesService', async () => {
   const actual = await vi.importActual<
-    typeof import('../../services/communityNotes/CommunityNotesService')
-  >('../../services/communityNotes/CommunityNotesService');
+    typeof import('../../services/moderation/communityNotes/CommunityNotesService')
+  >('../../services/moderation/communityNotes/CommunityNotesService');
   return { ...actual, ...service };
 });
 
 vi.mock('../../db/posts/postRepository', () => ({ loadPostRecords: posts.loadPostRecords }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: posts.hydratePosts },
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -49,7 +49,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => ({}),
 }));
 
-import { CommunityNotesUnavailableError } from '../../services/communityNotes/CommunityNotesService';
+import { CommunityNotesUnavailableError } from '../../services/moderation/communityNotes/CommunityNotesService';
 import communityNotesRouter from '../../routes/communityNotes.routes';
 
 const VIEWER_ID = 'viewer-1';

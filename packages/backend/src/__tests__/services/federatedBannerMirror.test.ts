@@ -21,8 +21,8 @@ vi.mock('../../connectors/identity', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../connectors/identity')>()),
   mirrorFederatedBanner: h.mirror,
 }));
-vi.mock('../../services/mediaCache/oxyMediaStore', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/mediaCache/oxyMediaStore')>()),
+vi.mock('../../services/media/mediaCache/oxyMediaStore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/media/mediaCache/oxyMediaStore')>()),
   isMediaCacheEnabled: () => h.mediaWrites,
 }));
 
@@ -44,7 +44,7 @@ import {
   TRANSIENT_BACKOFF_MAX_MS,
   bannerRetryDelayMs,
   runFederatedBannerMirrors,
-} from '../../services/federatedBannerMirror';
+} from '../../services/federation/federatedBannerMirror';
 import { queueFederatedBannerMirrors } from '../../scripts/queueFederatedBannerMirrors';
 
 let seq = 0;

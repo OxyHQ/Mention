@@ -235,7 +235,7 @@ export interface NormalizedPostHashtags {
  * empty again). Its callers are named individually
  * — the federated ingest (`connectors/activitypub/apPostContent.ts`) reads both
  * halves, the native write paths read the cleaned `content` through
- * `services/postVariants.ts`'s `stripHiddenHashtags` while deriving the
+ * `services/posts/postVariants.ts`'s `stripHiddenHashtags` while deriving the
  * `hashtags` column with `mergeHashtags` over the RAW body, and
  * `scripts/stripTrailingHashtagLines.ts` applies it to bodies stored before rule 2.
  */

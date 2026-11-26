@@ -8,14 +8,14 @@ import {
 } from '@oxy.so/core/server';
 import { config } from '../config';
 import { RedisStore } from '../middleware/rateLimitStore';
-import { applyFileEvent } from '../services/oxyFiles/fileEvents';
+import { applyFileEvent } from '../services/media/oxyFiles/fileEvents';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
 
 /**
  * `POST /webhooks/oxy/files`: Oxy telling Mention that a file it uses or owns
  * was deleted, taken down, trashed, restored or changed visibility (ADR 0043
- * D9/D10). What is done about it: `services/oxyFiles/fileEvents.ts`.
+ * D9/D10). What is done about it: `services/media/oxyFiles/fileEvents.ts`.
  *
  * ## The signature is the authentication
  *

@@ -62,7 +62,7 @@
  */
 
 import { closePostgres, connectPostgres } from '../src/db/postgres';
-import { reconcileEngagementProjections } from '../src/services/EngagementProjectionReconciliationService';
+import { reconcileEngagementProjections } from '../src/services/engagement/EngagementProjectionReconciliationService';
 import { logger } from '../src/utils/logger';
 
 async function main(): Promise<void> {

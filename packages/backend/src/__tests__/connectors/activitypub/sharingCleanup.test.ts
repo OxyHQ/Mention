@@ -37,7 +37,7 @@ vi.mock('../../../connectors/activitypub/delivery.service', () => ({
   deliveryService: { deliverToFollowers: mocks.deliverToFollowers },
 }));
 
-vi.mock('../../../services/fediverseSharing', () => ({
+vi.mock('../../../services/federation/fediverseSharing', () => ({
   getFediverseSharingStateById: (...args: unknown[]) => mocks.getFediverseSharingStateById(...args),
 }));
 

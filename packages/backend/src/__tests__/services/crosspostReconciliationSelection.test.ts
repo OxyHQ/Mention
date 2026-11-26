@@ -10,7 +10,7 @@ import { createCluster, findClusterByPostId } from '../../db/posts/postEquivalen
 import {
   crosspostReconciliationPostSql,
   reevaluateClusterForPost,
-} from '../../services/PostEquivalenceService';
+} from '../../services/posts/PostEquivalenceService';
 
 const mocks = vi.hoisted(() => ({ lookup: vi.fn() }));
 vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookup }));

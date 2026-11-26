@@ -6,7 +6,7 @@ import {
   matchesViewerInterests,
 } from '../mtn/feed/engine/filters';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
-import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
+import { BASELINE_CLASSIFIER_VERSION } from '../services/moderation/BaselineContentClassifier';
 
 /**
  * PHASE 4b DISCOVERY GATE — hard filters for OBJECTIVE junk only.

@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest
 import { and, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { buildAuthorship, authorFeedSql } from '../utils/postAuthorship';
-import { postCollaborationService } from '../services/PostCollaborationService';
+import { postCollaborationService } from '../services/posts/PostCollaborationService';
 import { closePostgres, connectPostgres } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import {

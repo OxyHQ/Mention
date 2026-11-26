@@ -19,14 +19,14 @@
  * ## It goes through the ordinary write path, deliberately
  *
  * No raw SQL. Every job is created by `db/jobs/jobRepository.createJob` after
- * its location is resolved by `services/jobPlaces.resolveJobLocation` and its
+ * its location is resolved by `services/jobsBoard/jobPlaces.resolveJobLocation` and its
  * body is validated by the SAME `createJobSchema` the HTTP route parses, then
- * mirrored by `services/clarityJobsAdapter.syncJobToClarity`. A job imported
+ * mirrored by `services/jobsBoard/clarityJobsAdapter.syncJobToClarity`. A job imported
  * here is therefore indistinguishable from one an operator typed into the app:
  * same validation, same slug allocation, same derived place columns, same
  * Clarity payload.
  *
- * The one thing it does NOT go through is `services/jobAuthority`, which needs
+ * The one thing it does NOT go through is `services/jobsBoard/jobAuthority`, which needs
  * an authenticated Express request. An administrative one-shot has no request;
  * what stands in for it is {@link assertAdminMutationAllowed} plus the employer
  * identity check below, which refuses to write if `OXY_EMPLOYER_OXY_USER_ID`
@@ -95,9 +95,9 @@ import {
   type MentionJobRow,
 } from '../db/jobs/jobRepository';
 import { createJobSchema, jobLocationInputSchema } from '../controllers/jobsManagement.controller';
-import { resolveJobLocation } from '../services/jobPlaces';
-import { syncJobToClarity } from '../services/clarityJobsAdapter';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveJobLocation } from '../services/jobsBoard/jobPlaces';
+import { syncJobToClarity } from '../services/jobsBoard/clarityJobsAdapter';
+import { resolveUserSummaries } from '../services/posts/PostHydrationService';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';

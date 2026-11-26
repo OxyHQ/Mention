@@ -80,7 +80,7 @@ workarounds.
   truthy-non-boolean fixture that tells `=== true` from `Boolean(...)`.
 - **`writtenByOxyUserId` must be in all FOUR hydration projections**
   (`mtn/feed/FeedAPI.ts`, `controllers/feed.controller.ts`,
-  `services/ThreadSlicingService.ts`, `routes/search.ts`). Missing from one,
+  `services/posts/ThreadSlicingService.ts`, `routes/search.ts`). Missing from one,
   the writer hydrates `undefined` with no error and the same post names its
   writer on a feed row but not as a thread parent.
 - **A channel can never be acted as.** `isDelegatedActAsEligibleKind`
@@ -89,7 +89,7 @@ workarounds.
   account switcher structurally, not by a UI filter. Publishing as one
   therefore goes through `CreatePostRequest.publishAsOxyUserId`, not a
   session switch.
-- **`services/publishAsAccount.ts` is the ONE gate** for "may this person
+- **`services/accounts/publishAsAccount.ts` is the ONE gate** for "may this person
   act for that account", answered out of Oxy's account graph
   (`listAccountMembers`) with the CALLER's own bearer. It fails closed: an
   unresolvable membership is a refusal, because allowing publishes a post
@@ -97,7 +97,7 @@ workarounds.
   the same gate, so whoever may publish as a channel is whoever may
   configure how it signs.
 - **Managing a channel's post answers to CURRENT membership, never to
-  `writtenByOxyUserId`.** `services/postManagementAccess.ts`'s
+  `writtenByOxyUserId`.** `services/posts/access/postManagementAccess.ts`'s
   `postManagementRefusal` is the one gate for all seven management routes
   (edit, edit-source, settings, lane move, delete, publish-early, insights)
   with NO per-route opt-out — the stored writer column is written once at
@@ -215,7 +215,7 @@ workarounds.
   subject, yet a channel post's `post.authorship` owner IS the channel, so
   engagement notifications (`createPostAuthorNotifications`) are naturally
   addressed to the channel's own id. `GET /notifications`
-  (`services/notificationInbox.ts`) resolves the READER's own
+  (`services/notifications/notificationInbox.ts`) resolves the READER's own
   operated-channel ids at request time (`listOperatedChannelIds` in
   `publishAsAccount.ts`) and reads both id sets, rather than fanning out to
   each operator at write time — the write path stays untouched and no
@@ -227,7 +227,7 @@ workarounds.
   roster at WRITE time and no service-auth member read exists for it yet.
 - **You cannot block, report, or mute an account you operate — refused on
   the SERVER, not just hidden from a menu.**
-  `services/operatedAccountAccess.ts`'s `viewerOperatesAccount` answers "do
+  `services/accounts/operatedAccountAccess.ts`'s `viewerOperatesAccount` answers "do
   I operate this account" by reusing `assertCanPublishAsAccount` verbatim
   (never a second membership reader). `POST /reports` and `POST /mute`
   both refuse with 400, not 403 — an operator has MORE authority over the

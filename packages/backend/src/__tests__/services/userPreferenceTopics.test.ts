@@ -30,7 +30,7 @@ import { userBehaviors } from '../../db/schema/userProfile';
 import type { TopicPreference } from '../../db/userProfile/userBehaviorRecord';
 import { deleteUserBehavior, loadUserBehavior } from '../../db/userProfile/userBehaviorRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { userPreferenceService } from '../../services/UserPreferenceService';
+import { userPreferenceService } from '../../services/feed/UserPreferenceService';
 
 const scope = serviceScope('user-pref-topics');
 const VIEWER = scope.user('viewer');

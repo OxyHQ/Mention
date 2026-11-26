@@ -56,7 +56,7 @@ const mocks = vi.hoisted(() => ({
   accountKinds: new Map<string, string>(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async (ids: string[]) => {
     const summaries = new Map();
@@ -109,8 +109,9 @@ vi.mock('../../db/federation/deliveryQueueRepository', async (importOriginal) =>
   return { ...actual, deletePendingDeliveriesReferencingObjects: mocks.deletePendingDeliveries };
 });
 
-vi.mock('../../services/PostRecentReplierService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../services/PostRecentReplierService')>();
+vi.mock('../../services/posts/PostRecentReplierService', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../services/posts/PostRecentReplierService')>();
   mocks.repairRecentRepliers.mockImplementation(actual.repairRecentRepliersAfterPostDelete);
   return { ...actual, repairRecentRepliersAfterPostDelete: mocks.repairRecentRepliers };
 });
@@ -129,7 +130,7 @@ import {
   POST_REFERENCES_REMOVED_BY_DATABASE,
   MAX_DELETION_TARGETS,
   deletePostSubtree,
-} from '../../services/PostDeletionCascade';
+} from '../../services/posts/PostDeletionCascade';
 import { POST_REFERENCE_PROBE_NAMES } from '../../scripts/lib/adminDeletionPreflight';
 import { deletePost } from '../../controllers/posts/deletePost';
 import { metrics } from '../../utils/metrics';

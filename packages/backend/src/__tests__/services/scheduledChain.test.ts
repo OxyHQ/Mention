@@ -25,7 +25,7 @@ import {
   loadScheduledChain,
   orderScheduledChains,
   parentHasPublished,
-} from '../../services/scheduledChain';
+} from '../../services/scheduling/scheduledChain';
 
 const scope = serviceScope('scheduled-chain');
 const AUTHOR = scope.user('author');

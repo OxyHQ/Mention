@@ -34,7 +34,7 @@ vi.mock('../connectors/atproto/post.mapper', () => ({
   importPostViews: mocks.importPostViews,
 }));
 
-vi.mock('../services/PostHydrationService', () => ({
+vi.mock('../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: mocks.hydratePosts },
 }));
 

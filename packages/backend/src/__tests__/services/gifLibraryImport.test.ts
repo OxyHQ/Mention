@@ -34,7 +34,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { gifs } from '../../db/schema/discovery';
 import { oxyFileReferenceSync } from '../../db/schema/oxyFiles';
-import { ensureImported } from '../../services/gifLibrary/gifLibraryService';
+import { ensureImported } from '../../services/media/gifLibrary/gifLibraryService';
 
 const klipy = (name: string) => `https://static.klipy.com/ii/${name}.mp4`;
 

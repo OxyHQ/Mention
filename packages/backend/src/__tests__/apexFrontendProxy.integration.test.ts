@@ -5,7 +5,7 @@ import request from 'supertest';
 import https from 'node:https';
 import { Readable } from 'node:stream';
 
-import * as shellDocument from '../services/webShellDocument';
+import * as shellDocument from '../services/webshell/webShellDocument';
 import { advanceTimersByTimeAsync } from './helpers/fakeTimers';
 import {
   __apexProxyForTests,

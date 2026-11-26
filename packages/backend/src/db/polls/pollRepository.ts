@@ -21,7 +21,7 @@
  */
 
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import { invalidate as invalidatePostDetailCache } from '../../services/postDetailCache';
+import { invalidate as invalidatePostDetailCache } from '../../services/posts/postDetailCache';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { pollOptions, polls } from '../schema/polls';
 import { posts } from '../schema/posts';

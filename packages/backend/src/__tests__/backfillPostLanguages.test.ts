@@ -31,7 +31,7 @@ import { posts } from '../db/schema/posts';
 import type { PostRecordInput } from '../db/posts/postRecord';
 import { loadPostRecord } from '../db/posts/postRepository';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
-import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
+import { BASELINE_CLASSIFIER_VERSION } from '../services/moderation/BaselineContentClassifier';
 import {
   backfillPostLanguages,
   EXCERPT_LENGTH,

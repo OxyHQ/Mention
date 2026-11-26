@@ -43,9 +43,9 @@ const { isFediverseSharingEnabled, federatePublishedPost } = vi.hoisted(() => ({
     >(),
 }));
 
-vi.mock('../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
+vi.mock('../../services/federation/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: { federatePublishedPost },
 }));
 

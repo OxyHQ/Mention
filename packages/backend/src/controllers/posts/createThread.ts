@@ -10,7 +10,7 @@ import {
   requesterPublicationPolicy,
   publicationVisibility,
   PostPublicationPolicyError,
-} from '../../services/postPublicationPolicy';
+} from '../../services/posts/access/postPublicationPolicy';
 /**
  * `POST /posts/thread` — the native multi-post create.
  *
@@ -27,23 +27,29 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { createMentionNotifications } from '../../utils/notificationUtils';
 import { PostVisibility, type PostContent, type PostContentVariant } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
-import { postCreationService } from '../../services/PostCreationService';
-import { persistPreparedArticle, prepareArticle } from '../../services/postArticles';
+import { postCreationService } from '../../services/posts/PostCreationService';
+import { persistPreparedArticle, prepareArticle } from '../../services/posts/postArticles';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { mergeHashtags } from '../../utils/textProcessing';
 import { callerAccountAccess, callerOxyUser } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
-import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
+import {
+  ensurePostMediaPublic,
+  servesMediaPublicly,
+} from '../../services/posts/access/postMediaVisibility';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
-import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
+import { resolveVariant, validateAuthorVariants } from '../../services/posts/postVariants';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
 import type { AccountKind } from '@oxy.so/contracts';
-import { assertCanPublishAsAccount, PublishAsAccessError } from '../../services/publishAsAccount';
+import {
+  assertCanPublishAsAccount,
+  PublishAsAccessError,
+} from '../../services/accounts/publishAsAccount';
 import { sanitizePodcast } from '../../utils/podcastReference';
 import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
 import { federatePostBatchDetached } from '../../connectors/threadFederation';
@@ -81,7 +87,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     // answers. That is not solved here but in the publish path, where it belongs:
     // `claimAndPublishScheduledPost` refuses a post whose parent has not
     // published, and `ScheduledPostPublisher` walks each chain parent-first and
-    // stops at its first failure. See `services/scheduledChain.ts` for why the
+    // stops at its first failure. See `services/scheduling/scheduledChain.ts` for why the
     // invariant survives a partial failure.
     const wantsSchedule = Boolean(req.body.status || req.body.scheduledFor);
 

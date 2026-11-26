@@ -34,7 +34,7 @@ import type { AccountMember } from '@oxy.so/core';
 
 const resolveUserSummaries = vi.hoisted(() => vi.fn());
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries,
 }));
 
@@ -42,7 +42,10 @@ vi.mock('../../utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { assertCanDeleteAccount, PublishAsAccessError } from '../../services/publishAsAccount';
+import {
+  assertCanDeleteAccount,
+  PublishAsAccessError,
+} from '../../services/accounts/publishAsAccount';
 
 const CALLER = 'caller-1';
 const CHANNEL = 'channel-1';

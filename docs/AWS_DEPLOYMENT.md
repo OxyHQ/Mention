@@ -171,7 +171,7 @@ own copy — then boots into a blank app (`Requiring unknown module`). On
 Three things prevent it, and none is sufficient alone:
 
 - **The backend's copy of the document is a shortcut, not a source of truth.**
-  `services/webShellDocument.ts` trusts it for 15 seconds, revalidates with the
+  `services/webshell/webShellDocument.ts` trusts it for 15 seconds, revalidates with the
   Worker's ETag, and drops it the moment the apex proxy sees a hashed chunk the
   Worker no longer has.
 - **The previous release's hashed files ship with the next one.**

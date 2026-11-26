@@ -11,7 +11,7 @@ vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ accountsInQuietHours: oxyAccountsInQuietHours }),
 }));
 
-import { accountsInQuietHours } from '../../services/quietHours';
+import { accountsInQuietHours } from '../../services/scheduling/quietHours';
 
 beforeEach(() => {
   oxyAccountsInQuietHours.mockReset();

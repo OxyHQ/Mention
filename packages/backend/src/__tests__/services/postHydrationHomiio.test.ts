@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { PostAttachmentBundle, PostContent } from '@mention/shared-types';
-import { resolveVariant } from '../../services/postVariants';
+import { resolveVariant } from '../../services/posts/postVariants';
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ getUserById: vi.fn() }),
@@ -12,12 +12,12 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 // Legacy-store models are not touched on the buildAttachments path; stub to empty objects.
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),
 }));
 
-import { buildAttachments } from '../../services/postHydration/dto';
+import { buildAttachments } from '../../services/posts/postHydration/dto';
 
 /** Build the bundle the way hydration does: on the reader's resolved rendition. */
 function buildBundle(content: PostContent): PostAttachmentBundle {

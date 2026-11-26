@@ -2,8 +2,8 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { connectPostgres, closePostgres } from '../../db/postgres';
 import { insertPostRecord, deletePostRecord } from '../../db/posts/postRepository';
-import { eventAccessFor } from '../../services/eventRequestAccess';
-import { listEventAttendees, registerForEvent } from '../../services/EventAttendanceService';
+import { eventAccessFor } from '../../services/events/eventRequestAccess';
+import { listEventAttendees, registerForEvent } from '../../services/events/EventAttendanceService';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { adultSafetyFixture } from '../helpers/adultSafety';
 const state = vi.hoisted(() => ({ members: [] as unknown[], readable: true }));
@@ -15,7 +15,7 @@ vi.mock('../../utils/oxyHelpers', async (original) => ({
     accounts: { members: { list: async () => state.members } },
   })),
 }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { canViewerReadPostId: vi.fn(async () => state.readable) },
   resolveUserSummaries: vi.fn(
     async (ids: string[]) =>

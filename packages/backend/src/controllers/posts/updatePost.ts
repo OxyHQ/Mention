@@ -5,7 +5,7 @@ import {
   requesterPublicationPolicy,
   PostPublicationPolicyError,
   assertStoredPostCanPublish,
-} from '../../services/postPublicationPolicy';
+} from '../../services/posts/access/postPublicationPolicy';
 /**
  * `PUT /posts/:id` — the author's edit of a published or draft post, including
  * the correction record an edit to a published post leaves behind.
@@ -21,7 +21,7 @@ import {
   type PostRecordPatch,
 } from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
-import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
+import { baselineContentClassifier } from '../../services/moderation/BaselineContentClassifier';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   PostVisibility,
@@ -38,14 +38,17 @@ import {
   updateArticle,
 } from '../../db/posts/articleRepository';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../../utils/textProcessing';
-import { foldProfileLinkMentions } from '../../services/profileLinkMentions';
+import { foldProfileLinkMentions } from '../../services/posts/profileLinkMentions';
 import { callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
 import { safetyRequesterFor } from '../../utils/safetyRequester';
-import { ensurePostMediaPublic, servesMediaPublicly } from '../../services/postMediaVisibility';
-import { enrichIngestedPosts } from '../../services/postEnrichment';
+import {
+  ensurePostMediaPublic,
+  servesMediaPublicly,
+} from '../../services/posts/access/postMediaVisibility';
+import { enrichIngestedPosts } from '../../services/posts/postEnrichment';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
   applyDetectedPrimaryTag,
@@ -54,19 +57,19 @@ import {
   stripHiddenHashtags,
   translationSourceFingerprint,
   validateAuthorVariants,
-} from '../../services/postVariants';
-import { isChannelAccount } from '../../services/publishAsAccount';
+} from '../../services/posts/postVariants';
+import { isChannelAccount } from '../../services/accounts/publishAsAccount';
 import { recordPostCorrection } from '../../db/posts/postCorrectionsRepository';
-import { postManagementRefusal } from '../../services/postManagementAccess';
+import { postManagementRefusal } from '../../services/posts/access/postManagementAccess';
 import {
   postCollaborationService,
   CollabValidationError,
   CollabStateError,
-} from '../../services/PostCollaborationService';
+} from '../../services/posts/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds';
 import { federateAsResolvedActor } from '../../connectors/outboundFederation';
 import { toFederationPostPayload } from '../../services/serviceRegistry';
-import { loadScheduledChain } from '../../services/scheduledChain';
+import { loadScheduledChain } from '../../services/scheduling/scheduledChain';
 import {
   MAX_TEXT_LENGTH,
   buildOrderedAttachments,

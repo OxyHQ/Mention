@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
+import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/moderation/contentClassification/nsfw';
 
 /**
  * Unit coverage for the canonical NSFW/adult hashtag blocklist. Verifies the

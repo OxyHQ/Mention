@@ -47,7 +47,7 @@ vi.mock('../../connectors/threadFederation', () => ({
   federatePostBatchDetached: vi.fn(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -74,7 +74,7 @@ vi.mock('../../db/posts/articleRepository', async (importOriginal) => ({
   insertArticle: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: {
     create: vi.fn(async (params: Record<string, unknown>) => {
       createdContents.push(params.content as PostContent);

@@ -7,7 +7,7 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PostVisibility } from '@mention/shared-types';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 import { adultSafetyFixture } from '../helpers/adultSafety';
 
 const { getUserFollowing, getUsersByIds, cacheStore } = vi.hoisted(() => ({
@@ -42,7 +42,7 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
 vi.mock('../../services/moderation/crowdSourceClient', () => ({
   getCrowdSourceClient: () => ({ communityNotes: { shown: async () => [] } }),
 }));
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -60,7 +60,7 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { listPrivateMentionConversations } from '../../db/posts/postAudience';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { mentionsOfMeSource } from '../../mtn/feed/engine/sources/socialSources';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
 const scope = postScope('private-mentions');

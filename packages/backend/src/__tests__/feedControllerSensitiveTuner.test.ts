@@ -45,19 +45,19 @@ vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: adultSafetyFixture() }),
   createScopedOxyClient: vi.fn((_req?: unknown): unknown => undefined),
 }));
-vi.mock('../services/ListSubscriptionService', () => ({
+vi.mock('../services/accounts/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));
-vi.mock('../services/laneVisibility', () => ({
+vi.mock('../services/feed/laneVisibility', () => ({
   ownerHasProfileAffectingLane: vi.fn(async () => false),
 }));
-vi.mock('../services/UserPreferenceService', () => ({
+vi.mock('../services/feed/UserPreferenceService', () => ({
   userPreferenceService: {
     getUserBehavior: vi.fn(async () => undefined),
     getTopRegion: vi.fn(() => undefined),
   },
 }));
-vi.mock('../services/anonFeedCache', () => ({
+vi.mock('../services/feed/anonFeedCache', () => ({
   anonFeedCache: {
     read: vi.fn(async () => null),
     readStale: vi.fn(async () => null),

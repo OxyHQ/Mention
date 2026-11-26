@@ -311,7 +311,7 @@ collection at `/ap/users/<name>/moderators`. Joining is following it; a remote
   community publishes in public. A moderator cannot be banned. Reports on a
   community's posts are ordinary reports.
 - **Following feed.** The communities a viewer follows are the followed accounts
-  posts were written in (`communitiesAmong` in `services/viewerFollowGraph.ts`,
+  posts were written in (`communitiesAmong` in `services/feed/viewerFollowGraph.ts`,
   one probe of `post_community_chrono_v1` each), hosted here or remote alike.
 
 ## Posting into a remote community (FEP-1b12, outbound)

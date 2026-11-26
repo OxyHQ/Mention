@@ -28,7 +28,7 @@ vi.mock('../../utils/inference', () => ({
   isInferenceEnabled: () => false,
 }));
 
-import { topicService } from '../../services/TopicService';
+import { topicService } from '../../services/topics/TopicService';
 
 beforeEach(() => {
   vi.clearAllMocks();

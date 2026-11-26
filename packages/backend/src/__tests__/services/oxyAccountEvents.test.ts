@@ -15,7 +15,9 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   getServiceOxyClient: () => client.current,
 }));
 vi.mock('../../queue/producers', () => ({ enqueueAccountErasure }));
-vi.mock('../../services/accountErasure/AccountErasureService', () => ({ processAccountErasure }));
+vi.mock('../../services/accounts/accountErasure/AccountErasureService', () => ({
+  processAccountErasure,
+}));
 
 import { OxyAccountEventError } from '@oxy.so/core/server';
 import {
@@ -23,8 +25,8 @@ import {
   listAccountEvents,
   normalizeUsername,
   verifyAccountEvent,
-} from '../../services/accountErasure/oxyAccountEvents';
-import { scheduleAccountErasure } from '../../services/accountErasure/accountEventIntake';
+} from '../../services/accounts/accountErasure/oxyAccountEvents';
+import { scheduleAccountErasure } from '../../services/accounts/accountErasure/accountEventIntake';
 
 beforeEach(() => {
   vi.clearAllMocks();

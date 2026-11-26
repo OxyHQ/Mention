@@ -29,13 +29,13 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: (...args: unknown[]) => cacheGet(...args),
   mset: (...args: unknown[]) => cacheSet(...args),
   invalidate: vi.fn(async () => undefined),
 }));
 
-vi.mock('../../services/PostRecentReplierService', () => ({
+vi.mock('../../services/posts/PostRecentReplierService', () => ({
   loadRecentReplierIds: vi.fn(async () => ({
     perPostRepliers: new Map(),
     allReplierIds: new Set(),
@@ -54,7 +54,7 @@ import {
   OXY_USER_FAILURE_TTL_MS,
   OXY_USER_RESOLUTION_DEADLINE_MS,
   resolveUserSummaries,
-} from '../../services/PostHydrationService';
+} from '../../services/posts/PostHydrationService';
 
 function oxyUser(id: string) {
   return {

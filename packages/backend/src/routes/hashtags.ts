@@ -6,14 +6,17 @@ import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
-import { getTrendingHashtags, type TrendingHashtagRow } from '../services/trendingHashtagsCache';
+import {
+  getTrendingHashtags,
+  type TrendingHashtagRow,
+} from '../services/trending/trendingHashtagsCache';
 import {
   countTagsInWindow,
   searchHashtagsWithCounts,
   taggedPublicPosts,
   UNNESTED_TAG,
 } from '../services/search/hashtagSearch';
-import { resolveVariant } from '../services/postVariants';
+import { resolveVariant } from '../services/posts/postVariants';
 import { logger } from '../utils/logger';
 import { queryString } from '../utils/queryParams';
 
@@ -73,7 +76,7 @@ router.get('/', async (req: Request, res: Response) => {
     // aggregates over every public tagged post in the window — ~454ms measured
     // on 400k posts, all of it a sequential scan. The answer depends only on
     // `limit` and `days`, never on the viewer, so one entry serves everyone;
-    // `services/trendingHashtagsCache.ts` carries the safety argument and why a
+    // `services/trending/trendingHashtagsCache.ts` carries the safety argument and why a
     // cache rather than the denormalized table that was planned.
     const hashtags = await getTrendingHashtags(
       limit,

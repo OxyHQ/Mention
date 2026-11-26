@@ -40,7 +40,7 @@ import {
   updateLane,
   type LaneRow,
 } from '../db/channels/laneRepository';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveUserSummaries } from '../services/posts/PostHydrationService';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import {
   laneReadRateLimiter,

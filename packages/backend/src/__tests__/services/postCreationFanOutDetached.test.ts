@@ -58,7 +58,7 @@ vi.mock('../../services/serviceRegistry', () => ({
   registerPostCreator: vi.fn(),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn().mockResolvedValue([]) },
 }));
 
@@ -74,7 +74,7 @@ import { eq } from 'drizzle-orm';
 import { PostVisibility } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { postSubscriptions } from '../../db/schema/engagement';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { createBatchNotifications } from '../../utils/notificationUtils';
 import {
   drainBackgroundWork,

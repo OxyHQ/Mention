@@ -26,7 +26,7 @@ vi.mock('../utils/cache', () => ({
   }),
 }));
 
-import { bulkUsers } from '../services/seoSitemap';
+import { bulkUsers } from '../services/webshell/seoSitemap';
 
 const rateLimited = (): Error =>
   Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });

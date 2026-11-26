@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * Reply-context parents must clear the same publication bar as the feed
@@ -31,13 +31,13 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { threadSlicingService } from '../../services/ThreadSlicingService';
+import { threadSlicingService } from '../../services/posts/ThreadSlicingService';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('thread-slicing-parent-publication');

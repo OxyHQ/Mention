@@ -1,7 +1,7 @@
 import { lookupManyOf } from '../helpers/oxyLookup';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PostUser } from '@mention/shared-types';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * Unit tests for the mention-placeholder replacement in {@link replaceMentionPlaceholders}:
@@ -43,7 +43,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 // The Redis-backed user-summary cache: start cold (all misses), capture writes.
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -58,7 +58,7 @@ vi.mock('../../services/userSummaryCache', () => ({
   invalidate: vi.fn(async () => undefined),
 }));
 
-import { replaceMentionPlaceholders } from '../../services/postHydration/mentions';
+import { replaceMentionPlaceholders } from '../../services/posts/postHydration/mentions';
 
 /** A minimal canonical Oxy user shape sufficient for `toCachedUser`. */
 function makeOxyUser(id: string, username: string, displayName: string) {

@@ -1,4 +1,4 @@
-import { eligibleActivitySubscriptionAuthors } from '../../../../services/activitySubscriptionInterest';
+import { eligibleActivitySubscriptionAuthors } from '../../../../services/notifications/activitySubscriptionInterest';
 /**
  * For You + timeline source modules.
  *
@@ -24,7 +24,7 @@ import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { parseChronoCursor } from '../../../../utils/chronoCursor';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { logger } from '../../../../utils/logger';
-import { canViewList, loadListVisibility } from '../../../../services/listAccess';
+import { canViewList, loadListVisibility } from '../../../../services/accounts/listAccess';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import {
   type CandidateUserBehavior,

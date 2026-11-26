@@ -137,14 +137,14 @@ import {
   baselineContentClassifier,
   BASELINE_CLASSIFIER_VERSION,
   type LanguageSource,
-} from '../services/BaselineContentClassifier';
-import { invalidate as invalidatePostDetailCache } from '../services/postDetailCache';
+} from '../services/moderation/BaselineContentClassifier';
+import { invalidate as invalidatePostDetailCache } from '../services/posts/postDetailCache';
 import {
   applyDetectedPrimaryTag,
   authorVariants,
   declaredBaseLanguages,
   resolveVariant,
-} from '../services/postVariants';
+} from '../services/posts/postVariants';
 import { logger } from '../utils/logger';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import {

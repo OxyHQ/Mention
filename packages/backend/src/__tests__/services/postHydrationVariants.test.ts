@@ -29,13 +29,13 @@ vi.mock('../../utils/oxyHelpers', () => ({
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
 }));
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),
 }));
 
-import { buildContent, buildInlineVariants } from '../../services/postHydration/dto';
-import { resolveVariant, resolveViewerTag } from '../../services/postVariants';
+import { buildContent, buildInlineVariants } from '../../services/posts/postHydration/dto';
+import { resolveVariant, resolveViewerTag } from '../../services/posts/postVariants';
 
 /** Hydrate `content` the way the service does, for a reader with `candidates`. */
 async function hydrateContent(

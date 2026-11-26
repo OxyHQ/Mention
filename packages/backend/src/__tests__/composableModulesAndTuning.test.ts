@@ -12,7 +12,7 @@ import {
   keywordDenylistFilter,
 } from '../mtn/feed/engine/filters';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
-import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
+import { BASELINE_CLASSIFIER_VERSION } from '../services/moderation/BaselineContentClassifier';
 
 /**
  * PHASE 4B — user-composable quality/effort/link/bot filter modules + per-user

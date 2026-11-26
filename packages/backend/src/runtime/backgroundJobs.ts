@@ -1,7 +1,7 @@
 import { startWorkers, shutdownQueues } from '../queue/workers';
-import { engagementOutboxDispatcher } from '../services/EngagementOutboxDispatcher';
+import { engagementOutboxDispatcher } from '../services/engagement/EngagementOutboxDispatcher';
 import { moderationOutboxDispatcher } from '../services/moderation/ModerationOutboxDispatcher';
-import { leaderElection } from '../services/LeaderElection';
+import { leaderElection } from '../services/scheduling/LeaderElection';
 import { startSchedulers, stopSchedulers } from './schedulers';
 import { logger } from '../utils/logger';
 

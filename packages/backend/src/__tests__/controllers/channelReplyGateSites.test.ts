@@ -20,7 +20,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * carrying a `laneId`, still accept replies. A lane is a lens, not a destination.
  *
  * The gate keys on the parent AUTHOR's Oxy account kind, so `isChannelAccount` is
- * the seam these tests drive — mocked at `services/publishAsAccount`, the one
+ * the seam these tests drive — mocked at `services/accounts/publishAsAccount`, the one
  * module that knows what a channel account is. Everything ELSE is a real row: the
  * gate resolves the author by reading `posts` with a `text` id, and the guard it
  * replaced (`ObjectId.isValid`) answered `false` for every uuid v7 — which reads
@@ -32,13 +32,15 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearPostScope, postScope, seedLane, seedPost } from '../helpers/postFixtures';
 
 const postCreationCreate = vi.fn();
-vi.mock('../../services/PostCreationService', () => ({
+vi.mock('../../services/posts/PostCreationService', () => ({
   postCreationService: { create: (...args: unknown[]) => postCreationCreate(...args) },
 }));
 
 // The post read gate has its own suites; this one is about what happens past it.
-vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
+  canRequestReadPost: vi.fn(async () => true),
+}));
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: vi.fn(() => ({ id: 'unknown', username: '' })),
@@ -59,7 +61,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 const isChannelAccount = vi.fn();
-vi.mock('../../services/publishAsAccount', () => ({
+vi.mock('../../services/accounts/publishAsAccount', () => ({
   isChannelAccount: (...args: unknown[]) => isChannelAccount(...args),
   assertCanPublishAsAccount: vi.fn(async (params: { callerId: string | null }) => ({
     authorId: params.callerId,

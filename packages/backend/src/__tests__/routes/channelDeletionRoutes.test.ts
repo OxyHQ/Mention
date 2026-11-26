@@ -47,9 +47,9 @@ const resolveUserSummaries = vi.hoisted(() => vi.fn());
 const previewChannelDeletion = vi.hoisted(() => vi.fn());
 const deleteChannelContent = vi.hoisted(() => vi.fn());
 
-vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
+vi.mock('../../services/posts/PostHydrationService', () => ({ resolveUserSummaries }));
 
-vi.mock('../../services/channelDeletion/ChannelDeletionService', () => {
+vi.mock('../../services/accounts/channelDeletion/ChannelDeletionService', () => {
   class NotAChannelAccountError extends Error {
     readonly resolvedKind: string | null;
     constructor(oxyUserId: string, resolvedKind: string | null) {
@@ -235,7 +235,7 @@ describe('a cascade that did not finish', () => {
     // Its own guard, one layer below this route's. Reported as a refusal rather
     // than as a fault, so a client sees the same answer either place it is made.
     const { NotAChannelAccountError } = await import(
-      '../../services/channelDeletion/ChannelDeletionService'
+      '../../services/accounts/channelDeletion/ChannelDeletionService'
     );
     deleteChannelContent.mockRejectedValue(new NotAChannelAccountError(CHANNEL, 'personal'));
 

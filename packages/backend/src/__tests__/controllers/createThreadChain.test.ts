@@ -29,7 +29,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   // Passthrough hydration — the response shape is not the subject here, and the
   // linkage is asserted against the database rather than against this value.
   postHydrationService: { hydratePosts: vi.fn(async (records: object[]) => records) },

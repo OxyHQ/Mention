@@ -37,15 +37,15 @@ import type { AccountMember } from '@oxy.so/core';
  */
 
 const resolveUserSummaries = vi.hoisted(() => vi.fn());
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => []) },
   resolveUserSummaries,
 }));
 
-vi.mock('../../services/PostRecentReplierService', () => ({
+vi.mock('../../services/posts/PostRecentReplierService', () => ({
   recordRecentReplierForPost: vi.fn(async () => undefined),
 }));
-vi.mock('../../services/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
+vi.mock('../../services/posts/postEnrichment', () => ({ enrichIngestedPosts: vi.fn() }));
 const { publicationPolicies } = vi.hoisted(() => ({ publicationPolicies: vi.fn() }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: { publicationPolicies } }),
@@ -66,7 +66,7 @@ beforeEach(() => {
   );
 });
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
-vi.mock('../../services/MediaMetadataService', () => ({
+vi.mock('../../services/media/MediaMetadataService', () => ({
   mediaMetadataService: { enrichFromOxy: vi.fn(async (media: unknown[]) => media) },
   readPersistedMediaFields: vi.fn(() => ({})),
 }));
@@ -82,8 +82,8 @@ import {
   seedPost,
   serviceScope,
 } from '../helpers/serviceFixtures';
-import { postCreationService } from '../../services/PostCreationService';
-import { PublishAsAccessError } from '../../services/publishAsAccount';
+import { postCreationService } from '../../services/posts/PostCreationService';
+import { PublishAsAccessError } from '../../services/accounts/publishAsAccount';
 
 const scope = serviceScope('post-creation-publish-as');
 

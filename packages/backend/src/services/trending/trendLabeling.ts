@@ -35,8 +35,8 @@
 
 import { MtnConfig, normalizeTrendCategory } from '@mention/shared-types';
 import type { TrendCategory } from '@mention/shared-types';
-import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
-import { canonicalHashtag } from '../contentClassification/taxonomy';
+import { ruleBasedTopicClassifier } from '../moderation/contentClassification/TopicClassifier';
+import { canonicalHashtag } from '../moderation/contentClassification/taxonomy';
 import { collectTrendPhraseEntries, stripNonProse, type TrendPhrase } from './termExtraction';
 import { escapeRegExp } from '@oxy.so/utils/text';
 

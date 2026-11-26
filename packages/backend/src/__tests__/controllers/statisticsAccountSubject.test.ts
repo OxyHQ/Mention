@@ -41,7 +41,7 @@ const mocks = vi.hoisted(() => ({
 // The Redis-cached identity path `publishAsAccount` reads an account's KIND
 // through. It answers out of Oxy, which is the one thing this suite cannot have
 // for real.
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   resolveUserSummaries: mocks.resolveUserSummaries,
   postHydrationService: { hydratePosts: vi.fn(async (rows: object[]) => rows) },
 }));
@@ -63,11 +63,11 @@ vi.mock('../../utils/inference', () => ({
   isInferenceEnabled: () => false,
 }));
 
-vi.mock('../../services/UserPreferenceService', () => ({
+vi.mock('../../services/feed/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
 }));
 
-vi.mock('../../services/feedViewCounter', () => ({
+vi.mock('../../services/engagement/feedViewCounter', () => ({
   recordDedupedView: vi.fn(async () => null),
 }));
 

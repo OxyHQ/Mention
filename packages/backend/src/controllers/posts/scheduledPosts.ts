@@ -11,14 +11,14 @@ import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { logger } from '../../utils/logger';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import { hydrationOptionsFor } from '../../utils/hydrationOptions';
 import { callerOxyUser, callerAccountAccess } from '../../utils/oxyHelpers';
-import { listOperatedChannelIds } from '../../services/publishAsAccount';
-import { postManagementRefusal } from '../../services/postManagementAccess';
-import { loadScheduledChain } from '../../services/scheduledChain';
+import { listOperatedChannelIds } from '../../services/accounts/publishAsAccount';
+import { postManagementRefusal } from '../../services/posts/access/postManagementAccess';
+import { loadScheduledChain } from '../../services/scheduling/scheduledChain';
 
 /**
  * The server drafts this caller can act on, newest first: their own, plus those

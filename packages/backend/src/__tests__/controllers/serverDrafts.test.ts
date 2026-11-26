@@ -36,7 +36,7 @@ vi.mock('../../utils/oxyHelpers', async () => ({
   })),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   // Resolves no account kinds, so a stranger's post reads as an account nothing
   // can be published as — the refusal `postManagementRefusal` answers 404 to.
@@ -51,7 +51,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { getDrafts, publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
-import { postCreationService } from '../../services/PostCreationService';
+import { postCreationService } from '../../services/posts/PostCreationService';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 
 const scope = serviceScope('server-drafts');

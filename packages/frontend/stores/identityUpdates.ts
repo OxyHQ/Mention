@@ -26,7 +26,7 @@ import type { AccountCategoryId } from '@oxy.so/contracts';
  * **The SERVER is not the problem, and checking that first is what makes the
  * rest of this the right shape.** oxy-api publishes `oxy:user:invalidate` on the
  * account write and Mention's backend drops its identity caches on receipt
- * (`packages/backend/src/services/userInvalidationSubscriber.ts`), so a fresh
+ * (`packages/backend/src/services/accounts/userInvalidationSubscriber.ts`), so a fresh
  * ASK returns the new picture almost immediately. Delivery is at-most-once by
  * design and degrades to the `usersummary:v5:<id>` TTL (ten minutes) if the
  * message is lost, but that is the degraded case, not the normal one. Reloading

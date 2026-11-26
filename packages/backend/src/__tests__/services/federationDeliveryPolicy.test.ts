@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../db/userProfile/profileAudience', () => ({
   accountsWithClosedAudience: mocks.closedAudience,
 }));
-vi.mock('../../services/postPublicationPolicy', () => ({
+vi.mock('../../services/posts/access/postPublicationPolicy', () => ({
   authorsMayFederate: mocks.mayFederate,
   authorPublicationPolicies: mocks.policies,
   postAuthorIds: (post: { oxyUserId: string; authorship?: { oxyUserId: string }[] }) => [
@@ -20,7 +20,9 @@ vi.mock('../../services/postPublicationPolicy', () => ({
   ],
 }));
 vi.mock('../../db/posts/postRepository', () => ({ loadPostRecord: mocks.load }));
-vi.mock('../../services/postSafetyAccess', () => ({ loadPostSafetyDecisions: mocks.decisions }));
+vi.mock('../../services/posts/access/postSafetyAccess', () => ({
+  loadPostSafetyDecisions: mocks.decisions,
+}));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ safety: { profileAccess: mocks.profile } }),
 }));

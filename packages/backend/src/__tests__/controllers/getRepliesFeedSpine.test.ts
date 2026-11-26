@@ -27,8 +27,10 @@ vi.mock('../../runtime/socketServer', () => ({
 }));
 
 // The post read gate has its own suites; this one is about what happens past it.
-vi.mock('../../services/postReadAccess', () => ({ canRequestReadPost: vi.fn(async () => true) }));
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
+  canRequestReadPost: vi.fn(async () => true),
+}));
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: {
     hydratePosts: vi.fn(async (records: Array<{ id: string; oxyUserId: string }>) =>
       records.map((record) => ({ ...record, user: { id: record.oxyUserId } })),
@@ -63,7 +65,7 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import { feedController } from '../../controllers/feed.controller';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { postHydrationService } from '../../services/posts/PostHydrationService';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = postScope('replies-spine');

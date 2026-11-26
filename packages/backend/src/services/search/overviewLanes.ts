@@ -53,8 +53,8 @@ import {
   customFeedSearchPredicate,
   starterPackSearchPredicate,
 } from '../../utils/searchPredicates';
-import { resolveUserSummaries } from '../PostHydrationService';
-import type { CachedUserSummary } from '../userSummaryCache';
+import { resolveUserSummaries } from '../posts/PostHydrationService';
+import type { CachedUserSummary } from '../accounts/userSummaryCache';
 import { logger } from '../../utils/logger';
 
 /** The owner shape the search cards read. Matches the loose client type. */

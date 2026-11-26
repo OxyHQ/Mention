@@ -27,8 +27,8 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 
 const metadataByIds = vi.fn();
 const { invalidatePostDetailCache } = vi.hoisted(() => ({ invalidatePostDetailCache: vi.fn() }));
-vi.mock('../../services/postDetailCache', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/postDetailCache')>()),
+vi.mock('../../services/posts/postDetailCache', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/posts/postDetailCache')>()),
   invalidate: invalidatePostDetailCache,
 }));
 vi.mock('../../utils/oxyHelpers', () => ({

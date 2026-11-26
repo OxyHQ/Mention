@@ -50,7 +50,7 @@ vi.mock('@oxy.so/core/server', async () => {
 });
 
 /** Keep the media cache front inert so requests hit the remote-stream path. */
-vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
+vi.mock('../../services/media/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: () => false,
   cachedMediaCdnUrl: vi.fn(),
 }));
@@ -59,7 +59,7 @@ const safeFetch = vi.fn();
 
 const isNegativelyCached = vi.fn().mockResolvedValue(false);
 const markNegativelyCached = vi.fn().mockResolvedValue(undefined);
-vi.mock('../../services/mediaCache/negativeCache', () => ({
+vi.mock('../../services/media/mediaCache/negativeCache', () => ({
   isNegativelyCached: (...args: unknown[]) => isNegativelyCached(...args),
   markNegativelyCached: (...args: unknown[]) => markNegativelyCached(...args),
 }));

@@ -5,7 +5,7 @@ import {
   type ResolveExternalIdentityResponse,
 } from '@oxy.so/contracts';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { oxyErrorDetails, oxyErrorStatus } from '../services/oxyFiles/oxyErrors';
+import { oxyErrorDetails, oxyErrorStatus } from '../services/media/oxyFiles/oxyErrors';
 
 type ResolveInput =
   | { handle: string }

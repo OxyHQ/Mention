@@ -44,7 +44,7 @@ const hoisted = vi.hoisted(() => ({
   unreadableIds: new Set<string>(),
 }));
 
-vi.mock('../../services/postReadAccess', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
   canRequestReadPost: vi.fn(
     async (_req: unknown, postId: string) => !hoisted.unreadableIds.has(postId),
   ),
@@ -65,7 +65,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerAccountAccess: () => undefined,
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   // Passthrough: the SELECTION is the subject, and it has already happened by
   // the time hydration runs.
   postHydrationService: {

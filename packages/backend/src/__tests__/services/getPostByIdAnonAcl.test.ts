@@ -25,7 +25,7 @@ import { adultSafetyFixture } from '../helpers/adultSafety';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PostVisibility } from '@mention/shared-types';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 const { getUsersByIds, cacheStore } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
@@ -58,7 +58,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -77,7 +77,7 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
 import { federatedActors } from '../../db/schema/federation';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = postScope('anon-acl');

@@ -34,7 +34,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerAccountAccess: vi.fn(() => undefined),
 }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: hoisted.hydratePosts },
   resolveUserSummaries: vi.fn(async () => new Map()),
   degradedActorSummary: (id: string) => ({
@@ -44,7 +44,7 @@ vi.mock('../../services/PostHydrationService', () => ({
   }),
 }));
 
-vi.mock('../../services/PostCollaborationService', () => ({
+vi.mock('../../services/posts/PostCollaborationService', () => ({
   postCollaborationService: {
     resolveCollaboratorRefs: hoisted.resolveCollaboratorRefs,
     attachCollaborators: vi.fn(),

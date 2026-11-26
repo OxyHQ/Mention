@@ -80,7 +80,7 @@ vi.mock('../../utils/redis', () => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearPostScope, postScope, seedPosts } from '../helpers/postFixtures';
-import { forgetTrendingHashtags } from '../../services/trendingHashtagsCache';
+import { forgetTrendingHashtags } from '../../services/trending/trendingHashtagsCache';
 
 import hashtagsRoutes, { TRENDING_HASHTAG_LIMIT } from '../../routes/hashtags';
 

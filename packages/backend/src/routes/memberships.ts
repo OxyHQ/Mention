@@ -1,4 +1,4 @@
-import { reconcileMembershipInvoice } from '../services/memberships/billing/receipts';
+import { reconcileMembershipInvoice } from '../services/monetization/memberships/billing/receipts';
 import { Router, raw, type Response } from 'express';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { safetyRequesterFor, type RequestSafetyContext } from '../utils/safetyRequester';
@@ -13,13 +13,13 @@ import { callerOxyUser, callerAccountAccess } from '../utils/oxyHelpers';
 import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
 import { logger } from '../utils/logger';
-import { PublishAsAccessError } from '../services/publishAsAccount';
+import { PublishAsAccessError } from '../services/accounts/publishAsAccount';
 import {
   actOnMembershipReport,
   inspectMembershipReport,
   reviewMembershipReportMedia,
-} from '../services/memberships/review';
-import { MembershipError, type MembershipActor } from '../services/memberships/access';
+} from '../services/monetization/memberships/review';
+import { MembershipError, type MembershipActor } from '../services/monetization/memberships/access';
 import {
   listMyMembershipCommunities,
   createMembershipCommunity,
@@ -33,7 +33,7 @@ import {
   setMembershipBadge,
   updateMembershipTier,
   updateMembershipCommunity,
-} from '../services/memberships/communities';
+} from '../services/monetization/memberships/communities';
 import {
   createMembershipContent,
   listMembershipContent,
@@ -44,12 +44,12 @@ import {
   reportMembershipContent,
   resolveMembershipReport,
   voteMembershipPoll,
-} from '../services/memberships/content';
+} from '../services/monetization/memberships/content';
 import {
   discardMembershipMedia,
   downloadMembershipMedia,
   uploadMembershipMedia,
-} from '../services/memberships/media';
+} from '../services/monetization/memberships/media';
 
 const id = z.string().trim().min(1).max(128);
 const name = z.string().trim().min(1).max(120);

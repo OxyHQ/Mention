@@ -33,15 +33,15 @@ import type {
 } from './types';
 import { logger } from '../utils/logger';
 import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
-import { federationJobScheduler } from '../services/FederationJobScheduler';
+import { federationJobScheduler } from '../services/federation/FederationJobScheduler';
 import { runSharingCleanup } from '../connectors/activitypub/sharingCleanup.service';
 import { instagramGraphConnector } from '../connectors/instagram/InstagramGraphConnector';
 import {
   MediaMetadataPendingError,
   processMediaMetadataEnrichJob,
-} from '../services/mediaMetadataEnrichJob';
+} from '../services/media/mediaMetadataEnrichJob';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { processAccountErasure } from '../services/accountErasure/AccountErasureService';
+import { processAccountErasure } from '../services/accounts/accountErasure/AccountErasureService';
 import { findErasedAccountUsernames } from '../db/accountErasures/accountErasureRepository';
 
 /**

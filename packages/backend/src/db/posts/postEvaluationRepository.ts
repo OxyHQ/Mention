@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   shadowUsageReconciliationSchema,
   type ShadowReceiptReader,
-} from '../../services/contentClassification/jevReceipt';
+} from '../../services/moderation/contentClassification/jevReceipt';
 import {
   and,
   asc,
@@ -40,7 +40,7 @@ import {
   type ShadowRelease,
   type ShadowSignals,
   type ShadowSnapshot,
-} from '../../services/contentClassification/jevShadow';
+} from '../../services/moderation/contentClassification/jevShadow';
 
 /**
  * Only posts written natively on Mention by an author with a public profile can

@@ -5,7 +5,7 @@ vi.mock('../../services/moderation/crowdSourceClient', () => ({
 }));
 import { adultSafetyFixture } from '../helpers/adultSafety';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { CachedUserSummary } from '../../services/accounts/userSummaryCache';
 
 /**
  * `importedFrom` on a post DTO — "Originally posted on Mastodon".
@@ -49,7 +49,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-vi.mock('../../services/userSummaryCache', () => ({
+vi.mock('../../services/accounts/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
     for (const id of ids) {
@@ -66,7 +66,7 @@ vi.mock('../../services/userSummaryCache', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { postImports } from '../../db/schema/imports';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
-import { PostHydrationService } from '../../services/PostHydrationService';
+import { PostHydrationService } from '../../services/posts/PostHydrationService';
 
 const scope = postScope('hydration-imported-from');
 const AUTHOR_ID = scope.user('author');

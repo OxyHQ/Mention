@@ -5,7 +5,7 @@ import {
   renderSitemapIndex,
   renderUrlSet,
   shardPath,
-} from '../services/seoSitemap';
+} from '../services/webshell/seoSitemap';
 
 describe('SEO sitemap XML', () => {
   it('escapes URLs and emits real modification timestamps', () => {

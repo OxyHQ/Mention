@@ -12,12 +12,12 @@ import { createPostUri } from '@mention/shared-types';
 
 const hoisted = vi.hoisted(() => ({ unreadable: new Set<string>() }));
 
-vi.mock('../../services/postReadAccess', () => ({
+vi.mock('../../services/posts/access/postReadAccess', () => ({
   canRequestReadPost: vi.fn(
     async (_req: unknown, postId: string) => !hoisted.unreadable.has(postId),
   ),
 }));
-vi.mock('../../services/postManagementAccess', () => ({
+vi.mock('../../services/posts/access/postManagementAccess', () => ({
   postManagementRefusal: vi.fn(
     async ({ post, callerId }: { post: { oxyUserId: string }; callerId: string }) =>
       post.oxyUserId === callerId ? null : { status: 404, message: 'Post not found' },
@@ -27,7 +27,11 @@ vi.mock('../../services/postManagementAccess', () => ({
 import { inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { threadgates } from '../../db/schema/gates';
-import { readThreadgate, removeThreadgate, writeThreadgate } from '../../services/postGates';
+import {
+  readThreadgate,
+  removeThreadgate,
+  writeThreadgate,
+} from '../../services/posts/access/postGates';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
 
 const scope = serviceScope('post-gates');

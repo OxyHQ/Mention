@@ -1,5 +1,5 @@
 import type { OxyAuthRequest } from '@oxy.so/core/server';
-import type { HydrationOptions } from '../services/PostHydrationService';
+import type { HydrationOptions } from '../services/posts/PostHydrationService';
 import { createScopedOxyClient } from './oxyHelpers';
 import type { OxyClient } from './privacyHelpers';
 import { safetyRequesterFor } from './safetyRequester';

@@ -29,8 +29,8 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('../../services/mediaCache/oxyMediaStore', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../services/mediaCache/oxyMediaStore')>()),
+vi.mock('../../services/media/mediaCache/oxyMediaStore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/media/mediaCache/oxyMediaStore')>()),
   deleteFederatedMedia: h.deleteFederatedMedia,
 }));
 
@@ -76,11 +76,11 @@ import {
   drainFederatedMediaDeletions,
   mediaDeletionBackoffMs,
   STUCK_ATTEMPTS,
-} from '../../services/mediaCache/federatedMediaDeletion';
+} from '../../services/media/mediaCache/federatedMediaDeletion';
 import {
   OxyMediaStoreRequestError,
   OxyMediaStoreThrottledError,
-} from '../../services/mediaCache/oxyMediaStore';
+} from '../../services/media/mediaCache/oxyMediaStore';
 
 const OWNER = 'oxy-fedmedia-owner';
 let seq = 0;

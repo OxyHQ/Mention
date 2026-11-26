@@ -24,7 +24,7 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { uuidv7 } from '@oxy.so/db';
 import { contentLabels, labelers } from '../../db/schema/moderation';
 import { userSettings } from '../../db/schema/userProfile';
-import { LabelService } from '../../services/LabelService';
+import { LabelService } from '../../services/moderation/LabelService';
 
 let db: Database;
 const createdLabelerIds: string[] = [];

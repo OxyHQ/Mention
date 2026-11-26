@@ -26,7 +26,7 @@ import {
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { postContentVariants, postMentions } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
-import { foldProfileLinkMentions } from '../services/profileLinkMentions';
+import { foldProfileLinkMentions } from '../services/posts/profileLinkMentions';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 

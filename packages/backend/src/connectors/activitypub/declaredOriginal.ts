@@ -7,7 +7,7 @@ import { asRecord } from './helpers';
  * The strongest cross-post evidence there is, and the only one that needs no
  * heuristic at all: the source states the relation, so nothing is inferred from
  * timing, text or media. When it is present,
- * `services/PostEquivalenceService` uses it and checks nothing else.
+ * `services/posts/PostEquivalenceService` uses it and checks nothing else.
  *
  * ## Where it lives on the wire
  *

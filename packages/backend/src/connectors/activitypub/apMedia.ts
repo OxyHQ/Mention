@@ -1,6 +1,6 @@
 import { apList, apMediaTypeBase } from '@oxy.so/federation';
 import type { MediaItem } from '@mention/shared-types';
-import { mergeMediaItem, patchFromApAttachment } from '../../services/MediaMetadataService';
+import { mergeMediaItem, patchFromApAttachment } from '../../services/media/MediaMetadataService';
 
 /**
  * ActivityPub media-attachment extraction.

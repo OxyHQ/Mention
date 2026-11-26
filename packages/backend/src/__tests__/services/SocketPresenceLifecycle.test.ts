@@ -3,7 +3,7 @@ import { describe, expect, it, mock } from 'bun:test';
 import {
   registerSocketPresence,
   type AuthenticatedPresenceSocket,
-} from '../../services/SocketPresenceLifecycle';
+} from '../../services/notifications/SocketPresenceLifecycle';
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;

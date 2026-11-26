@@ -71,7 +71,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 vi.mock('../../utils/notificationUtils', () => ({ createNotification }));
 
-vi.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/posts/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async () => [{}]) },
 }));
 
@@ -85,7 +85,7 @@ import {
   postCollaborationService,
   CollabValidationError,
   CollabStateError,
-} from '../../services/PostCollaborationService';
+} from '../../services/posts/PostCollaborationService';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import type { PostRecord } from '../../db/posts/postRecord';
 import type { PostAuthorshipEntry } from '@mention/shared-types';

@@ -60,7 +60,7 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => ({
   safeFetch: mocks.safeFetch,
 }));
 
-vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
+vi.mock('../../services/media/mediaCache/oxyMediaStore', () => ({
   MediaStoreUnavailableError: class MediaStoreUnavailableError extends Error {},
   OxyMediaStoreThrottledError: ThrottledError,
   isMediaStoreThrottled: (error: unknown) => error instanceof ThrottledError,
@@ -81,12 +81,12 @@ vi.mock('../../db/federation/mediaCacheRepository', () => ({
   markMediaCacheEvicted: mocks.markMediaCacheEvicted,
 }));
 
-import { runCacheWorkerOnce } from '../../services/mediaCache/cacheWorker';
+import { runCacheWorkerOnce } from '../../services/media/mediaCache/cacheWorker';
 import {
   MEDIA_CACHE_EVICTION_CONCURRENCY,
   MEDIA_CACHE_WORKER_CONCURRENCY,
-} from '../../services/mediaCache/constants';
-import { runEvictionOnce } from '../../services/mediaCache/evictionJob';
+} from '../../services/media/mediaCache/constants';
+import { runEvictionOnce } from '../../services/media/mediaCache/evictionJob';
 
 /** An upstream image response the download step accepts. */
 function imageResponse(bytes: Buffer) {

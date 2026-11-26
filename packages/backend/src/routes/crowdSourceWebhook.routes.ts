@@ -6,7 +6,7 @@ import {
   recordIgnoredEvent,
 } from '../services/moderation/ModerationInboundService';
 import { moderationProcessedEventStore } from '../services/moderation/moderationEventStore';
-import { invalidateShownNote } from '../services/communityNotes/CommunityNotesService';
+import { invalidateShownNote } from '../services/moderation/communityNotes/CommunityNotesService';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 

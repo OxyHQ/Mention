@@ -27,8 +27,8 @@ import {
   hydrateCommerceReferences,
   resolveMercariaCollection,
   resolveMercariaStore,
-} from '../../../services/commerce/mercariaHydration';
-import { commerceLinksByPost } from '../../../services/commerce/federationLinks';
+} from '../../../services/monetization/commerce/mercariaHydration';
+import { commerceLinksByPost } from '../../../services/monetization/commerce/federationLinks';
 import { logger } from '../../../utils/logger';
 
 import { connectPostgres, closePostgres } from '../../../db/postgres';

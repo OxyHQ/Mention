@@ -10,7 +10,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * `Post.collection.insertMany`, on purpose. That is why every enrichment used to
  * have to be remembered here separately — and why media metadata, and then link
  * previews, were each added to the native route and forgotten on this one. Both
- * routes now converge on `enrichIngestedPosts` (`services/postEnrichment/`), and
+ * routes now converge on `enrichIngestedPosts` (`services/posts/postEnrichment/`), and
  * `services/postEnrichmentParity.test.ts` pins that they cannot drift again.
  *
  * These pin, per federated route:
@@ -86,11 +86,11 @@ vi.mock('../../../utils/clarityClient', () => ({
   getClarityClient: async () => ({ indexing: { resolve: mocks.resolveDocuments } }),
 }));
 
-vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
 }));
 
-vi.mock('../../../services/mediaCache/cacheStore', () => ({
+vi.mock('../../../services/media/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 
