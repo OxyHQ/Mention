@@ -147,7 +147,7 @@
     "@oxy.so/bloom-avatar-native": "0.1.2",
     "@oxy.so/bloom-data": "0.1.2",
     "@oxy.so/bloom-language": "1.6.0",
-    "@oxy.so/bloom-language-compiler": "file:/home/nate/.local/share/bloom-lang/proof/packs/bloom-language-compiler-1.4.0-local-7a816e3.tgz",
+    "@oxy.so/bloom-language-compiler": "1.6.0",
     "@oxy.so/bloom-lens": "1.2.0",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
