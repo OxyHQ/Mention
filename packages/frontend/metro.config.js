@@ -118,6 +118,13 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
   };
 }
 
+// DEV ONLY: the Bloom language proof app (`__perf__/lang-proof/README.md`). With
+// `BLOOM_LANG_PROOF=1` the notification-settings screen reads deterministic
+// stand-ins for its three app hooks; without it this config is unchanged.
+if (process.env.BLOOM_LANG_PROOF === '1') {
+  require('./__perf__/lang-proof/metro').withProofStandIns(config, __dirname);
+}
+
 // The Bloom language compiler (`@oxy.so/bloom-language-compiler`): a pre-pass in
 // front of the transform worker above (react-native-css's, which wraps Expo's),
 // so the Babel config stays Expo's default and Noxcturnal and the React Compiler
