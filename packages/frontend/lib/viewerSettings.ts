@@ -2,7 +2,7 @@ import { type QueryClient, queryOptions } from '@tanstack/react-query';
 import type { ExternalEmbedsSettings } from '@mention/shared-types';
 import type { FeedSettings } from '@/hooks/useFeedSettings';
 import type { UserAppearance } from '@/stores/appearanceStore';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, accountCacheWriter } from '@/lib/queryClient';
 import { viewerQueryKeys, type ViewerId } from '@/lib/viewerQueryKeys';
 import { authenticatedClient, isNotFoundError } from '@/utils/api';
 
@@ -103,8 +103,10 @@ export async function saveViewerSettings(
   patch: Record<string, unknown>,
   client: QueryClient = queryClient,
 ): Promise<UserSettingsResponse> {
+  // Bound to the account saving: an answer after a switch is not cached.
+  const write = accountCacheWriter(client);
   const response = await authenticatedClient.put<UserSettingsResponse>('/profile/settings', patch);
   const saved = response.data ?? {};
-  client.setQueryData(viewerQueryKeys.settings(viewerId), saved);
+  write.setQueryData(viewerQueryKeys.settings(viewerId), saved);
   return saved;
 }

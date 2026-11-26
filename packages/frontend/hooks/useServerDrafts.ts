@@ -4,6 +4,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import type { HydratedPost } from '@mention/shared-types';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { draftsService } from '@/services/draftsService';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 const SERVER_DRAFTS_STALE_TIME = 30_000;
 
@@ -68,11 +69,12 @@ export function useServerDrafts(): UseServerDraftsResult {
   // mutations share one optimistic removal.
   const removeOptimistically = useCallback(
     async (postId: string): Promise<RemovalContext> => {
+      const write = accountCacheWriter(queryClient);
       // A read already in flight would land after the removal and put the row
       // straight back.
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<HydratedPost[]>(queryKey);
-      queryClient.setQueryData<HydratedPost[]>(queryKey, (current) =>
+      write.setQueryData<HydratedPost[]>(queryKey, (current) =>
         current?.filter((post) => post.id !== postId),
       );
       return { previous };

@@ -28,6 +28,7 @@ import {
 } from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
+import { accountCacheWriter } from '@/lib/queryClient';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 /** How long typing settles before it becomes a new query key. */
@@ -206,10 +207,12 @@ export default screen(function LabelersScreen() {
       }
     },
     onMutate: async ({ id, currentlySubscribed }) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       setSubscribingIds((prev) => new Set(prev).add(id));
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<Labeler[]>(queryKey);
-      queryClient.setQueryData<Labeler[]>(queryKey, (current) =>
+      write.setQueryData<Labeler[]>(queryKey, (current) =>
         (current ?? []).map((l) =>
           String(l._id || l.id) === id
             ? {

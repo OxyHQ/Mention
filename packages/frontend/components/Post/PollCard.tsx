@@ -20,6 +20,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 const logger = createLogger('PollCard');
 
@@ -99,11 +100,12 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
     if (hasVoted && !poll?.isMultipleChoice) return;
     try {
       setVoting(true);
+      const write = accountCacheWriter(queryClient);
       // Apply the vote's own response directly — it is already the poll's
       // canonical post-vote state, so a second GET right behind it only ever
       // reread what this response already carried.
       const { data } = await pollService.vote(pollId, optionId);
-      queryClient.setQueryData(queryKey, data);
+      write.setQueryData(queryKey, data);
     } catch (err) {
       logger.error('Failed to record vote', err);
       const message =

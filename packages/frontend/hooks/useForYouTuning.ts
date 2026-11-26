@@ -6,6 +6,7 @@ import type { ForYouFeedTuning } from '@mention/shared-types';
 import { feedTuningService } from '@/services/feedTuningService';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 export interface UseForYouTuning {
   /** The viewer's stored For You tuning (empty ⇒ config-default gate). */
@@ -48,9 +49,11 @@ export function useForYouTuning(): UseForYouTuning {
   >({
     mutationFn: (next) => feedTuningService.update(next),
     onMutate: async (next) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<ForYouFeedTuning>(queryKey);
-      queryClient.setQueryData<ForYouFeedTuning>(queryKey, next);
+      write.setQueryData<ForYouFeedTuning>(queryKey, next);
       return { previous, viewerId: user?.id };
     },
     onError: (error, _next, context) => {

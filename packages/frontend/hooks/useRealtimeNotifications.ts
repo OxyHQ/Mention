@@ -20,6 +20,7 @@ import {
   type NotificationsInfiniteData,
 } from '@/utils/notificationCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { captureAccount } from '@/lib/accountScope';
 
 const logger = createLogger('useRealtimeNotifications');
 
@@ -79,6 +80,9 @@ export const useRealtimeNotifications = () => {
       });
 
       const listKey = viewerQueryKeys.notifications(userId);
+      // The account this socket was opened for: once the session moves on, a
+      // queued patch is dropped even before this effect replaces the socket.
+      const account = captureAccount();
 
       // Every cache patch runs in arrival order. The first event waits for the
       // validators to load (`loadNotificationValidation`), so later events queue
@@ -92,7 +96,7 @@ export const useRealtimeNotifications = () => {
           pending = pending
             .then(loadNotificationValidation)
             .then((validation) => {
-              if (socket === current) apply(validation, ...args);
+              if (socket === current && account.isCurrent()) apply(validation, ...args);
             })
             .catch((error: unknown) => {
               logger.warn('Dropped a realtime notification event', { error });

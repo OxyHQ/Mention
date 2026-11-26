@@ -18,6 +18,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 interface PresenceOption {
   value: LiveVisibility;
@@ -65,9 +66,11 @@ export default function LivePresenceScreen() {
   const mutation = useMutation({
     mutationFn: updateLivePresencePreference,
     onMutate: async (next: LiveVisibility) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       await queryClient.cancelQueries({ queryKey: livePresenceQueryKey });
       const previous = queryClient.getQueryData<LiveVisibility>(livePresenceQueryKey);
-      queryClient.setQueryData<LiveVisibility>(livePresenceQueryKey, next);
+      write.setQueryData<LiveVisibility>(livePresenceQueryKey, next);
       return { previous };
     },
     onError: (_error, _next, context) => {

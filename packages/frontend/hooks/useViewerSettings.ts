@@ -8,6 +8,7 @@ import {
   viewerSettingsQuery,
   type UserSettingsResponse,
 } from '@/lib/viewerSettings';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 /** The viewer's settings, read once the private API is usable. */
 function useViewerSettings() {
@@ -34,16 +35,20 @@ export function useViewerSettingsSection<K extends MergedSection>(section: K) {
   const update = useCallback(
     async (patch: Partial<NonNullable<UserSettingsResponse[K]>>) => {
       const queryKey = viewerQueryKeys.settings(viewerId);
+      // The account this edit is for: after an await it may be gone.
+      const write = accountCacheWriter(client);
       await client.cancelQueries({ queryKey });
       const previous = client.getQueryData<UserSettingsResponse>(queryKey);
-      updateCachedViewerSettings(client, viewerId, (current) => ({
-        ...current,
-        [section]: { ...current[section], ...patch },
-      }));
+      write.run((current) =>
+        updateCachedViewerSettings(current, viewerId, (settings) => ({
+          ...settings,
+          [section]: { ...settings[section], ...patch },
+        })),
+      );
       try {
         await saveViewerSettings(viewerId, { [section]: patch }, client);
       } catch (error) {
-        client.setQueryData(queryKey, previous);
+        write.setQueryData(queryKey, previous);
         throw error;
       }
     },

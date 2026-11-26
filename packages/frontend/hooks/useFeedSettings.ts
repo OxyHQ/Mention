@@ -12,6 +12,7 @@ import {
   viewerSettingsQuery,
   type UserSettingsResponse,
 } from '@/lib/viewerSettings';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 export interface FeedSettings {
   following: { sort: FollowingFeedSort };
@@ -123,10 +124,12 @@ export function useFeedSettings(): UseFeedSettings {
   >({
     mutationFn: (next) => saveViewerSettings(viewerId, { feedSettings: next }, queryClient),
     onMutate: async (next) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       const queryKey = viewerSettingsQuery(viewerId).queryKey;
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<UserSettingsResponse>(queryKey);
-      paint(next);
+      write.run(() => paint(next));
       return { previous, viewerId };
     },
     onError: (error, _next, context) => {

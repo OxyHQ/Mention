@@ -25,8 +25,9 @@
  *   `isCurrent()` (or writes through `accountCacheWriter`).
  *
  * Mention's persisted data is not here: posts and feeds live in the account's
- * own bloom-data store (`data/accounts.ts`), opened by `AccountSwitchReset`,
- * and the link-preview cache is claimed per viewer (`db/cacheLifecycle.ts`).
+ * own bloom-data store (`data/accounts.ts`, one file per account), opened by
+ * `AccountSwitchReset` and deleted on sign-out (`onSignedOut`), and the
+ * link-preview cache is claimed per viewer (`db/cacheLifecycle.ts`).
  */
 
 import { defaultScheduler, notifyManager, type QueryClient } from '@tanstack/react-query';
@@ -111,12 +112,22 @@ export function activateAccount(next: string | null, queryClient: QueryClient): 
 /**
  * Keep the scope on the runtime's subject: activated now, and again from the
  * runtime's notification on every change, synchronously, before any component
- * woken by it renders. Returns the disposer (the provider unmounting).
+ * woken by it renders. `onSignedOut` hears an account leaving for nobody (a
+ * sign-out, not a switch), after its queries are gone: Mention deletes the
+ * account's stored data then, as Services does its own. Returns the disposer
+ * (the provider unmounting).
  */
-export function followOxyRuntime(runtime: SubjectSource, queryClient: QueryClient): () => void {
+export function followOxyRuntime(
+  runtime: SubjectSource,
+  queryClient: QueryClient,
+  onSignedOut?: (accountId: string) => void,
+): () => void {
   const sync = () => {
     const id = runtime.getSnapshot().account?.id?.trim();
-    activateAccount(id ? id : null, queryClient);
+    const previous = accountId;
+    const next = id ? id : null;
+    activateAccount(next, queryClient);
+    if (next === null && previous !== null) onSignedOut?.(previous);
   };
   const unsubscribe = runtime.subscribe(sync);
   sync();

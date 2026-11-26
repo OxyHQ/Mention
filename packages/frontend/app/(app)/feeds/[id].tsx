@@ -62,6 +62,7 @@ import { logger } from '@oxy.so/core/logger';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 import { screen } from '@oxy.so/bloom-language/router';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';
 
@@ -672,9 +673,11 @@ const CustomFeedTimelineScreen = screen(function CustomFeedTimelineScreen() {
     mutationFn: (nextSubscribed: boolean) =>
       nextSubscribed ? customFeedsService.likeFeed(feedId) : customFeedsService.unlikeFeed(feedId),
     onMutate: async (nextSubscribed) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       await queryClient.cancelQueries({ queryKey: feedQueryKey });
       const previous = queryClient.getQueryData<CustomFeedDetail>(feedQueryKey);
-      queryClient.setQueryData<CustomFeedDetail>(feedQueryKey, (current) =>
+      write.setQueryData<CustomFeedDetail>(feedQueryKey, (current) =>
         current
           ? {
               ...current,

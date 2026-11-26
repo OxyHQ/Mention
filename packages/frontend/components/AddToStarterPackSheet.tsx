@@ -24,6 +24,7 @@ import {
   toElement,
   VStack,
 } from '@oxy.so/bloom-language';
+import { accountCacheWriter } from '@/lib/queryClient';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 const logger = createLogger('AddToStarterPackSheet');
@@ -124,6 +125,8 @@ export function AddToStarterPackSheet({
       if (row.pending) return;
       const willAdd = !row.hasUser;
       const previous = queryClient.getQueryData<StarterPackCollection>(packsQueryKey);
+      // The account this toggle is for: after an await it may be gone.
+      const write = accountCacheWriter(queryClient);
 
       // Optimistic: flip membership in the cache and disable the row.
       setPendingIds((prev) => new Set(prev).add(row.id));
@@ -164,11 +167,11 @@ export function AddToStarterPackSheet({
           );
         }
         // Revalidate against server truth after a successful membership change.
-        queryClient.invalidateQueries({ queryKey: packsQueryKey });
+        write.run((client) => client.invalidateQueries({ queryKey: packsQueryKey }));
       } catch (e) {
         logger.error('Starter pack membership toggle failed', e);
         // Revert optimistic cache state.
-        if (previous) queryClient.setQueryData(packsQueryKey, previous);
+        if (previous) write.setQueryData(packsQueryKey, previous);
         toast(
           readServerError(e) ??
             t('starterPacks.addTo.toggleFailed', { defaultValue: 'Something went wrong' }),

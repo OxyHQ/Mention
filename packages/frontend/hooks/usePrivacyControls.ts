@@ -4,6 +4,7 @@ import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { queryClient } from '@/lib/queryClient';
 import { type ViewerId, viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { currentAccountId } from '@/lib/accountScope';
 
 /** Blocks and restrictions change rarely and every write updates the entry. */
 const PRIVACY_LISTS_STALE_TIME_MS = 2 * 60 * 1000;
@@ -87,6 +88,9 @@ export function setPrivacyListMembership(
   userId: string,
   member: boolean,
 ): void {
+  // Written once the server accepted it: by then the session may be another
+  // account's, whose lists this must not touch.
+  if ((viewerId?.trim() || null) !== currentAccountId()) return;
   queryClient.setQueryData<PrivacyLists>(viewerQueryKeys.privacyLists(viewerId), (current) => {
     if (!current) return current;
     const key = list === 'blocked' ? 'blockedIds' : 'restrictedIds';

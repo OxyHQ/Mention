@@ -47,6 +47,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 const PAGE_LIMIT = 50;
 const SKELETON_ROWS = 6;
@@ -100,10 +101,12 @@ export default function ActivitySubscriptionsScreen() {
     // instantly. `onError` restores the exact snapshot rather than re-inserting,
     // which would put the row back in the wrong position.
     onMutate: async ({ authorId, viewerId }: UnsubscribeAction) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       const queryKey = viewerQueryKeys.subscriptions(viewerId);
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<SubscriptionPages>(queryKey);
-      queryClient.setQueryData<SubscriptionPages>(queryKey, (prev) => {
+      write.setQueryData<SubscriptionPages>(queryKey, (prev) => {
         if (!prev) return prev;
         return {
           ...prev,

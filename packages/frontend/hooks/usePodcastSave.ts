@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { getSyraClient } from '@/lib/syraPodcasts';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 const logger = createLogger('PodcastSave');
 
@@ -52,9 +53,11 @@ export function usePodcastSave(syraPodcastId: string | undefined): {
       else await client.unsubscribeFromPodcast(id);
     },
     onMutate: async ({ id, save }) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<string[]>(queryKey);
-      queryClient.setQueryData<string[]>(queryKey, (ids = []) =>
+      write.setQueryData<string[]>(queryKey, (ids = []) =>
         save ? (ids.includes(id) ? ids : [...ids, id]) : ids.filter((existing) => existing !== id),
       );
       return { previous };

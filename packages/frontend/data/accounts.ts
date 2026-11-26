@@ -32,3 +32,13 @@ export function openAccountData(viewerCacheId: string): Store {
   if (store !== opened) withStore(store, () => Feed.loadNow(HOME_FEED));
   return store;
 }
+
+/**
+ * Deletes a signed-out account's posts and feeds from this device: closes its
+ * store if it is the open one, then deletes its durable copy. For sign-out
+ * only (Services does the same for its own records), so nothing of the
+ * account stays behind; a switch keeps the account's copy for its return.
+ */
+export function forgetAccountData(viewerCacheId: string): Promise<void> {
+  return accounts.forget(viewerCacheId);
+}

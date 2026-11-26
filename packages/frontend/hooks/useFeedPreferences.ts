@@ -12,6 +12,7 @@ import { useAgeProtections } from '@/hooks/useAgeProtections';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { accountCacheWriter } from '@/lib/queryClient';
 
 /**
  * The read-only default layout for anonymous viewers: the non-auth presets in
@@ -104,10 +105,12 @@ export function useFeedPreferences(): UseFeedPreferences {
   >({
     mutationFn: (next) => feedPreferencesService.update(next),
     onMutate: async (next) => {
+      // The account this write is for: after the await it may be gone.
+      const write = accountCacheWriter(queryClient);
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<FeedPreferences>(queryKey);
       // A newly pinned custom feed has no title until the refetch below.
-      queryClient.setQueryData<FeedPreferences>(queryKey, {
+      write.setQueryData<FeedPreferences>(queryKey, {
         ...previous,
         savedFeeds: next,
       });
