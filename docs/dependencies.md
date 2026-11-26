@@ -53,16 +53,13 @@ move it when the reason goes away.
   peers `^2.2.0` (`@oxy.so/core`, `@oxy.so/services` and `@oxy.so/protocol`
   already accept 3).
 - `react-native-audio-api` stays on 0.13: `@gemies/sdk` peers `^0.13.6`.
-- `nativewind` 5.0.0-rc.0 and `react-native-css` 3.1.0-rc.0: `@oxy.so/bloom`
-  depends on `react-native-css` 3.1.0-rc.0 exactly and peers `nativewind`
-  `>=5.0.0 || 5.0.0-rc.0`.
 - `metro` and its packages stay on 0.87.1: `@expo/metro` 58.0.0 pins Metro
   0.87.1 exactly, and Metro 0.87.2 calls `addRoot()` on the file map, which
   Expo's `@expo/metro-file-map` does not have (`expo export` fails with
   `this._haste.addRoot is not a function`).
-- `lightningcss` stays on 1.30.1: `react-native-css` 3.1.0-rc.0 still fails
-  native bundling on 1.33.0 with "failed to deserialize; expected an
-  object-like struct named Specifier".
+- `lightningcss` stays on 1.30.1: Expo's own CSS support compiles
+  `global.css` with it; a move is checked with a web export first (it was
+  pinned for `react-native-css`, which Mention no longer has).
 - `jest-environment-jsdom` stays on 29.7.0 (above).
 
 ESLint is on 10 although `eslint-plugin-react` (7.37.5, its latest) still

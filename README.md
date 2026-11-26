@@ -44,7 +44,7 @@ The interface is built with [**Bloom**](https://github.com/OxyHQ/Bloom). Live au
 
 | Package                 | Path                                               | What it holds                                                                                                                   |
 | ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `@mention/frontend`     | [`packages/frontend`](./packages/frontend)         | Expo Router app for iOS, Android and web. Expo 57, React Native 0.86, React 19, NativeWind, TanStack Query, Zustand             |
+| `@mention/frontend`     | [`packages/frontend`](./packages/frontend)         | Expo Router app for iOS, Android and web. Expo 57, React Native 0.86, React 19, Bloom, TanStack Query, Zustand                  |
 | `@mention/backend`      | [`packages/backend`](./packages/backend)           | Express 5 API over PostgreSQL (Drizzle ORM) and Valkey, Socket.IO, background workers, ActivityPub federation and the web shell |
 | `@mention/shared-types` | [`packages/shared-types`](./packages/shared-types) | The request and response contracts that both sides compile against                                                              |
 | `@mention/mcp`          | [`packages/mcp`](./packages/mcp)                   | Model Context Protocol server, remote over HTTP and local over stdio                                                            |
@@ -162,7 +162,7 @@ Reports go to [**CrowdSource**](https://github.com/OxyHQ/CrowdSource), which dra
 | [Performance budgets](./docs/PERFORMANCE_BUDGETS.md)           | What is measured today, what is instrumented but unheld, what is missing                   |
 | [Compose intent URLs](./docs/compose-intent.mdx)               | Linking into the composer from outside the app                                             |
 | [User mentions](./docs/mentions.md)                            | How handles resolve, local and federated                                                   |
-| [Theming](./docs/THEMING.md)                                   | Bloom and NativeWind in this app                                                           |
+| [Theming](./docs/THEMING.md)                                   | Bloom in this app                                                                          |
 | [MCP server](./packages/mcp/README.md)                         | Connecting Claude through central Oxy OAuth, account binding, and the tool list            |
 | [Compatibility retirement](./docs/COMPATIBILITY_RETIREMENT.md) | What we removed and why                                                                    |
 

@@ -9,7 +9,6 @@ import { preventNativeSplashAutoHide } from '@oxy.so/expo-splash';
 import { useEffect, useState } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { BloomProvider } from '@oxy.so/bloom/provider';
-import { BloomNativeWindTheme } from '@oxy.so/app-preset/nativewind-theme';
 import { AVATAR_RUNTIME_REVISION } from '@oxy.so/bloom-avatar-native/runtime-revision';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { useBackWithFallback } from '@oxy.so/bloom/panel-routing/expo-router';
@@ -47,7 +46,8 @@ import { initializeWebTelemetry } from '@/lib/webTelemetry';
 import { registerPendingDocuments } from '@/stores/pendingDocuments';
 import { startHomeFeedBootRead } from '@/lib/bootFeedRead';
 
-// Styles
+// The web document's stylesheet: the element reset and the document font
+// (a no-op on native).
 import '../global.css';
 
 // Install the app's level + scrubbing sink on the shared SDK logger before any
@@ -183,63 +183,58 @@ export default function RootLayout() {
         // because the held OS splash is already covering the screen.
         onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}
       >
-        {/* Bloom styles without NativeWind. The classes NativeWind still draws (the
-            Oxy, Syra and Peable SDKs' screens) read Bloom's tokens through this on
-            native: the theme's, and each colour scope's inside it. */}
-        <BloomNativeWindTheme>
-          <AppProviders oxyServices={oxyServices} queryClient={queryClient} onAskAlia={openAlia}>
-            {appIsReady ? (
-              <>
-                {Platform.OS !== 'web' && (
-                  <NotificationPermissionGate
-                    permission={notificationPermission}
-                    storage={AsyncStorage}
-                    // The key the pre-Bloom gate wrote, so people who already saw it are not asked again.
-                    storageKey={STORAGE_KEYS.NOTIFICATION_EDUCATION_SHOWN}
-                  />
-                )}
-                <PortalProvider>
-                  {/* Wraps the OUTLET too: the Settings modal is portalled into
+        <AppProviders oxyServices={oxyServices} queryClient={queryClient} onAskAlia={openAlia}>
+          {appIsReady ? (
+            <>
+              {Platform.OS !== 'web' && (
+                <NotificationPermissionGate
+                  permission={notificationPermission}
+                  storage={AsyncStorage}
+                  // The key the pre-Bloom gate wrote, so people who already saw it are not asked again.
+                  storageKey={STORAGE_KEYS.NOTIFICATION_EDUCATION_SHOWN}
+                />
+              )}
+              <PortalProvider>
+                {/* Wraps the OUTLET too: the Settings modal is portalled into
                     the outlet, so its pages render there, not where the
                     modal is declared. With the outlet outside, every page that
                     reads the settings context crashed on native (#1126). */}
-                  <MentionSettingsProvider>
-                    {/* The app's own screens, and ONLY them: while a modal Bloom
+                <MentionSettingsProvider>
+                  {/* The app's own screens, and ONLY them: while a modal Bloom
                       surface (settings, a dialog, the media viewer) is open,
                       the boundary hides this subtree from TalkBack/VoiceOver
                       and makes it inert on web. The surfaces render at the
                       outlet below, so wrapping the outlet would hide them
                       too (#1126). */}
-                    {/* Alia's one sheet for the whole app, loaded on first use. It
+                  {/* Alia's one sheet for the whole app, loaded on first use. It
                       sits beside the inert boundary, not in it, and portals into
                       the outlet below. */}
-                    <MentionAskProvider askRef={aliaRef}>
-                      <OverlayInertBoundary>
-                        <AuthRouter />
-                      </OverlayInertBoundary>
-                    </MentionAskProvider>
-                    <PortalOutlet />
-                    {/* The shared media surface that carries a playing video across a
+                  <MentionAskProvider askRef={aliaRef}>
+                    <OverlayInertBoundary>
+                      <AuthRouter />
+                    </OverlayInertBoundary>
+                  </MentionAskProvider>
+                  <PortalOutlet />
+                  {/* The shared media surface that carries a playing video across a
                       route change. Renders null whenever nothing is in flight, so it
                       costs nothing here and never competes with the portal outlet
                       above it. It must sit at the ROOT: a flight outlives the screen
                       that started it, which is the entire point. */}
-                    <MediaFlightLayer />
-                    {/* Last, so it lays out in the same commit as the first screen. */}
-                    {Platform.OS !== 'web' && <NativeSplashRelease />}
-                  </MentionSettingsProvider>
-                </PortalProvider>
-              </>
-            ) : Platform.OS === 'web' ? (
-              // WEB: the static splash covers initialization and unmounts the moment
-              // it completes; no animation stands between readiness and the route
-              // tree. Identity and cache ownership are gated below this point, by
-              // `AccountSwitchReset` and `AuthRouter`. NATIVE renders null here —
-              // the held OS splash is on top, so nothing underneath needs to paint.
-              <AppSplashScreen />
-            ) : null}
-          </AppProviders>
-        </BloomNativeWindTheme>
+                  <MediaFlightLayer />
+                  {/* Last, so it lays out in the same commit as the first screen. */}
+                  {Platform.OS !== 'web' && <NativeSplashRelease />}
+                </MentionSettingsProvider>
+              </PortalProvider>
+            </>
+          ) : Platform.OS === 'web' ? (
+            // WEB: the static splash covers initialization and unmounts the moment
+            // it completes; no animation stands between readiness and the route
+            // tree. Identity and cache ownership are gated below this point, by
+            // `AccountSwitchReset` and `AuthRouter`. NATIVE renders null here —
+            // the held OS splash is on top, so nothing underneath needs to paint.
+            <AppSplashScreen />
+          ) : null}
+        </AppProviders>
       </BloomProvider>
     </>
   );

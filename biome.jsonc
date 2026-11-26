@@ -50,7 +50,6 @@
   },
   "json": { "formatter": { "trailingCommas": "none" } },
   "yaml": { "formatter": { "quoteStyle": "single" } },
-  "css": { "parser": { "tailwindDirectives": true } },
   "assist": { "enabled": true, "actions": { "source": { "organizeImports": "off" } } },
   "linter": {
     "enabled": true,

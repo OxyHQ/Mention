@@ -1110,8 +1110,10 @@ function VideoStatus({
   const bottomInset = useVideoContentBottomInset();
   return (
     <View
-      className="native:flex-1 web:min-h-[var(--bloom-screen-viewport-height)] items-center justify-center"
-      style={isLoading ? undefined : { padding: 24, paddingBottom: bottomInset + 24 }}
+      style={[
+        classStyles.videoStatus,
+        isLoading ? undefined : { padding: 24, paddingBottom: bottomInset + 24 },
+      ]}
       testID="videos-status"
     >
       {isLoading ? (
@@ -2043,6 +2045,22 @@ const classStyles = {
     Platform.OS === 'web'
       ? { width: '100%' }
       : { width: '100%', flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  // `native:flex-1 web:min-h-[var(--bloom-screen-viewport-height)] items-center justify-center`
+  videoStatus:
+    Platform.OS === 'web'
+      ? {
+          // Bloom's screen writes the variable; react-native-web passes it through.
+          minHeight: 'var(--bloom-screen-viewport-height)' as ViewStyle['minHeight'],
+          alignItems: 'center',
+          justifyContent: 'center',
+        }
+      : {
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: '0%',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
 } satisfies Record<string, ViewStyle>;
 
 const styles = StyleSheet.create({

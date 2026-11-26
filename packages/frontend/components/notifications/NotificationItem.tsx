@@ -74,9 +74,9 @@ const logger = createLogger('NotificationItem');
 type GroupedActor = GroupedNotification['actors'][number];
 
 // The avatar column mirrors the feed post anatomy (single source of truth:
-// POST_ITEM_SPACING). AVATAR_SIZE = 40. The row's horizontal padding (HPAD = 12
-// → px-3), vertical padding (VPAD = 12 → py-3) and avatar gap (AVATAR_GAP = 12 →
-// mr-3) are expressed as NativeWind classes below so the row reads like a post.
+// POST_ITEM_SPACING). AVATAR_SIZE = 40. The row's horizontal and vertical
+// padding and the avatar gap (12 each) match the post's, so the row reads like
+// a post.
 const AVATAR_SIZE = POST_ITEM_SPACING.AVATAR_SIZE;
 
 // The action badge FILL is themed (the descriptor's colour role); this white glyph

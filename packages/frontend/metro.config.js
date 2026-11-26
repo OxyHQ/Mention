@@ -2,10 +2,10 @@
 // folder and block list (backend, docs, `.worktrees/`, `.claude/worktrees/`,
 // caches and tests), symlink + package-exports resolution, the `.wasm` /
 // `.woff2` / `.woff` asset extensions (Bloom imports its web fonts straight from
-// JS), the release minifier, NativeWind, the Bloom single-instance rewrite and
-// the complete `react-native` shim NativeWind needs on React Native 0.88
-// (`AssetRegistry`; without it every `useFonts` fails and an Android release
-// renders a blank window).
+// JS), the release minifier and the Bloom single-instance rewrite. Mention has
+// no NativeWind (no `nativewind` dependency), so the preset applies no
+// NativeWind wrapper and every `View` and `Text` is React Native's own;
+// `global.css` is plain CSS that Expo compiles itself.
 //
 // The minifier settings are WEB ONLY. Metro skips the JS minifier whenever the
 // transform profile is `hermes-stable`/`hermes-canary` (the `const minify =
@@ -17,9 +17,6 @@ const { createOxyMetroConfig } = require('@oxy.so/app-preset/metro');
 
 const config = createOxyMetroConfig(__dirname, {
   sharedTypesPackage: '@mention/shared-types',
-  // NativeWind (v5) entry, imported by `app/_layout.tsx`. This is the preset's
-  // default; it is named so the file the stylesheet comes from is visible here.
-  cssInput: './global.css',
   // Strips `console.*` from the production web bundle (27 KB across the 105
   // chunks). Safe because the app's only console sink (`lib/logging`, on the
   // shared `@oxy.so/core/logger`) resolves to level `silent` outside
@@ -107,7 +104,7 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
       return resolve(context, source, platform);
     }
     // Library worktrees have their own installs. Share the app's React, RN,
-    // NativeWind/worklets and every other bare peer through the existing preset.
+    // worklets and every other bare peer through the existing preset.
     const externalSource = sourceRoots.some((root) => context.originModulePath.startsWith(root));
     const bare = !moduleName.startsWith('.') && !path.isAbsolute(moduleName);
     return resolve(

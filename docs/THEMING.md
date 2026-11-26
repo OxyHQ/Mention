@@ -23,13 +23,14 @@ function Example() {
 
 Use semantic values such as `background`, `card`, `text`, `textSecondary`,
 `border`, `primary` and `error`. Do not copy their literal color values into
-components. Prefer Bloom components and semantic NativeWind utilities such as
-`bg-background`, `bg-card`, `text-foreground` and
-`text-muted-foreground` when they fit the component.
+components. Prefer Bloom components (and the Bloom language) over hand-styled
+views; a style that needs a colour takes it from `useTheme()` or
+`createTokenStyles` (`@oxy.so/bloom/theme`). Mention has no NativeWind or
+Tailwind: nothing takes a `className`.
 
 ## Chrome that matches its surface
 
-`bg-card` is a palette token: the colour a CARD paints. It is the wrong answer
+`colors.card` is a palette token: the colour a CARD paints. It is the wrong answer
 for chrome whose only job is to be opaque in the colour of whatever it is
 sitting on — the feed column, a sticky tab bar or header, a pinned reply
 composer, the profile banner fade. Those ask instead:
@@ -57,16 +58,11 @@ here passes `variant`.
 
 ## Design tokens
 
-`packages/frontend/global.css` imports the canonical token sheet:
-
-```css
-@import "@oxy.so/bloom/design-tokens/theme.css";
-```
-
-Keep that import after Tailwind and NativeWind imports. Bloom's file is the
-source of truth for colors, radii, spacing and typography. Mention's local
-`@theme` block is only for genuine app aliases; never paste Bloom token scales
-into it.
+Bloom is the source of truth for colors, radii, spacing and typography, read at
+runtime (`useTheme()`, the language's tokens). `packages/frontend/global.css`
+is plain CSS for the web document only: the element reset and the document's
+font (without it raw text falls back to the browser's serif), the boot canvas
+and the document-scroll rules. Never paste Bloom token scales into it.
 
 ## User and profile colors
 

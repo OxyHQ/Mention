@@ -114,9 +114,6 @@ updates:
       - dependency-name: 'react-native-reanimated'
       - dependency-name: 'react-native-worklets'
       - dependency-name: 'react-native-worklets-core'
-      - dependency-name: 'nativewind'
-      - dependency-name: 'tailwindcss'
-      - dependency-name: '@tailwindcss/*'
       - dependency-name: 'lightningcss'
       - dependency-name: 'lightningcss-*'
       # AI SDK — intentionally pinned (breaking changes between minors).

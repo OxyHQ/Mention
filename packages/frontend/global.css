@@ -1,79 +1,313 @@
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/preflight.css" layer(base);
-@import "tailwindcss/utilities.css";
-@import "nativewind/theme";
-
-/* Bloom canonical design tokens (RADIUS scale, spacing, typography, color
-   aliases). Single source of truth = @oxy.so/bloom/design-tokens theme.css,
-   generated from bloomThemeCss(). Bloom components (e.g. ContentPanel from
-   @oxy.so/bloom/content-panel) emit `rounded-radius-28` literal utilities that
-   resolve from these `--radius-*` namespace tokens. Imported instead of
-   hand-copied so it stays in sync with the published package. Mention's own
-   `@theme` block below runs AFTER this import, so app-local aliases win on any
-   overlap. */
-@import "@oxy.so/bloom/design-tokens/theme.css";
-
-@source "./app/**/*.{js,jsx,ts,tsx}";
-@source "./components/**/*.{js,jsx,ts,tsx}";
-@source "./lib/**/*.{js,jsx,ts,tsx}";
-@source "./hooks/**/*.{js,jsx,ts,tsx}";
-@source "../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
-@source "../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
-/* The live-rooms UI (RoomCard, the room sheets) ships NativeWind classNames from
-   the Syra SDK, so Tailwind has to scan that package too or those utilities are
-   never generated. Measured on 2026-09-22 by building this file with
-   `@tailwindcss/postcss`: without this line `rounded-[4px]` and `border-surface`
-   — the two classes only Syra ships — are ABSENT from the output. */
-@source "../../node_modules/@syra.fm/sdk/lib/**/*.{js,jsx}";
-
-/* Colour utilities (`bg-card`, `bg-primary`, `text-muted-foreground`, …) come
-   from Bloom's imported theme.css — the single source of truth — so they are
-   NOT re-declared here. Per-app duplication is exactly what let `--color-card`
-   drift to `var(--surface)` (card === surface no longer holds: card is the
-   lightest surface). */
-@theme {
-  /* Shell breakpoints, as CSS.
-
-     `hooks/useOptimizedMediaQuery.ts` already draws the line: a JS width read is
-     for MOUNT gates and data-level decisions, and "pure show/hide and pure
-     styling differences use NativeWind responsive classes — NOT these hooks".
-     Naming the widths here is what lets the shell keep that rule instead of
-     re-rendering on every resize frame to pick a class name.
-
-     The numbers are the hook's, unchanged. */
-  --breakpoint-shell: 500px;
-
-  /* The LAYERED value, outranked by the unlayered `:root` rule below. It
-     registers the token, which is what makes the `font-sans` utility exist. */
-  --font-sans: var(--bloom-font-sans);
-
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-}
-
+/* Mention's document stylesheet on the web (a no-op import on native).
+ *
+ * Plain CSS, compiled by Expo's own CSS support: there is no Tailwind, PostCSS
+ * or NativeWind here any more. First the element reset the web export carried
+ * while Tailwind's preflight was compiled into this file (tailwindcss v4,
+ * MIT License, https://tailwindcss.com), kept rule for rule so removing
+ * NativeWind changes nothing on screen (the same reset as Inbox's):
+ *
+ * - The document's font. react-native-web gives a React Native `Text` that names
+ *   no family `font-family: inherit`, so text that Bloom does not draw takes it
+ *   from the document. Without these rules it is the browser's serif.
+ * - Raw DOM resets (margins, lists, headings, form controls, media) for the
+ *   elements react-native-web does not style itself: the composer's
+ *   contentEditable content, Bloom's own buttons and inputs, embeds.
+ *
+ * The reset stays in `@layer base`, as it was, so react-native-web's and
+ * Bloom's unlayered styles keep winning over it. Mention's own document rules
+ * follow it, unlayered. */
 @layer base {
-  :root {
-    --radius: 1rem;
+  *,
+  ::after,
+  ::before,
+  ::backdrop {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+
+  ::file-selector-button {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  :host {
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    line-height: 1.5;
+    font-family: var(
+      --bloom-font-sans,
+      Inter,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      sans-serif
+    );
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  hr {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+
+  abbr:where([title]) {
+    text-decoration: underline dotted;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  a {
+    color: inherit;
+    -webkit-text-decoration: inherit;
+    text-decoration: inherit;
+  }
+
+  b,
+  strong {
+    font-weight: bolder;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+      monospace;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    font-size: 1em;
+  }
+
+  small {
+    font-size: 80%;
+  }
+
+  sub,
+  sup {
+    vertical-align: baseline;
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+  }
+
+  sub {
+    bottom: -0.25em;
+  }
+
+  sup {
+    top: -0.5em;
+  }
+
+  table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+
+  :-moz-focusring:where(:not(iframe)) {
+    outline: auto;
+  }
+
+  progress {
+    vertical-align: baseline;
+  }
+
+  summary {
+    display: list-item;
+  }
+
+  ol,
+  ul,
+  menu {
+    list-style: none;
+  }
+
+  img,
+  svg,
+  video,
+  canvas,
+  audio,
+  iframe,
+  embed,
+  object {
+    vertical-align: middle;
+    display: block;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
+  }
+
+  button,
+  input,
+  select,
+  optgroup,
+  textarea {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    opacity: 1;
+    background-color: #0000;
+    border-radius: 0;
+  }
+
+  ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    opacity: 1;
+    background-color: #0000;
+    border-radius: 0;
+  }
+
+  :where(select:is([multiple], [size])) optgroup {
+    font-weight: bolder;
+  }
+
+  :where(select:is([multiple], [size])) optgroup option {
+    padding-inline-start: 20px;
+  }
+
+  ::file-selector-button {
+    margin-inline-end: 4px;
+  }
+
+  ::placeholder {
+    opacity: 1;
+  }
+
+  @supports (not (-webkit-appearance: -apple-pay-button)) or (contain-intrinsic-size: 1px) {
+    ::placeholder {
+      color: currentColor;
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      ::placeholder {
+        color: color-mix(in oklab, currentcolor 50%, transparent);
+      }
+    }
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  ::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+
+  ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+
+  ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+
+  ::-webkit-datetime-edit {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-year-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-month-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-day-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-hour-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-minute-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-second-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-millisecond-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-meridiem-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+
+  :-moz-ui-invalid {
+    box-shadow: none;
+  }
+
+  button,
+  input:where([type="button"], [type="reset"], [type="submit"]) {
+    appearance: button;
+  }
+
+  ::file-selector-button {
+    appearance: button;
+  }
+
+  ::-webkit-inner-spin-button {
+    height: auto;
+  }
+
+  ::-webkit-outer-spin-button {
+    height: auto;
+  }
+
+  [hidden]:where(:not([hidden="until-found"])) {
+    /* biome-ignore lint/complexity/noImportantStyles: preflight's own rule; an important declaration in a layer beats every unlayered style, so the hidden attribute always hides. */
+    display: none !important;
   }
 }
 
-@layer utilities {
-  .squircle {
-    border-radius: 20%;
-  }
-}
-
-/* Bloom's typeface, not one of Mention's own. NativeWind's theme.css ships an
-   UNLAYERED `:root { @media ios { --font-sans: System } }` that outranks anything
-   `@theme` emits, so restate Bloom's family here, unlayered and after that import.
-   Native gets the bare family name: RN's `fontFamily` takes ONE family, not a CSS
-   stack, and `--bloom-font-*` is web-only (injected at runtime by
-   `applyFontFaces`). The `var()` fallback covers the static export's first paint,
-   before that runs. The literal names mirror `fontFamilies.sans` in @oxy.so/bloom/fonts;
-   keep them in step when Bloom changes its default. */
-:root {
-  --font-sans: var(
+/* Bloom's typeface on the document: `--bloom-font-sans` is written by Bloom at
+   runtime (`applyFontFaces`); the fallbacks cover the static export's first
+   paint, before it is. The literal names mirror `fontFamilies.sans` in
+   @oxy.so/bloom/fonts; keep them in step when Bloom changes its default. */
+html,
+body,
+#root {
+  font-family: var(
     --bloom-font-sans,
     Inter,
     ui-sans-serif,
@@ -84,28 +318,13 @@
     Roboto,
     sans-serif
   );
-
-  @media ios {
-    --font-sans: Inter;
-  }
-
-  @media android {
-    --font-sans: Inter;
-  }
-}
-
-html,
-body,
-#root {
-  font-family: var(--font-sans);
-  /* Pre-hydration dark canvas. Bloom applies the real theme (the `.dark` class +
-     `--background` var) at RUNTIME from BloomThemeProvider, so before the JS
-     bundle runs there is no themed background and the first paint would be white.
-     This render-blocking rule (global.css ships as a <link rel=stylesheet> in the
-     head, before the deferred bundle) paints the boot canvas the same dark as the
-     always-dark AppSplashScreen (#0B0B0F, matching the native splash), killing the
-     white flash with no worker/JS. The app's own `bg-background` covers it once
-     mounted. This is the Expo analog of the Vite apps' static `<html class="dark">`. */
+  /* Pre-hydration dark canvas. Bloom applies the real theme at RUNTIME from
+     BloomThemeProvider, so before the JS bundle runs there is no themed
+     background and the first paint would be white. This render-blocking rule
+     (global.css ships as a <link rel=stylesheet> in the head, before the
+     deferred bundle) paints the boot canvas the same dark as the always-dark
+     AppSplashScreen (#0B0B0F, matching the native splash), killing the white
+     flash with no worker/JS. The app's own background covers it once mounted. */
   background-color: #0b0b0f;
 }
 
@@ -119,7 +338,10 @@ body,
 html,
 body,
 #root {
+  /* biome-ignore lint/complexity/noImportantStyles: outranks react-native-web's own full-height root reset. */
   height: 100% !important;
+  /* biome-ignore lint/complexity/noImportantStyles: as above. */
   min-height: 100% !important;
+  /* biome-ignore lint/complexity/noImportantStyles: as above; the document, not #root, scrolls. */
   overflow: visible !important;
 }
