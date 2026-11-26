@@ -1,0 +1,20 @@
+name: Seldon race retry
+
+# A pull request's first CI attempt that failed with a failed job on the
+# seldon-ci pool re-runs its failed jobs once, hosted: the raced lanes go to
+# Seldon only on run_attempt 1 (OxyHQ/oxy docs/engineering/build-and-deploy.md,
+# CI on Seldon). The house's ISP gateway can fail a Seldon job's checkout or
+# upload where hosted would pass; a genuine failure fails again on hosted.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  retry:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+    permissions:
+      actions: write
+    uses: OxyHQ/oxy/.github/workflows/seldon-race-retry.yml@main
