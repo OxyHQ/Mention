@@ -1,9 +1,8 @@
-import { type GestureResponderEvent, Text } from 'react-native';
-import { createTokenStyles } from '@oxy.so/bloom/theme';
+import type { GestureResponderEvent } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import type { LaneSummary } from '@mention/shared-types';
 
-import { Embed, VStack, defineModifier, view } from '@oxy.so/bloom-language';
+import { RawText, VStack, defineModifier, view } from '@oxy.so/bloom-language';
 
 /**
  * The chip's frame: the widest it may grow and how hard it yields.
@@ -22,15 +21,15 @@ import { Embed, VStack, defineModifier, view } from '@oxy.so/bloom-language';
  * shrink below its intrinsic width at all.
  */
 const chip = defineModifier((v) => v.shrink('20').frame({ minWidth: 'none', maxWidth: '140' }));
-/** The same frame on the bare label, which stays React Native's Text (below). */
-const CHIP_STYLE = { flexShrink: 20, minWidth: 0, maxWidth: 140 } as const;
 
-// The label is React Native's Text in the muted ink at the identity line's 15px
-// (`leading-tight`), cut at its tail: as a language text it would read the
-// environment as well as the theme, one context read more on every lane row.
-const useLabelStyles = createTokenStyles((t) => ({
-  label: { color: t.mutedForeground, fontSize: 15, lineHeight: 18.75 },
-}));
+/**
+ * The label: React Native's Text in the muted ink at the identity line's 15px
+ * (`leading-tight`), cut at its tail. A RawText reads only the theme it is
+ * inked from, as the token style it replaces did.
+ */
+function laneLabel(label: string) {
+  return RawText(label).foreground('muted').font('md').leading('close').lines(1);
+}
 
 interface Props {
   /** The lane this post is on, straight off `post.lane`. */
@@ -65,8 +64,6 @@ interface Props {
 const PostLaneChip = view(function PostLaneChip({ lane, authorHandle, feedDescriptor }: Props) {
   const router = useRouter();
 
-  const labelStyles = useLabelStyles();
-
   if (feedDescriptor === `lane|${lane.id}`) return null;
 
   const label = `› ${lane.name}`;
@@ -74,20 +71,10 @@ const PostLaneChip = view(function PostLaneChip({ lane, authorHandle, feedDescri
 
   // A chip that cannot open a tab is the label alone, with the chip's frame.
   if (!canOpenTab) {
-    return Embed(
-      <Text style={[labelStyles.label, CHIP_STYLE]} numberOfLines={1} ellipsizeMode="tail">
-        {label}
-      </Text>,
-    );
+    return laneLabel(label).modifier(chip);
   }
 
-  return VStack(
-    Embed(
-      <Text style={labelStyles.label} numberOfLines={1} ellipsizeMode="tail">
-        {label}
-      </Text>,
-    ),
-  )
+  return VStack(laneLabel(label))
     .modifier(chip)
     .hitSlop('md')
     .role('link')
