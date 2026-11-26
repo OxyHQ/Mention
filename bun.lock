@@ -90,7 +90,7 @@
     },
     "packages/frontend": {
       "name": "@mention/frontend",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "dependencies": {
         "@clarity.surf/sdk": "0.12.0",
         "@expo/app-integrity": "~58.0.2",
