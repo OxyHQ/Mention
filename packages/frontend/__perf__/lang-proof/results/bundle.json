@@ -1,0 +1,83 @@
+{
+  "export": "production web export (NODE_ENV=production, EXPO_PUBLIC_ENV=production, tree shaking, --source-maps external), settingsPages.tsx pointed at each form; compiler pack sha256 0bc2f068",
+  "forms": {
+    "original": {
+      "source": "__perf__/lang-proof/variants/original.tsx",
+      "module": {
+        "minified": 5320,
+        "gzip": 1282,
+        "brotli": 1061
+      },
+      "chunk": {
+        "name": "MentionSettingsModal",
+        "minified": 148065,
+        "gzip": 38278,
+        "brotli": 30510
+      },
+      "entry": {
+        "files": 3,
+        "minified": 9856928,
+        "gzip": 2968648,
+        "brotli": 2207622
+      },
+      "total": {
+        "files": 1231,
+        "minified": 30605602,
+        "gzip": 11421462,
+        "brotli": 9468197
+      }
+    },
+    "cleaned": {
+      "source": "__perf__/lang-proof/variants/cleaned.tsx",
+      "module": {
+        "minified": 3404,
+        "gzip": 1173,
+        "brotli": 984
+      },
+      "chunk": {
+        "name": "MentionSettingsModal",
+        "minified": 146213,
+        "gzip": 38229,
+        "brotli": 30592
+      },
+      "entry": {
+        "files": 3,
+        "minified": 9857649,
+        "gzip": 2968837,
+        "brotli": 2207974
+      },
+      "total": {
+        "files": 1231,
+        "minified": 30604471,
+        "gzip": 11421602,
+        "brotli": 9468675
+      }
+    },
+    "bloom": {
+      "source": "components/settings/pages/notifications.bloom",
+      "module": {
+        "minified": 4711,
+        "gzip": 1745,
+        "brotli": 1468
+      },
+      "chunk": {
+        "name": "MentionSettingsModal",
+        "minified": 147524,
+        "gzip": 38827,
+        "brotli": 30961
+      },
+      "entry": {
+        "files": 3,
+        "minified": 9857649,
+        "gzip": 2968835,
+        "brotli": 2208279
+      },
+      "total": {
+        "files": 1231,
+        "minified": 30605782,
+        "gzip": 11422196,
+        "brotli": 9469265
+      }
+    }
+  }
+}

@@ -87,8 +87,8 @@ jest.mock('@/components/Post/PostContentText', () => ({ __esModule: true, defaul
 jest.mock('@/hooks/usePostLanguagePicker', () => ({
   usePostLanguagePicker: () => () => undefined,
 }));
-jest.mock('@/components/Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/components/Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Post/PostLaneChip.bloom', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Post/ContentWarning.bloom', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostActions', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostLocation', () => ({ __esModule: true, postLocation: () => null }));

@@ -232,6 +232,11 @@ module.exports = (_config) => {
             'expo-router',
             {
               asyncRoutes: { web: 'production' },
+              // DEV ONLY: `BLOOM_LANG_PROOF=1` exports the Bloom language proof
+              // app (`__perf__/lang-proof/README.md`) instead of Mention's routes.
+              ...(process.env.BLOOM_LANG_PROOF === '1'
+                ? { root: './__perf__/lang-proof/app' }
+                : {}),
             },
           ],
           'expo-asset',

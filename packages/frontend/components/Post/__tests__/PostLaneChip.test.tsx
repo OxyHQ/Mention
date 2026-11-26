@@ -4,7 +4,7 @@ import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import type { LaneSummary } from '@mention/shared-types';
 
 import { toElement } from '@oxy.so/bloom-language';
-import PostLaneChip from '../PostLaneChip';
+import PostLaneChip from '../PostLaneChip.bloom';
 // The subject draws language text, whose Painted leaf reads Bloom's theme as the app's provider gives it.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 

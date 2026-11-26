@@ -31,6 +31,35 @@ const REACT_COMPILER = require.resolve('babel-plugin-react-compiler', {
   paths: [require.resolve('babel-preset-expo')],
 });
 
+const path = require('node:path');
+const AB_STANDINS =
+  process.env.EXPO_PUBLIC_BLOOM_LANG_AB === '1' && process.env.BLOOM_LANG_AB_STANDINS === '1';
+const AB_SCREENS =
+  /[\\/](components[\\/]settings[\\/]pages[\\/]notifications\.bloom|__perf__[\\/]lang-proof[\\/]variants[\\/]original\.tsx)/;
+const AB_STAND_INS = {
+  '@oxy.so/services/ui/client': 'services.ts',
+  '@/hooks/useViewerSettings': 'viewerSettings.ts',
+  '@/context/MentionSettingsContext': 'settingsRouter.ts',
+};
+function abStandIns() {
+  return {
+    visitor: {
+      ImportDeclaration(importPath, state) {
+        const standIn = AB_STAND_INS[importPath.node.source.value];
+        if (!standIn) return;
+        const target = path.join(__dirname, '__perf__/lang-proof/stand-ins', standIn);
+        if (process.env.BLOOM_LANG_AB_STANDINS_LOG) {
+          require('node:fs').appendFileSync(
+            process.env.BLOOM_LANG_AB_STANDINS_LOG,
+            `babel ${state.filename} ${importPath.node.source.value}\n`,
+          );
+        }
+        importPath.node.source.value = target;
+      },
+    },
+  };
+}
+
 module.exports = (api) => {
   api.cache(true);
   return {
@@ -49,6 +78,18 @@ module.exports = (api) => {
           ],
         ],
       },
+      // DEV ONLY: the Android A/B (`lib/bloomLangAB.tsx`). Both forms of Settings ->
+      // Notifications import the proof's stand-ins for their three app hooks. Done
+      // here, not in the resolver: Metro reuses a resolution made for a sibling
+      // settings page, so a resolver redirect missed two of the `.bloom` screen's.
+      ...(AB_STANDINS
+        ? [
+            {
+              test: (filename) => filename != null && AB_SCREENS.test(filename),
+              plugins: [abStandIns],
+            },
+          ]
+        : []),
     ],
   };
 };

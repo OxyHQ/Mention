@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "runs": 40,
+    "warmup": 5,
+    "node": "v24.21.0",
+    "caller": {
+      "name": "metro",
+      "bundler": "metro",
+      "platform": "web",
+      "isDev": false,
+      "isServer": false,
+      "supportsReactCompiler": true
+    }
+  },
+  "bloomcAlone": {
+    "median": 0.94,
+    "p95": 1.44
+  },
+  "perFile": {
+    "original": {
+      "bloomStep": 0.29,
+      "babelWithReactCompiler": 25.22,
+      "total": 25.5
+    },
+    "cleaned": {
+      "bloomStep": 0.26,
+      "babelWithReactCompiler": 12.42,
+      "total": 12.66
+    },
+    "bloom": {
+      "bloomStep": 1.34,
+      "babelWithReactCompiler": 14.05,
+      "total": 15.38
+    }
+  }
+}
