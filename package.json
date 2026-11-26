@@ -10,7 +10,7 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "22.1.7",
+      "@oxy.so/bloom": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/lens-nshape/packs/lang-1795386816/oxy.so-bloom-22.1.10-1795386816.tgz",
       "@oxy.so/contracts": "7.5.0",
       "@oxy.so/core": "7.55.0",
       "@oxy.so/mcp": "1.4.3",
