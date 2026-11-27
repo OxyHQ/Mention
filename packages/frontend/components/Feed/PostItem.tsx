@@ -1,7 +1,8 @@
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
-import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, lazy, Suspense } from 'react';
+import { benchMark } from '@/lib/bench';
 import { View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
@@ -1903,6 +1904,7 @@ function PostRow(props: PostItemProps): Child {
 const PostRowView = view(PostRow);
 
 function PostItemContent(props: PostItemProps) {
+  useEffect(() => benchMark('feed-row'), []);
   return toElement(PostRowView(props));
 }
 

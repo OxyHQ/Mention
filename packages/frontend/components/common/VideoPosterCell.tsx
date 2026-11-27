@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { benchMark } from '@/lib/bench';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
@@ -93,6 +94,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
                 contentFit="cover"
                 transition={150}
                 cachePolicy="memory-disk"
+                onLoad={() => benchMark('feed-image')}
                 onError={handlePosterError}
               />,
             )

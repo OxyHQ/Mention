@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { benchMark } from '@/lib/bench';
 import { StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
@@ -69,6 +70,7 @@ export function ExternalEmbedPoster({
             cachePolicy="memory-disk"
             style={StyleSheet.absoluteFill}
             contentFit="cover"
+            onLoad={() => benchMark('feed-image')}
             onError={() => setThumbErrored(true)}
           />
         ) : null,
