@@ -128,4 +128,9 @@ if (process.env.BLOOM_LANG_PROOF === '1') {
 // still apply. It hoists static language chains, marks `view()` bodies
 // `"use memo"` and checks chains against the language spec. An optimisation
 // only: the runtime renders the same tree without it.
-module.exports = require('@oxy.so/bloom-language-compiler/metro').withBloomLanguage(config);
+//
+// The migration mode (`allowTsImports`, ADR 0002 section 4): Mention is part-way through its
+// port, so its `.bloom` modules (a `Package.bloom` app) still import TS files by path.
+module.exports = require('@oxy.so/bloom-language-compiler/metro').withBloomLanguage(config, {
+  allowTsImports: true,
+});

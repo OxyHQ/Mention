@@ -1,0 +1,13 @@
+// Test support for lib/__tests__/bloomStrings.test.tsx: Bloom's side of the strings.
+
+/// Bloom's string for `key`, as `String(localized:)` resolves it at run time.
+public func bloomString(_ key: String, _ args: [String: String], _ count: Double?) -> String {
+  String.localized(key, args: args, count: count)
+}
+
+/// A label drawn from the catalogs, to watch a language switch re-render it.
+public struct LoadingLabel: View {
+  var body: some View {
+    Text(String(localized: "podcast.loading"))
+  }
+}
