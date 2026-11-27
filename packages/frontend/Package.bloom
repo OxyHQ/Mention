@@ -5,6 +5,7 @@ let package = Package(
     .package("Bloom", from: "23.10.0"),
   ],
   targets: [
-    .app("Mention", path: "."),
+    .app("Mention", path: ".", dependencies: ["TanStackQuery"]),
+    .bindings("TanStackQuery", npm: "@tanstack/react-query@5.105.3"),
   ]
 )
