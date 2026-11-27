@@ -1,0 +1,61 @@
+// Package.bloom: written by `bloom init --adopt` from package.json and the app config.
+// The app's JS stays where it is; `bloom build android` generates and drives the native
+// project (ADR 0002, section 7).
+let package = Package(
+  name: "Mention",
+  platforms: [.iOS(17), .android(26), .web],
+  app: App(
+    id: "org.mention.app",
+    version: "2.2.0",
+    build: 2002000,
+    displayName: "Mention",
+    schemes: ["mention"],
+    icon: "assets/images/mention-icon.png",
+    splash: "#0B0B0F",
+    splashImage: "assets/images/splash-logo.png",
+    permissions: ["android.permission.SYSTEM_ALERT_WINDOW", .vibrate, .camera, .microphone, "android.permission.MODIFY_AUDIO_SETTINGS", .location, "so.oxy.permission.IDENTITY", "so.oxy.permission.DEVICE_SESSION"],
+    reactNativeFromSource: true,
+  ),
+  // The app's own native config, kept as a layer over the generated project: Native/android/.
+  adopt: Expo(entry: "expo-router/entry", overrides: "Native"),
+  // The Expo packages still linked (Expo Modules autolinking, limited to these and what they
+  // need), each until its Bloom module replaces it. Remove a line when its module lands.
+  stopgaps: [
+    .expo("@expo/app-integrity", until: "AppIntegrity"),
+    .expo("@expo/vector-icons", until: "BloomUI.Icon"),
+    .expo("@livekit/react-native-expo-plugin"),
+    .expo("@oxy.so/bloom-avatar-native"),
+    .expo("@oxy.so/bloom-lens"),
+    .expo("@oxy.so/services"),
+    .expo("expo-asset", until: "typed resources"),
+    .expo("expo-audio", until: "BloomMedia.AudioPlayer"),
+    .expo("expo-blur", until: "BloomUI materials"),
+    .expo("expo-camera", until: "Camera"),
+    .expo("expo-clipboard", until: "Bloom.Clipboard"),
+    .expo("expo-constants", until: "App.info"),
+    .expo("expo-crypto", until: "Crypto"),
+    .expo("expo-document-picker", until: "DocumentPicker"),
+    .expo("expo-file-system", until: "FileStore"),
+    .expo("expo-font", until: "Package.bloom fonts"),
+    .expo("expo-gl", until: "Canvas"),
+    .expo("expo-haptics", until: "Bloom.Device.Haptics"),
+    .expo("expo-image", until: "BloomUI.Image"),
+    .expo("expo-image-manipulator", until: "ImageEditor"),
+    .expo("expo-image-picker", until: "PhotoPicker"),
+    .expo("expo-keep-awake", until: "Screen.keepAwake"),
+    .expo("expo-linear-gradient", until: "BloomUI.LinearGradient"),
+    .expo("expo-linking", until: "the Bloom router"),
+    .expo("expo-location", until: "Bloom.Location"),
+    .expo("expo-notifications", until: "Bloom.Notifications"),
+    .expo("expo-router", until: "the Bloom router"),
+    .expo("expo-secure-store", until: "SecureStore"),
+    .expo("expo-share-intent", until: "incoming shares"),
+    .expo("expo-sqlite", until: "BloomData's SQLite"),
+    .expo("expo-system-ui", until: "Package.bloom settings"),
+    .expo("expo-updates", until: "Bloom.Updates (Oxy Updates)"),
+    .expo("expo-web-browser", until: "Bloom.WebSession"),
+    .expo("mention-widgets", until: "its Bloom native module (`.native`)"),
+    .expo("pip-transport", until: "its Bloom native module (`.native`)"),
+  ],
+  targets: []
+)
