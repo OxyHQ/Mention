@@ -229,21 +229,21 @@ import {
 import {
   Button as LButton,
   ButtonGroup,
+  Dialog as LDialog,
   Embed,
   HStack,
   Header,
   Icon,
   RawText,
   Text as LText,
+  Toggle,
   VStack,
   toElement,
+  Chip as LChip,
   Icon as LIcon,
   Text,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
-import { Chip as LChip } from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 /** A commerce attachment's card in the attachment row (`w-[280px]`). */
 const COMMERCE_CARD_WIDTH = 280;

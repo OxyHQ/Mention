@@ -9,12 +9,12 @@ import {
   Header,
   Icon,
   RawText,
+  Search as LSearch,
   Text as LText,
   VStack,
   toElement,
+  Row,
 } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
 
 interface LanguagePickerSheetProps {
   /**

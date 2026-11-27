@@ -9,13 +9,13 @@ import { NoteSheetHeader } from './NoteSheetHeader';
 
 import {
   Button as LButton,
+  Checkbox as LCheckbox,
   Embed,
   RawText,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Checkbox as LCheckbox } from '@oxy.so/bloom-language/inputs';
 
 interface RateNoteSheetProps {
   rating: CommunityNoteRating;

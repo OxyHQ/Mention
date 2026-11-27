@@ -23,20 +23,16 @@ import { useTranslation } from 'react-i18next';
 import {
   Button as LButton,
   Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   Image,
   RawText,
+  SettingsSection as LSettingsSection,
+  SettingsValue,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import {
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import {
-  SettingsSection as LSettingsSection,
-  SettingsValue,
-} from '@oxy.so/bloom-language/settings';
 
 export default function AboutScreen() {
   const { t } = useTranslation();

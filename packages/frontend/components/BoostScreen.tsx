@@ -18,6 +18,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import {
+  Dialog,
   Divider as LDivider,
   Embed,
   Group,
@@ -29,7 +30,6 @@ import {
   defineTokens,
   defineModifier,
 } from '@oxy.so/bloom-language';
-import { Dialog } from '@oxy.so/bloom-language/overlays';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** The boosted post's handle, at 13pt. */

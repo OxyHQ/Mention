@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { REPORT_CATEGORIES } from '@/services/reportService';
 import {
+  Checkbox as LCheckbox,
   Divider as LDivider,
   Embed,
+  Field as LField,
   HStack,
   Icon,
   RawText,
@@ -17,8 +19,8 @@ import {
   VStack as LVStack,
   toElement as LtoElement,
   Embed as LEmbed,
+  TextEditor,
 } from '@oxy.so/bloom-language';
-import { Checkbox as LCheckbox, Field as LField, TextEditor } from '@oxy.so/bloom-language/inputs';
 
 const appColors = defineTokens({ color: { hexFFFFFF: '#FFFFFF' } });
 

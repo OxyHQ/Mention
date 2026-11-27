@@ -10,10 +10,19 @@ import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Embed, Loading, Text, VStack, toast, view } from '@oxy.so/bloom-language';
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import { SettingsSection } from '@oxy.so/bloom-language/settings';
+import {
+  Button,
+  Embed,
+  GroupedSection,
+  GroupedSectionItem,
+  Loading,
+  SettingsSection,
+  Text,
+  Toggle,
+  VStack,
+  toast,
+  view,
+} from '@oxy.so/bloom-language';
 
 interface NotificationPreferences {
   pushEnabled: boolean;

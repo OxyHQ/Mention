@@ -14,12 +14,13 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { getErrorMessage } from '@/utils/apiError';
 
-import { Icon, toElement } from '@oxy.so/bloom-language';
 import {
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
+  Icon,
+  Toggle,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const bylineLogger = createLogger('ChannelBylineSettings');
 

@@ -15,12 +15,12 @@ import {
   Embed,
   HStack,
   RawText,
+  Row,
+  Search as LSearch,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
 
 /** The sheet's list stops growing at 340pt (`max-h-[340px]`): the catalog scroll inside it. */
 const LIST_STYLE = { maxHeight: 340 } satisfies ViewStyle;

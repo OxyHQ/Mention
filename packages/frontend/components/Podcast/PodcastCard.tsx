@@ -17,6 +17,7 @@ import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
 import {
+  Card,
   Embed,
   HStack,
   Icon,
@@ -25,7 +26,6 @@ import {
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Card } from '@oxy.so/bloom-language/containers';
 
 type PodcastCardVariant = 'full' | 'card' | 'video';
 

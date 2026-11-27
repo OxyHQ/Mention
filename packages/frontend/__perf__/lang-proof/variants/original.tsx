@@ -12,17 +12,15 @@ import { useTranslation } from 'react-i18next';
 import {
   Button as LButton,
   Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   Loading as LLoading,
+  SettingsSection as LSettingsSection,
   Text,
+  Toggle,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import {
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 interface NotificationPreferences {
   pushEnabled: boolean;

@@ -19,10 +19,10 @@ import {
   Header,
   Icon,
   RawText,
+  Row,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
 
 interface CommunityPickerSheetProps {
   /** The community the post is written in, or `null` for none. */

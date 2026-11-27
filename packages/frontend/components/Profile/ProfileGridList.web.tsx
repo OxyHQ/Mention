@@ -1,5 +1,4 @@
-import { Embed, Group, toElement } from '@oxy.so/bloom-language';
-import { VirtualList } from '@oxy.so/bloom-language/list';
+import { Embed, Group, VirtualList, toElement } from '@oxy.so/bloom-language';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions } from 'react-native';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';

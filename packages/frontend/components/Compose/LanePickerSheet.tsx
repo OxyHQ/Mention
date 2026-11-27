@@ -16,11 +16,11 @@ import {
   Header,
   Icon,
   RawText,
+  Row,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
 
 interface LanePickerSheetProps {
   /** The lane currently chosen for this post, or `null` for none. */

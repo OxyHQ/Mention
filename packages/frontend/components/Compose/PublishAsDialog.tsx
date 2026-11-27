@@ -9,12 +9,9 @@ import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
+import { HStack, RawText, Toggle, VStack, toElement } from '@oxy.so/bloom-language';
 
-import { Embed, toElement as LtoElement } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
+import { Dialog as LDialog, Embed, Row, toElement as LtoElement } from '@oxy.so/bloom-language';
 
 /** The row the post goes out as says so. */
 const currentMark = (text: string) =>

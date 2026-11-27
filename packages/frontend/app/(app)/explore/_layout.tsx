@@ -2,8 +2,16 @@ import { useTranslation } from 'react-i18next';
 import { useRouter, Slot, usePathname, type Href } from '@/lib/navigation/router';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { SEO } from '@/components/SEO';
-import { Button, Embed, Group, Header, Icon, toElement } from '@oxy.so/bloom-language';
-import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
+import {
+  Button,
+  Embed,
+  Group,
+  Header,
+  Icon,
+  TabItem,
+  Tabs as LTabs,
+  toElement,
+} from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /**

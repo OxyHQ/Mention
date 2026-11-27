@@ -5,11 +5,13 @@ import { buildMenuGroups, type ActionMenuAction } from '@/components/common/acti
 
 import { presentCancelableSheet, presentSheet } from '@/utils/sheet';
 import { OwnedSurfaceContent } from '@/components/common/OwnedSurfaceContent';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 import {
+  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ActionMenuGroupProps {
   actions: ActionMenuAction[];

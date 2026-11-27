@@ -4,8 +4,7 @@ import { Dimensions, FlatList, View, type ViewStyle } from 'react-native';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
 
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
-import { VirtualList } from '@oxy.so/bloom-language/list';
+import { Embed, VirtualList, VStack, toElement } from '@oxy.so/bloom-language';
 
 export type {
   ProfileGridEntry,

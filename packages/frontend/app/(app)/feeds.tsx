@@ -40,6 +40,7 @@ import {
   Header,
   Icon,
   RawText,
+  Search as LSearch,
   VStack,
   defineTokens,
   toElement,
@@ -50,7 +51,6 @@ import {
   FAB,
   identity,
 } from '@oxy.so/bloom-language';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
 
 import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });

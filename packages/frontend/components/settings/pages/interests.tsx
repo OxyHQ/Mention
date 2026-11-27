@@ -3,10 +3,14 @@ import { TopicPicker } from '@/components/interests/TopicPicker';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
-import { GroupedSection as LGroupedSection } from '@oxy.so/bloom-language/containers';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
-import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
+import {
+  Embed,
+  GroupedSection as LGroupedSection,
+  Search as LSearch,
+  SettingsSection as LSettingsSection,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /**
  * Your interests — a searchable grid of topics, where selecting one FOLLOWS it.

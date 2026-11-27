@@ -17,15 +17,20 @@ import JobLocationField from '@/components/Jobs/JobLocationField';
 import type { JobForm } from '@/components/Jobs/jobForm';
 import JobCurrencyField from '@/components/Jobs/JobCurrencyField';
 
-import { Embed, HStack, RawText, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
-import { Chip as LChip } from '@oxy.so/bloom-language/containers';
 import {
+  Chip as LChip,
+  Embed,
   Field as LField,
+  HStack,
   Option,
+  RawText,
   Segmented,
+  Text as LText,
   TextEditor,
   TextField as LTextField,
-} from '@oxy.so/bloom-language/inputs';
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',

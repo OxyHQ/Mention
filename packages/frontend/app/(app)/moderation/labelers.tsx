@@ -18,6 +18,7 @@ import {
   Icon,
   Loading,
   RawText,
+  Search as LSearch,
   VStack,
   defineTokens,
   toElement,
@@ -25,7 +26,6 @@ import {
   ScrollView,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
 
 import { screen } from '@oxy.so/bloom-language/router';
 import { accountCacheWriter } from '@/lib/queryClient';

@@ -12,8 +12,12 @@ import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
-import { SettingsSelect as LSettingsSelect } from '@oxy.so/bloom-language/settings';
+import {
+  Embed,
+  SettingsSelect as LSettingsSelect,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type VisibilityOption = 'public' | 'private' | 'followers_only';
 

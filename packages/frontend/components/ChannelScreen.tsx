@@ -55,10 +55,11 @@ import {
   HStack,
   Icon,
   Item,
+  TabItem,
+  Tabs as LTabs,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
 
 interface ChannelProfileProps {
   username: string;

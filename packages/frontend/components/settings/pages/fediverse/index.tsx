@@ -9,13 +9,17 @@ import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as LButton, Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
 import {
+  Button as LButton,
+  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
+  SettingsSection as LSettingsSection,
+  Text,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const logger = createLogger('FediverseSettings');
 

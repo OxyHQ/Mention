@@ -5,8 +5,7 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { feedLinkCover } from '@/utils/feedImages';
 
-import { Icon, VStack, defineTokens, toElement, Embed } from '@oxy.so/bloom-language';
-import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
+import { Icon, SpinnerIcon, VStack, defineTokens, toElement, Embed } from '@oxy.so/bloom-language';
 const posterTokens = defineTokens({
   color: { white: 'white', scrim: '#0000004d' },
   iconSize: { spinner: 36 },

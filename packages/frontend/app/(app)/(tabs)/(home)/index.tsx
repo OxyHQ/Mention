@@ -11,8 +11,7 @@ import { SEO } from '@/components/SEO';
 import { siteStructuredData } from '@mention/shared-types/seo';
 import { INSTANCE_LOGO_URL, INSTANCE_NAME, WEB_BASE_URL } from '@/config';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Embed, Group, toElement } from '@oxy.so/bloom-language';
-import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
+import { Embed, Group, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /**

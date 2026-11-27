@@ -40,6 +40,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import {
   Avatar,
   Button as LButton,
+  Card,
   Divider as LDivider,
   Embed,
   HStack,
@@ -58,7 +59,6 @@ import {
   PageFooter as LPageFooter,
   AvatarGroup as LAvatarGroup,
 } from '@oxy.so/bloom-language';
-import { Card } from '@oxy.so/bloom-language/containers';
 
 import { screen } from '@oxy.so/bloom-language/router';
 

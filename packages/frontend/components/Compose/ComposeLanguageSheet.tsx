@@ -7,8 +7,15 @@ import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 
-import { Button as LButton, Embed, Header, Icon, VStack, toElement } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
+import {
+  Button as LButton,
+  Embed,
+  Header,
+  Icon,
+  Row,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface ComposeLanguageSheetProps {
   /** The language the post declares — what the feed and federation read. */

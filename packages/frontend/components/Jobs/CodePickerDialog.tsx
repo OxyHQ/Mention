@@ -1,10 +1,14 @@
 import { memo, useMemo, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Embed, RawText, toElement } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
+import {
+  Dialog as LDialog,
+  Embed,
+  RawText,
+  Row,
+  Search as LSearch,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface CodePickerOption<Code extends string> {
   code: Code;

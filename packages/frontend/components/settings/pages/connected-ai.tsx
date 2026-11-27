@@ -18,19 +18,17 @@ import { useTranslation } from 'react-i18next';
 import {
   Button as LButton,
   Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   IconCircle as LIconCircle,
   Loading,
   RawText,
+  SettingsSection as LSettingsSection,
   Text as LText,
   VStack,
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
-import {
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 const logger = createLogger('ConnectedAiSettings');
 

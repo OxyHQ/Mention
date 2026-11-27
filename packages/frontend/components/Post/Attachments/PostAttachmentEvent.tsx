@@ -1,6 +1,7 @@
 import React from 'react';
 
 import {
+  Card,
   Group,
   RawText,
   VStack,
@@ -9,7 +10,6 @@ import {
   defineTokens,
   view,
 } from '@oxy.so/bloom-language';
-import { Card } from '@oxy.so/bloom-language/containers';
 
 const eventColors = defineTokens({ color: { hexfff: '#fff' } });
 

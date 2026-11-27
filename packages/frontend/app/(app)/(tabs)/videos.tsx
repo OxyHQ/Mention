@@ -89,6 +89,7 @@ import {
   HStack,
   Icon,
   RawText,
+  SpinnerIcon,
   VStack,
   defineTokens,
   toElement,
@@ -97,7 +98,6 @@ import {
   toElement as LtoElement,
   Header,
 } from '@oxy.so/bloom-language';
-import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
 
 // ── Tuning constants ─────────────────────────────────────────────
 const FEED_PAGE_LIMIT = 20;

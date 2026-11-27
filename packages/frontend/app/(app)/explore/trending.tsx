@@ -24,9 +24,10 @@ import {
   RawText,
   ScrollView,
   VStack,
+  VirtualList,
+  type VirtualListRow,
   toElement,
 } from '@oxy.so/bloom-language';
-import { VirtualList, type VirtualListRow } from '@oxy.so/bloom-language/list';
 
 /**
  * Explore › Trending (route `/explore/trending`).

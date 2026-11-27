@@ -21,20 +21,18 @@ import {
 } from './deckSettings';
 import {
   Button as LButton,
+  Dialog as LDialog,
   Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Icon,
+  SettingsSelect as LSettingsSelect,
   Text,
+  Toggle,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import {
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
-import { SettingsSelect as LSettingsSelect } from '@oxy.so/bloom-language/settings';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** Column actions compose into the current screen header through Bloom. */

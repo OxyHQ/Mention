@@ -5,13 +5,19 @@ import {
   validMerchantInstallmentPreferences,
   type MerchantInstallmentPreferences,
 } from '@/lib/payments/merchantInstallmentPreview';
-import { Button as LButton, Embed, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 import {
+  Button as LButton,
+  Embed,
+  Field as LField,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Field as LField, TextField as LTextField, Toggle } from '@oxy.so/bloom-language/inputs';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
+  Text as LText,
+  TextField as LTextField,
+  Toggle,
+  VStack,
+  toElement,
+  Dialog as LDialog,
+} from '@oxy.so/bloom-language';
 
 function toggle<T>(values: readonly T[], value: T, enabled: boolean): readonly T[] {
   return enabled

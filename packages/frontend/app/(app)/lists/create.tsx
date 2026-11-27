@@ -9,25 +9,23 @@ import { useTranslation } from 'react-i18next';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import type { User } from '@oxy.so/core';
 import {
+  Card as LCard,
   Divider as LDivider,
   Embed,
+  Field as LField,
   Header,
   HStack,
   RawText,
   ScrollView,
-  toElement,
-  VStack,
-  Embed as LEmbed,
-  toElement as LtoElement,
-} from '@oxy.so/bloom-language';
-import { Card as LCard } from '@oxy.so/bloom-language/containers';
-import {
-  Field as LField,
   TextEditor,
   TextField,
+  toElement,
   Toggle,
+  VStack,
+  Embed as LEmbed,
   Search as LSearch,
-} from '@oxy.so/bloom-language/inputs';
+  toElement as LtoElement,
+} from '@oxy.so/bloom-language';
 
 import { screen } from '@oxy.so/bloom-language/router';
 

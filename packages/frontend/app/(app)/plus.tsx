@@ -22,19 +22,18 @@ import {
   Button as LButton,
   Embed,
   Group,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Header,
   Icon,
+  Option,
   ScrollView,
+  Segmented,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import {
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Option, Segmented } from '@oxy.so/bloom-language/inputs';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** Mention Plus is sold individually and is also included with Oxy One. */

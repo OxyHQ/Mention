@@ -13,8 +13,7 @@ import {
 import type { CheckoutCard } from '@peable.to/sdk/checkout/ui';
 import { useTranslation } from 'react-i18next';
 
-import { Button as LButton, Text, toElement } from '@oxy.so/bloom-language';
-import { Checkbox as LCheckbox } from '@oxy.so/bloom-language/inputs';
+import { Button as LButton, Checkbox as LCheckbox, Text, toElement } from '@oxy.so/bloom-language';
 
 // Recognise only the two familiar local fixture numbers, not a processor's live BIN table.
 const LOCAL_CARD_SCHEMES: readonly CardScheme[] = [

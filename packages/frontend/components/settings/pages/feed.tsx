@@ -7,22 +7,18 @@ import { useTranslation } from 'react-i18next';
 import {
   Button as LButton,
   Embed,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   Loading as LLoading,
   RawText,
+  SettingsSection as LSettingsSection,
+  SettingsSelect as LSettingsSelect,
+  Slider as LSlider,
   Text as LText,
+  Toggle,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import {
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import {
-  SettingsSection as LSettingsSection,
-  SettingsSelect as LSettingsSelect,
-} from '@oxy.so/bloom-language/settings';
-import { Slider as LSlider } from '@oxy.so/bloom-language/slider';
 
 const PRESETS = {
   mostRecent: {

@@ -33,8 +33,7 @@ import type {
   PreviewOutcome,
 } from '@/lib/payments/checkoutPreview';
 import { LocalCheckoutCardEntry } from './LocalCheckoutCardEntry';
-import { Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
+import { Text as LText, VStack, toElement, Dialog as LDialog } from '@oxy.so/bloom-language';
 
 /** Local memory-only adapter. This file deliberately has no payment, storage or entitlement APIs. */
 export function LocalCheckoutPreview({

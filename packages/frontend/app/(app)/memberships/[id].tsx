@@ -24,17 +24,18 @@ import type { MembershipCommunity, MembershipLandingResponse } from '@mention/sh
 
 import {
   Button as LButton,
+  Card as LCard,
   Embed,
   HStack,
   Header,
   RawText,
   ScrollView,
   Text as LText,
+  TextEditor,
+  TextField as LTextField,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Card as LCard } from '@oxy.so/bloom-language/containers';
-import { TextEditor, TextField as LTextField } from '@oxy.so/bloom-language/inputs';
 import { screen } from '@oxy.so/bloom-language/router';
 
 export default screen(function MembershipCommunityScreen() {

@@ -6,8 +6,14 @@ import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types'
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 
-import { Badge as LBadge, HStack, RawText, Text as LText, toElement } from '@oxy.so/bloom-language';
-import { Card as LCard } from '@oxy.so/bloom-language/containers';
+import {
+  Badge as LBadge,
+  Card as LCard,
+  HStack,
+  RawText,
+  Text as LText,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const WORKPLACE_LABELS: Record<string, string> = {
   onsite: 'On-site',

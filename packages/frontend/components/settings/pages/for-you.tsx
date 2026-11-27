@@ -10,14 +10,17 @@ import { useTranslation } from 'react-i18next';
 import { useForYouTuning } from '@/hooks/useForYouTuning';
 import { resolveTuning, updateTuning } from '@/utils/forYouTuning';
 
-import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
 import {
+  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
-import { Slider as LSlider } from '@oxy.so/bloom-language/slider';
+  RawText,
+  SettingsSection as LSettingsSection,
+  Slider as LSlider,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 type TuningCategory = ForYouTuningModuleSpec['category'];
 

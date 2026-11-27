@@ -26,11 +26,11 @@ import {
   Icon,
   type IconComponent,
   RawText,
+  Row,
+  SpinnerIcon,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
-import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
 
 const logger = createLogger('MediaPickerSheet');
 

@@ -11,10 +11,11 @@ import {
   Embed,
   RawText,
   Text as LText,
+  TextEditor,
+  TextField,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { TextEditor, TextField } from '@oxy.so/bloom-language/inputs';
 
 // The scroll's classes as plain objects (inline, as the classes were).
 const FILL_STYLE: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: '0%' };

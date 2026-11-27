@@ -5,8 +5,14 @@ import { Kbd } from '@oxy.so/bloom/kbd';
 
 import { SHORTCUTS } from '@/hooks/useKeyboardShortcuts';
 
-import { Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
+import {
+  Dialog as LDialog,
+  Embed,
+  HStack,
+  RawText,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 interface KeyboardShortcutsModalProps {
   visible: boolean;

@@ -45,11 +45,12 @@ import {
   Grid,
   HStack,
   Icon,
+  Option,
+  Segmented,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Option, Segmented } from '@oxy.so/bloom-language/inputs';
 
 const PERIOD_OPTIONS = [
   { labelKey: 'insights.period.7days', value: 7 },

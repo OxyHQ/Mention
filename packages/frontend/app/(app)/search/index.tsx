@@ -69,10 +69,19 @@ import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLatchedState } from '@/hooks/useLatchedState';
 import { useSearchAllSources } from '@/hooks/useSearchAllSources';
-import { Embed, HStack, Header, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
-import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
-import { VirtualList as LVirtualList } from '@oxy.so/bloom-language/list';
+import {
+  Embed,
+  HStack,
+  Header,
+  Icon,
+  RawText,
+  TabItem,
+  Tabs as LTabs,
+  VStack,
+  VirtualList as LVirtualList,
+  toElement,
+  Search as LSearch,
+} from '@oxy.so/bloom-language';
 
 type ResultTab = 'posts' | 'users' | 'feeds' | 'hashtags' | 'lists' | 'starterPacks' | 'saved';
 type SearchTab = 'all' | ResultTab;

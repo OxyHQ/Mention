@@ -9,9 +9,15 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
 
-import { Embed, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
+import {
+  Embed,
+  Icon,
+  RawText,
+  Row,
+  Search as LSearch,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 /** The sheet's list stops growing at 340pt (`max-h-[340px]`): the results scroll inside it. */
 const LIST_STYLE = { maxHeight: 340 } satisfies ViewStyle;

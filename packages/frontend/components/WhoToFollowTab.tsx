@@ -28,10 +28,10 @@ import {
   Icon,
   Text as LText,
   VStack,
+  VirtualList,
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
-import { VirtualList } from '@oxy.so/bloom-language/list';
 
 const APP_URL = 'https://mention.earth';
 

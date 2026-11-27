@@ -15,10 +15,10 @@ import {
   VStack,
   toElement,
   Text,
+  Card as LCard,
+  Field as LField,
   defineTokens,
 } from '@oxy.so/bloom-language';
-import { Card as LCard } from '@oxy.so/bloom-language/containers';
-import { Field as LField } from '@oxy.so/bloom-language/inputs';
 
 export type ScheduleOption = {
   key: string;

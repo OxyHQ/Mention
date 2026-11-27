@@ -5,13 +5,16 @@ import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
 import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
 import { useTranslation } from 'react-i18next';
-import { Button as LButton, Embed, VStack, toElement } from '@oxy.so/bloom-language';
 import {
+  Button as LButton,
+  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import { Toggle } from '@oxy.so/bloom-language/inputs';
-import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
+  SettingsSection as LSettingsSection,
+  Toggle,
+  VStack,
+  toElement,
+} from '@oxy.so/bloom-language';
 
 const VOTE_STYLE_OPTIONS: {
   value: VoteStyle;

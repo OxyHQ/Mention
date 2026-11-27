@@ -46,29 +46,25 @@ import {
   Button as LButton,
   Divider as LDivider,
   Embed,
+  Field as LField,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Header,
   Icon,
   RawText,
   ScrollView,
+  Search as LSearch,
+  Slider as LSlider,
   Text as LText,
+  Toggle,
   VStack,
   toElement,
+  TextEditor,
+  TextField,
   toElement as LtoElement,
   Embed as LEmbed,
 } from '@oxy.so/bloom-language';
-import {
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
-import {
-  Field as LField,
-  Search as LSearch,
-  Toggle,
-  TextEditor,
-  TextField,
-} from '@oxy.so/bloom-language/inputs';
-import { Slider as LSlider } from '@oxy.so/bloom-language/slider';
 
 import { screen } from '@oxy.so/bloom-language/router';
 

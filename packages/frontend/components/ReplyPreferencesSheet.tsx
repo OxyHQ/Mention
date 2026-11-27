@@ -7,11 +7,12 @@ import { RowIcon } from '@/components/settings/RowIcon';
 
 import { ThreadSortGroup } from '@/components/settings/ThreadSortGroup';
 import { useThreadPreferencesStore } from '@/hooks/useThreadPreferences';
-import { Embed, toElement } from '@oxy.so/bloom-language';
 import {
+  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-} from '@oxy.so/bloom-language/containers';
+  toElement,
+} from '@oxy.so/bloom-language';
 
 export default function ReplyPreferencesSheet() {
   const { t } = useTranslation();

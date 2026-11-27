@@ -10,11 +10,11 @@ import {
   Button as LButton,
   Embed,
   RawText,
+  Search as LSearch,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
 
 export function StorefrontSettings({ accountId }: { accountId: string }) {
   const { t } = useTranslation();

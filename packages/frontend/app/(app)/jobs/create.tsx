@@ -21,17 +21,18 @@ import { LazyJobFormFields } from '@/components/sharedRouteScreens';
 import {
   Avatar as LAvatar,
   Button as LButton,
+  Card as LCard,
+  Dialog as LDialog,
   Embed,
+  Field as LField,
   HStack,
   Header,
   RawText,
+  Row,
   ScrollView,
   Text as LText,
   toElement,
 } from '@oxy.so/bloom-language';
-import { Card as LCard, Row } from '@oxy.so/bloom-language/containers';
-import { Field as LField } from '@oxy.so/bloom-language/inputs';
-import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 import { screen } from '@oxy.so/bloom-language/router';
 
 const ELIGIBLE_KINDS: readonly string[] = MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS;

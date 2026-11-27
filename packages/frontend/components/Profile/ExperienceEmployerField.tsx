@@ -31,12 +31,13 @@ import {
   Embed,
   HStack,
   RawText,
+  Row,
   Text as LText,
+  TextField as LTextField,
   VStack,
   toElement,
+  TextField,
 } from '@oxy.so/bloom-language';
-import { Row } from '@oxy.so/bloom-language/containers';
-import { TextField as LTextField, TextField } from '@oxy.so/bloom-language/inputs';
 
 /**
  * A field's error, announced as an alert. 14/20 in the inherited ink: its class named the app's
