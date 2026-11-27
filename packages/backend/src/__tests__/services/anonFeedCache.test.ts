@@ -28,6 +28,8 @@ vi.mock('../../utils/redis', () => ({
 }));
 
 import { anonFeedCache } from '../../services/feed/anonFeedCache';
+import { ANON_CONTINUATION_LIFETIME_MS } from '../../services/feed/anonFeedFreshness';
+import { RANKED_SESSION_TTL_MS } from '../../mtn/feed/RankedFeedSession';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -101,6 +103,26 @@ describe('anonFeedCache.read', () => {
     expect(mocks.revalidate).toHaveBeenCalledTimes(1);
   });
 
+  it('serves a stale page past the feed session lifetime without its expired continuation', async () => {
+    const page = { items: [{ id: 'p1' }], hasMore: true, nextCursor: 'fs1:old', totalCount: 1 };
+    const entry = { page, revisions: {} };
+
+    mocks.redisGet.mockResolvedValue(
+      JSON.stringify({ cachedAt: Date.now() - ANON_CONTINUATION_LIFETIME_MS + 60_000, entry }),
+    );
+    expect(await anonFeedCache.readStale('k')).toEqual(page);
+
+    mocks.redisGet.mockResolvedValue(
+      JSON.stringify({ cachedAt: Date.now() - ANON_CONTINUATION_LIFETIME_MS, entry }),
+    );
+    expect(await anonFeedCache.readStale('k')).toEqual({
+      items: [{ id: 'p1' }],
+      hasMore: false,
+      totalCount: 1,
+    });
+    expect(ANON_CONTINUATION_LIFETIME_MS).toBeLessThan(RANKED_SESSION_TTL_MS);
+  });
+
   it('returns null on a miss', async () => {
     mocks.redisGet.mockResolvedValue(null);
     expect(await anonFeedCache.read('k')).toBeNull();
@@ -149,6 +171,13 @@ describe('anonFeedCache.write', () => {
     const stored = JSON.parse(body);
     expect(stored.entry).toEqual(payload);
     expect(Math.abs(stored.cachedAt - Date.now())).toBeLessThan(5_000);
+  });
+
+  it('keeps the page for the time it is given', async () => {
+    const payload = { page: { items: [], hasMore: false, totalCount: 0 }, revisions: {} };
+    await anonFeedCache.write('k', payload, { keepSeconds: 24 * 60 * 60 });
+
+    expect(mocks.redisSetEx.mock.calls[0][1]).toBe(24 * 60 * 60);
   });
 
   it('does not throw (fail-soft) when Redis write fails', async () => {

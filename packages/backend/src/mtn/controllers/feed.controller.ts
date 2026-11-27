@@ -57,7 +57,7 @@ import { findActorsByUris } from '../../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { feedSeenPostsService } from '../../services/feed/FeedSeenPostsService';
 import { anonFeedCache, type AnonFeedEntry } from '../../services/feed/anonFeedCache';
-import { anonFreshMsFor } from '../../services/feed/anonFeedFreshness';
+import { anonFreshMsFor, anonKeepSecondsFor } from '../../services/feed/anonFeedFreshness';
 import { hasUnresolvedAuthor } from '../../services/feed/revalidateAnonymousFeed';
 import {
   captureHydrationRevisions,
@@ -747,9 +747,14 @@ class MtnFeedController {
         };
         const degraded = hasUnresolvedAuthor(response);
         if (!degraded) settleAnonBuild?.(entry);
-        anonFeedCache.write(anonCacheKey, entry, { degraded }).catch((error) => {
-          logger.warn('[MtnFeedController] Anonymous feed cache write failed', error);
-        });
+        anonFeedCache
+          .write(anonCacheKey, entry, {
+            degraded,
+            keepSeconds: anonKeepSecondsFor(descriptor, cursor),
+          })
+          .catch((error) => {
+            logger.warn('[MtnFeedController] Anonymous feed cache write failed', error);
+          });
       }
 
       if (!servedStale) {

@@ -2,7 +2,11 @@ import { revalidateAnonymousFeed, type AnonymousFeedSnapshot } from './revalidat
 import { createHash } from 'node:crypto';
 import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { createCache } from '../../utils/cache';
-import { ANON_FRESH_MS } from './anonFeedFreshness';
+import {
+  ANON_CONTINUATION_LIFETIME_MS,
+  ANON_FRESH_MS,
+  ANON_KEEP_SECONDS,
+} from './anonFeedFreshness';
 import type { RequestLanguages } from '../../utils/viewerLanguage';
 
 /**
@@ -94,18 +98,7 @@ function stableStringify(value: unknown): string {
   });
 }
 
-/**
- * How long a page is KEPT after it stops being fresh, to be served while one
- * build refreshes it. A build is the whole gather-rank-hydrate pipeline: on the
- * Explore feed it scores a day of posts and runs 4 to 15 s against a 15 s
- * statement timeout, so an entry that simply vanished after 45 s sent every
- * reader that arrived next into a build of their own, and a loaded database
- * answered those with 503s. A stale page is a shared page a minute or so old;
- * a 503 is nothing.
- */
-const STALE_TTL_SECONDS = 15 * 60;
-
-const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: STALE_TTL_SECONDS });
+const cache = createCache({ name: 'AnonFeedCache', ttlSeconds: ANON_KEEP_SECONDS });
 
 /** What is stored: the entry and when it was built (the cache has no age of its own). */
 interface StoredAnonFeed {
@@ -170,12 +163,23 @@ class AnonFeedCache {
    * The page kept for `key` whatever its age (still re-authorized, like
    * {@link read}), or `null` when none is kept. For serving while a build
    * refreshes it, never instead of one.
+   *
+   * A page older than {@link ANON_CONTINUATION_LIFETIME_MS} is served without
+   * its continuation: its cursor names a ranked feed session that has expired
+   * or is about to, and the next page would answer 410 (the app reloads page
+   * one once per cursor, gets the same stale page and cursor, and stops). The
+   * reader gets the posts, and the rebuilt page brings a live cursor.
    */
   async readStale(
     key: string,
     requestLanguages?: RequestLanguages,
   ): Promise<CacheableFeedResponse | null> {
-    return this.readWhere(key, requestLanguages, () => true);
+    const stored = await cache.get<StoredAnonFeed>(key);
+    if (!stored?.entry?.page) return null;
+    const page = await revalidateAnonymousFeed(stored.entry, requestLanguages);
+    if (Date.now() - stored.cachedAt < ANON_CONTINUATION_LIFETIME_MS) return page;
+    const { nextCursor: _expired, ...rest } = page;
+    return { ...rest, hasMore: false };
   }
 
   private async readWhere(
@@ -193,15 +197,21 @@ class AnonFeedCache {
    *
    * A `degraded` page (see {@link StoredAnonFeed.degraded}) is only stored when
    * nothing is kept yet, so a clean stale page is never replaced by a worse one.
+   * `keepSeconds` is how long it is kept (`anonKeepSecondsFor`), by default
+   * {@link ANON_KEEP_SECONDS}.
    */
-  async write(key: string, entry: AnonFeedEntry, options?: { degraded?: boolean }): Promise<void> {
+  async write(
+    key: string,
+    entry: AnonFeedEntry,
+    options?: { degraded?: boolean; keepSeconds?: number },
+  ): Promise<void> {
     const degraded = options?.degraded === true;
     if (degraded && (await cache.get<StoredAnonFeed>(key))?.entry?.page) return;
-    await cache.set<StoredAnonFeed>(key, {
-      cachedAt: Date.now(),
-      entry,
-      ...(degraded ? { degraded } : {}),
-    });
+    await cache.set<StoredAnonFeed>(
+      key,
+      { cachedAt: Date.now(), entry, ...(degraded ? { degraded } : {}) },
+      { ttlSeconds: options?.keepSeconds ?? ANON_KEEP_SECONDS },
+    );
   }
 
   /**
