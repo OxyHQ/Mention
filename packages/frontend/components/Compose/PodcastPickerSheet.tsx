@@ -1,7 +1,7 @@
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useState } from 'react';
 import { FlatList, type ViewStyle } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { useTranslation } from 'react-i18next';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -55,7 +55,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
       .leadingView(
         Embed(
           result.artworkUrl ? (
-            <Image
+            <BloomImage
               source={{ uri: result.artworkUrl }}
               style={{ width: 40, height: 40, borderRadius: 6 }}
               contentFit="cover"

@@ -1,7 +1,7 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Platform, TextInput, type TextStyle, type ViewStyle } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { useTranslation } from 'react-i18next';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -196,7 +196,7 @@ const SongResultRow = memo(function SongResultRow({
       .leadingView(
         result.artworkUrl
           ? Embed(
-              <Image
+              <BloomImage
                 source={{ uri: result.artworkUrl }}
                 style={{ width: 40, height: 40, borderRadius: 6 }}
                 contentFit="cover"
@@ -245,7 +245,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
       .leadingView(
         result.artworkUrl
           ? Embed(
-              <Image
+              <BloomImage
                 source={{ uri: result.artworkUrl }}
                 style={{ width: 40, height: 40, borderRadius: 6 }}
                 contentFit="cover"
@@ -550,7 +550,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
               HStack(
                 selectedSong.artworkUrl
                   ? Embed(
-                      <Image
+                      <BloomImage
                         source={{ uri: selectedSong.artworkUrl }}
                         style={{ width: 40, height: 40, borderRadius: 6 }}
                         contentFit="cover"
@@ -626,7 +626,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
               HStack(
                 selectedPodcast.artworkUrl
                   ? Embed(
-                      <Image
+                      <BloomImage
                         source={{ uri: selectedPodcast.artworkUrl }}
                         style={{ width: 40, height: 40, borderRadius: 6 }}
                         contentFit="cover"

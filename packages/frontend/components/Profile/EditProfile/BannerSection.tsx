@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useCallback } from 'react';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
@@ -102,7 +102,7 @@ export const BannerSection: React.FC = () => {
       headerImageRef
         ? VStack(
             Embed(
-              <Image
+              <BloomImage
                 source={{
                   // Same variant the profile banner asks for, so this preview and
                   // the profile share ONE cache entry instead of pulling two

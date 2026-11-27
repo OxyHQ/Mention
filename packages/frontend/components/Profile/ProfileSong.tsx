@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { useTranslation } from 'react-i18next';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
@@ -46,7 +46,7 @@ export const ProfileSong = memo(function ProfileSong({
       HStack(
         song.artworkUrl
           ? Embed(
-              <Image
+              <BloomImage
                 source={{ uri: song.artworkUrl }}
                 style={{ width: 32, height: 32, borderRadius: 6 }}
                 contentFit="cover"

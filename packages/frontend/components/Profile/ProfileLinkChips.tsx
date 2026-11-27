@@ -1,5 +1,6 @@
 import { memo, useCallback, useState } from 'react';
-import { Image, type ImageStyle } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
+import { type ImageStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { CappedChipRow } from '@oxy.so/bloom/chip';
@@ -58,7 +59,7 @@ function LinkIcon({ link }: { link: ProfileLink }) {
     return toElement(Icon(RiLink).size('sm').foreground('muted'));
   }
   return (
-    <Image
+    <BloomImage
       source={{ uri: link.faviconUrl }}
       style={FAVICON_STYLE}
       contentFit="cover"

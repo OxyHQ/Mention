@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Image, type ImageProps, type ImageStyle } from 'expo-image';
+import { BloomImage, type BloomImageProps } from '@oxy.so/bloom/image';
+import { type ImageStyle } from 'react-native';
 import { useDialogFrame } from '@oxy.so/bloom/dialog';
 import {
   Button as LButton,
@@ -23,7 +24,7 @@ type SheetStep = 0 | 1 | 2;
  * ONE table rather than a parallel array of artwork: a step and its picture drifting
  * apart is the failure this shape makes impossible.
  */
-const STEP_KEYS: readonly { title: string; body: string; art: ImageProps['source'] }[] = [
+const STEP_KEYS: readonly { title: string; body: string; art: BloomImageProps['source'] }[] = [
   {
     title: 'fediverse.sheet.step1.title',
     body: 'fediverse.sheet.step1.body',
@@ -229,7 +230,7 @@ function FediverseInfoSteps({
                   after the tap, i.e. past the end of the panel's 260ms reshape, so the
                   picture arrived visibly after the words and the panel had already
                   finished resizing around it. */ Embed(
-            <Image
+            <BloomImage
               aria-hidden
               source={STEP_KEYS[step].art}
               style={ART_STYLE}
