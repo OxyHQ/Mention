@@ -2,7 +2,7 @@ import { clamp } from '@oxy.so/utils/text';
 import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { isHostOf } from '@/utils/isHostOf';
 import { StyleSheet, View, type ViewStyle, type DimensionValue } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { RiRadioLine } from '@oxy.so/bloom/icons/RiRadioLine';
 import { RiSpotifyFill } from '@oxy.so/bloom/icons/RiSpotifyFill';
 import { RiYoutubeFill } from '@oxy.so/bloom/icons/RiYoutubeFill';
@@ -143,7 +143,7 @@ const artwork = (uri: string | undefined, size: 'card' | 'strip') => {
   const corner = card ? '10' : 'lg';
   return uri
     ? VStack(
-        Embed(<Image source={{ uri }} style={styles.fill} contentFit="cover" transition={120} />),
+        Embed(<BloomImage source={{ uri }} style={styles.fill} contentFit="cover" transition={120} />),
         // Hairline so a cover the colour of the card still reads as its own square.
         VStack()
           .position({ top: 'none', right: 'none', bottom: 'none', left: 'none' })
@@ -213,7 +213,7 @@ export const PodcastCard = memo(function PodcastCard({
           artworkUrl
             ? VStack(
                 Embed(
-                  <Image
+                  <BloomImage
                     source={{ uri: artworkUrl }}
                     style={styles.fill}
                     contentFit="cover"

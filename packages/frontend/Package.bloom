@@ -39,7 +39,7 @@ let package = Package(
     .expo("expo-font", until: "Package.bloom fonts"),
     .expo("expo-gl", until: "Canvas"),
     .expo("expo-haptics", until: "Bloom.Device.Haptics"),
-    .expo("expo-image", until: "BloomUI.Image"),
+    .expo("expo-image", until: "BloomUI.Image (Mention's own call sites are on it; Bloom's MediaSurface and LinkPreviewCard and @oxy.so/services still import expo-image)"),
     .expo("expo-image-manipulator", until: "ImageEditor"),
     .expo("expo-image-picker", until: "PhotoPicker"),
     .expo("expo-keep-awake", until: "Screen.keepAwake"),

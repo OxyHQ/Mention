@@ -5,7 +5,8 @@ import type { TFunction } from 'i18next';
 import { useRoute } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
 import { StyleSheet, View, FlatList, Platform, type ViewStyle, type TextStyle } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
+import { preloadImage } from '@oxy.so/bloom/hooks';
 import { toast } from '@oxy.so/bloom/toast';
 import Animated from 'react-native-reanimated';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
@@ -364,12 +365,11 @@ const ReelPoster = memo<{
     VStack(
       posterUrl && !posterFailed
         ? Embed(
-            <Image
+            <BloomImage
               source={{ uri: posterUrl }}
               style={styles.poster}
               contentFit="cover"
               cachePolicy="memory-disk"
-              priority="high"
               onError={onPosterError}
             />,
           )
@@ -1340,10 +1340,9 @@ export default function VideosScreen() {
     for (let i = start; i <= end; i++) {
       const posterUrl = posts[i]?.posterUrl;
       if (posterUrl) {
-        Image.prefetch(posterUrl).catch(() => {
-          // Prefetch is a pure optimization — a failure here is
-          // identical to a cache miss, never surfaced to the viewer.
-        });
+        // Prefetch is a pure optimization — a failure here is identical
+        // to a cache miss, never surfaced to the viewer.
+        preloadImage(posterUrl);
       }
     }
   }, [currentVisibleIndex, posts]);

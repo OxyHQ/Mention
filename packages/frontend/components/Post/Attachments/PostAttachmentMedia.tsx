@@ -1,6 +1,5 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { benchMark } from '@/lib/bench';
 import {
   Pressable,
   View,
@@ -9,7 +8,8 @@ import {
   Platform,
   type ViewInstance,
 } from 'react-native';
-import { Image, type ImageLoadEventData } from 'expo-image';
+import { BloomImage, type BloomImageLoadInfo } from '@oxy.so/bloom/image';
+import { benchMark } from '@/lib/bench';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
@@ -429,10 +429,10 @@ const PostAttachmentImage: React.FC<{
   // instead of a separate `getSize` request for the same bytes.
   const needsMeasure = recordRatio === undefined && !hasAspectRatio(src);
   const handleImageLoad = useCallback(
-    (event: ImageLoadEventData) => {
+    (event: BloomImageLoadInfo) => {
       benchMark('feed-image');
       if (!needsMeasure) return;
-      const { width: naturalWidth, height: naturalHeight } = event.source;
+      const { width: naturalWidth, height: naturalHeight } = event;
       if (naturalWidth <= 0 || naturalHeight <= 0) return;
       const ratio = naturalWidth / naturalHeight;
       setMeasured({ src, ratio });
@@ -482,7 +482,7 @@ const PostAttachmentImage: React.FC<{
   // frame it is ready instead of fading in over a blank slot.
   const lazyImage = (
     <View style={containerStyles}>
-      <Image
+      <BloomImage
         source={src}
         recyclingKey={src}
         style={styles.fullSize}

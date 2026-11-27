@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { Linking, type ViewInstance } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useViewableVisible } from '@oxy.so/bloom/video-playback';
@@ -34,7 +34,7 @@ export function CommerceCard({
     VStack(
       image
         ? Embed(
-            <Image
+            <BloomImage
               source={{ uri: image.url }}
               accessibilityLabel={image.alt ?? product?.title ?? collection?.title}
               style={{ width: '100%', height: Math.min(120, height * 0.4) }}
