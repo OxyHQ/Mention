@@ -111,7 +111,7 @@ jest.mock('@oxy.so/bloom/text-field', () => {
       R.createElement(RN.Text, null, children),
   };
 });
-jest.mock('@/components/Feed/PostItem', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Feed/PostItem.bloom', () => ({ __esModule: true, PostItem: () => null }));
 jest.mock('@/utils/openExternalLink', () => ({ openExternalLink: jest.fn() }));
 
 const note = (overrides: Partial<CommunityNoteSummary> = {}): CommunityNoteSummary => ({

@@ -13,7 +13,7 @@ import type {
   FeedPostSlice,
   FeedSliceReason,
 } from '@mention/shared-types';
-import PostItem from './PostItem';
+import { PostItem } from './PostItem.bloom';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import FeedInterstitial from './interstitials/FeedInterstitial';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
@@ -565,27 +565,31 @@ export function renderFeedRow(
 
   const content = (
     <PostErrorBoundary postId={renderedPostId}>
-      <PostItem
-        post={renderedPost}
-        isThreadParent={row.isThreadParent}
-        isThreadChild={row.isThreadChild}
-        isThreadLastChild={row.isThreadLastChild}
-        attachedBelow={showThreadLink || Boolean(row.replyBranch && !row.replyBranch.endsGroup)}
-        replyBranch={Boolean(row.replyBranch && row.nestingDepth > 0)}
-        style={row.replyBranch ? styles.branchPost : undefined}
-        hideSeparator={Boolean(row.replyBranch)}
-        nestingDepth={row.nestingDepth}
-        repostedBy={row.headReposter ?? (boostedOriginal ? boostCtx?.actor : undefined)}
-        repostPlacement={
-          row.headReposter ? 'headOnly' : row.repostShownAbove ? 'shownAbove' : undefined
-        }
-        socialContext={row.socialContext}
-        feedDescriptor={feedDescriptor}
-        sliceKey={row.sliceKey}
-        threadOpenId={row.threadOpenId}
-        isThread={Boolean(row.threadOpenId)}
-        openPostEngagement={openPostEngagement}
-      />
+      {toElement(
+        PostItem({
+          post: renderedPost,
+          isThreadParent: row.isThreadParent,
+          isThreadChild: row.isThreadChild,
+          isThreadLastChild: row.isThreadLastChild,
+          attachedBelow: showThreadLink || Boolean(row.replyBranch && !row.replyBranch.endsGroup),
+          replyBranch: Boolean(row.replyBranch && row.nestingDepth > 0),
+          style: row.replyBranch ? styles.branchPost : undefined,
+          hideSeparator: Boolean(row.replyBranch),
+          nestingDepth: row.nestingDepth,
+          repostedBy: row.headReposter ?? (boostedOriginal ? boostCtx?.actor : undefined),
+          repostPlacement: row.headReposter
+            ? 'headOnly'
+            : row.repostShownAbove
+              ? 'shownAbove'
+              : undefined,
+          socialContext: row.socialContext,
+          feedDescriptor,
+          sliceKey: row.sliceKey,
+          threadOpenId: row.threadOpenId,
+          isThread: Boolean(row.threadOpenId),
+          openPostEngagement,
+        }),
+      )}
       {showThreadLink && (
         <ShowThreadLink
           sliceKey={row.sliceKey}

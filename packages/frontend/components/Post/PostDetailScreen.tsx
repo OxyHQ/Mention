@@ -2,7 +2,7 @@ import { commerceService } from '@/services/commerceService';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
 import { Platform, StyleSheet } from 'react-native';
-import { Button as LanguageButton, Embed, Icon } from '@oxy.so/bloom-language';
+import { Button as LanguageButton, Embed, Icon, toElement } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 import {
   Accordion,
@@ -15,7 +15,7 @@ import { RiEqualizerLine } from '@oxy.so/bloom/icons/RiEqualizerLine';
 import { useRouter } from '@/lib/navigation/router';
 import { usePostReadAccess } from '@/hooks/usePostReadAccess';
 import { EmptyState } from '@/components/common/EmptyState';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import Feed from '@/components/Feed/Feed';
 import { PostReplyFooter } from './PostReplyFooter';
@@ -536,29 +536,33 @@ const PostDetailScreen = screen(function PostDetailScreen({
                         line is continuous root → … → immediate parent. `attachedBelow`
                         drops each ancestor's bottom border/padding so they connect flush
                         with no separators between them or into the focused post. */ LEmbed(
-          ancestors.map((ancestor, index) => (
-            <PostItem
-              openPostEngagement={openPostEngagement}
-              key={String(ancestor.id ?? index)}
-              post={ancestor}
-              threadPosition={threadPositions.get(String(ancestor.id))}
-              isThreadParent
-              isThreadChild={index > 0}
-              attachedBelow
-              onReply={handleOpenReply}
-            />
-          )),
+          ancestors.map((ancestor, index) =>
+            toElement(
+              PostItem({
+                openPostEngagement,
+                post: ancestor,
+                threadPosition: threadPositions.get(String(ancestor.id)),
+                isThreadParent: true,
+                isThreadChild: index > 0,
+                attachedBelow: true,
+                onReply: handleOpenReply,
+              }),
+              String(ancestor.id ?? index),
+            ),
+          ),
         ),
         /* Ancestors end at the focused avatar; no rail crosses its full-width body. */ LEmbed(
-          <PostItem
-            openPostEngagement={openPostEngagement}
-            post={post}
-            threadPosition={threadPositions.get(String(post.id))}
-            isPostDetail
-            isThreadChild={hasAncestors}
-            isThreadLastChild={hasAncestors}
-            onReply={handleOpenReply}
-          />,
+          toElement(
+            PostItem({
+              openPostEngagement,
+              post,
+              threadPosition: threadPositions.get(String(post.id)),
+              isPostDetail: true,
+              isThreadChild: hasAncestors,
+              isThreadLastChild: hasAncestors,
+              onReply: handleOpenReply,
+            }),
+          ),
         ),
         LEmbed(
           hasContinuations && (
@@ -579,18 +583,18 @@ const PostDetailScreen = screen(function PostDetailScreen({
                 <AccordionContent contentStyle={continuationStyles.content}>
                   {continuations.map((continuation, index) => {
                     const isLast = index === continuations.length - 1;
-                    return (
-                      <PostItem
-                        openPostEngagement={openPostEngagement}
-                        key={String(continuation.id)}
-                        post={continuation}
-                        threadPosition={threadPositions.get(String(continuation.id))}
-                        isThreadChild={index > 0}
-                        isThreadParent={!isLast}
-                        isThreadLastChild={isLast}
-                        attachedBelow={!isLast}
-                        onReply={handleOpenReply}
-                      />
+                    return toElement(
+                      PostItem({
+                        openPostEngagement,
+                        post: continuation,
+                        threadPosition: threadPositions.get(String(continuation.id)),
+                        isThreadChild: index > 0,
+                        isThreadParent: !isLast,
+                        isThreadLastChild: isLast,
+                        attachedBelow: !isLast,
+                        onReply: handleOpenReply,
+                      }),
+                      String(continuation.id),
                     );
                   })}
                 </AccordionContent>

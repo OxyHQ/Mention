@@ -22,7 +22,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from '@oxy.so/bloom/accordion';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import type { AccountInsights, EngagementRatios } from '@/services/insightsService';
 import type { HydratedPost } from '@mention/shared-types';
@@ -404,7 +404,7 @@ export function InsightsDashboard({
                     topPostsData.length > 0
                       ? topPostsData.map((post, index) => (
                           <Fragment key={post.id}>
-                            <PostItem post={post} openPostEngagement={openPostEngagement} />
+                            {toElement(PostItem({ post, openPostEngagement }))}
                             {index < topPostsData.length - 1 ? toElement(LDivider()) : null}
                           </Fragment>
                         ))

@@ -152,7 +152,7 @@ import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
 import PublishAsDialog from '@/components/Compose/PublishAsDialog';
 import { publishPostWithRepost } from '@/components/Compose/publishPost';
 import VariantEditor from '@/components/Compose/VariantEditor';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuilder';
 import {
   isValidSourceUrl,
@@ -3464,7 +3464,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             )
                           : replyToPost
                             ? toElement(
-                                VStack(Embed(<PostItem post={replyToPost} />)).border(
+                                VStack(Embed(toElement(PostItem({ post: replyToPost })))).border(
                                   'border',
                                   'thin',
                                   'bottom',

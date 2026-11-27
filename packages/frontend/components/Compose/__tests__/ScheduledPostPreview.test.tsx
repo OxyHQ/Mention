@@ -122,12 +122,12 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string }) => user?.username,
 }));
 
-jest.mock('@/components/Feed/PostItem', () => {
+jest.mock('@/components/Feed/PostItem.bloom', () => {
   const react = jest.requireActual('react');
   const { Text: RNText } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: (props: { post: HydratedPost }) => {
+    PostItem: (props: { post: HydratedPost }) => {
       // Recorded, not asserted here, so the test can check the exact object
       // identity the preview handed to the feed's renderer.
       mockPostItemProps.post = props.post;

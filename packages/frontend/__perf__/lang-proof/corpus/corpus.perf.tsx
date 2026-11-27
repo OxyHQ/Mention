@@ -55,9 +55,9 @@ jest.mock('@/lib/navigation/router', () => ({
   useLocalSearchParams: () => ({}),
 }));
 jest.mock('@/components/Feed/Feed', () => ({ __esModule: true, default: mockStub('Feed') }));
-jest.mock('@/components/Feed/PostItem', () => ({
+jest.mock('@/components/Feed/PostItem.bloom', () => ({
   __esModule: true,
-  default: mockStub('PostItem'),
+  PostItem: mockStub('PostItem'),
 }));
 jest.mock('@/components/Post/CompactReplyComposer', () => ({
   CompactReplyComposer: mockStub('CompactReplyComposer'),

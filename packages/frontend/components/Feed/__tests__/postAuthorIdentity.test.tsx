@@ -94,7 +94,10 @@ jest.mock('@/components/Post/ContentWarning.bloom', () => ({
   __esModule: true,
   ContentWarning: () => null,
 }));
-jest.mock('@/components/Post/PostActions.bloom', () => ({ __esModule: true, PostActions: () => null }));
+jest.mock('@/components/Post/PostActions.bloom', () => ({
+  __esModule: true,
+  PostActions: () => null,
+}));
 jest.mock('@/components/Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostLocation', () => ({ __esModule: true, postLocation: () => null }));
 jest.mock('@/components/Post/PostAttachmentsRow', () => ({
@@ -166,13 +169,14 @@ jest.mock('@/components/ui/AccountAvatarGroup', () => {
   };
 });
 
-import PostItem from '../PostItem';
+import { PostItem } from '../PostItem.bloom';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { noteIdentityChanged } from '@/lib/actorCache';
 import { openAccountStore, signOutForTests } from '@/test-support/accountScope';
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { toElement } from '@oxy.so/bloom-language';
 
 const CHANNEL_ID = 'channel-1';
 
@@ -199,7 +203,7 @@ function renderRow() {
   act(() => {
     mounted = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={stalePost() as never} />}
+        {toElement(PostItem({ post: stalePost() as never }))}
       </BloomThemeProvider>,
     );
   });
@@ -335,37 +339,33 @@ describe('every actor on the row follows its identity', () => {
     act(() => {
       mounted = TestRenderer.create(
         <BloomThemeProvider fonts={false}>
-          {
-            <PostItem
-              post={
-                {
-                  ...stalePost(),
-                  authors: [
-                    {
-                      id: CHANNEL_ID,
-                      username: 'daily',
-                      name: { displayName: 'Daily' },
-                      avatar: 'avatar-before',
-                    },
-                    {
-                      id: COLLABORATOR,
-                      username: 'co',
-                      name: { displayName: 'Co' },
-                      avatar: 'collab-before',
-                    },
-                  ],
-                } as never
-              }
-              repostedBy={
-                {
-                  id: BOOSTER,
-                  username: 'boo',
-                  name: { displayName: 'Boo' },
-                  avatar: 'booster-before',
-                } as never
-              }
-            />
-          }
+          {toElement(
+            PostItem({
+              post: {
+                ...stalePost(),
+                authors: [
+                  {
+                    id: CHANNEL_ID,
+                    username: 'daily',
+                    name: { displayName: 'Daily' },
+                    avatar: 'avatar-before',
+                  },
+                  {
+                    id: COLLABORATOR,
+                    username: 'co',
+                    name: { displayName: 'Co' },
+                    avatar: 'collab-before',
+                  },
+                ],
+              } as never,
+              repostedBy: {
+                id: BOOSTER,
+                username: 'boo',
+                name: { displayName: 'Boo' },
+                avatar: 'booster-before',
+              } as never,
+            }),
+          )}
         </BloomThemeProvider>,
       );
     });
@@ -429,7 +429,9 @@ it('repaints a changed character on the same post and author without engagement 
   const post = { ...before, user: { ...before.user, kind: 'bot', character } };
   act(() => {
     mounted = TestRenderer.create(
-      <BloomThemeProvider fonts={false}>{<PostItem post={post as never} />}</BloomThemeProvider>,
+      <BloomThemeProvider fonts={false}>
+        {toElement(PostItem({ post: post as never }))}
+      </BloomThemeProvider>,
     );
   });
   expect(probe(mounted!, 'author-character')).toBe(JSON.stringify({ kind: 'bot', character }));
@@ -437,7 +439,9 @@ it('repaints a changed character on the same post and author without engagement 
   act(() => {
     mounted!.update(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={{ ...post, user: { ...post.user, character: changed } } as never} />}
+        {toElement(
+          PostItem({ post: { ...post, user: { ...post.user, character: changed } } as never }),
+        )}
       </BloomThemeProvider>,
     );
   });
