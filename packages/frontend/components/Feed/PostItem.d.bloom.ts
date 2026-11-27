@@ -7,8 +7,8 @@ interface PostItemContentProps {
   readonly post: HydratedPost;
   readonly isNested?: boolean;
   readonly showPinned?: boolean;
-  readonly style?: object | undefined;
-  readonly onReply?: (() => void) | undefined;
+  readonly style?: object | undefined | null;
+  readonly onReply?: (() => void) | undefined | null;
   readonly nestingDepth?: number;
   readonly isThreadParent?: boolean;
   readonly isThreadChild?: boolean;
@@ -16,17 +16,17 @@ interface PostItemContentProps {
   readonly replyBranch?: boolean;
   readonly attachedBelow?: boolean;
   readonly hideSeparator?: boolean;
-  readonly repostedBy?: PostUser | undefined;
-  readonly repostPlacement?: ("headOnly" | "shownAbove") | undefined;
-  readonly socialContext?: FeedPostSlice['socialContext'] | undefined;
-  readonly isPostDetail?: boolean | undefined;
-  readonly threadPosition?: { index: number; total: number } | undefined;
-  readonly feedDescriptor?: string | undefined;
-  readonly sliceKey?: string | undefined;
-  readonly threadOpenId?: string | undefined;
-  readonly isThread?: boolean | undefined;
-  readonly onOpen?: (() => void) | undefined;
-  readonly openPostEngagement?: ((postId: string, kind: "likes" | "boosts" | "insights" | "replies", options?: Parameters<(NonNullable<Parameters<(NestedPostRenderer)>[2]>)>[2]) => boolean) | undefined;
+  readonly repostedBy?: PostUser | undefined | null;
+  readonly repostPlacement?: ("headOnly" | "shownAbove") | undefined | null;
+  readonly socialContext?: FeedPostSlice['socialContext'] | undefined | null;
+  readonly isPostDetail?: boolean | undefined | null;
+  readonly threadPosition?: { index: number; total: number } | undefined | null;
+  readonly feedDescriptor?: string | undefined | null;
+  readonly sliceKey?: string | undefined | null;
+  readonly threadOpenId?: string | undefined | null;
+  readonly isThread?: boolean | undefined | null;
+  readonly onOpen?: (() => void) | undefined | null;
+  readonly openPostEngagement?: ((postId: string, kind: "likes" | "boosts" | "insights" | "replies", options?: Parameters<(NonNullable<Parameters<(NestedPostRenderer)>[2]>)>[2]) => boolean) | undefined | null;
 }
 /** A Bloom view: a node factory, not a JSX component. Use it in a chain (`VStack(PostItemContent())`), or from TSX as `toElement(PostItemContent())`. */
 declare const PostItemContent: (props: PostItemContentProps) => ComposedView;

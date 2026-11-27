@@ -2,7 +2,7 @@ import { commerceService } from '@/services/commerceService';
 import { FeedSkeleton } from '@/components/loading/ContentSkeleton';
 import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
 import { Platform, StyleSheet } from 'react-native';
-import { Button as LanguageButton, Embed, Icon, toElement } from '@oxy.so/bloom-language';
+import { Button as LanguageButton, Embed, Icon } from '@oxy.so/bloom-language';
 import { screen } from '@oxy.so/bloom-language/router';
 import {
   Accordion,
