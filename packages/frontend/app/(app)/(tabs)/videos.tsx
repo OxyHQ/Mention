@@ -1051,10 +1051,14 @@ const VideoItem = memo<VideoItemProps>(
               PostActions({
                 presentation: 'video',
                 t,
+                // The API's counts are `number | null`; a Bloom `Float?` is `number | undefined`.
                 engagement: {
-                  ...item.engagement,
                   replies:
                     cachedActivePost?.engagement.replies ?? item.engagement.replies ?? undefined,
+                  likes: item.engagement.likes ?? undefined,
+                  boosts: item.engagement.boosts ?? undefined,
+                  downvotes: item.engagement.downvotes ?? undefined,
+                  saves: item.engagement.saves ?? undefined,
                 },
                 isLiked: item.viewerState.isLiked,
                 isBoosted: item.viewerState.isBoosted,
