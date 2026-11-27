@@ -308,6 +308,11 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: 'The confirmation-token guard; reads env, writes nothing.',
   },
+  'lib/backfillThrottle': {
+    scope: 'caller-scoped',
+    reason:
+      'Window and backpressure pacing on an injected clock; its one write, the stop cursor, is injected in the suite.',
+  },
   'lib/adminDeletionPreflight': {
     scope: 'caller-scoped',
     reason: 'Probes references for ONE named id supplied by the caller.',
