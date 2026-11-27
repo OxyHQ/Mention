@@ -158,12 +158,10 @@ private let SHRINK_STYLE = { minWidth: 0, flexShrink: 1 }
 /// The row's inks that are not language chains, as Bloom paints its own: once per palette.
 private let useRowInk = createTokenStyles { t in ({ edge: { borderColor: t.border } }) }
 
-public let PostItem = PostItemContent
-
 // Quotes render through the same row.
 private let renderNestedPost: NestedPostRenderer = {
   nested, depth, openPostEngagement in
-  (PostItem(
+  (PostItemContent(
     post: nested,
     isNested: true,
     nestingDepth: depth,
@@ -1177,17 +1175,17 @@ private func usePostRowModel(
 
 private struct PostRowView: View {
   let post: HydratedPost
-  var isNested: Bool? = none
-  var showPinned: Bool? = none
+  var isNested: Bool = false
+  var showPinned: Bool = false
   var style: Foreign<"object">? = none
   var onReply: (() -> Unit)? = none
-  var nestingDepth: Float? = none
-  var isThreadParent: Bool? = none
-  var isThreadChild: Bool? = none
-  var isThreadLastChild: Bool? = none
-  var replyBranch: Bool? = none
-  var attachedBelow: Bool? = none
-  var hideSeparator: Bool? = none
+  var nestingDepth: Float = 0
+  var isThreadParent: Bool = false
+  var isThreadChild: Bool = false
+  var isThreadLastChild: Bool = false
+  var replyBranch: Bool = false
+  var attachedBelow: Bool = false
+  var hideSeparator: Bool = false
   var repostedBy: PostUser? = none
   var repostPlacement: ("headOnly" | "shownAbove")? = none
   var socialContext: Foreign<"FeedPostSlice['socialContext']">? = none
@@ -1199,15 +1197,6 @@ private struct PostRowView: View {
   var isThread: Bool? = none
   var onOpen: (() -> Unit)? = none
   var openPostEngagement: OpenPostPanel? = none
-  let isNested = isNested ?? false
-  let showPinned = showPinned ?? false
-  let nestingDepth = nestingDepth ?? 0
-  let isThreadParent = isThreadParent ?? false
-  let isThreadChild = isThreadChild ?? false
-  let isThreadLastChild = isThreadLastChild ?? false
-  let replyBranch = replyBranch ?? false
-  let attachedBelow = attachedBelow ?? false
-  let hideSeparator = hideSeparator ?? false
   let { t, isArticleModalVisible, isContentWarningOpen, toggleContentWarning, viewPost, viewPostId, knownIdentities, author, reposter, metadata, content, documents, isSensitiveContent, spoilerText, isContentGated, corrections, isOwner, isLiked, isDownvoted, isBoosted, isSaved, articleContent, hasArticle, homiioCase, vibbrEvent, podcastContent, jobContent, pollData, pollId, location, hasValidLocation, mediaItems, nestedPost, boostUnavailable, quoteUnavailable, shouldRenderMediaBlock, attachmentDescriptors, avatarSource, avatarVariant, isDetailMain, isTappable, isThreadUnit, hoverOwner, openPostHref, recordOpen, goToPost, authorHandle, authorHref, prefetchAuthorProfile, goToAuthorProfile, reposterHandle, reposterHref, communityHandle, communityHref, handleLike, handleDownvote, handleSave, handleBoost, handleShare, handleSendInAllo, handleReply, openLanguagePicker, titleLinkUrl, openTitleLink, openArticleSheet, closeArticleSheet, handleInsightsPress, openLikesList, openBoostsList, openQuotesList, isCollab, openCollaboratorsList, roomId, handleRoomPress, communityNote, openCommunityNoteAbout, articleProp, eventProp, roomProp, linkCards, engagementSummary, actionsEngagement, headerAuthors, bylineNamesWriter, collabAvatars, headerUser, languageDisplayText, isTranslating, isTranslated, canTranslate, toggleReaderTranslation } = usePostRowModel(
     post: post,
     isNested: isNested,
@@ -1227,13 +1216,13 @@ private struct PostRowView: View {
   var body: some View {
     if !((author == none) || headerUser == none) {
       let { HPAD, VPAD } = POST_ITEM_SPACING
-      let contentInset = isNested || isDetailMain ? "md" : row.space.gutter
+      let contentInset = isNested == true || isDetailMain ? "md" : row.space.gutter
       let fullTimestamp = isDetailMain ? formatFullTimestamp(metadata.createdAt) : ""
       let hasBelowHeaderBlocks = (((((hasValidLocation && location != none) ||
         shouldRenderMediaBlock) ||
         boostUnavailable) ||
         quoteUnavailable) ||
-        !isNested)
+        isNested != true)
       let headerToBlocksGap = content.text != none && !content.text.isEmpty ||
         content.title != none && !content.title.isEmpty ? "md" : "xs"
       let replyContextRow = resolveReplyContextRow(
@@ -1275,7 +1264,7 @@ private struct PostRowView: View {
             ProfileHoverCard(username: reposterHandle) { repostRow }.id("reposted"),
           ]
         }
-        if (((!isNested && socialContext != none) && socialContext.postId == viewPostId) &&
+        if (((isNested != true && socialContext != none) && socialContext.postId == viewPostId) &&
           socialContext.total > 0) &&
           !((socialContext.type == "boostedBy" && reposter != none) &&
             socialContext.actors.every({ actor in actor.id == reposter.id })) {
@@ -1326,7 +1315,7 @@ private struct PostRowView: View {
             ]
           }
         }
-        if showPinned {
+        if showPinned == true {
           contextRows = [
             ..contextRows,
             HStack(alignment: "center") {
@@ -1376,7 +1365,7 @@ private struct PostRowView: View {
       let user = headerUser
       let compact = isNested
       let detail = isDetailMain
-      let avatarSize = isNested ? 20 : POST_AVATAR_SIZE
+      let avatarSize = isNested == true ? 20 : POST_AVATAR_SIZE
       let isCollabByline = headerAuthors.count > 1
       let hasDisplayName = !isCollabByline && user!.displayName?.trim()
       let onPressCollaborators = isCollab ? openCollaboratorsList : none
@@ -1530,7 +1519,7 @@ private struct PostRowView: View {
           feedDescriptor: feedDescriptor,
         ) : none,
       ) {
-        if viewPost.boost != none && !isNested {
+        if viewPost.boost != none && isNested != true {
           Icon(.repeat2)
           .size(row.iconSize.indicator)
           .foregroundStyle("muted")
@@ -1567,7 +1556,7 @@ private struct PostRowView: View {
           previewChars: isDetailMain ? Infinity : none,
           overrideText: languageDisplayText,
           linkCards: linkCards,
-          trailingContent: threadPosition != none && !isNested ? RawText(
+          trailingContent: threadPosition != none && isNested != true ? RawText(
             " ",
             RawText(" \(threadPosition.index)/\(threadPosition.total) ")
               .background("surface")
@@ -1641,7 +1630,7 @@ private struct PostRowView: View {
           attachments: attachmentDescriptors,
           nestedPost: nestedPost,
           renderNestedPost: renderNestedPost,
-          leftOffset: isNested || isDetailMain ? HPAD : POST_ITEM_SPACING.AVATAR_OFFSET,
+          leftOffset: isNested == true || isDetailMain ? HPAD : POST_ITEM_SPACING.AVATAR_OFFSET,
           pollData: pollData,
           pollId: pollId != none && !pollId.isEmpty ? "\(pollId)" : none,
           nestingDepth: nestingDepth,
@@ -1660,10 +1649,10 @@ private struct PostRowView: View {
           documents: documents,
           documentsPending: viewPost.documentsPending == true,
         ) : none,
-        communityNote?.status == "shown" && !isNested ? inset(
+        communityNote?.status == "shown" && isNested != true ? inset(
           CommunityNoteCard(note: communityNote!, onPressAbout: openCommunityNoteAbout),
         ) : none,
-        isNested ? none : inset(
+        isNested == true ? none : inset(
           PostRowActions(
             t: t,
             replies: actionsEngagement.replies,
@@ -1707,23 +1696,24 @@ private struct PostRowView: View {
         }
       }.spacing("md") : none
       let THREAD_LINE_LEFT = HPAD + POST_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2
-      let threadChildLine = isThreadChild && !isNested ? VStack()
+      let threadChildLine = isThreadChild == true && isNested != true ? VStack()
         .frame(width: "2xs", height: headerTopOffset + 4)
         .background("border")
         .corner("full")
         .position(top: "none", left: THREAD_LINE_LEFT)
         .zIndex("-1") : none
-      let threadParentLine = (isThreadParent && !isNested) && !isDetailMain ? VStack()
+      let threadParentLine = (isThreadParent == true && isNested != true) &&
+        !isDetailMain ? VStack()
         .frame(width: "2xs")
         .background("border")
         .corner("full")
         .position(
-          top: (isThreadChild ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
+          top: (isThreadChild == true ? 4 : VPAD) + POST_AVATAR_SIZE + 4 + headerTopOffset,
           left: THREAD_LINE_LEFT,
           bottom: "none",
         )
         .zIndex("-1") : none
-      let replyBranchElbow = replyBranch && !isNested ? BranchElbow(
+      let replyBranchElbow = replyBranch == true && isNested != true ? BranchElbow(
         style: {
           position: "absolute",
           left: THREAD_LINE_LEFT - REPLY_BRANCH_INDENT,
@@ -1735,7 +1725,8 @@ private struct PostRowView: View {
           borderBottomLeftRadius: 8,
         },
       ) : none
-      let closedBelow = isThreadParent || ((isThreadChild && !isThreadLastChild) || attachedBelow)
+      let closedBelow = isThreadParent ||
+        ((isThreadChild && isThreadLastChild != true) || attachedBelow)
       let rowView = {
         var rowView = VStack {
           if isThreadUnit && sliceKey != none && !sliceKey.isEmpty {
@@ -1754,14 +1745,14 @@ private struct PostRowView: View {
             blocks
           }
         }
-        if isNested {
+        if isNested == true {
           // bloom: review: spread children are one `[View]` child: one keyed slot (+1 fiber), not siblings
           rowView = rowView.padding("vertical", "md").border("border", "hairline").corner("lg")
         } else {
           rowView = rowView
-            .padding("top", isThreadChild ? "xs" : "md")
+            .padding("top", isThreadChild == true ? "xs" : "md")
             .padding("bottom", closedBelow ? "none" : "md")
-          if !closedBelow && !hideSeparator {
+          if !closedBelow && hideSeparator != true {
             rowView = rowView.border("border", "hairline", "bottom")
           }
         }
@@ -1795,17 +1786,17 @@ private struct PostRowView: View {
 
 private struct PostItemContent: View, Equatable {
   let post: HydratedPost
-  var isNested: Bool? = none
-  var showPinned: Bool? = none
+  var isNested: Bool = false
+  var showPinned: Bool = false
   var style: Foreign<"object">? = none
   var onReply: (() -> Unit)? = none
-  var nestingDepth: Float? = none
-  var isThreadParent: Bool? = none
-  var isThreadChild: Bool? = none
-  var isThreadLastChild: Bool? = none
-  var replyBranch: Bool? = none
-  var attachedBelow: Bool? = none
-  var hideSeparator: Bool? = none
+  var nestingDepth: Float = 0
+  var isThreadParent: Bool = false
+  var isThreadChild: Bool = false
+  var isThreadLastChild: Bool = false
+  var replyBranch: Bool = false
+  var attachedBelow: Bool = false
+  var hideSeparator: Bool = false
   var repostedBy: PostUser? = none
   var repostPlacement: ("headOnly" | "shownAbove")? = none
   var socialContext: Foreign<"FeedPostSlice['socialContext']">? = none
@@ -1847,3 +1838,5 @@ private struct PostItemContent: View, Equatable {
     )
   }
 }
+
+public let PostItem = PostItemContent
