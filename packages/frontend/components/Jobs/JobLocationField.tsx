@@ -14,17 +14,10 @@ import { useJobVocabulary } from '@/utils/jobVocabulary';
 import CodePickerDialog from './CodePickerDialog';
 import { EMPTY_JOB_LOCATION, type JobLocationDraft } from './jobForm';
 
-import {
-  Dialog as LDialog,
-  Embed,
-  Option,
-  RawText,
-  Row,
-  Search as LSearch,
-  Segmented,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Row } from '@oxy.so/bloom-language/containers';
+import { Option, Search as LSearch, Segmented } from '@oxy.so/bloom-language/inputs';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 const MIN_PLACE_QUERY_LENGTH = 2;
 const PLACE_SEARCH_DEBOUNCE_MS = 300;

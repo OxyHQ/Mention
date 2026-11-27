@@ -10,15 +10,14 @@ import { getErrorMessage } from '@/utils/apiError';
 
 import {
   Button as LButton,
-  Card as LCard,
   HStack,
   RawText,
   Text as LText,
-  TextEditor,
-  TextField as LTextField,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
+import { TextEditor, TextField as LTextField } from '@oxy.so/bloom-language/inputs';
 
 export function MembershipTierEditor({
   communityId,

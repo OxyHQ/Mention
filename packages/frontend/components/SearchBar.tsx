@@ -1,7 +1,8 @@
 import { useRouter } from '@/lib/navigation/router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search as LSearch, toElement, VStack } from '@oxy.so/bloom-language';
+import { toElement, VStack } from '@oxy.so/bloom-language';
+import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
 
 /**
  * Right-rail search box — the same Bloom `Search` field the search screen uses, so

@@ -4,12 +4,11 @@ import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useRouter } from '@/lib/navigation/router';
 
+import { Icon, toElement } from '@oxy.so/bloom-language';
 import {
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  Icon,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
 
 /**
  * A COMMUNITY's moderation that is Mention's: who is banned from posting in

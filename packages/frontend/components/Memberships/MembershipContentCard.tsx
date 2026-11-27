@@ -8,15 +8,15 @@ import { confirmDestructive } from '@/utils/alerts';
 
 import {
   Button as LButton,
-  Card as LCard,
   Embed,
   HStack,
   RawText,
   Text as LText,
-  TextEditor,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
+import { TextEditor } from '@oxy.so/bloom-language/inputs';
 
 export function MembershipContentCard({
   content,

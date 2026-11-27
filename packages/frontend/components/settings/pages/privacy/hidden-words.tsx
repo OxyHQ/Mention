@@ -20,22 +20,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Admonition as LAdmonition,
   Button as LButton,
   Embed,
   Group,
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Icon,
   Loading,
-  SettingsSection as LSettingsSection,
   Text,
   VStack,
   defineTokens,
   toElement,
-  TextField,
 } from '@oxy.so/bloom-language';
+import {
+  Admonition as LAdmonition,
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+} from '@oxy.so/bloom-language/containers';
+import { TextField } from '@oxy.so/bloom-language/inputs';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 const hiddenWordsLogger = createLogger('HiddenWords');
 

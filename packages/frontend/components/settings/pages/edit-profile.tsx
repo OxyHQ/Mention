@@ -10,14 +10,8 @@ import { COLOR_PRESET_REGISTRY, type AppColorName } from '@oxy.so/bloom/theme';
 import { OxyAuthPrompt, useAccountColorSave, useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Button as LButton,
-  Embed,
-  SettingsSelect as LSettingsSelect,
-  Text,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Button as LButton, Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
+import { SettingsSelect as LSettingsSelect } from '@oxy.so/bloom-language/settings';
 
 /**
  * Mention's own profile settings. Identity (photo, name, bio, location, links)

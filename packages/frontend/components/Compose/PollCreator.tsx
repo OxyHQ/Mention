@@ -6,18 +6,17 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import {
-  Card,
   Embed,
   HStack,
   Icon,
   RawText,
-  TextEditor,
-  TextField,
   VStack,
   type ViewModifier,
   toElement,
   view,
 } from '@oxy.so/bloom-language';
+import { Card } from '@oxy.so/bloom-language/containers';
+import { TextEditor, TextField } from '@oxy.so/bloom-language/inputs';
 
 interface PollCreatorProps {
   pollTitle: string;

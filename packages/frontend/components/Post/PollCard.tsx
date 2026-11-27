@@ -11,15 +11,8 @@ import { createLogger } from '@oxy.so/core/logger';
 import { pollService, PollContractError, type PollDetailOption } from '@/services/pollService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-import {
-  Card,
-  type Child,
-  Embed,
-  HStack,
-  RawText,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { type Child, Embed, HStack, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Card } from '@oxy.so/bloom-language/containers';
 import { accountCacheWriter } from '@/lib/queryClient';
 
 const logger = createLogger('PollCard');

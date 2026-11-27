@@ -33,13 +33,13 @@ import {
   Icon,
   RawText,
   ScrollView as LScrollView,
-  Search as LSearch,
   VStack,
-  VirtualList,
   toElement,
   Embed as LEmbed,
   defineTokens,
 } from '@oxy.so/bloom-language';
+import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
+import { VirtualList } from '@oxy.so/bloom-language/list';
 
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 

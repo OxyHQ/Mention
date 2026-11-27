@@ -30,13 +30,11 @@ import { useTranslation } from 'react-i18next';
 import {
   Avatar as LAvatar,
   Button as LButton,
-  Dialog,
   Divider as LDivider,
   Embed,
   HStack,
   Icon,
   RawText,
-  TextEditor,
   VStack,
   defineTokens,
   toElement,
@@ -44,14 +42,15 @@ import {
   Embed as LEmbed,
   Header,
   Icon as LIcon,
-  TabItem,
-  Tabs as LTabs,
   VStack as LVStack,
   toElement as LtoElement,
   Header as LHeader,
   Group,
   ScrollView,
 } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
+import { TextEditor } from '@oxy.so/bloom-language/inputs';
+import { Dialog } from '@oxy.so/bloom-language/overlays';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';

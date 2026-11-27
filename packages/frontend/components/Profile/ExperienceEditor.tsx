@@ -26,16 +26,15 @@ import { confirmDialog } from '@/utils/alerts';
 
 import {
   Button as LButton,
-  Dialog as LDialog,
   Embed,
   HStack,
   RawText,
   Text as LText,
-  TextField,
-  Toggle,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { TextField, Toggle } from '@oxy.so/bloom-language/inputs';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 export function ExperienceEditor({
   entry,

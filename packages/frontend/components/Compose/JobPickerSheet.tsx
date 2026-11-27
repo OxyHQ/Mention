@@ -10,7 +10,8 @@ import { jobsService } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { JobAttachmentData } from '@/hooks/useJobAttachmentManager';
-import { Badge as LBadge, Embed, RawText, Row, VStack, toElement } from '@oxy.so/bloom-language';
+import { Badge as LBadge, Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Row } from '@oxy.so/bloom-language/containers';
 
 /** The sheet's list stops growing at 340pt (`max-h-[340px]`): the jobs scroll inside it. */
 const LIST_STYLE = { maxHeight: 340 } satisfies ViewStyle;

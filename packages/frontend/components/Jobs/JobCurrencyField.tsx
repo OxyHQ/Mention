@@ -5,7 +5,8 @@ import { CURRENCY_CODES } from '@mention/shared-types/job';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 import CodePickerDialog from './CodePickerDialog';
 
-import { Embed, Row, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { Row } from '@oxy.so/bloom-language/containers';
 
 interface JobCurrencyFieldProps {
   value: CurrencyCode;

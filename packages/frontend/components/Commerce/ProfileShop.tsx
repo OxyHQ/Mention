@@ -34,12 +34,11 @@ import {
   HStack,
   RawText,
   Text as LText,
-  Toggle,
   VStack,
   toElement,
-  Search as LSearch,
-  VirtualList as LVirtualList,
 } from '@oxy.so/bloom-language';
+import { Toggle, Search as LSearch } from '@oxy.so/bloom-language/inputs';
+import { VirtualList as LVirtualList } from '@oxy.so/bloom-language/list';
 
 type ShopRow =
   | { kind: 'content'; key: string; element: ReactElement }

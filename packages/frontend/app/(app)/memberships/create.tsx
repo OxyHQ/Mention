@@ -16,10 +16,9 @@ import {
   RawText,
   ScrollView,
   Text as LText,
-  TextEditor,
-  TextField as LTextField,
   toElement,
 } from '@oxy.so/bloom-language';
+import { TextEditor, TextField as LTextField } from '@oxy.so/bloom-language/inputs';
 import { screen } from '@oxy.so/bloom-language/router';
 
 export default screen(function CreateMembershipScreen() {

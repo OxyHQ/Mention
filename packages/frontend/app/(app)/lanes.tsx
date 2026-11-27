@@ -34,8 +34,6 @@ import { SEO } from '@/components/SEO';
 
 import {
   Embed,
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Header,
   Icon,
@@ -50,6 +48,10 @@ import {
   Group,
   defineTokens,
 } from '@oxy.so/bloom-language';
+import {
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+} from '@oxy.so/bloom-language/containers';
 
 import { screen } from '@oxy.so/bloom-language/router';
 

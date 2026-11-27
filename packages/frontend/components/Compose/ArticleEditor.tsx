@@ -1,14 +1,9 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  Dialog as LDialog,
-  RawText,
-  TextEditor,
-  TextField,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { TextEditor, TextField } from '@oxy.so/bloom-language/inputs';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 interface ArticleEditorProps {
   visible: boolean;

@@ -13,7 +13,8 @@ import { presentSheet } from '@/utils/sheet';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { prettifyUrl } from '@/utils/prettifyUrl';
 
-import { Embed, Icon, Row, VStack, toElement, Chip as LChip, Text } from '@oxy.so/bloom-language';
+import { Embed, Icon, VStack, toElement, Text } from '@oxy.so/bloom-language';
+import { Row, Chip as LChip } from '@oxy.so/bloom-language/containers';
 
 /** A site icon: 16pt, its corners rounded 4pt, as `size-4 rounded` drew it. */
 const FAVICON_STYLE: ImageStyle = { width: 16, height: 16, borderRadius: 4 };

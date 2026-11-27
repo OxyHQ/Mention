@@ -16,17 +16,16 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 import {
   Badge as LBadge,
-  Card as LCard,
-  Chip as LChip,
   Embed,
   HStack,
   Header,
   RawText,
   Text as LText,
   VStack,
-  VirtualList,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard, Chip as LChip } from '@oxy.so/bloom-language/containers';
+import { VirtualList } from '@oxy.so/bloom-language/list';
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 
 const STATUS_TONE: Record<

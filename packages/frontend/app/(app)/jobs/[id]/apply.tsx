@@ -14,24 +14,24 @@ import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
 import {
   Button as LButton,
-  Chip as LChip,
   Embed,
-  Field as LField,
   HStack,
   Header,
-  InputGroup,
-  InputGroupAddon,
   RawText,
   ScrollView,
   Text as LText,
-  TextEditor,
-  TextField as LTextField,
   VStack,
   toElement,
-  Card as LCard,
   Embed as LEmbed,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+import { Chip as LChip, Card as LCard } from '@oxy.so/bloom-language/containers';
+import { InputGroup, InputGroupAddon } from '@oxy.so/bloom-language/input-group';
+import {
+  Field as LField,
+  TextEditor,
+  TextField as LTextField,
+} from '@oxy.so/bloom-language/inputs';
 
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 

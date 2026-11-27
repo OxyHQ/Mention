@@ -1,13 +1,6 @@
 import type { ReactNode } from 'react';
-import {
-  Card,
-  Divider,
-  Embed,
-  HStack,
-  Text as LText,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Divider, Embed, HStack, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Card } from '@oxy.so/bloom-language/containers';
 
 type BaseWidgetProps = {
   title?: string;

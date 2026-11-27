@@ -8,15 +8,8 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 
-import {
-  Card as LCard,
-  Embed,
-  HStack,
-  Icon,
-  RawText,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Embed, HStack, Icon, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
 
 interface QuoteCardProps {
   /** The fetched quoted post; null while loading or if not found. */

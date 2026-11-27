@@ -38,8 +38,6 @@ import { useTheme } from '@oxy.so/bloom/theme';
 
 import {
   Embed,
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
   Header,
   Icon,
   ScrollView,
@@ -49,6 +47,10 @@ import {
   toElement,
   defineModifier,
 } from '@oxy.so/bloom-language';
+import {
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+} from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** The title's spacing, as the profile header draws it. */

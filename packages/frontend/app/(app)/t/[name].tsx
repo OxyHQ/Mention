@@ -35,10 +35,9 @@ import {
   Text as LText,
   VStack,
   toElement,
-  TabItem,
-  Tabs as LTabs,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** How the topic's posts are ordered. `top` is the default, as on the mock. */

@@ -11,7 +11,8 @@ import {
   type ProfileScreenProps,
   type ProfileTabDescriptor,
 } from './Profile';
-import { Embed, TabItem, Tabs, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { TabItem, Tabs } from '@oxy.so/bloom-language/containers';
 
 /**
  * ONE PERSON's profile page, at `/@<handle>` — the NATIVE composition.

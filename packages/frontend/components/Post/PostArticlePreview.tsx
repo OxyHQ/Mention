@@ -1,4 +1,5 @@
-import { Card, RawText, type ViewModifier, defineModifier, view } from '@oxy.so/bloom-language';
+import { RawText, type ViewModifier, defineModifier, view } from '@oxy.so/bloom-language';
+import { Card } from '@oxy.so/bloom-language/containers';
 
 /** The card's own frame: 200pt wide, at least 140 tall, padded. */
 const articleFrame = defineModifier((v) =>

@@ -23,22 +23,24 @@ import JobDiscoveryResultCard, {
 import { EmptyState } from '@/components/common/EmptyState';
 import {
   Button as LButton,
-  Chip as LChip,
   Embed,
-  Field as LField,
   HStack,
   Header,
-  Option,
-  Search as LSearch,
-  Segmented,
   Text,
-  TextField as LTextField,
   VStack,
-  VirtualList as LVirtualList,
   toElement,
   Embed as LEmbed,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+import { Chip as LChip } from '@oxy.so/bloom-language/containers';
+import {
+  Field as LField,
+  Option,
+  Search as LSearch,
+  Segmented,
+  TextField as LTextField,
+} from '@oxy.so/bloom-language/inputs';
+import { VirtualList as LVirtualList } from '@oxy.so/bloom-language/list';
 
 import { screen as Lscreen } from '@oxy.so/bloom-language/router';
 

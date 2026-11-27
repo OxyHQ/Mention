@@ -13,16 +13,8 @@ import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { CommunityNoteCard } from './CommunityNoteCard';
 import { useCommunityNoteSheets, type CommunityNoteWriteHandlers } from './useCommunityNoteSheets';
 
-import {
-  Embed,
-  Header,
-  RawText,
-  ScrollView,
-  TabItem,
-  Tabs as LTabs,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Embed, Header, RawText, ScrollView, VStack, toElement } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** A note together with the post it is about. */

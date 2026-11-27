@@ -16,7 +16,6 @@ import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplic
 import {
   Badge as LBadge,
   Button as LButton,
-  Chip as LChip,
   Embed,
   HStack,
   Loading as LLoading,
@@ -24,9 +23,10 @@ import {
   Text as LText,
   VStack,
   toElement,
-  TextField as LTextField,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+import { Chip as LChip } from '@oxy.so/bloom-language/containers';
+import { TextField as LTextField } from '@oxy.so/bloom-language/inputs';
 
 /** The sheet's scroll: 16pt sides, 12pt top, at most 90% of the window. */
 const SHEET_SCROLL_STYLE: ViewStyle = { paddingHorizontal: 16, paddingTop: 12, maxHeight: '90%' };

@@ -10,12 +10,9 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  Loading as LLoading,
-  SettingsSelect as LSettingsSelect,
-  Toggle,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Loading as LLoading, toElement } from '@oxy.so/bloom-language';
+import { Toggle } from '@oxy.so/bloom-language/inputs';
+import { SettingsSelect as LSettingsSelect } from '@oxy.so/bloom-language/settings';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 

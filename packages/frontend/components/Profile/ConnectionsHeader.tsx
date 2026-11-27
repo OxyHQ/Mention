@@ -4,7 +4,8 @@ import { usePathname, useRouter } from '@/lib/navigation/router';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { connectionTabFromPathname } from './profileTabRoute';
 
-import { Header, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
+import { Header, toElement } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
 
 export function ConnectionsHeader({
   username,

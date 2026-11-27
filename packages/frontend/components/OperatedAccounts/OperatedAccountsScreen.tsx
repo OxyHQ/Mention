@@ -15,19 +15,10 @@ import { SignInRequired } from '@/components/common/SignInRequired';
 import { profileBasePath, profileRouteFamily } from '@/components/Profile/profileRoute';
 import type { OperatedAccountKind } from './OperatedAccountSettingsScreen';
 
-import {
-  Embed,
-  Field as LField,
-  Header,
-  InputGroup,
-  InputGroupAddon,
-  RawText,
-  Row,
-  ScrollView,
-  TextField,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Embed, Header, RawText, ScrollView, VStack, toElement } from '@oxy.so/bloom-language';
+import { Row } from '@oxy.so/bloom-language/containers';
+import { InputGroup, InputGroupAddon } from '@oxy.so/bloom-language/input-group';
+import { Field as LField, TextField } from '@oxy.so/bloom-language/inputs';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /**

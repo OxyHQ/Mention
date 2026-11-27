@@ -19,23 +19,20 @@ import SavedPostsList, { type SavedPost } from '@/components/saved/SavedPostsLis
 import { usePostsStore } from '@/stores/postsStore';
 import {
   Button as LButton,
-  Dialog as LDialog,
   Embed,
   HStack,
   Header,
-  Search as LSearch,
   Text,
-  TextField as LTextField,
   VStack,
   toElement,
-  TabItem,
-  Tabs as LTabs,
   toElement as LtoElement,
   FAB,
   Icon,
   identity,
-  Row,
 } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs, Row } from '@oxy.so/bloom-language/containers';
+import { Search as LSearch, TextField as LTextField } from '@oxy.so/bloom-language/inputs';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 const PAGE_SIZE = 30;
 const SEARCH_DEBOUNCE_MS = 400;

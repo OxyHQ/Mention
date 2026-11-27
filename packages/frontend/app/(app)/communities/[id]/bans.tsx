@@ -21,12 +21,12 @@ import {
   Embed,
   Header,
   RawText,
-  Row,
   ScrollView,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Row } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /**

@@ -18,7 +18,8 @@ import { ProfileTabs } from './ProfileTabs';
 import { shouldFeedOwnProfileScroll, shouldGridOwnProfileScroll } from './types';
 import type { ProfileTabsProps } from './types';
 import type { ProfileChrome } from './hooks/useProfileChrome';
-import { Embed, VStack, toElement, VirtualList as LVirtualList } from '@oxy.so/bloom-language';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { VirtualList as LVirtualList } from '@oxy.so/bloom-language/list';
 
 const IS_WEB = Platform.OS === 'web';
 

@@ -3,15 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { RiInsertColumnRight } from '@oxy.so/bloom/icons/RiInsertColumnRight';
 import { DECK_SOURCES, useDeckSettings, type DeckSource } from './deckSettings';
 
-import {
-  Button as LButton,
-  Dialog as LDialog,
-  Icon,
-  SettingsSelect as LSettingsSelect,
-  Text,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Button as LButton, Icon, Text, VStack, toElement } from '@oxy.so/bloom-language';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
+import { SettingsSelect as LSettingsSelect } from '@oxy.so/bloom-language/settings';
 
 export function DeckAddPanel() {
   const { t } = useTranslation();

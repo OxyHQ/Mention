@@ -12,7 +12,8 @@ import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { InsightsDashboard } from './InsightsDashboard';
 
-import { Embed, ScrollView, TabItem, Tabs as LTabs, toElement } from '@oxy.so/bloom-language';
+import { Embed, ScrollView, toElement } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
 
 export interface InsightsViewProps {
   /**

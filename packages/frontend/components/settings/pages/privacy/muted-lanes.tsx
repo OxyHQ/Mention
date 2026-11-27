@@ -11,17 +11,13 @@ import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { Button as LButton, Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
 import {
   Admonition as LAdmonition,
-  Button as LButton,
-  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  SettingsSection as LSettingsSection,
-  Text,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 const mutedLanesLogger = createLogger('MutedLanes');
 

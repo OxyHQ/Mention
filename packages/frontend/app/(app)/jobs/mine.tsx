@@ -20,17 +20,16 @@ import { EmptyState } from '@/components/common/EmptyState';
 import {
   Badge as LBadge,
   Button as LButton,
-  Card as LCard,
   Embed,
   HStack,
   Header,
   RawText,
-  Row,
   ScrollView,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard, Row } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 
 type JobAction = 'publish' | 'pause' | 'close' | 'duplicate';

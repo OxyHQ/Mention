@@ -11,7 +11,8 @@ import { starterPacksService, type StarterPackSummary } from '@/services/starter
 import { EmptyState } from '@/components/common/EmptyState';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
-import { Embed, RawText, VStack, VirtualList, toElement } from '@oxy.so/bloom-language';
+import { Embed, RawText, VStack, toElement } from '@oxy.so/bloom-language';
+import { VirtualList } from '@oxy.so/bloom-language/list';
 
 export function StarterPacksTab() {
   const router = useRouter();

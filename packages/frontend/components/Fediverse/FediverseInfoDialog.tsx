@@ -4,7 +4,6 @@ import { Image, type ImageProps, type ImageStyle } from 'expo-image';
 import { useDialogFrame } from '@oxy.so/bloom/dialog';
 import {
   Button as LButton,
-  Dialog as LDialog,
   Embed,
   HStack,
   RawText,
@@ -12,6 +11,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 /** The step art's slot: the sheet's width, 168pt tall, the same at every step. */
 const ART_STYLE: ImageStyle = { width: '100%', height: 168 };

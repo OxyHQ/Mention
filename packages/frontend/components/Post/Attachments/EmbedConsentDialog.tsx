@@ -10,14 +10,14 @@ import {
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 
 import {
-  Admonition as LAdmonition,
   Button as LButton,
-  Dialog,
   RawText,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Admonition as LAdmonition } from '@oxy.so/bloom-language/containers';
+import { Dialog } from '@oxy.so/bloom-language/overlays';
 
 interface EmbedConsentDialogProps {
   control: DialogControlProps;

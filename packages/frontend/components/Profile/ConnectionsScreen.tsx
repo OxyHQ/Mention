@@ -33,16 +33,8 @@ import { shareLink } from '@/utils/shareLink';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
-import {
-  Embed,
-  HStack,
-  Icon,
-  Text as LText,
-  VStack,
-  VirtualList,
-  type VirtualListView,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Embed, HStack, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
+import { VirtualList, type VirtualListView } from '@oxy.so/bloom-language/list';
 import { screen } from '@oxy.so/bloom-language/router';
 
 type TabType = ConnectionTab;

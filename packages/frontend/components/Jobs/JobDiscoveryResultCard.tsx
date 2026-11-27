@@ -26,17 +26,16 @@ import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 import {
   Badge as LBadge,
-  Card as LCard,
   Divider as LDivider,
   Embed,
   HStack,
   Icon,
   RawText,
-  Row,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard, Row } from '@oxy.so/bloom-language/containers';
 
 const WORKPLACE_LABELS: Record<JobWorkplaceType, string> = {
   onsite: 'On-site',

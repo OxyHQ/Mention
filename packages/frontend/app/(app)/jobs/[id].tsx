@@ -21,7 +21,6 @@ import {
   Avatar as LAvatar,
   Badge as LBadge,
   Button as LButton,
-  Chip as LChip,
   Embed,
   HStack,
   Header,
@@ -32,6 +31,7 @@ import {
   defineTokens,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Chip as LChip } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** The employer's avatar beside its name, 28pt, off the avatar scale. */

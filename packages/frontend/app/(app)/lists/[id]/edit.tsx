@@ -18,22 +18,21 @@ import type { User } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
 import {
   Avatar as LAvatar,
-  Card as LCard,
   Divider as LDivider,
   Embed,
-  Field as LField,
   Header,
   HStack,
   Icon,
   RawText,
   ScrollView,
-  SpinnerIcon,
   toElement,
   VStack,
   Embed as LEmbed,
-  Search as LSearch,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
+import { Field as LField, Search as LSearch } from '@oxy.so/bloom-language/inputs';
+import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
 
 import { screen } from '@oxy.so/bloom-language/router';
 
