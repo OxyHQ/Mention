@@ -5,6 +5,8 @@
  * a fixed width, for `../screenshot.mjs` to capture. `/?row=PostLaneChip&state=tab&form=ts`
  * draws one of PostItem's rows in one of its states (`../rows/states.json`), in
  * its TypeScript (`ts`) or `.bloom` (`bloom`) form, as PostItem draws it.
+ * `/?post=quote&form=bloom` draws PostItem itself on a feed fixture
+ * (`../postitem/posts.tsx`), in either form, as a feed row.
  */
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -13,7 +15,13 @@ import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 
 import { setProofBranch, type ProofBranch } from '../fixture';
 import { ROW_FORMS, ROW_STATES, drawRow, rowProps } from '../rows/rows';
+import { POST_FORMS, POST_KINDS, drawPost, proofPost } from '../postitem/posts';
 import { PROOF_SCREENS, loadScreen } from '../screens';
+import { usePostsStore } from '@/stores/postsStore';
+import { VideoPlaybackProvider, VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
+
+/** Nothing on screen as viewable: a video row draws its poster, as the row-cost harness measures it. */
+const NO_VIEWABLE_KEYS: ReadonlySet<string> = new Set();
 
 const BRANCHES: ProofBranch[] = ['pending', 'signedOut', 'loading', 'loaded'];
 
@@ -23,7 +31,9 @@ export default function ProofPage() {
     state?: string;
     row?: string;
     form?: string;
+    post?: string;
   }>();
+  if (params.post) return <PostPage kind={params.post} form={params.form} />;
   if (params.row) return <RowPage row={params.row} state={params.state} form={params.form} />;
   return <ScreenPage screen={params.screen} state={params.state} />;
 }
@@ -41,6 +51,32 @@ function RowPage(params: { row: string; state?: string; form?: string }) {
           .testID('proof-frame'),
       )}
     </View>
+  );
+}
+
+function PostPage(params: { kind: string; form?: string }) {
+  const kind = POST_KINDS.find((k) => k === params.kind);
+  const form = POST_FORMS.find((f) => f === params.form) ?? 'ts';
+  // The row reads its post from the posts store, as a feed row does once the page is cached.
+  const [post] = useState(() => {
+    if (!kind) return null;
+    const made = proofPost(kind);
+    usePostsStore.getState().cachePosts([made]);
+    return made;
+  });
+  if (!post) return null;
+  return (
+    <VideoPlaybackProvider>
+      <VideoViewabilityProvider viewableKeys={NO_VIEWABLE_KEYS}>
+        <View style={{ width: 600 }}>
+          {toElement(
+            VStack(Embed(drawPost(form, post)))
+              .background('background')
+              .testID('proof-frame'),
+          )}
+        </View>
+      </VideoViewabilityProvider>
+    </VideoPlaybackProvider>
   );
 }
 

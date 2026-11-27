@@ -121,6 +121,10 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
 if (process.env.BLOOM_LANG_PROOF === '1') {
   require('./__perf__/lang-proof/metro').withProofStandIns(config, __dirname);
 }
+// DEV ONLY: `BLOOM_PROOF_POSTITEM=ts` draws PostItem's TypeScript form for the bytes proof.
+if (process.env.BLOOM_PROOF_POSTITEM === 'ts') {
+  require('./__perf__/lang-proof/metro').withTsPostItem(config);
+}
 
 // The Bloom language compiler (`@oxy.so/bloom-language-compiler`): a pre-pass in
 // front of the transform worker above (react-native-css's, which wraps Expo's),

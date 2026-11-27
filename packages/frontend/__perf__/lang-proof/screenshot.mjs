@@ -9,6 +9,10 @@
  *   node __perf__/lang-proof/screenshot.mjs capture-rows <export dir> <out dir> <form>
  *     The same for PostItem's rows: every state of `rows/states.json` in one form
  *     (`ts` or `bloom`), written `<out dir>/<form>-<row>-<state>@<scale>x.png`.
+ *   node __perf__/lang-proof/screenshot.mjs capture-posts <export dir> <out dir> <form>
+ *     The same for PostItem itself: every feed fixture kind (`postitem/posts.tsx`) in one
+ *     form, written `<out dir>/<form>-post-<kind>@<scale>x.png`. Requests off the export's
+ *     origin are refused, so image loads cannot race the capture.
  *   node __perf__/lang-proof/screenshot.mjs diff <a.png> <b.png> [<diff.png>]
  *     Exact comparison: prints the differing pixel count and writes the
  *     differing pixels in red over a faded `a` to `<diff.png>`. Exits 1 on any difference.
@@ -79,7 +83,27 @@ function rowPages(form) {
   }));
 }
 
-async function capture(exportDir, outDir, pages) {
+const POST_KINDS = [
+  'text',
+  'textAvatar',
+  'image',
+  'multiImage',
+  'video',
+  'linkPreview',
+  'quote',
+  'repost',
+  'poll',
+  'communityNote',
+];
+
+function postPages(form) {
+  return POST_KINDS.map((kind) => ({
+    name: `${form}-post-${kind}`,
+    query: `post=${kind}&form=${form}`,
+  }));
+}
+
+async function capture(exportDir, outDir, pages, { offline = false } = {}) {
   const { chromium } = require('playwright-core');
   const executablePath = process.env.CHROME_PATH;
   if (!executablePath) throw new Error('Set CHROME_PATH to a Chrome binary');
@@ -98,18 +122,42 @@ async function capture(exportDir, outDir, pages) {
         locale: 'en-US',
         timezoneId: 'UTC',
       });
+      // PostItem's fixtures name images on an unreachable host: refused at once, so every
+      // capture draws the same failed-load state instead of racing the network.
+      if (offline)
+        await context.route(
+          (url) => url.origin !== origin,
+          (route) => route.abort(),
+        );
       for (const { name, query } of pages) {
         const page = await context.newPage();
         page.on('pageerror', (error) => errors.push(`${name}@${scale}x: ${error.message}`));
         await page.goto(`${origin}/?${query}`);
         const frame = page.getByTestId('proof-frame');
-        await frame.waitFor({ state: 'visible', timeout: 60_000 });
+        try {
+          await frame.waitFor({ state: 'visible', timeout: 60_000 });
+        } catch (error) {
+          // One page that never draws its frame does not stop the others.
+          errors.push(`${name}@${scale}x: ${error.message.split('\n')[0]}`);
+          await page.close();
+          continue;
+        }
         await page.evaluate(async () => {
           await document.fonts.ready;
           // Two frames, then the layout is what was committed.
           await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
         });
-        await page.waitForTimeout(500);
+        // A post's avatar fades its placeholder in: wait until every image transition ends,
+        // and until every image is decoded (a late decode rasterises the avatar differently).
+        await page.waitForTimeout(offline ? 3000 : 500);
+        if (offline) {
+          await page.evaluate(async () => {
+            await Promise.all(
+              [...document.images].map((image) => image.decode().catch(() => undefined)),
+            );
+            await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+          });
+        }
         const file = join(outDir, `${name}@${scale}x.png`);
         await frame.screenshot({ path: file, animations: 'disabled', caret: 'hide' });
         console.log(file);
@@ -158,10 +206,12 @@ function diff(aPath, bPath, outPath) {
 const [command, ...args] = process.argv.slice(2);
 if (command === 'capture') await capture(args[0], args[1], screenPages(args[2] ?? 'original'));
 else if (command === 'capture-rows') await capture(args[0], args[1], rowPages(args[2] ?? 'ts'));
+else if (command === 'capture-posts')
+  await capture(args[0], args[1], postPages(args[2] ?? 'ts'), { offline: true });
 else if (command === 'diff') diff(args[0], args[1], args[2]);
 else {
   console.error(
-    'usage: screenshot.mjs capture <export dir> <out dir> [screen] | capture-rows <export dir> <out dir> <form> | diff <a> <b> [out]',
+    'usage: screenshot.mjs capture <export dir> <out dir> [screen] | capture-rows <export dir> <out dir> <form> | capture-posts <export dir> <out dir> <form> | diff <a> <b> [out]',
   );
   process.exit(2);
 }

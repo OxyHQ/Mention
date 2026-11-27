@@ -265,3 +265,24 @@ node __perf__/lang-proof/screenshot.mjs diff <shots>/ts-ContentWarning-closed@2x
 
 `/?row=<row>&state=<state>&form=<ts|bloom>` is the proof page for one row.
 Results: `results/rows.json`; the measured numbers are in the Mention PR.
+
+## PostItem: the whole row in `.bloom` (`postitem/`)
+
+`components/Feed/PostItem.bloom` is written by `bloom migrate --write`. Its TypeScript form,
+the file the codemod replaced, is `postitem/variants/PostItem.tsx` (relative imports made
+absolute, nothing else changed). `postitem/tsPostItem.ts` puts that TS behind the `.bloom`
+module's interface: `toElement(PostItem({ … }), key)` draws `<TsPostItem … key />`, the
+element the TS importers drew, with nothing around it.
+
+- **Cost** (the feed row-cost harness, `components/Feed/__perf__`, every row kind): run it
+  as is for the `.bloom` row, and with
+  `-c __perf__/lang-proof/postitem/jest.postitem-ts.config.js` for the TS row (it maps every
+  `PostItem.bloom` import to `tsPostItem.ts`). `FEED_PERF_OUT` names the results file.
+- **Bytes** (web): a production export as in "Bundle bytes", and a second one with
+  `BLOOM_PROOF_POSTITEM=ts` (`metro.js`'s `withTsPostItem`). Count
+  `components/Feed/PostItem.bloom` in the first and `postitem/variants/PostItem.tsx` in the
+  second.
+- **Pixels**: the proof export draws `/?post=<kind>&form=ts|bloom` (`postitem/posts.tsx`:
+  the harness's fixtures, with the props `renderFeedRow` gives a plain row).
+  `screenshot.mjs capture-posts <export> <out> <form>` captures every kind at 1x and 2x,
+  with requests off the export's origin refused.
