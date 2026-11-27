@@ -4,8 +4,7 @@ import { federatedActors } from '../../db/schema/federation';
 import { mutes } from '../../db/schema/engagement';
 import { posts, postEquivalenceMembers } from '../../db/schema/posts';
 import { invalidate as invalidateUsers } from './userSummaryCache';
-import { getRedisClient } from '../../utils/redis';
-import { logger } from '../../utils/logger';
+import { markAnonymousFeedsStale } from '../feed/anonFeedStaleMarker';
 
 export interface ActorIdentityProjectionInput {
   /** Immutable source URI (an AP actor URI or native AT Protocol DID). */
@@ -45,19 +44,17 @@ export interface ActorProjectionCacheInvalidation {
   record(userIds: readonly string[]): void;
 }
 
+/**
+ * Anonymous pages built before the change stop being served as fresh. They are
+ * kept as the stale page of last resort, re-authorized post by post on read, so
+ * a moved post is re-hydrated rather than served under its old owner (see
+ * `anonFeedStaleMarker`).
+ */
 async function invalidateAnonymousFeeds(): Promise<void> {
-  const redis = getRedisClient();
-  if (redis.isReady) {
-    try {
-      for await (const keys of redis.scanIterator({ MATCH: 'anonfeed:*', COUNT: 100 }))
-        if (keys.length) await redis.del(keys);
-    } catch (error) {
-      logger.warn('[ActorIdentityProjection] feed cache invalidation failed', { error });
-    }
-  }
+  await markAnonymousFeedsStale();
 }
 
-/** IDs live for one admin batch; anonymous snapshots already expire after 45s. */
+/** IDs live for one admin batch; anonymous pages are marked stale once at its end. */
 export function createActorProjectionCacheBatch() {
   const pending = new Set<string>();
   let feedsChanged = false;

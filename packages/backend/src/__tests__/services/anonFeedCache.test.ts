@@ -11,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   redisGet: vi.fn(),
+  /** The stale mark (`anonfeed:v3:stale-before`); every other key reads `redisGet`. */
+  markerGet: vi.fn(),
   revalidate: vi.fn(async (entry) => entry.page),
   redisSetEx: vi.fn(),
 }));
@@ -23,16 +25,24 @@ vi.mock('../../utils/redis', () => ({
   getRedisClient: () => ({
     isReady: true,
     get: mocks.redisGet,
+    mGet: (keys: string[]) =>
+      Promise.all(
+        keys.map((key) =>
+          key === 'anonfeed:v3:stale-before' ? mocks.markerGet(key) : mocks.redisGet(key),
+        ),
+      ),
     setEx: mocks.redisSetEx,
   }),
 }));
 
 import { anonFeedCache } from '../../services/feed/anonFeedCache';
+import { markAnonymousFeedsStale } from '../../services/feed/anonFeedStaleMarker';
 import { ANON_CONTINUATION_LIFETIME_MS } from '../../services/feed/anonFeedFreshness';
 import { RANKED_SESSION_TTL_MS } from '../../mtn/feed/RankedFeedSession';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.markerGet.mockResolvedValue(null);
 });
 
 describe('anonFeedCache.buildKey', () => {
@@ -123,6 +133,19 @@ describe('anonFeedCache.read', () => {
     expect(ANON_CONTINUATION_LIFETIME_MS).toBeLessThan(RANKED_SESSION_TTL_MS);
   });
 
+  it('does not serve a page built before the stale mark as fresh, but keeps it as the stale page', async () => {
+    const entry = { page: { items: [{ id: 'p1' }], hasMore: false, totalCount: 1 }, revisions: {} };
+    const builtAt = Date.now() - 10_000;
+    mocks.redisGet.mockResolvedValue(JSON.stringify({ cachedAt: builtAt, entry }));
+
+    mocks.markerGet.mockResolvedValue(JSON.stringify(builtAt + 1));
+    expect(await anonFeedCache.read('k')).toBeNull();
+    expect(await anonFeedCache.readStale('k')).toEqual(entry.page);
+
+    mocks.markerGet.mockResolvedValue(JSON.stringify(builtAt - 1));
+    expect(await anonFeedCache.read('k')).toEqual(entry.page);
+  });
+
   it('returns null on a miss', async () => {
     mocks.redisGet.mockResolvedValue(null);
     expect(await anonFeedCache.read('k')).toBeNull();
@@ -188,5 +211,16 @@ describe('anonFeedCache.write', () => {
         revisions: {},
       }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('markAnonymousFeedsStale', () => {
+  it('writes the mark the fresh read compares against, kept longer than any page is fresh', async () => {
+    await markAnonymousFeedsStale();
+
+    const [key, ttl, body] = mocks.redisSetEx.mock.calls[0];
+    expect(key).toBe('anonfeed:v3:stale-before');
+    expect(ttl).toBeGreaterThanOrEqual(5 * 60);
+    expect(Math.abs(JSON.parse(body) - Date.now())).toBeLessThan(5_000);
   });
 });

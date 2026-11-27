@@ -24,13 +24,11 @@ const mocks = vi.hoisted(() => ({
   detect: vi.fn(),
   reevaluate: vi.fn(),
   invalidate: vi.fn(),
-  scan: vi.fn(),
-  del: vi.fn(),
+  markStale: vi.fn(),
 }));
 vi.mock('../../services/accounts/userSummaryCache', () => ({ invalidate: mocks.invalidate }));
-vi.mock('../../utils/redis', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  getRedisClient: () => ({ isReady: true, scanIterator: mocks.scan, del: mocks.del }),
+vi.mock('../../services/feed/anonFeedStaleMarker', () => ({
+  markAnonymousFeedsStale: mocks.markStale,
 }));
 vi.mock('../../connectors/oxyIdentity', () => ({
   lookupOxyIdentities: mocks.lookup,
@@ -54,10 +52,7 @@ afterAll(closePostgres);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.invalidate.mockResolvedValue(undefined);
-  mocks.scan.mockImplementation(async function* () {
-    yield ['anonfeed:fixture'];
-  });
-  mocks.del.mockResolvedValue(1);
+  mocks.markStale.mockResolvedValue(undefined);
   mocks.lookup.mockResolvedValue([]);
   mocks.reevaluate.mockReset();
   mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' });
@@ -425,7 +420,7 @@ it('changes network metadata without rewriting already correct post or owner row
   expect(result.postsChanged).toBe(0);
   expect(await rowVersions(stored.id)).toEqual(before);
   expect(mocks.invalidate).toHaveBeenCalledTimes(1);
-  expect(mocks.scan).toHaveBeenCalledTimes(1); // live default remains immediate
+  expect(mocks.markStale).toHaveBeenCalledTimes(1); // live default remains immediate
 });
 
 it('repairs each divergent ownership row without rewriting its correct counterpart', async () => {
@@ -486,8 +481,7 @@ it.each([false, true])(
     expect(mocks.invalidate).toHaveBeenCalledTimes(failSecondBatch ? 1 : 2);
     for (const [ids] of mocks.invalidate.mock.calls)
       expect(new Set(ids)).toEqual(new Set(['old-person', 'shared-new']));
-    expect(mocks.scan).toHaveBeenCalledTimes(1);
-    expect(mocks.del).toHaveBeenCalledWith(['anonfeed:fixture']);
+    expect(mocks.markStale).toHaveBeenCalledTimes(1);
     expect(
       (await getDb().select().from(federatedActors)).filter(
         (row) => row.oxyUserId === 'shared-new',
@@ -520,7 +514,7 @@ it('records committed invalidations before a later cluster read fails', async ()
     await batch.finish();
   }
   expect(mocks.invalidate).toHaveBeenCalledWith(['old-person', 'new']);
-  expect(mocks.scan).toHaveBeenCalledTimes(1);
+  expect(mocks.markStale).toHaveBeenCalledTimes(1);
 });
 it('answers an unchanged refresh without a transaction or the per-actor lock', async () => {
   await actor(source, 'current-source');
