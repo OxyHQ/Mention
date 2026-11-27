@@ -1,0 +1,43 @@
+// Printed by bloom migrate from components/notifications/NotificationSkeleton.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { POST_ITEM_SPACING } from "@/styles/shared"
+import * as Skeleton from "@oxy.so/bloom/skeleton"
+
+// Mirrors the real NotificationItem anatomy (single source of truth:
+// POST_ITEM_SPACING). AVATAR_SIZE = 40, full-width `border-b border-border py-3`
+// rows with the horizontal padding living INSIDE via `px-3` — so the placeholder
+// list lands exactly where the real rows will, making the transition seamless.
+private let AVATAR_SIZE = POST_ITEM_SPACING.AVATAR_SIZE
+
+private let PLACEHOLDER_ROWS = 6
+
+// One placeholder row: a 40px avatar circle + two stacked text lines (a wider
+// byline line, a shorter action line), matching the real row's byline/action
+// stack.
+private let notificationSkeletonRow = VStack {
+  HStack {
+    VStack { Skeleton.Circle(size: AVATAR_SIZE) }.margin(.right, .md)
+    VStack {
+      Skeleton.Text(style: { fontSize: 15, lineHeight: 20, width: "55%" })
+      Skeleton.Text(style: { fontSize: 14, lineHeight: 20, width: "35%" })
+    }
+    .padding(.top, .xxs)
+    .flex("1")
+    .spacing(.sm)
+  }
+  .padding(.horizontal, .md)
+  .align(.start)
+}
+  .padding(.vertical, .md)
+  .frame(width: .full)
+  .border(.border, .thin, .bottom)
+
+/// Skeleton placeholder for the initial notifications load. Renders a short list
+/// of shimmering rows that mimic the real notification rows so the screen feels
+/// instant (same treatment the feed uses) instead of a centered spinner.
+public struct NotificationSkeleton: View {
+  var count: Float = PLACEHOLDER_ROWS
+  var body: some View {
+    SkeletonGroup((0..<count.truncated()).map { index in notificationSkeletonRow.id(index) })
+    .frame(width: .full)
+  }
+}
