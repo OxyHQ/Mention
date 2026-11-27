@@ -2,7 +2,11 @@ import { revalidateAnonymousFeed, type AnonymousFeedSnapshot } from './revalidat
 import { createHash } from 'node:crypto';
 import type { FeedResponse, SlicedFeedResponse } from '@mention/shared-types';
 import { createCache } from '../../utils/cache';
-import { ANON_FRESH_MS, ANON_KEEP_SECONDS } from './anonFeedFreshness';
+import {
+  ANON_CONTINUATION_LIFETIME_MS,
+  ANON_FRESH_MS,
+  ANON_KEEP_SECONDS,
+} from './anonFeedFreshness';
 import type { RequestLanguages } from '../../utils/viewerLanguage';
 
 /**
@@ -159,12 +163,23 @@ class AnonFeedCache {
    * The page kept for `key` whatever its age (still re-authorized, like
    * {@link read}), or `null` when none is kept. For serving while a build
    * refreshes it, never instead of one.
+   *
+   * A page older than {@link ANON_CONTINUATION_LIFETIME_MS} is served without
+   * its continuation: its cursor names a ranked feed session that has expired
+   * or is about to, and the next page would answer 410 (the app reloads page
+   * one once per cursor, gets the same stale page and cursor, and stops). The
+   * reader gets the posts, and the rebuilt page brings a live cursor.
    */
   async readStale(
     key: string,
     requestLanguages?: RequestLanguages,
   ): Promise<CacheableFeedResponse | null> {
-    return this.readWhere(key, requestLanguages, () => true);
+    const stored = await cache.get<StoredAnonFeed>(key);
+    if (!stored?.entry?.page) return null;
+    const page = await revalidateAnonymousFeed(stored.entry, requestLanguages);
+    if (Date.now() - stored.cachedAt < ANON_CONTINUATION_LIFETIME_MS) return page;
+    const { nextCursor: _expired, ...rest } = page;
+    return { ...rest, hasMore: false };
   }
 
   private async readWhere(

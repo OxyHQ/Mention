@@ -28,6 +28,8 @@ vi.mock('../../utils/redis', () => ({
 }));
 
 import { anonFeedCache } from '../../services/feed/anonFeedCache';
+import { ANON_CONTINUATION_LIFETIME_MS } from '../../services/feed/anonFeedFreshness';
+import { RANKED_SESSION_TTL_MS } from '../../mtn/feed/RankedFeedSession';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -99,6 +101,26 @@ describe('anonFeedCache.read', () => {
     expect(await anonFeedCache.read('k')).toBeNull();
     expect(await anonFeedCache.readStale('k')).toEqual(entry.page);
     expect(mocks.revalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves a stale page past the feed session lifetime without its expired continuation', async () => {
+    const page = { items: [{ id: 'p1' }], hasMore: true, nextCursor: 'fs1:old', totalCount: 1 };
+    const entry = { page, revisions: {} };
+
+    mocks.redisGet.mockResolvedValue(
+      JSON.stringify({ cachedAt: Date.now() - ANON_CONTINUATION_LIFETIME_MS + 60_000, entry }),
+    );
+    expect(await anonFeedCache.readStale('k')).toEqual(page);
+
+    mocks.redisGet.mockResolvedValue(
+      JSON.stringify({ cachedAt: Date.now() - ANON_CONTINUATION_LIFETIME_MS, entry }),
+    );
+    expect(await anonFeedCache.readStale('k')).toEqual({
+      items: [{ id: 'p1' }],
+      hasMore: false,
+      totalCount: 1,
+    });
+    expect(ANON_CONTINUATION_LIFETIME_MS).toBeLessThan(RANKED_SESSION_TTL_MS);
   });
 
   it('returns null on a miss', async () => {

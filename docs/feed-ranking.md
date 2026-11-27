@@ -319,8 +319,10 @@ it failed, rested, and a cold build ran past the app's 15 s request timeout, so
 a language nobody had read for 15 minutes showed no posts at all. Explore's
 anonymous first page is therefore kept for a day (`anonKeepSecondsFor`), still
 fresh for only 5 minutes: a reader after a lull is answered at once with the
-last page built, re-authorized on read, while one request rebuilds it. Cursor
-pages keep the default 15 minutes.
+last page built, re-authorized on read, while one request rebuilds it. Past the
+ranked feed session's lifetime (less five minutes) the kept page is served
+without its continuation, whose session has expired. Cursor pages keep the
+default 15 minutes.
 
 It now excludes explicitly hidden/muted/blocked authors before source caps and
 applies the existing hidden-topic multiplier to canonical topics and hashtags

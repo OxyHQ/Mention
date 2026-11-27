@@ -1,3 +1,5 @@
+import { RANKED_SESSION_TTL_MS } from '../../mtn/feed/RankedFeedSession';
+
 /**
  * How long a shared anonymous feed page counts as FRESH: the anon feed is shared,
  * so this collapses a burst of anonymous requests into one recompute, while new
@@ -44,10 +46,21 @@ export const ANON_KEEP_SECONDS = 15 * 60;
  * for a day, such a reader is answered at once with the last page built, re-
  * authorized on read like every cached page, while one request rebuilds it.
  *
+ * Past the feed session's lifetime it is served without its continuation
+ * (`anonFeedCache.readStale`, {@link ANON_CONTINUATION_LIFETIME_MS}).
+ *
  * Only the first page: a later page is keyed on its cursor, which belongs to one
  * reader's scroll session and is never asked for again once that session ends.
  */
 const EXPLORE_FIRST_PAGE_KEEP_SECONDS = 24 * 60 * 60;
+
+/**
+ * How old a kept page may be and still offer its next page. A first page's
+ * cursor names a ranked feed session that lives {@link RANKED_SESSION_TTL_MS}
+ * from the build, so past that its next page answers 410. Five minutes short of
+ * it, so a reader who is handed the page still has time to scroll.
+ */
+export const ANON_CONTINUATION_LIFETIME_MS = RANKED_SESSION_TTL_MS - 5 * 60 * 1000;
 
 /** How long the anonymous page of `descriptor` at `cursor` is kept, in seconds. */
 export function anonKeepSecondsFor(descriptor: string, cursor: string | undefined): number {
