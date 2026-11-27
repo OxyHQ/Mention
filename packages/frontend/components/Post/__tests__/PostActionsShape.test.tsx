@@ -4,7 +4,8 @@ import en from '@/locales/en.json';
 import es from '@/locales/es.json';
 import TestRenderer, { act } from 'react-test-renderer';
 
-import PostActions from '../PostActions';
+import { PostActions, type PostActionsProps } from '../PostActions.bloom';
+import { toElement } from '@oxy.so/bloom-language';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /** Under Bloom's theme provider: the language paints its text and glyphs from the theme, as the app's provider supplies it. */
@@ -50,21 +51,23 @@ void translations.init({
   initAsync: false,
 });
 
-function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}) {
+function renderBar(props: Partial<PostActionsProps> = {}) {
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
       themed(
-        <PostActions
-          t={translations.t}
-          engagement={{ replies: 2, likes: 3, boosts: 1, saves: 0 }}
-          onReply={noop}
-          onBoost={noop}
-          onLike={noop}
-          onSave={noop}
-          onShare={noop}
-          {...props}
-        />,
+        toElement(
+          PostActions({
+            t: translations.t,
+            engagement: { replies: 2, likes: 3, boosts: 1, saves: 0 },
+            onReply: noop,
+            onBoost: noop,
+            onLike: noop,
+            onSave: noop,
+            onShare: noop,
+            ...props,
+          }),
+        ),
       ),
     );
   });

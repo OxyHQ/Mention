@@ -40,7 +40,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import PostActions from '@/components/Post/PostActions';
+import { PostActions } from '@/components/Post/PostActions.bloom';
 import { postAcceptsReplies } from '@/utils/postReplies';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -1048,25 +1048,24 @@ const VideoItem = memo<VideoItemProps>(
               .allowsHitTesting('children'),
 
             LVStack(
-              LEmbed(
-                <PostActions
-                  presentation="video"
-                  t={t}
-                  engagement={{
-                    ...item.engagement,
-                    replies: cachedActivePost?.engagement.replies ?? item.engagement.replies,
-                  }}
-                  isLiked={item.viewerState.isLiked}
-                  isBoosted={item.viewerState.isBoosted}
-                  isSaved={item.viewerState.isSaved}
-                  onLike={() => onLike(item.id, item.viewerState.isLiked)}
-                  onReply={postAcceptsReplies(item) ? () => onComment(item.id) : undefined}
-                  onBoost={() => onBoost(item.id, item.viewerState.isBoosted)}
-                  onSave={() => onSave(item.id, item.viewerState.isSaved)}
-                  onShare={() => onShare(item)}
-                  onSendInAllo={() => onSendInAllo(item.id)}
-                />,
-              ),
+              PostActions({
+                presentation: 'video',
+                t,
+                engagement: {
+                  ...item.engagement,
+                  replies:
+                    cachedActivePost?.engagement.replies ?? item.engagement.replies ?? undefined,
+                },
+                isLiked: item.viewerState.isLiked,
+                isBoosted: item.viewerState.isBoosted,
+                isSaved: item.viewerState.isSaved,
+                onLike: () => onLike(item.id, item.viewerState.isLiked),
+                onReply: postAcceptsReplies(item) ? () => onComment(item.id) : undefined,
+                onBoost: () => onBoost(item.id, item.viewerState.isBoosted),
+                onSave: () => onSave(item.id, item.viewerState.isSaved),
+                onShare: () => onShare(item),
+                onSendInAllo: () => onSendInAllo(item.id),
+              }),
             )
               .justify('end')
               .align('center')

@@ -126,7 +126,7 @@ jest.mock('../../Post/ContentWarning.bloom', () => ({
   __esModule: true,
   ContentWarning: () => null,
 }));
-jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: 'PostActions' }));
+jest.mock('../../Post/PostActions.bloom', () => ({ __esModule: true, PostActions: 'PostActions' }));
 jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: 'PostDetailStats' }));
 jest.mock('../../Post/PostLocation', () => ({ __esModule: true, postLocation: () => null }));
 jest.mock('../../Post/PostAttachmentsRow', () => ({

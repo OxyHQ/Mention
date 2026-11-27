@@ -1,0 +1,179 @@
+import { useVoteStyle } from "@/hooks/useVoteStyle"
+import { formatCompactNumber } from "@/utils/formatNumber"
+import { EngagementBar } from "@oxy.so/bloom/engagement-bar"
+import { BookmarkFillIcon } from "@oxy.so/bloom/icons/BookmarkFillIcon"
+import { BookmarkIcon } from "@oxy.so/bloom/icons/BookmarkIcon"
+import { LikeFillIcon } from "@oxy.so/bloom/icons/LikeFillIcon"
+import { LikeIcon } from "@oxy.so/bloom/icons/LikeIcon"
+import { ReplyIcon } from "@oxy.so/bloom/icons/ReplyIcon"
+import { RepostIcon } from "@oxy.so/bloom/icons/RepostIcon"
+import { RiArrowDownSLine } from "@oxy.so/bloom/icons/RiArrowDownSLine"
+import { RiArrowUpSLine } from "@oxy.so/bloom/icons/RiArrowUpSLine"
+import { RiBarChartBoxLine } from "@oxy.so/bloom/icons/RiBarChartBoxLine"
+import { RiMoreFill } from "@oxy.so/bloom/icons/RiMoreFill"
+import { RiSendPlaneLine } from "@oxy.so/bloom/icons/RiSendPlaneLine"
+import { RiTranslate2 } from "@oxy.so/bloom/icons/RiTranslate2"
+import { ShareIcon } from "@oxy.so/bloom/icons/ShareIcon"
+import { type TFunction } from "i18next"
+import { type AccessibilityActionEvent } from "react-native"
+
+/// Only what the bar itself renders. Counts it does not show (quotes, views) live on <PostDetailStats>.
+public struct Engagement {
+  let replies: Float?
+  let likes: Float?
+  // Shown beside the boost icon, like the like count beside the heart. The bar
+  // used to show likes and saves and leave boosts blank, so a post boosted once
+  // read as a post nobody had boosted (OxyHQ/Mention#1140).
+  var boosts: Float? = none
+  var downvotes: Float? = none
+  var saves: Float? = none
+}
+
+// Omitted on a post that takes no replies — the server refused them (a channel
+// account's post, an audience the viewer is outside of) or the author set
+// `replyPermission: ['nobody']` — and the button is then not rendered rather
+// than rendered dead. The caller derives that from the POST
+// (`postAcceptsReplies`), never from a flag threaded down through `PostItem`.
+// Returning false rejects the like: no haptic and no animation follow.
+// Send the post to someone in Allo — Instagram's paper plane. Mention has no
+// chat of its own, so this hands the post's link to Allo's share picker.
+// Translate into the reader's own language, or undo it. Absent for a post
+// already written in that language — translating it would do nothing, so it
+// gets no icon rather than a dead one.
+// Read this post in some OTHER language. Reached by a long press on the same
+// icon, and — because a long press is neither discoverable nor operable by a
+// screen reader — by the `translateTo` accessibility action beside it.
+
+public struct PostActions: View {
+  var presentation: "post" | "video" = "post"
+  let t: TFunction
+  let engagement: Engagement
+  var isLiked: Bool? = none
+  var isDownvoted: Bool? = none
+  var isBoosted: Bool? = none
+  var isSaved: Bool? = none
+  var onReply: (() -> Unit)? = none
+  let onBoost: () -> Unit
+  let onLike: () -> Bool?
+  var onDownvote: (() -> Unit)? = none
+  let onSave: () -> Unit
+  let onShare: () -> Unit
+  var onSendInAllo: (() -> Unit)? = none
+  var onInsightsPress: (() -> Unit)? = none
+  var onTranslate: (() -> Unit)? = none
+  var onTranslateLongPress: (() -> Unit)? = none
+  var isTranslated: Bool? = none
+  var isTranslating: Bool? = none
+  var postId: String? = none
+  let voteStyle = useVoteStyle()
+
+  let likes = engagement.likes ?? 0
+  let video = presentation == "video"
+
+  var body: some View {
+    // One action definition: posts use the horizontal bar, immersive videos its vertical presentation.
+    EngagementBar(
+      formatCount: formatCompactNumber,
+      orientation: video ? "vertical" : "horizontal",
+      size: video ? "lg" : "md",
+      tone: video ? "onImage" : none,
+      showZeroCounts: video,
+      trailing: video ? (Menu {
+        // Bloom's DropdownMenu on every platform, as the row drew it (not the platform's menu).
+        Button(Icon(RiMoreFill))
+        .shape(.circle)
+        .style(.plain)
+        .tint(.neutral)
+        .size(.lg)
+        .iconSize(.xl)
+        .label(t("videos.more"))
+        Item(t("videos.share"))
+        .icon(ShareIcon)
+        .iconSize(.sm)
+        .iconForeground(.primary)
+        .onPress(onShare)
+      }
+        .menuStyle(.dropdown)
+        .label(t("videos.more"))) : (Group {
+        Action(BookmarkIcon, t("postActions.save"), { activeIcon: BookmarkFillIcon })
+        .count(engagement.saves)
+        .active(isSaved == true)
+        .onPress(onSave)
+        if let onTranslate = onTranslate {
+          Action(
+            RiTranslate2,
+            t("compose.languages.overwriteConfirm"),
+            {
+              busy: isTranslating, // The icon's SECOND job — reading the post in some other language —
+              // hangs off a long press, which no screen reader performs, so the
+              // accessibility action carries the same call. Both arrive together
+              // or not at all: an advertised action that does nothing is worse
+              // than an absent one.
+              accessibilityActions: onTranslateLongPress != none ? [
+                { name: "translateTo", label: t("postActions.readInAnotherLanguage") },
+              ] : none,
+              onAccessibilityAction: onTranslateLongPress != none ? {
+                event: AccessibilityActionEvent in
+                if event.nativeEvent.actionName == "translateTo" { onTranslateLongPress() }
+              } : none,
+            },
+          )
+          .active(isTranslated == true)
+          .onPress(onTranslate)
+          .onLongPress(onTranslateLongPress)
+        }
+        if let onInsightsPress = onInsightsPress {
+          Action(RiBarChartBoxLine, t("postActions.insights")).onPress(onInsightsPress)
+        }
+      }),
+    ) {
+      if (!video && voteStyle == "pill") && onDownvote != none {
+        ActionGroup {
+          // The two vote arrows are adjacent halves of ONE pill, so neither hit region
+          // may grow toward the other or it swallows the other's taps.
+          Action(RiArrowUpSLine, t("postActions.upvote"), { rollCount: true })
+          .count(likes - (engagement.downvotes ?? 0))
+          .active(isLiked == true)
+          .hitSlop(.vertical, "5")
+          .hitSlop(.left, "5")
+          .hitSlop(.right, .none)
+          .onPress(onLike)
+          Action(RiArrowDownSLine, t("postActions.downvote"))
+          .active(isDownvoted == true)
+          .tint(.error)
+          .hitSlop(.vertical, "5")
+          .hitSlop(.left, .none)
+          .hitSlop(.right, "5")
+          .onPress(onDownvote)
+        }
+      } else {
+        Action(LikeIcon, t("videos.like"), { activeIcon: LikeFillIcon, pop: true, rollCount: true })
+        .count(likes)
+        .active(isLiked == true)
+        .tint(.error)
+        .onPress(onLike)
+      }
+      if let onReply = onReply {
+        Action(ReplyIcon, t("common.reply")).count(engagement.replies).onPress(onReply)
+      }
+      Action(RepostIcon, t("post.repostOptions"))
+      .count(engagement.boosts)
+      .active(isBoosted == true)
+      .tint(.success)
+      .onPress(onBoost)
+      if let onSendInAllo = onSendInAllo {
+        Action(RiSendPlaneLine, t("videos.sendInAllo")).onPress(onSendInAllo)
+      }
+      if video {
+        Action(BookmarkIcon, t("postActions.save"), { activeIcon: BookmarkFillIcon })
+        .active(isSaved == true)
+        .onPress(onSave)
+      }
+      if !video { Action(ShareIcon, t("videos.share")).onPress(onShare) }
+    }
+  }
+}
+
+// Mounted once per feed row. Memoized so an unrelated re-render of a sibling row
+// (or the parent feed) does not re-render every action bar — effective because
+// PostItem now hands it a stable `engagement` object and memoized callbacks.
