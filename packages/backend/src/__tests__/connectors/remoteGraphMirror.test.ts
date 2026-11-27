@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq, inArray, like, or } from 'drizzle-orm';
+import { eq, inArray, like, or, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { likes } from '../../db/schema/engagement';
 import { remoteActorRefs, remoteFollowEdges, remoteGraphCrawls } from '../../db/schema/federation';
@@ -148,7 +148,8 @@ describe('remote follow-graph bounds', () => {
   it('expires an edge whose end stayed unknown, and keeps one between known accounts', async () => {
     await seedBlueskyAccount(ALICE, 'alice');
     await seedBlueskyAccount(BOB, 'bob');
-    const longAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    // Past the 30-day TTL plus the 7-day restamp interval a stamp may trail by.
+    const longAgo = new Date(Date.now() - 38 * DAY_MS);
     await upsertRemoteFollowEdges(
       [
         { sourceUri: ALICE, targetUri: BOB },
@@ -167,6 +168,94 @@ describe('remote follow-graph bounds', () => {
       .from(remoteActorRefs)
       .where(inArray(remoteActorRefs.uri, DIDS));
     expect(refs.map((ref) => ref.uri).sort()).toEqual([ALICE, BOB].sort());
+  });
+
+  it('never expires an unknown-end edge before its TTL, even with a stamp a week behind', async () => {
+    await seedBlueskyAccount(ALICE, 'alice');
+    // Last stamped 31 days ago; a re-sighting up to 7 days later left it as it was.
+    await upsertRemoteFollowEdges(
+      [{ sourceUri: ALICE, targetUri: CAROL }],
+      new Date(Date.now() - 31 * DAY_MS),
+    );
+
+    const { expired } = await syncRemoteGraphMirror();
+
+    expect(expired).toBe(0);
+    expect(await edgeCount()).toBe(1);
+  });
+
+  it('re-stamps a re-observed edge only once its stamp is a week old', async () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * DAY_MS);
+    await upsertRemoteFollowEdges([{ sourceUri: ALICE, targetUri: BOB }], threeDaysAgo);
+    const before = await edgeRow(ALICE, BOB);
+
+    await upsertRemoteFollowEdges([{ sourceUri: ALICE, targetUri: BOB }], new Date());
+
+    // Same stamp and the same tuple: the conflict wrote nothing.
+    const after = await edgeRow(ALICE, BOB);
+    expect(after.lastSeenAt.getTime()).toBe(threeDaysAgo.getTime());
+    expect(after.xmin).toBe(before.xmin);
+
+    // A live follow that names the record key is still written.
+    await upsertRemoteFollowEdges(
+      [{ sourceUri: ALICE, targetUri: BOB, recordKey: '3kfollowrkey' }],
+      new Date(),
+    );
+    expect((await edgeRow(ALICE, BOB)).recordKey).toBe('3kfollowrkey');
+
+    // Once the stamp is past the interval, a sighting moves it forward.
+    await upsertRemoteFollowEdges(
+      [{ sourceUri: ALICE, targetUri: CAROL }],
+      new Date(Date.now() - 8 * DAY_MS),
+    );
+    const seenNow = new Date();
+    await upsertRemoteFollowEdges([{ sourceUri: ALICE, targetUri: CAROL }], seenNow);
+    expect((await edgeRow(ALICE, CAROL)).lastSeenAt.getTime()).toBe(seenNow.getTime());
+  });
+
+  it('a complete re-crawl keeps every edge it saw, however old its stamp', async () => {
+    await seedBlueskyAccount(ALICE, 'alice');
+    await seedBlueskyAccount(BOB, 'bob');
+    await seedBlueskyAccount(CAROL, 'carol');
+    // Both stamped 3 days ago, so this crawl's sighting of Bob writes nothing.
+    await upsertRemoteFollowEdges(
+      [
+        { sourceUri: ALICE, targetUri: BOB },
+        { sourceUri: ALICE, targetUri: CAROL },
+      ],
+      new Date(Date.now() - 3 * DAY_MS),
+    );
+    mocks.xrpcGet.mockImplementation(async (_host: string, nsid: string) =>
+      nsid === 'app.bsky.graph.getFollows' ? { follows: [{ did: BOB }] } : {},
+    );
+
+    await crawlRemoteGraph({ uri: ALICE, protocol: 'atproto' });
+
+    // Bob was seen and stays. Carol was not, but her stamp is inside the restamp
+    // interval, so she lingers until a later crawl: the stated price.
+    expect((await listed(scope.user('alice'), 'following')).sort()).toEqual(
+      [scope.user('bob'), scope.user('carol')].sort(),
+    );
+  });
+
+  it('a complete re-crawl prunes an unseen edge whose stamp is past the interval', async () => {
+    await seedBlueskyAccount(ALICE, 'alice');
+    await seedBlueskyAccount(BOB, 'bob');
+    await seedBlueskyAccount(CAROL, 'carol');
+    await upsertRemoteFollowEdges(
+      [
+        { sourceUri: ALICE, targetUri: BOB },
+        { sourceUri: ALICE, targetUri: CAROL },
+      ],
+      new Date(Date.now() - 8 * DAY_MS),
+    );
+    mocks.xrpcGet.mockImplementation(async (_host: string, nsid: string) =>
+      nsid === 'app.bsky.graph.getFollows' ? { follows: [{ did: BOB }] } : {},
+    );
+
+    await crawlRemoteGraph({ uri: ALICE, protocol: 'atproto' });
+
+    expect(await listed(scope.user('alice'), 'following')).toEqual([scope.user('bob')]);
   });
 
   it('stores a Bridgy Fed actor as its DID, so one person is one node', async () => {
@@ -242,6 +331,29 @@ beforeEach(() => {
   mocks.fetchAp.mockReset();
   mocks.excluded.clear();
 });
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** One stored edge by its two nodes, with the tuple's `xmin` (it moves when a row is rewritten). */
+async function edgeRow(source: string, target: string) {
+  const [row] = await getDb().execute<{
+    last_seen_at: string | Date;
+    record_key: string | null;
+    xmin: string;
+  }>(sql`
+    select e.last_seen_at, e.record_key, e.xmin::text as xmin
+    from remote_follow_edges e
+    join remote_actor_refs s on s.id = e.source_id
+    join remote_actor_refs t on t.id = e.target_id
+    where s.uri = ${source} and t.uri = ${target}
+  `);
+  if (!row) throw new Error(`no edge ${source} -> ${target}`);
+  return {
+    lastSeenAt: new Date(row.last_seen_at),
+    recordKey: row.record_key,
+    xmin: row.xmin,
+  };
+}
 
 /** Edges among this suite's nodes. */
 async function edgeCount(): Promise<number> {

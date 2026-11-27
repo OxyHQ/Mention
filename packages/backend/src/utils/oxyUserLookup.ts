@@ -30,7 +30,8 @@ export type OxyUserReadSource =
   | 'curator.follower_counts'
   | 'notification.read_state'
   | 'poke.users'
-  | 'web_shell.profile';
+  | 'web_shell.profile'
+  | 'federation.retention';
 
 export type OxyUserLookup = Awaited<
   ReturnType<ReturnType<typeof getServiceOxyClient>['users']['lookupMany']>

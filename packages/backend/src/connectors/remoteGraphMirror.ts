@@ -22,6 +22,10 @@
  *   {@link UNKNOWN_EDGE_TTL_MS} after it was last seen — the window in which an
  *   account synced LATER still appears. An edge between two known accounts
  *   stays until a re-crawl stops seeing it.
+ * - **How often an edge is written.** A re-observed edge is re-stamped only
+ *   once its stamp is `REMOTE_EDGE_RESTAMP_INTERVAL_MS` (7 days) old, so a
+ *   daily re-crawl does not rewrite every row it sees; the prune and the
+ *   expiry below both allow for a stamp that far behind.
  *
  * A collection the origin hides is not read, and what was stored from it is
  * dropped; an atproto graph is public by protocol. A Bridgy Fed actor URI is
@@ -38,6 +42,7 @@ import {
   findFollowedActorsDueForGraphCrawl,
   finishRemoteGraphCrawl,
   pruneRemoteFollowEdges,
+  REMOTE_EDGE_RESTAMP_INTERVAL_MS,
   upsertRemoteFollowEdges,
   type RemoteFollowEdgeInput,
   type RemoteGraphCollectionState,
@@ -59,6 +64,15 @@ export const GRAPH_SIDE_CAP = 2_000;
 
 /** An edge with an end not known here is kept this long after it was last seen. */
 export const UNKNOWN_EDGE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * The `last_seen_at` before which an edge with an unknown end has expired: its
+ * TTL plus the restamp interval, because a stamp can trail the last sighting by
+ * that much and an edge must never expire before its TTL.
+ */
+export function unknownEdgeExpiryCutoff(now: Date, ttlMs: number): Date {
+  return new Date(now.getTime() - ttlMs - REMOTE_EDGE_RESTAMP_INTERVAL_MS);
+}
 
 /** Edges deleted per expiry statement, and statements per sweep run. */
 const EXPIRY_BATCH = 5_000;
@@ -171,7 +185,13 @@ async function applySide(
       : { sourceUri: graphNode(uri), targetUri: self },
   );
   await upsertRemoteFollowEdges(edges, new Date());
-  if (read.complete) await pruneRemoteFollowEdges(own, crawlStartedAt);
+  // An edge this crawl saw may keep a stamp up to the restamp interval old.
+  if (read.complete) {
+    await pruneRemoteFollowEdges(
+      own,
+      new Date(crawlStartedAt.getTime() - REMOTE_EDGE_RESTAMP_INTERVAL_MS),
+    );
+  }
   return 'visible';
 }
 
@@ -271,7 +291,7 @@ export async function syncRemoteGraphMirror(now = new Date()): Promise<{
   );
   for (const subject of subjects) await crawlRemoteGraph(subject);
 
-  const cutoff = new Date(now.getTime() - UNKNOWN_EDGE_TTL_MS);
+  const cutoff = unknownEdgeExpiryCutoff(now, UNKNOWN_EDGE_TTL_MS);
   let expired = 0;
   for (let batch = 0; batch < EXPIRY_BATCHES_PER_RUN; batch += 1) {
     const deleted = await expireUnknownRemoteFollowEdges(cutoff, EXPIRY_BATCH);
