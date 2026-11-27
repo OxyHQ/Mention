@@ -66,6 +66,12 @@ import { postContentVariants } from '../db/schema/postContent';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  type BackfillThrottle,
+  backfillExitCode,
+  createBackfillThrottle,
+  fixedPauseThrottle,
+} from './lib/backfillThrottle';
 
 const SCRIPT_NAME = 'backfillPostHasLinks';
 
@@ -74,6 +80,9 @@ const BATCH_SIZE = 1000;
 
 /** Batches between progress lines. */
 const PROGRESS_EVERY_BATCHES = 20;
+
+/** Rest between batches of a CLI run, so the request path keeps its I/O. */
+const PAUSE_MS = 100;
 
 /**
  * The SQL twin of `postTextHasHttpLink`: does ANY rendition of this post carry
@@ -147,6 +156,7 @@ async function countCandidates(direction: Direction): Promise<{ total: number; n
 async function repairDirection(
   direction: Direction,
   dryRun: boolean,
+  throttle: BackfillThrottle,
 ): Promise<HasLinksBackfillCounts> {
   const counted = await countCandidates(direction);
   const counts: HasLinksBackfillCounts = {
@@ -163,6 +173,8 @@ async function repairDirection(
   // leaves the candidate set, so an offset would step PAST the rows that shifted
   // down into the window it already read.
   for (;;) {
+    // No cursor: the candidate set is re-selected each time, so a stopped run resumes by re-running.
+    await throttle.beforeBatch({ scope: direction, scanned: counts.written });
     const batch = await getDb()
       .select({ id: posts.id })
       .from(posts)
@@ -217,13 +229,14 @@ async function repairDirection(
  * run it in-process against real rows.
  */
 export async function backfillPostHasLinks(
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; throttle?: BackfillThrottle } = {},
 ): Promise<HasLinksBackfillResult> {
   const dryRun = opts.dryRun ?? true;
+  const throttle = opts.throttle ?? fixedPauseThrottle(0);
   const startedAt = Date.now();
 
-  const setTrue = await repairDirection('set-true', dryRun);
-  const setFalse = await repairDirection('set-false', dryRun);
+  const setTrue = await repairDirection('set-true', dryRun, throttle);
+  const setFalse = await repairDirection('set-false', dryRun, throttle);
 
   const candidates = setTrue.candidates + setFalse.candidates;
   const written = setTrue.written + setFalse.written;
@@ -250,9 +263,10 @@ export async function backfillPostHasLinks(
 async function main(): Promise<void> {
   const dryRun = (process.env.DRY_RUN ?? 'true') !== 'false';
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
+  const throttle = createBackfillThrottle({ script: SCRIPT_NAME, pauseMs: PAUSE_MS });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun });
-  await backfillPostHasLinks({ dryRun });
+  await backfillPostHasLinks({ dryRun, throttle });
 }
 
 if (require.main === module) {
@@ -266,6 +280,6 @@ if (require.main === module) {
         reason: error instanceof Error ? error.message : 'unknown',
       });
       await closeAdminScriptResources().catch(() => undefined);
-      process.exit(1);
+      process.exit(backfillExitCode(error));
     });
 }

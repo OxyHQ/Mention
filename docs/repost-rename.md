@@ -73,3 +73,20 @@ CONFIRM_ADMIN_MUTATION=backfillRepostColumns bun packages/backend/dist/src/scrip
 ```
 
 It is idempotent: a second run over a finished corpus writes nothing.
+
+## Running the value backfill
+
+`backfillRepostValues` (`--dry-run` first, then `CONFIRM_ADMIN_MUTATION=backfillRepostValues`,
+optionally `--shard=k/N`) is IO-bound on the shared instance, so its CLI run, like the other corpus
+backfills (`backfillPostHashtags`, `backfillPostHasLinks`, `backfillFederatedRepostCounts`,
+`backfillVariantPostCreatedAt`, `backfillUpstreamPostKeys`, and the window alone for
+`backfillPostLanguages`), goes through `scripts/lib/backfillThrottle.ts`. Batches run only inside an
+off-peak UTC window, `BACKFILL_WINDOW_UTC=01-07` by default (`HH-HH`, may wrap midnight, e.g. `22-04`;
+`always` turns the window off and logs a warning); outside it the task sleeps until the window opens.
+Each batch is timed against the median of the first five: one slower than `BACKFILL_SLOW_FACTOR`
+(default 2) times that, or than `BACKFILL_SLOW_BATCH_MS` (default 60000), backs off from 15 s,
+doubling up to `BACKFILL_BACKOFF_MAX_MS` (default 300000). After `BACKFILL_MAX_SLOW_BATCHES`
+(default 10) slow batches in a row the run stops with exit code 75 and records its cursor in
+`admin_script_cursors` (script `backfillRepostValues`, scope `throttle-stop:<table>`, with
+`/<k>of<N>` for a shard); `--table=<table> --after=<cursor>` (plus the same `--shard`) resumes that
+table there. Re-running from the start is also safe, only slower.

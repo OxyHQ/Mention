@@ -153,6 +153,11 @@ import {
   recordAdminScriptCursor,
 } from './lib/adminScriptCursor';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  type BackfillThrottle,
+  backfillExitCode,
+  createBackfillThrottle,
+} from './lib/backfillThrottle';
 import { sleep as defaultSleep } from '../utils/sleep';
 
 const SCRIPT_NAME = 'backfillPostLanguages';
@@ -280,6 +285,11 @@ export interface BackfillPostLanguagesOptions {
   /** Forget the stored cursor first. */
   resetCursor?: boolean;
   pacing?: Partial<BackfillPacing>;
+  /**
+   * The off-peak window (`lib/backfillThrottle.ts`); the CLI passes it. Its latency
+   * backpressure stays off here: `pacing` already backs off on the database's load.
+   */
+  throttle?: BackfillThrottle;
 }
 
 /**
@@ -801,6 +811,7 @@ export async function backfillPostLanguages(
   let cursorWriteFailures = 0;
 
   for (;;) {
+    await opts.throttle?.beforeBatch({ cursor: lastId, scanned });
     // Back off while the database is busy with other work: the scan is the
     // one load here that can wait.
     if (pacing.maxActiveQueries) {
@@ -953,6 +964,11 @@ async function main(): Promise<void> {
     // The load check is on by default for the one-shot; 0 turns it off.
     pacing.maxActiveQueries = maxActiveQueries ?? DEFAULT_MAX_ACTIVE_QUERIES;
     if (loadBackoffMs !== undefined) pacing.loadBackoffMs = loadBackoffMs;
+    const throttle = createBackfillThrottle({
+      script: SCRIPT_NAME,
+      pauseMs: 0,
+      config: { backpressure: false },
+    });
 
     await connectPostgres();
 
@@ -964,6 +980,7 @@ async function main(): Promise<void> {
       cursorScope: all ? 'all' : 'gaps',
       resetCursor: process.env.RESET_CURSOR === 'true',
       pacing,
+      throttle,
     });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
@@ -988,6 +1005,6 @@ if (require.main === module) {
     .then(() => process.exit(0))
     .catch((error) => {
       logger.error(`[${SCRIPT_NAME}] unhandled failure`, error);
-      process.exit(1);
+      process.exit(backfillExitCode(error));
     });
 }
