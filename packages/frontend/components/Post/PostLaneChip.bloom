@@ -20,7 +20,7 @@ import { type GestureResponderEvent } from "react-native"
 /// The label: React Native's Text in the muted ink at the identity line's 15px
 /// (`leading-tight`), cut at its tail. A RawText reads only the theme it is
 /// inked from, as the token style it replaces did.
-fn laneLabel(label: String) -> View {
+func laneLabel(_ label: String) -> View {
   RawText(label).foreground("muted").font("md").leading("close").lines(1)
 }
 
@@ -45,16 +45,15 @@ fn laneLabel(label: String) -> View {
 /// does not render this at all on a boost row or a collaborative-authorship
 /// header, where the identity line is already saying something more important
 /// about who published the post.
-pub default view PostLaneChip(
-  lane: LaneSummary,
-  authorHandle: String,
-  feedDescriptor: String? = none,
-) {
+public struct PostLaneChip: View {
+  let lane: LaneSummary
+  let authorHandle: String
+  var feedDescriptor: String? = none
   let router = useRouter()
 
-  body {
-    if feedDescriptor != "lane|${lane.id}" {
-      let label = "› ${lane.name}"
+  var body: some View {
+    if feedDescriptor != "lane|\(lane.id)" {
+      let label = "› \(lane.name)"
       let canOpenTab = lane.displayMode == "tab" && authorHandle.count > 0
       // A chip that cannot open a tab is the label alone, with the chip's frame.
       if !canOpenTab {
@@ -70,7 +69,7 @@ pub default view PostLaneChip(
           // The chip lives inside the post's own press target: opening the lane tab
           // must never open the post detail underneath it.
           if let stopPropagation = event.stopPropagation { stopPropagation() }
-          router.push("/@${authorHandle}/lane/${lane.id}")
+          router.push("/@\(authorHandle)/lane/\(lane.id)")
         }
       }
     }

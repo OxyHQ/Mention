@@ -2,7 +2,7 @@
   "meta": {
     "runtime": "node v24.21.0, jest-expo (ios), React development build",
     "machine": "Intel(R) Core(TM) i9-14900K x32",
-    "compiler": "1.4.0-local",
+    "compiler": "1.7.0-local",
     "runs": 200,
     "warmup": 30,
     "note": "forms interleaved per run in a rotating order; ms are relative Jest timings; cost counts are exact"
@@ -111,13 +111,13 @@
         "fibers": 8,
         "hostFibers": 2,
         "hooks": 0,
-        "contexts": 2
+        "contexts": 1
       },
       "bloom": {
         "fibers": 8,
         "hostFibers": 2,
         "hooks": 0,
-        "contexts": 2
+        "contexts": 1
       }
     }
   },
@@ -125,16 +125,16 @@
     "ContentWarning": {
       "ts": {
         "mountWall": {
-          "median": 0.442,
-          "p95": 0.958
+          "median": 0.425,
+          "p95": 0.83
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.289,
-          "p95": 0.692
+          "median": 0.286,
+          "p95": 0.578
         },
         "updateProfiled": {
           "median": 0,
@@ -143,16 +143,16 @@
       },
       "bloom": {
         "mountWall": {
-          "median": 0.425,
-          "p95": 0.907
+          "median": 0.424,
+          "p95": 0.778
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.272,
-          "p95": 0.587
+          "median": 0.282,
+          "p95": 0.539
         },
         "updateProfiled": {
           "median": 0,
@@ -163,16 +163,16 @@
     "PostCommunityRow": {
       "ts": {
         "mountWall": {
-          "median": 0.223,
-          "p95": 0.345
+          "median": 0.218,
+          "p95": 0.334
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.169,
-          "p95": 0.274
+          "median": 0.162,
+          "p95": 0.252
         },
         "updateProfiled": {
           "median": 0,
@@ -181,16 +181,16 @@
       },
       "bloom": {
         "mountWall": {
-          "median": 0.202,
-          "p95": 0.313
+          "median": 0.197,
+          "p95": 0.276
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.142,
-          "p95": 0.212
+          "median": 0.135,
+          "p95": 0.221
         },
         "updateProfiled": {
           "median": 0,
@@ -201,16 +201,16 @@
     "PostCorrectionNotice": {
       "ts": {
         "mountWall": {
-          "median": 0.441,
-          "p95": 0.608
+          "median": 0.437,
+          "p95": 0.581
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.37,
-          "p95": 0.486
+          "median": 0.362,
+          "p95": 0.466
         },
         "updateProfiled": {
           "median": 0,
@@ -219,16 +219,16 @@
       },
       "bloom": {
         "mountWall": {
-          "median": 0.422,
-          "p95": 0.599
+          "median": 0.421,
+          "p95": 0.544
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.331,
-          "p95": 0.449
+          "median": 0.323,
+          "p95": 0.426
         },
         "updateProfiled": {
           "median": 0,
@@ -239,16 +239,16 @@
     "PostLaneChip": {
       "ts": {
         "mountWall": {
-          "median": 0.147,
-          "p95": 0.236
+          "median": 0.139,
+          "p95": 0.209
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.106,
-          "p95": 0.154
+          "median": 0.1,
+          "p95": 0.16
         },
         "updateProfiled": {
           "median": 0,
@@ -257,16 +257,16 @@
       },
       "bloom": {
         "mountWall": {
-          "median": 0.144,
-          "p95": 0.221
+          "median": 0.135,
+          "p95": 0.199
         },
         "mountProfiled": {
           "median": 0,
           "p95": 1
         },
         "updateWall": {
-          "median": 0.106,
-          "p95": 0.164
+          "median": 0.1,
+          "p95": 0.157
         },
         "updateProfiled": {
           "median": 0,

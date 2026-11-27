@@ -16,17 +16,20 @@ import { useTranslation } from "react-i18next"
 /// It is the author's warning, not a moderation or community verdict, and says
 /// so only through its label: it is styled as part of the post, never as a
 /// system notice.
-pub default view ContentWarning(text: String, revealed: Bool, onToggle: () -> Unit) {
+public struct ContentWarning: View {
+  let text: String
+  let revealed: Bool
+  let onToggle: () -> Unit
   let { t } = useTranslation()
   let label = t("post.contentWarning", defaultValue: "Content warning")
   let show = t("post.contentWarningShow", defaultValue: "Show")
   let hide = t("post.contentWarningHide", defaultValue: "Hide")
 
-  body {
+  var body: some View {
     if revealed {
       HStack {
         Icon(RiAlertLine).size("13").foreground("muted")
-        RawText(!text.isEmpty ? "${label} · ${text}" : label)
+        RawText(!text.isEmpty ? "\(label) · \(text)" : label)
         .foreground("muted")
         .shrink("normal")
         .font("sm")
@@ -79,7 +82,7 @@ pub default view ContentWarning(text: String, revealed: Bool, onToggle: () -> Un
       .when("pressed", { v in v.opacity("80") })
       .onPress(onToggle)
       .role("button")
-      .label(!text.isEmpty ? "${label}: ${text}. ${show}" : "${label}. ${show}")
+      .label(!text.isEmpty ? "\(label): \(text). \(show)" : "\(label). \(show)")
     }
   }
 }

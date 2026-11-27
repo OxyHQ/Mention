@@ -12,10 +12,10 @@
 import { Embed, type Child } from '@oxy.so/bloom-language';
 import { createElement } from 'react';
 
-import BloomContentWarning from '@/components/Post/ContentWarning.bloom';
-import BloomPostCommunityRow from '@/components/Post/PostCommunityRow.bloom';
-import BloomPostCorrectionNotice from '@/components/Post/PostCorrectionNotice.bloom';
-import BloomPostLaneChip from '@/components/Post/PostLaneChip.bloom';
+import { ContentWarning as BloomContentWarning } from '@/components/Post/ContentWarning.bloom';
+import { PostCommunityRow as BloomPostCommunityRow } from '@/components/Post/PostCommunityRow.bloom';
+import { PostCorrectionNotice as BloomPostCorrectionNotice } from '@/components/Post/PostCorrectionNotice.bloom';
+import { PostLaneChip as BloomPostLaneChip } from '@/components/Post/PostLaneChip.bloom';
 import rowStates from './states.json';
 import TsContentWarning from './variants/ContentWarning';
 import TsPostCommunityRow from './variants/PostCommunityRow';

@@ -2,7 +2,7 @@ import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { toElement } from '@oxy.so/bloom-language';
-import ContentWarning from '../ContentWarning.bloom';
+import { ContentWarning } from '../ContentWarning.bloom';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 

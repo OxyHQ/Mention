@@ -2,7 +2,7 @@ import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { toElement } from '@oxy.so/bloom-language';
-import PostCommunityRow from '../PostCommunityRow.bloom';
+import { PostCommunityRow } from '../PostCommunityRow.bloom';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
 /**

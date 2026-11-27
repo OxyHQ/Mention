@@ -13,7 +13,10 @@ import { useTranslation } from "react-i18next"
 // Its profile, or null when it has no route.
 // Colour for the leading glyph, from the active theme.
 
-pub default view PostCommunityRow(handle: String, href: Href?, iconColor: String? = none) {
+public struct PostCommunityRow: View {
+  let handle: String
+  let href: Href?
+  var iconColor: String? = none
   let { t } = useTranslation()
 
   let label = Text(t("post.inCommunity", handle: handle))
@@ -22,7 +25,7 @@ pub default view PostCommunityRow(handle: String, href: Href?, iconColor: String
     .weight("semibold")
     .lines(1)
 
-  body {
+  var body: some View {
     // The hover card and the link each hand their props to the host they wrap.
     ProfileHoverCard(username: handle) {
       HStack {

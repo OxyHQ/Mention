@@ -30,15 +30,17 @@ import { type GestureResponderEvent } from "react-native"
 /// The whole row is the tap target rather than just the trailing label: there is
 /// nothing else on the line, and a correction trail is worth more than a
 /// word-sized target on a phone.
-pub default view PostCorrectionNotice(postId: String, count: Float) {
+public struct PostCorrectionNotice: View {
+  let postId: String
+  let count: Float
   let router = useRouter()
   let { t } = useTranslation()
 
-  fn openHistory(event: GestureResponderEvent) {
+  func openHistory(_ event: GestureResponderEvent) {
     // The row lives inside the post's own press target: opening the history
     // must never open the post detail underneath it.
     if let stopPropagation = event.stopPropagation { stopPropagation() }
-    router.push("/p/${postId}/corrections")
+    router.push("/p/\(postId)/corrections")
   }
 
   let countLabel = t(
@@ -48,7 +50,7 @@ pub default view PostCorrectionNotice(postId: String, count: Float) {
   )
   let actionLabel = t("post.corrections.viewHistory", defaultValue: "View history")
 
-  body {
+  var body: some View {
     VStack {
       HStack {
         Icon(RiEditBoxLine).size("13").foreground("muted")
@@ -63,6 +65,6 @@ pub default view PostCorrectionNotice(postId: String, count: Float) {
     .onPress(openHistory)
     .hitSlop("md")
     .role("link")
-    .label("${countLabel}. ${actionLabel}")
+    .label("\(countLabel). \(actionLabel)")
   }
 }
