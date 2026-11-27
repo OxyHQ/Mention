@@ -268,7 +268,7 @@ const PostMenuButton = view(function PostMenuButton({
     .label(label);
 });
 
-interface PostActionsProps {
+interface PostRowActionsProps {
   t: TFunction;
   replies: number;
   boosts: number;
@@ -294,11 +294,11 @@ interface PostActionsProps {
 }
 
 /**
- * `PostActions` (the post presentation) in the language: Bloom's engagement
+ * `PostRowActions` (the post presentation) in the language: Bloom's engagement
  * bar, one action per glyph. Its own view, compared prop by prop, so a row
  * re-render that leaves the bar's inputs alone does not redraw it.
  */
-const PostActions = view(function PostActions(props: PostActionsProps) {
+const PostRowActions = view(function PostRowActions(props: PostRowActionsProps) {
   const voteStyle = useVoteStyle();
   const { t } = props;
   const { onTranslate, onTranslateLongPress, onDownvote } = props;
@@ -1745,7 +1745,7 @@ function PostRow(props: PostItemProps): Child {
           isNested
             ? null
             : inset(
-                PostActions({
+                PostRowActions({
                   t,
                   replies: actionsEngagement.replies,
                   boosts: actionsEngagement.boosts,
