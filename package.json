@@ -17,8 +17,8 @@
       "@oxy.so/services": "14.24.0",
       "@oxy.so/utils": "^1.5.2",
       "@peable.to/sdk": "7.0.0",
-      "@syra.fm/sdk": "0.25.0",
-      "@types/bun": "1.4.4",
+      "@syra.fm/sdk": "0.26.0",
+      "@types/bun": "1.4.5",
       "@vibbr.co/sdk": "0.1.2",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.6",
@@ -88,8 +88,8 @@
     "build:publishing": "bun run --cwd packages/sdk build"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
-    "@oxy.so/doctor": "1.7.0",
+    "@biomejs/biome": "2.6.8",
+    "@oxy.so/doctor": "1.10.0",
     "@types/node": "catalog:",
     "semver": "^7.8.6",
     "typescript": "catalog:",
