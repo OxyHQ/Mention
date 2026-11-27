@@ -247,7 +247,6 @@ const CASES: Case[] = [
   {
     file: 'components/welcome/WelcomeScreen.tsx',
     name: 'WelcomeScreen',
-    broken: 'an element type inside BloomLanguage is undefined (not located yet; R4 is fixed)',
     ts: () => require('@/components/welcome/WelcomeScreen'),
     bloom: () => require('./bloom/WelcomeScreen.bloom'),
     bloomComponent: true,
