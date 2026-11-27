@@ -324,6 +324,11 @@ ranked feed session's lifetime (less five minutes) the kept page is served
 without its continuation, whose session has expired. Cursor pages keep the
 default 15 minutes.
 
+An identity projection (an actor's posts moving to another Oxy user) marks every
+anonymous page stale (`markAnonymousFeedsStale`) instead of deleting them: none
+is served as fresh again, but each stays the stale page of last resort, and a
+stale read re-hydrates any post whose owner moved.
+
 It now excludes explicitly hidden/muted/blocked authors before source caps and
 applies the existing hidden-topic multiplier to canonical topics and hashtags
 before its score keyset. Old Explore score/session cursors restart with typed

@@ -7,6 +7,7 @@ import {
   ANON_FRESH_MS,
   ANON_KEEP_SECONDS,
 } from './anonFeedFreshness';
+import { ANON_FEED_STALE_MARKER_KEY } from './anonFeedStaleMarker';
 import type { RequestLanguages } from '../../utils/viewerLanguage';
 
 /**
@@ -143,8 +144,9 @@ class AnonFeedCache {
   }
 
   /**
-   * Read a cached anon page, re-authorized for this read, or `null` on miss /
-   * any Redis failure. A failed authorization rejects: no cached page is served
+   * Read a FRESH cached anon page, re-authorized for this read, or `null` on
+   * miss / any Redis failure. A page built before the last stale mark
+   * (`markAnonymousFeedsStale`) is not fresh, however young. A failed authorization rejects: no cached page is served
    * without current decisions.
    */
   async read(
@@ -152,11 +154,15 @@ class AnonFeedCache {
     requestLanguages?: RequestLanguages,
     freshMs: number = ANON_FRESH_MS,
   ): Promise<CacheableFeedResponse | null> {
-    return this.readWhere(
+    // The page and the stale mark (`anonFeedStaleMarker`) in one round trip.
+    const [stored, staleBefore] = (await cache.getMany<unknown>([
       key,
-      requestLanguages,
-      (stored) => !stored.degraded && Date.now() - stored.cachedAt < freshMs,
-    );
+      ANON_FEED_STALE_MARKER_KEY,
+    ])) as [StoredAnonFeed | undefined, unknown];
+    if (!stored?.entry?.page || stored.degraded) return null;
+    if (Date.now() - stored.cachedAt >= freshMs) return null;
+    if (typeof staleBefore === 'number' && stored.cachedAt <= staleBefore) return null;
+    return revalidateAnonymousFeed(stored.entry, requestLanguages);
   }
 
   /**
@@ -180,16 +186,6 @@ class AnonFeedCache {
     if (Date.now() - stored.cachedAt < ANON_CONTINUATION_LIFETIME_MS) return page;
     const { nextCursor: _expired, ...rest } = page;
     return { ...rest, hasMore: false };
-  }
-
-  private async readWhere(
-    key: string,
-    requestLanguages: RequestLanguages | undefined,
-    accepts: (stored: StoredAnonFeed) => boolean,
-  ): Promise<CacheableFeedResponse | null> {
-    const stored = await cache.get<StoredAnonFeed>(key);
-    if (!stored?.entry?.page || !accepts(stored)) return null;
-    return revalidateAnonymousFeed(stored.entry, requestLanguages);
   }
 
   /**
