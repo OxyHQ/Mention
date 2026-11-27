@@ -141,7 +141,7 @@ interface Case {
   /** The `.bloom` form is a component (a `Screen`), not a view. */
   bloomComponent?: boolean;
   /**
-   * The compiler bug that makes the `.bloom` form draw wrongly (Bloom repros, lang-mention-5):
+   * Why the `.bloom` form draws wrongly (Bloom repros in ~/.local/share/bloom-lang/repros/mention5):
    * its states are expected to fail until it is fixed, and then fail here as passing.
    */
   broken?: string;
@@ -176,7 +176,7 @@ const CASES: Case[] = [
   {
     file: 'components/videos/VideoReplies.tsx',
     name: 'VideoReplies',
-    broken: "R3: a node into Bloom's `Screen(header:)` is not toElement'd",
+    broken: 'R5: Feed (memo with a comparator and a displayName) is called as a view, and dropped',
     ts: () => require('@/components/videos/VideoReplies'),
     bloom: () => require('./bloom/VideoReplies.bloom'),
     states: { signedOut: { props: { postId: 'p1' } } },
@@ -184,7 +184,6 @@ const CASES: Case[] = [
   {
     file: 'components/Error.tsx',
     name: 'Error',
-    broken: "R2: a conditional node into a TS ReactNode prop is not toElement'd",
     ts: () => require('@/components/Error'),
     bloom: () => require('./bloom/Error.bloom'),
     states: {
@@ -235,7 +234,6 @@ const CASES: Case[] = [
   {
     file: 'components/Profile/ProfileSkeleton.tsx',
     name: 'ProfileSkeleton',
-    broken: "R3: a node into `CoverHeader(cover:)` is not toElement'd",
     ts: () => require('@/components/Profile/ProfileSkeleton'),
     bloom: () => require('./bloom/ProfileSkeleton.bloom'),
     states: { defaults: { props: {} } },
@@ -250,10 +248,9 @@ const CASES: Case[] = [
   {
     file: 'components/welcome/WelcomeScreen.tsx',
     name: 'WelcomeScreen',
-    broken: 'R4: a Screen outside app/ loses its named export; an element is undefined',
+    broken: 'an element type inside BloomLanguage is undefined (not located yet; R4 is fixed)',
     ts: () => require('@/components/welcome/WelcomeScreen'),
     bloom: () => require('./bloom/WelcomeScreen.bloom'),
-    bloomExport: 'default',
     bloomComponent: true,
     states: { first: { props: {} } },
   },
@@ -287,7 +284,6 @@ const CASES: Case[] = [
   {
     file: 'components/SuggestedProfileCard.tsx',
     name: 'SuggestedProfileCard',
-    broken: 'R1: a TS view() (UserName) is mounted as a component',
     ts: () => require('@/components/SuggestedProfileCard'),
     bloom: () => require('./bloom/SuggestedProfileCard.bloom'),
     states: {
@@ -401,7 +397,8 @@ function lines(node: Json | Json[] | string | null, depth = 0, out: string[] = [
     if (typeof value === 'function' || value === undefined) continue;
     props[key] = key === 'style' ? StyleSheet.flatten(value) : value;
   }
-  out.push(`${pad}<${node.type} ${plain(props)}>`);
+  // React's `useId` names (`…-r3-…`) count the renders before this one, not what is drawn.
+  out.push(`${pad}<${node.type} ${plain(props).replace(/-r[0-9a-z]+-/g, '-r·-')}>`);
   for (const child of node.children ?? []) lines(child as Json | string, depth + 1, out);
   return out;
 }
@@ -458,15 +455,18 @@ const ROWS = CASES.flatMap((c) =>
 );
 
 describe.each(ROWS)('%s', (_key, c, s) => {
-  (c.broken ? it.failing : it)('draws the same host tree as the TypeScript', () => {
-    s.before?.();
-    mockPushes.length = 0;
-    const ts = draw(element('ts', c, s.props));
-    s.before?.();
-    const bloom = draw(element('bloom', c, s.props));
-    if (process.env.PROOF_DUMP)
-      console.log(`${c.name}\n${ts.join('\n')}\n=====\n${bloom.join('\n')}`);
-    expect(ts.length).toBeGreaterThan(0);
-    if (ts.join('\n') !== bloom.join('\n')) throw new Error(firstDifference(ts, bloom));
-  });
+  (c.broken && !process.env.PROOF_BROKEN ? it.failing : it)(
+    'draws the same host tree as the TypeScript',
+    () => {
+      s.before?.();
+      mockPushes.length = 0;
+      const ts = draw(element('ts', c, s.props));
+      s.before?.();
+      const bloom = draw(element('bloom', c, s.props));
+      if (process.env.PROOF_DUMP)
+        console.log(`${c.name}\n${ts.join('\n')}\n=====\n${bloom.join('\n')}`);
+      expect(ts.length).toBeGreaterThan(0);
+      if (ts.join('\n') !== bloom.join('\n')) throw new Error(firstDifference(ts, bloom));
+    },
+  );
 });

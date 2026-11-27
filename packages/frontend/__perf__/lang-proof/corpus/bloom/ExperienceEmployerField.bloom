@@ -114,16 +114,16 @@ public struct ExperienceEmployerField: View {
           Row(employer?.name ?? String(localized: "profile.experience.unavailableEmployer"))
           .leadingView(
             Avatar(
-              ((!supervision.supervised && employer != none) && employer!.avatar != none) &&
-                employer!.avatar is String ? employer!.avatar : none,
+              ((!supervision.supervised && employer != none) && employer.avatar != none) &&
+                employer.avatar is String ? employer.avatar : none,
               {
                 name: employer?.name ?? String(localized: "profile.experience.unavailableEmployer"),
               },
             ).size(.md),
           )
           .subtitle(
-            ((!supervision.supervised && employer != none) && employer!.websiteUrl != none) &&
-              employer!.websiteUrl is String ? (employer!.websiteUrl) : none,
+            ((!supervision.supervised && employer != none) && employer.websiteUrl != none) &&
+              employer.websiteUrl is String ? (employer.websiteUrl) : none,
           )
           Button(Text(String(localized: "profile.experience.changeEmployer")))
           .style(.plain)
