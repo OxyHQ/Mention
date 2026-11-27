@@ -208,6 +208,8 @@ export interface CreateBackfillThrottleOptions {
   script: string;
   /** The script's normal rest between batches. */
   pauseMs: number;
+  /** A preview writes nothing, not even the stop cursor. */
+  dryRun?: boolean;
   /** Read for the window and the thresholds; `process.env` by default. */
   env?: Environment;
   /** Overrides on top of what the environment says (tests). */
@@ -300,7 +302,8 @@ export function createBackfillThrottle(opts: CreateBackfillThrottleOptions): Bac
     const scope = progress.scope ?? 'default';
     if (consecutiveSlow >= config.maxConsecutiveSlow) {
       const cursor = progress.cursor ?? null;
-      const recorded = cursor ? await recordStop(scope, cursor, progress.scanned ?? 0) : false;
+      const recorded =
+        cursor && !opts.dryRun ? await recordStop(scope, cursor, progress.scanned ?? 0) : false;
       logger.error('[backfillThrottle] stopping: the database stayed slow', {
         script,
         scope,

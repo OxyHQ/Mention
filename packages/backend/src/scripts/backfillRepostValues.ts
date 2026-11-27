@@ -245,6 +245,7 @@ async function main(): Promise<void> {
     const throttle = createBackfillThrottle({
       script: 'backfillRepostValues',
       pauseMs: DEFAULT_PAUSE_MS,
+      dryRun,
     });
     const table = argValue('table');
     if (table && !REPOST_VALUE_TARGETS.some((target) => target.table === table)) {

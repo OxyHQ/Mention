@@ -174,6 +174,7 @@ async function main(): Promise<void> {
     const throttle = createBackfillThrottle({
       script: 'backfillFederatedRepostCounts',
       pauseMs: CLI_PAUSE_MS,
+      dryRun,
     });
     await connectPostgres();
     logger.info('[backfillFederatedRepostCounts] connected to PostgreSQL', { dryRun });

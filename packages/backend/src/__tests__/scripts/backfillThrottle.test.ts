@@ -257,6 +257,27 @@ describe('createBackfillThrottle: backpressure', () => {
     );
   });
 
+  it('stops a dry run without writing the cursor', async () => {
+    const clock = fakeClock(at(2));
+    const recordStop = vi.fn(async () => true);
+    const throttle = createBackfillThrottle({
+      script: 'testBackfill',
+      pauseMs: 0,
+      dryRun: true,
+      env: {},
+      config: { ...ALWAYS_OPEN, slowCeilingMs: 1_000, maxConsecutiveSlow: 1 },
+      now: clock.now,
+      sleep: clock.sleep,
+      recordStop,
+    });
+    await throttle.beforeBatch({ cursor: 'c1' });
+    clock.advance(5_000);
+    await expect(throttle.beforeBatch({ cursor: 'c2' })).rejects.toBeInstanceOf(
+      BackfillStoppedError,
+    );
+    expect(recordStop).not.toHaveBeenCalled();
+  });
+
   it('measures the baseline again after sleeping through a closed window', async () => {
     const clock = fakeClock(at(6, 59) + 50_000);
     const { batch } = throttleOn(clock, { window: parseBackfillWindow('01-07') });

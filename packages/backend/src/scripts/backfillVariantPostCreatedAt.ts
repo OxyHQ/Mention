@@ -182,7 +182,7 @@ export async function backfillVariantPostCreatedAt(
 async function main(): Promise<void> {
   const dryRun = (process.env.DRY_RUN ?? 'true') !== 'false';
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
-  const throttle = createBackfillThrottle({ script: SCRIPT_NAME, pauseMs: PAUSE_MS });
+  const throttle = createBackfillThrottle({ script: SCRIPT_NAME, pauseMs: PAUSE_MS, dryRun });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun });
   await backfillVariantPostCreatedAt({ dryRun, throttle });
