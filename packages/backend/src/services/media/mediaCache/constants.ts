@@ -75,14 +75,23 @@ export const MEDIA_CACHE_WORKER_CONCURRENCY = 3;
 /** How often the cache worker drains pending entries. */
 export const MEDIA_CACHE_WORKER_INTERVAL_MS = 60 * MS_PER_SECOND;
 
-/** Max cached+idle entries evicted from S3 per eviction-job run. */
-export const MEDIA_CACHE_EVICTION_BATCH_SIZE = 50;
+/**
+ * Max cached+idle entries evicted from S3 per eviction-job run.
+ *
+ * With the interval below this is 1,200 an hour. It was 50 an hour, while the
+ * worker cached about 250 an hour (oxy-api logs, 2026-11-28: 252 cache uploads
+ * against 51 cache deletes in the same hour), so the 30-day idle TTL could
+ * never catch up and the cache only grew. A run stays under oxy-api's
+ * 240-a-minute cache-delete limit, and a spent budget stops the sweep cleanly
+ * (`evictionJob.ts`). The query walks `federated_media_cache_state_accessed_idx`.
+ */
+export const MEDIA_CACHE_EVICTION_BATCH_SIZE = 200;
 
 /** Concurrent Oxy deletes within one eviction run. */
 export const MEDIA_CACHE_EVICTION_CONCURRENCY = 3;
 
 /** How often the eviction job sweeps for idle cached entries. */
-export const MEDIA_CACHE_EVICTION_INTERVAL_MS = 60 * SECONDS_PER_MINUTE * MS_PER_SECOND;
+export const MEDIA_CACHE_EVICTION_INTERVAL_MS = 10 * SECONDS_PER_MINUTE * MS_PER_SECOND;
 
 /**
  * MASTER ENABLE FLAG for the write side of the cache (worker + eviction).
