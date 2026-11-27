@@ -3,16 +3,12 @@ import { getNativeLanguageName } from '@oxy.so/core';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Button as LButton, Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
 import {
-  Button as LButton,
-  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  SettingsSection as LSettingsSection,
-  Text,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 /**
  * The app's UI language is an Oxy-account concern, not a Mention one: Oxy

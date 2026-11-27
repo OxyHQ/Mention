@@ -20,18 +20,20 @@ import {
   Button as LButton,
   Embed,
   Group,
-  GroupedSection as LGroupedSection,
-  GroupedSectionItem as LGroupedSectionItem,
   HStack,
   Icon,
   Loading,
   RawText,
-  Search as LSearch,
-  SettingsSection as LSettingsSection,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import {
+  GroupedSection as LGroupedSection,
+  GroupedSectionItem as LGroupedSectionItem,
+} from '@oxy.so/bloom-language/containers';
+import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 const blockedLogger = createLogger('BlockedUsers');
 

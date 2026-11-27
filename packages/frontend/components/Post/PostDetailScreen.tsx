@@ -53,7 +53,6 @@ import { getFollowingCachedPost } from '@/modules/mention-widgets';
 import { useAfterFirstFrame } from '@/hooks/useAfterFirstFrame';
 
 import {
-  Admonition as LAdmonition,
   Button as LButton,
   Embed as LEmbed,
   Icon as LIcon,
@@ -62,6 +61,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Admonition as LAdmonition } from '@oxy.so/bloom-language/containers';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 

@@ -25,8 +25,8 @@ import {
   Embed as LEmbed,
   VStack as LVStack,
   toElement as LtoElement,
-  Card as LCard,
 } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
 
 export interface StarterPackCardData {
   id: string;

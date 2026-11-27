@@ -14,16 +14,16 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 
 import {
-  Checkbox as LCheckbox,
   defineTokens,
   Embed,
   HStack,
   Icon,
   RawText,
-  SpinnerIcon,
   toElement,
   VStack,
 } from '@oxy.so/bloom-language';
+import { Checkbox as LCheckbox } from '@oxy.so/bloom-language/inputs';
+import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
 import { accountCacheWriter } from '@/lib/queryClient';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 

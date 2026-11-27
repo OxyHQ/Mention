@@ -6,15 +6,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 import { PrivateMentionRow } from '@/components/privateMentions/PrivateMentionRow';
 import { usePrivateMentionConversations } from '@/hooks/usePrivateMentionConversations';
-import {
-  Embed,
-  Header,
-  List,
-  VStack,
-  toElement,
-  Group,
-  VirtualList as LVirtualList,
-} from '@oxy.so/bloom-language';
+import { Embed, Header, VStack, toElement, Group } from '@oxy.so/bloom-language';
+import { List, VirtualList as LVirtualList } from '@oxy.so/bloom-language/list';
 
 import { screen } from '@oxy.so/bloom-language/router';
 

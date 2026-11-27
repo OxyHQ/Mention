@@ -10,21 +10,23 @@ import type { User } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import {
-  Card as LCard,
   Divider as LDivider,
   Embed,
-  Field as LField,
   Header,
   HStack,
   RawText,
   ScrollView,
-  TextEditor,
-  TextField,
   toElement,
   VStack,
-  Search as LSearch,
   toElement as LtoElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
+import {
+  Field as LField,
+  TextEditor,
+  TextField,
+  Search as LSearch,
+} from '@oxy.so/bloom-language/inputs';
 
 import { screen } from '@oxy.so/bloom-language/router';
 

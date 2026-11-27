@@ -6,7 +6,6 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 
 import {
-  Card,
   Embed,
   HStack,
   Icon,
@@ -16,6 +15,7 @@ import {
   defineModifier,
   view,
 } from '@oxy.so/bloom-language';
+import { Card } from '@oxy.so/bloom-language/containers';
 
 /** The card's own padding, by variant. */
 const roomPadding = {

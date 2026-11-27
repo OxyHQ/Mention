@@ -3,7 +3,6 @@ import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 
 import {
-  Card,
   HStack,
   Icon,
   Loading,
@@ -12,6 +11,7 @@ import {
   type ViewModifier,
   view,
 } from '@oxy.so/bloom-language';
+import { Card } from '@oxy.so/bloom-language/containers';
 
 interface LocationDisplayProps {
   location: {

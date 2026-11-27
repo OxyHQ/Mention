@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { RiMegaphoneLine } from '@oxy.so/bloom/icons/RiMegaphoneLine';
 import {
   Button as LButton,
-  Dialog as LDialog,
   Embed,
   HStack,
   Icon,
@@ -12,6 +11,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 type ExplainerStep = 0 | 1 | 2;
 

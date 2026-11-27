@@ -3,18 +3,13 @@ import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { TextFieldHint } from '@oxy.so/bloom/text-field';
 import { useTranslation } from 'react-i18next';
 import { formatTimeInput } from '@/utils/dateUtils';
+import { Button as LButton, Embed, HStack, Text, VStack, toElement } from '@oxy.so/bloom-language';
 import {
-  Button as LButton,
-  Dialog as LDialog,
-  Embed,
-  HStack,
-  Text,
   TextEditor,
   TextField as LTextField,
-  VStack,
-  toElement,
   Field as LField,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/inputs';
+import { Dialog as LDialog } from '@oxy.so/bloom-language/overlays';
 
 /** Strict 24h `HH:mm` — `99:99`, `25:00` and half-typed values are not times. */
 const TIME_PATTERN = /^([01]?\d|2[0-3]):([0-5]\d)$/;

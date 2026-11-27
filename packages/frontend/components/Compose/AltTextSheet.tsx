@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import {
   Button as LButton,
-  Card as LCard,
   Embed,
   Group,
   HStack,
@@ -15,10 +14,11 @@ import {
   Image,
   RawText,
   Text as LText,
-  TextEditor,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
+import { TextEditor } from '@oxy.so/bloom-language/inputs';
 
 /** Matches the backend cap on `content.media[].alt`. */
 const ALT_MAX_LENGTH = 2000;

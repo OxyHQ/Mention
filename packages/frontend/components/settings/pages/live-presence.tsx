@@ -12,12 +12,8 @@ import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import {
-  Embed,
-  SettingsSelect as LSettingsSelect,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { SettingsSelect as LSettingsSelect } from '@oxy.so/bloom-language/settings';
 import { accountCacheWriter } from '@/lib/queryClient';
 
 interface PresenceOption {

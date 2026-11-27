@@ -9,18 +9,17 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 import {
   Button as LButton,
-  Card,
   Embed,
-  Field as LField,
   HStack,
   Header,
   Icon,
   RawText,
   Text as LText,
-  TextField,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card } from '@oxy.so/bloom-language/containers';
+import { Field as LField, TextField } from '@oxy.so/bloom-language/inputs';
 
 type SourceField = 'title' | 'url';
 

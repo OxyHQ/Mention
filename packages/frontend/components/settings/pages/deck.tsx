@@ -3,15 +3,13 @@ import { useDeckSettings } from '@/components/deck/deckSettings';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
+import { Embed, RawText, toElement } from '@oxy.so/bloom-language';
 import {
-  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  RawText,
-  SettingsSection as LSettingsSection,
-  Toggle,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
+import { Toggle } from '@oxy.so/bloom-language/inputs';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 export default function DeckSettingsPage() {
   const { t } = useTranslation();

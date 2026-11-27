@@ -21,24 +21,25 @@ import type { User } from '@oxy.so/core';
 import {
   Avatar as LAvatar,
   Button as LButton,
-  Card as LCard,
   Divider as LDivider,
   Embed,
-  Field as LField,
   Header,
   HStack,
   Icon,
   RawText,
-  Row,
   ScrollView,
-  SpinnerIcon,
-  TextEditor,
-  TextField,
   Text as LText,
   toElement,
   VStack,
-  Search as LSearch,
 } from '@oxy.so/bloom-language';
+import { Card as LCard, Row } from '@oxy.so/bloom-language/containers';
+import {
+  Field as LField,
+  TextEditor,
+  TextField,
+  Search as LSearch,
+} from '@oxy.so/bloom-language/inputs';
+import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
 
 import { screen } from '@oxy.so/bloom-language/router';
 

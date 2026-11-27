@@ -15,9 +15,8 @@ import {
   defineTokens,
   toElement,
   toElement as LtoElement,
-  TabItem,
-  Tabs as LTabs,
 } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';

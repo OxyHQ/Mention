@@ -36,17 +36,12 @@ import { notifyFeedRankingChanged } from '@/stores/feedRankingInvalidation';
 import { normalizeApiError } from '@/utils/apiError';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
 
+import { Button as LButton, Embed, Icon, Text, VStack, toElement } from '@oxy.so/bloom-language';
 import {
-  Button as LButton,
-  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  Icon,
-  SettingsSection as LSettingsSection,
-  Text,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 import { accountCacheWriter } from '@/lib/queryClient';
 
 const PAGE_LIMIT = 50;

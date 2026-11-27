@@ -3,17 +3,14 @@ import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { EXTERNAL_EMBED_SOURCES, externalEmbedLabels } from '@mention/shared-types/externalEmbeds';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
+import { Embed, Text, VStack, toElement } from '@oxy.so/bloom-language';
 import {
   Admonition as LAdmonition,
-  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  SettingsSection as LSettingsSection,
-  Text,
-  Toggle,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
+import { Toggle } from '@oxy.so/bloom-language/inputs';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 export default function ExternalMediaSettingsScreen() {
   const { t } = useTranslation();

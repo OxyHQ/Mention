@@ -40,8 +40,6 @@ import {
   Icon,
   RawText,
   ScrollView,
-  TabItem,
-  Tabs as LTabs,
   VStack,
   defineTokens,
   toElement,
@@ -51,6 +49,7 @@ import {
   Group,
   ScrollView as LScrollView,
 } from '@oxy.so/bloom-language';
+import { TabItem, Tabs as LTabs } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 

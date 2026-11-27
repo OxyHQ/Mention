@@ -1,7 +1,8 @@
 import { memo } from 'react';
 import { RiPauseFill } from '@oxy.so/bloom/icons/RiPauseFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
-import { Icon, SpinnerIcon, VStack, toElement } from '@oxy.so/bloom-language';
+import { Icon, VStack, toElement } from '@oxy.so/bloom-language';
+import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
 
 interface SongPreviewButtonProps {
   isPlaying: boolean;

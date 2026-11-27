@@ -22,11 +22,11 @@ import {
   Icon,
   Loading,
   RawText,
-  Search as LSearch,
   Text as LText,
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Search as LSearch } from '@oxy.so/bloom-language/inputs';
 
 const logger = createLogger('GifPickerSheet');
 

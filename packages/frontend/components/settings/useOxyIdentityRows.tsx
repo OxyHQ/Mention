@@ -4,7 +4,8 @@ import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import type { SettingsRowData } from '@oxy.so/bloom/settings-modal';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { Embed, SettingsValue, VStack, toElement } from '@oxy.so/bloom-language';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
+import { SettingsValue } from '@oxy.so/bloom-language/settings';
 
 type OxyProfileField = 'displayName' | 'username' | 'bio' | 'location' | 'links';
 

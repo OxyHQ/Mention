@@ -4,7 +4,8 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
-import { Chip, HStack, Icon, RawText, Text, toElement } from '@oxy.so/bloom-language';
+import { HStack, Icon, RawText, Text, toElement } from '@oxy.so/bloom-language';
+import { Chip } from '@oxy.so/bloom-language/containers';
 import { AudienceMenu } from '../AudienceMenu';
 import { ReplySettingsMenu } from '../ReplySettingsMenu';
 

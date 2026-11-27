@@ -10,7 +10,6 @@ import { membershipKeys, membershipQueryPolicy } from '@/components/Memberships/
 
 import {
   Button as LButton,
-  Card as LCard,
   Embed,
   Header,
   RawText,
@@ -19,6 +18,7 @@ import {
   VStack,
   toElement,
 } from '@oxy.so/bloom-language';
+import { Card as LCard } from '@oxy.so/bloom-language/containers';
 import { screen } from '@oxy.so/bloom-language/router';
 
 export default screen(function MembershipsScreen() {

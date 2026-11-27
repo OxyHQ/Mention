@@ -3,15 +3,13 @@ import { useViewerSettingsSection } from '@/hooks/useViewerSettings';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
+import { Embed, VStack, toElement } from '@oxy.so/bloom-language';
 import {
-  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  SettingsSection as LSettingsSection,
-  Toggle,
-  VStack,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
+import { Toggle } from '@oxy.so/bloom-language/inputs';
+import { SettingsSection as LSettingsSection } from '@oxy.so/bloom-language/settings';
 
 const hideCountsLogger = createLogger('HideCounts');
 

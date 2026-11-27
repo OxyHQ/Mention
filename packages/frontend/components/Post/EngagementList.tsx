@@ -12,7 +12,8 @@ import { logger } from '@oxy.so/core/logger';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
 
-import { Button as LButton, Embed, Header, Icon, VirtualList } from '@oxy.so/bloom-language';
+import { Button as LButton, Embed, Header, Icon } from '@oxy.so/bloom-language';
+import { VirtualList } from '@oxy.so/bloom-language/list';
 import { screen } from '@oxy.so/bloom-language/router';
 
 /** Placeholder rows painted while the first page of engagers loads. */

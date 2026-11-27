@@ -1,13 +1,12 @@
 import { SORT_OPTIONS, useThreadPreferencesStore } from '@/hooks/useThreadPreferences';
 
 import { useTranslation } from 'react-i18next';
+import { Embed, toElement } from '@oxy.so/bloom-language';
 import {
-  Embed,
   GroupedSection as LGroupedSection,
   GroupedSectionItem as LGroupedSectionItem,
-  SettingsSelect as LSettingsSelect,
-  toElement,
-} from '@oxy.so/bloom-language';
+} from '@oxy.so/bloom-language/containers';
+import { SettingsSelect as LSettingsSelect } from '@oxy.so/bloom-language/settings';
 
 /** One reply-sorting model and Bloom row for both settings and reply preferences. */
 export function ThreadSortGroup({ title }: { title: string }) {

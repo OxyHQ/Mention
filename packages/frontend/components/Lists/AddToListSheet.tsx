@@ -11,16 +11,16 @@ import { listsService } from '@/services/listsService';
 import { createLogger } from '@oxy.so/core/logger';
 
 import {
-  Checkbox as LCheckbox,
   defineTokens,
   Embed,
   HStack,
   Icon,
   RawText,
-  SpinnerIcon,
   toElement,
   VStack,
 } from '@oxy.so/bloom-language';
+import { Checkbox as LCheckbox } from '@oxy.so/bloom-language/inputs';
+import { SpinnerIcon } from '@oxy.so/bloom-language/spinner-icon';
 const appColors = defineTokens({ color: { hexfff: '#fff' } });
 
 const logger = createLogger('AddToListSheet');
