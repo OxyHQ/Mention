@@ -314,6 +314,14 @@ minutes, so that reader paid the whole read. `ExploreWarmer` runs the same
 cluster-wide Redis lock) so the blocks stay resident for every language; it
 logs one `[ExploreWarmer] Warmed …` line per run.
 
+The warm-up cannot help while the database is out of I/O: on 2026-11-26 and 27
+it failed, rested, and a cold build ran past the app's 15 s request timeout, so
+a language nobody had read for 15 minutes showed no posts at all. Explore's
+anonymous first page is therefore kept for a day (`anonKeepSecondsFor`), still
+fresh for only 5 minutes: a reader after a lull is answered at once with the
+last page built, re-authorized on read, while one request rebuilds it. Cursor
+pages keep the default 15 minutes.
+
 It now excludes explicitly hidden/muted/blocked authors before source caps and
 applies the existing hidden-topic multiplier to canonical topics and hashtags
 before its score keyset. Old Explore score/session cursors restart with typed

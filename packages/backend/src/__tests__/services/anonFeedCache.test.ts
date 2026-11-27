@@ -151,6 +151,13 @@ describe('anonFeedCache.write', () => {
     expect(Math.abs(stored.cachedAt - Date.now())).toBeLessThan(5_000);
   });
 
+  it('keeps the page for the time it is given', async () => {
+    const payload = { page: { items: [], hasMore: false, totalCount: 0 }, revisions: {} };
+    await anonFeedCache.write('k', payload, { keepSeconds: 24 * 60 * 60 });
+
+    expect(mocks.redisSetEx.mock.calls[0][1]).toBe(24 * 60 * 60);
+  });
+
   it('does not throw (fail-soft) when Redis write fails', async () => {
     mocks.redisSetEx.mockRejectedValue(new Error('redis down'));
     await expect(

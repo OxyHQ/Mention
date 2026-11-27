@@ -452,8 +452,30 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
         page: expect.objectContaining({ items: expect.any(Array) }),
         revisions: expect.any(Object),
       }),
-      { degraded: false },
+      { degraded: false, keepSeconds: 15 * 60 },
     );
+  });
+
+  it("keeps Explore's anonymous first page a day, and its cursor pages the default time", async () => {
+    anonCache.read.mockResolvedValue(null);
+
+    await mtnFeedController.getFeed(
+      { query: { descriptor: 'explore' }, user: undefined } as never,
+      makeRes() as never,
+    );
+    expect(anonCache.write).toHaveBeenLastCalledWith('anon-key', expect.anything(), {
+      degraded: false,
+      keepSeconds: 24 * 60 * 60,
+    });
+
+    await mtnFeedController.getFeed(
+      { query: { descriptor: 'explore', cursor: 'c1' }, user: undefined } as never,
+      makeRes() as never,
+    );
+    expect(anonCache.write).toHaveBeenLastCalledWith('anon-key', expect.anything(), {
+      degraded: false,
+      keepSeconds: 15 * 60,
+    });
   });
 
   it('keeps a page whose author Oxy could not resolve only as a degraded stale page', async () => {
@@ -474,6 +496,7 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     // `degraded` (served only as the stale page of last resort).
     expect(anonCache.write).toHaveBeenCalledWith('anon-key', expect.anything(), {
       degraded: true,
+      keepSeconds: 15 * 60,
     });
   });
 
