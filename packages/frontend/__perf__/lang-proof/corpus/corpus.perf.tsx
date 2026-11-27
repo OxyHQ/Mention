@@ -176,7 +176,6 @@ const CASES: Case[] = [
   {
     file: 'components/videos/VideoReplies.tsx',
     name: 'VideoReplies',
-    broken: 'R5: Feed (memo with a comparator and a displayName) is called as a view, and dropped',
     ts: () => require('@/components/videos/VideoReplies'),
     bloom: () => require('./bloom/VideoReplies.bloom'),
     states: { signedOut: { props: { postId: 'p1' } } },

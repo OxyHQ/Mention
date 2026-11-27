@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInstance, type i18n as I18n } from 'i18next';
 import TestRenderer, { act } from 'react-test-renderer';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { toElement } from '@oxy.so/bloom-language';
 
 import { toBloomCatalog } from '@/lib/bloomCatalog';
@@ -102,24 +103,18 @@ describe.each(FILES)('%s', (file) => {
     expect(differ).toEqual([]);
   });
 
-  // i18next takes `k_zero` for a count of exactly 0 in every language; Bloom's runtime takes
-  // the CLDR category (`other` for 0 in English), so `k_zero` is only used where CLDR has
-  // `zero` (Arabic). Asked of the compiler owner; this fails, as it should, until it is fixed.
-  const zeroDiffers = [...plurals.values()].some((keys) => keys.some((k) => k.endsWith('_zero')));
-  (zeroDiffers && language !== 'ar' ? it.failing : it)(
-    'chooses i18next’s form for a count of 0',
-    () => {
-      const differ: string[] = [];
-      for (const [base, keys] of plurals) {
-        const args = argsOf(keys.map((k) => flat[k]).join(' '));
-        const want = t(base, { ...args, count: 0 });
-        const got = bloomString(base, args, 0);
-        if (got !== want)
-          differ.push(`${base}: i18next ${JSON.stringify(want)}, Bloom ${JSON.stringify(got)}`);
-      }
-      expect(differ).toEqual([]);
-    },
-  );
+  // i18next takes `k_zero` for a count of exactly 0 in every language, before the CLDR form.
+  it('chooses i18next’s form for a count of 0', () => {
+    const differ: string[] = [];
+    for (const [base, keys] of plurals) {
+      const args = argsOf(keys.map((k) => flat[k]).join(' '));
+      const want = t(base, { ...args, count: 0 });
+      const got = bloomString(base, args, 0);
+      if (got !== want)
+        differ.push(`${base}: i18next ${JSON.stringify(want)}, Bloom ${JSON.stringify(got)}`);
+    }
+    expect(differ).toEqual([]);
+  });
 });
 
 describe('Resources/Localizable', () => {
@@ -153,13 +148,14 @@ describe('the app language', () => {
     await setLanguage('en-US');
   });
 
-  // bloomc memoizes `String(localized:)` as a constant (a sentinel cache slot), and nothing
-  // tells a drawn view that the locale changed, so a mounted label keeps the old language.
-  // Asked of the compiler owner; this fails, as it should, until it is fixed.
-  it.failing('re-draws a mounted label when the language switches, without a remount', async () => {
+  // A view that looks strings up reads the preferred locale (Bloom's `useLocalization`), so a
+  // switch re-draws a mounted label.
+  it('re-draws a mounted label when the language switches, without a remount', async () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(toElement(LoadingLabel()));
+      renderer = TestRenderer.create(
+        <BloomThemeProvider>{toElement(LoadingLabel())}</BloomThemeProvider>,
+      );
     });
     const before = JSON.stringify(renderer.toJSON());
     await act(async () => {
