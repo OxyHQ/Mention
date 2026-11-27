@@ -1,5 +1,6 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { benchMark } from '@/lib/bench';
 import {
   Pressable,
   View,
@@ -429,6 +430,7 @@ const PostAttachmentImage: React.FC<{
   const needsMeasure = recordRatio === undefined && !hasAspectRatio(src);
   const handleImageLoad = useCallback(
     (event: ImageLoadEventData) => {
+      benchMark('feed-image');
       if (!needsMeasure) return;
       const { width: naturalWidth, height: naturalHeight } = event.source;
       if (naturalWidth <= 0 || naturalHeight <= 0) return;

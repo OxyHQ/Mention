@@ -1,5 +1,6 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { benchMark } from '@/lib/bench';
 import {
   View,
   Pressable,
@@ -588,6 +589,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
           contentFit={contentFit}
           cachePolicy="memory-disk"
           pointerEvents="none"
+          onLoad={() => benchMark('feed-image')}
           onError={handlePosterError}
         />
       )}
