@@ -22,6 +22,7 @@ import { BootMilestone } from '@/components/BootMilestone';
 import { AccountScopeFollower } from '@/components/providers/AccountScopeFollower';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
+import { PortalProvider } from '@oxy.so/bloom/portal';
 import { SurfaceHost } from '@oxy.so/bloom/surfaces';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
@@ -157,33 +158,43 @@ export const AppProviders = memo(function AppProviders({
                     <PostInteractionsProvider>
                       <AppRootErrorBoundary>
                         <LiveRoomControllerProvider>
-                          {children}
                           {/*
-                           * No <ToastOutlet /> here on purpose. Bloom's toast
-                           * stack must be mounted exactly once — every mount
-                           * subscribes to the same store and renders the same
-                           * rows, so a second outlet shows every toast twice.
-                           * OxyProvider above already mounts one at the app
-                           * root, and it carries Bloom's defaults.
+                           * The app's one PortalProvider, ABOVE Bloom's
+                           * SurfaceHost: a native sheet with a provider above it
+                           * presents inside the app's window (on Android 13+ one
+                           * without it did not present at all before Bloom
+                           * 23.10.1). The root layout's PortalOutlet is among
+                           * `children`, so portals still land there.
                            */}
-                          {/*
-                           * Bloom's imperative surface stack. OxyProvider mounts
-                           * the one <SurfaceProvider>, above these providers;
-                           * this host takes its stack over, so every sheet,
-                           * menu and confirm() (presentSheet, showActionMenu,
-                           * confirmDialog) renders inside the app's contexts.
-                           */}
-                          <SurfaceHost />
-                          <PostInteractionsBinder />
-                          <FediverseInfoDialogProvider />
-                          <ChannelInfoDialogProvider />
-                          <LiveFeatureHost />
-                          {/*
-                           * The one live-presence poll. Inside
-                           * AccountSwitchReset so it is viewer-scoped and
-                           * torn down with the previous identity.
-                           */}
-                          <LivePresencePoller />
+                          <PortalProvider>
+                            {children}
+                            {/*
+                             * No <ToastOutlet /> here on purpose. Bloom's toast
+                             * stack must be mounted exactly once — every mount
+                             * subscribes to the same store and renders the same
+                             * rows, so a second outlet shows every toast twice.
+                             * OxyProvider above already mounts one at the app
+                             * root, and it carries Bloom's defaults.
+                             */}
+                            {/*
+                             * Bloom's imperative surface stack. OxyProvider mounts
+                             * the one <SurfaceProvider>, above these providers;
+                             * this host takes its stack over, so every sheet,
+                             * menu and confirm() (presentSheet, showActionMenu,
+                             * confirmDialog) renders inside the app's contexts.
+                             */}
+                            <SurfaceHost />
+                            <PostInteractionsBinder />
+                            <FediverseInfoDialogProvider />
+                            <ChannelInfoDialogProvider />
+                            <LiveFeatureHost />
+                            {/*
+                             * The one live-presence poll. Inside
+                             * AccountSwitchReset so it is viewer-scoped and
+                             * torn down with the previous identity.
+                             */}
+                            <LivePresencePoller />
+                          </PortalProvider>
                         </LiveRoomControllerProvider>
                       </AppRootErrorBoundary>
                     </PostInteractionsProvider>

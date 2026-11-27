@@ -18,7 +18,10 @@ const boundaryProps: OverlayInertBoundaryProps = { testID: 'app-content' };
 
 describe('root layout modal inert boundary', () => {
   const source = readFileSync(resolve(__dirname, '../app/_layout.tsx'), 'utf8');
-  const jsx = source.slice(source.indexOf('<PortalProvider>'), source.indexOf('</PortalProvider>'));
+  const jsx = source.slice(
+    source.indexOf('<MentionSettingsProvider>'),
+    source.indexOf('</MentionSettingsProvider>'),
+  );
 
   it('wraps the app content, and only the app content', () => {
     expect(boundaryProps.testID).toBe('app-content');
@@ -38,5 +41,21 @@ describe('root layout modal inert boundary', () => {
     const outside = jsx.slice(close);
     expect(outside).toContain('<PortalOutlet />');
     expect(outside).toContain('<MediaFlightLayer />');
+  });
+
+  it('renders the surfaces under the app’s one PortalProvider', () => {
+    // Bloom 23.10.1: a native sheet with a PortalProvider above SurfaceHost
+    // presents inside the app's window; the root layout's outlet is below it.
+    const providers = readFileSync(
+      resolve(__dirname, '../components/providers/AppProviders.tsx'),
+      'utf8',
+    );
+    const open = providers.indexOf('<PortalProvider>');
+    const close = providers.indexOf('</PortalProvider>');
+    expect(open).toBeGreaterThan(-1);
+    const inside = providers.slice(open, close);
+    expect(inside).toContain('{children}');
+    expect(inside).toContain('<SurfaceHost />');
+    expect(source).not.toContain('<PortalProvider>');
   });
 });

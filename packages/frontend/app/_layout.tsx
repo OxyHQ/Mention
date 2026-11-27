@@ -27,7 +27,7 @@ import { AppProviders } from '@/components/providers/AppProviders';
 import { MentionAskProvider, useMentionAskBridge } from '@/context/MentionAskProvider';
 import { MentionSettingsProvider } from '@/components/settings/MentionSettingsProvider';
 import { AuthRouter } from '@/components/providers/AuthRouter';
-import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
+import { OverlayInertBoundary, PortalOutlet } from '@oxy.so/bloom/portal';
 import { MediaFlightLayer } from '@oxy.so/bloom/media-flight';
 
 // Hooks
@@ -194,37 +194,36 @@ export default function RootLayout() {
                   storageKey={STORAGE_KEYS.NOTIFICATION_EDUCATION_SHOWN}
                 />
               )}
-              <PortalProvider>
-                {/* Wraps the OUTLET too: the Settings modal is portalled into
-                    the outlet, so its pages render there, not where the
-                    modal is declared. With the outlet outside, every page that
-                    reads the settings context crashed on native (#1126). */}
-                <MentionSettingsProvider>
-                  {/* The app's own screens, and ONLY them: while a modal Bloom
+              {/* Under the app's one PortalProvider (`AppProviders`, above
+                  Bloom's SurfaceHost). Wraps the OUTLET too: the Settings modal
+                  is portalled into the outlet, so its pages render there, not
+                  where the modal is declared. With the outlet outside, every
+                  page that reads the settings context crashed on native (#1126). */}
+              <MentionSettingsProvider>
+                {/* The app's own screens, and ONLY them: while a modal Bloom
                       surface (settings, a dialog, the media viewer) is open,
                       the boundary hides this subtree from TalkBack/VoiceOver
                       and makes it inert on web. The surfaces render at the
                       outlet below, so wrapping the outlet would hide them
                       too (#1126). */}
-                  {/* Alia's one sheet for the whole app, loaded on first use. It
+                {/* Alia's one sheet for the whole app, loaded on first use. It
                       sits beside the inert boundary, not in it, and portals into
                       the outlet below. */}
-                  <MentionAskProvider askRef={aliaRef}>
-                    <OverlayInertBoundary>
-                      <AuthRouter />
-                    </OverlayInertBoundary>
-                  </MentionAskProvider>
-                  <PortalOutlet />
-                  {/* The shared media surface that carries a playing video across a
+                <MentionAskProvider askRef={aliaRef}>
+                  <OverlayInertBoundary>
+                    <AuthRouter />
+                  </OverlayInertBoundary>
+                </MentionAskProvider>
+                <PortalOutlet />
+                {/* The shared media surface that carries a playing video across a
                       route change. Renders null whenever nothing is in flight, so it
                       costs nothing here and never competes with the portal outlet
                       above it. It must sit at the ROOT: a flight outlives the screen
                       that started it, which is the entire point. */}
-                  <MediaFlightLayer />
-                  {/* Last, so it lays out in the same commit as the first screen. */}
-                  {Platform.OS !== 'web' && <NativeSplashRelease />}
-                </MentionSettingsProvider>
-              </PortalProvider>
+                <MediaFlightLayer />
+                {/* Last, so it lays out in the same commit as the first screen. */}
+                {Platform.OS !== 'web' && <NativeSplashRelease />}
+              </MentionSettingsProvider>
             </>
           ) : Platform.OS === 'web' ? (
             // WEB: the static splash covers initialization and unmounts the moment
