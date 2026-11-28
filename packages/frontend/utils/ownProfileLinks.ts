@@ -23,29 +23,45 @@
 
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { toOpenableUrl } from '@mention/shared-types/textEntities';
-import { WEB_BASE_URL } from '@/config';
+import { WEB_ALIAS_HOSTS, WEB_BASE_URL } from '@/config';
 
 /**
- * This instance's own public web host — the one whose `/@alice` URLs name a user
- * in OUR namespace rather than somebody else's.
+ * This instance's own public web hosts — the ones whose `/@alice` URLs name a user
+ * in OUR namespace rather than somebody else's: the configured web base URL's host
+ * (the same constant share links are built from, so a staging build recognises
+ * staging's own links and not production's) plus every alias host that serves the
+ * same app (`WEB_ALIAS_HOSTS`: mention.earth and mention.org on the public
+ * instance, docs/mention-org-domain-move.md). A base URL that does not parse yields
+ * no hosts at all, which turns every conversion built on it off rather than
+ * guessing — a misconfigured origin should leave links as links, not mint mentions
+ * against a host nobody declared.
  *
- * Read from the configured web base URL, the same constant share links are built
- * from, so a staging build recognises staging's own links and not production's.
- * A base URL that does not parse yields no hosts at all, which turns every
- * conversion built on it off rather than guessing — a misconfigured origin should
- * leave links as links, not mint mentions against a host nobody declared.
+ * Exported for tests; read {@link OWN_PROFILE_HOSTS}.
+ */
+export function ownProfileHostsFor(
+  webBaseUrl: string,
+  aliasHosts: readonly string[],
+): readonly string[] {
+  let webHost: string;
+  try {
+    webHost = new URL(webBaseUrl).hostname.toLowerCase();
+  } catch {
+    return [];
+  }
+  return [...new Set([webHost, ...aliasHosts.map((host) => host.toLowerCase())])];
+}
+
+/**
+ * The hosts {@link ownProfileHostsFor} answers for this build.
  *
  * Exported because `./composerProfileLinks` unions it with the profile shapes
  * every fediverse host serves, and that union has to be built from THIS list
  * rather than from a fourth derivation of it.
  */
-export const OWN_PROFILE_HOSTS: readonly string[] = (() => {
-  try {
-    return [new URL(WEB_BASE_URL).hostname];
-  } catch {
-    return [];
-  }
-})();
+export const OWN_PROFILE_HOSTS: readonly string[] = ownProfileHostsFor(
+  WEB_BASE_URL,
+  WEB_ALIAS_HOSTS,
+);
 
 /**
  * The handle a URL names if it points at a profile on this instance, else

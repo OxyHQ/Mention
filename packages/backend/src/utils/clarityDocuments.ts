@@ -36,11 +36,16 @@ import { networkUrlOf } from './federation/mirrorTransports';
  * the same value and is only distinct when actor URIs are served elsewhere. Read
  * from `config` (the same values `connectors/activitypub/constants` exports) so a
  * link-card helper does not reach into the ActivityPub connector.
+ *
+ * Plus every web host (`config.web.hosts`: `MENTION_WEB_ORIGIN` and its aliases,
+ * mention.earth and mention.org on the public instance), the same hosts the app
+ * adds from `WEB_ALIAS_HOSTS`: a profile served on mention.org is ours too
+ * (docs/mention-org-domain-move.md).
  */
 const OWN_PROFILE_HOSTS: readonly string[] = [
   ...new Set(
-    [config.federation.domain, config.federation.actorDomain].filter((host): host is string =>
-      Boolean(host),
+    [config.federation.domain, config.federation.actorDomain, ...config.web.hosts].filter(
+      (host): host is string => Boolean(host),
     ),
   ),
 ];

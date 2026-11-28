@@ -693,6 +693,14 @@ function aliasOriginsOf(aliases: readonly string[], canonical: string): string[]
   return [...new Set(aliases)].filter((origin) => origin !== canonical);
 }
 
+/**
+ * Every host of the web app: the canonical origin's first, then each alias's, as
+ * bare lowercase hostnames, once each. Exported for tests; read `config.web.hosts`.
+ */
+export function webHostsOf(canonical: string, aliases: readonly string[]): string[] {
+  return [...new Set([canonical, ...aliases].map(originHost))];
+}
+
 const webAliasOrigins = aliasOriginsOf(
   environment.MENTION_WEB_ALIAS_ORIGINS,
   environment.MENTION_WEB_ORIGIN,
@@ -974,6 +982,11 @@ export const config = {
     origin: environment.MENTION_WEB_ORIGIN,
     /** More origins of this same web app (`MENTION_WEB_ALIAS_ORIGINS`); never canonical. */
     aliasOrigins: webAliasOrigins,
+    /**
+     * Every host of this web app, canonical first, then the aliases (bare lowercase
+     * hostnames, once each). A link on any of them is one of OUR pages.
+     */
+    hosts: webHostsOf(environment.MENTION_WEB_ORIGIN, webAliasOrigins),
     shellOrigin: environment.WEB_SHELL_ORIGIN,
     shellAccessKey: environment.MENTION_SHELL_ACCESS_KEY,
     apiOrigin: environment.MENTION_API_ORIGIN,

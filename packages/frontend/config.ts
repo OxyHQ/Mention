@@ -63,6 +63,64 @@ export const OXY_AUTH_REDIRECT_URI =
 // Public web origin used to build shareable deep links (posts, trends, rooms).
 export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
 
+/**
+ * The fediverse domain of this instance's accounts: the `@user@<domain>` handle
+ * people are shown and that remote servers find through WebFinger. It is NOT the
+ * web host. When the canonical web moves to mention.org, mention.earth stays the
+ * ActivityPub identity for good (docs/mention-org-domain-move.md), so nothing that
+ * names an account may derive it from `WEB_BASE_URL`. Mirrors the backend's
+ * `FEDERATION_DOMAIN`, which has the same default.
+ */
+export const FEDERATION_DOMAIN: string =
+  process.env.EXPO_PUBLIC_FEDERATION_DOMAIN?.trim().toLowerCase() || 'mention.earth';
+
+/**
+ * Every web host of the public Mention instance. A link on any of them names the
+ * same page, so they all count as "ours" while this build's web host is one of them.
+ */
+export const PUBLIC_INSTANCE_WEB_HOSTS: readonly string[] = ['mention.earth', 'mention.org'];
+
+/** The value of `EXPO_PUBLIC_WEB_ALIAS_HOSTS` that turns the aliases off. */
+const NO_ALIAS_HOSTS = 'none';
+
+/**
+ * The other web hosts that serve this same app (`EXPO_PUBLIC_WEB_ALIAS_HOSTS`, a
+ * comma-separated list of hostnames; `none` is the empty list). Unset or blank,
+ * the public instance's hosts apply when `webBaseUrl` is on one of them, and no
+ * host at all otherwise, so another deployment never claims mention.earth's links.
+ * Exported for tests; read {@link WEB_ALIAS_HOSTS}.
+ */
+export function parseWebAliasHosts(value: string | undefined, webBaseUrl: string): string[] {
+  const text = value?.trim() ?? '';
+  if (text.toLowerCase() === NO_ALIAS_HOSTS) return [];
+  if (text.length === 0) {
+    let webHost: string;
+    try {
+      webHost = new URL(webBaseUrl).hostname.toLowerCase();
+    } catch {
+      return [];
+    }
+    return PUBLIC_INSTANCE_WEB_HOSTS.includes(webHost) ? [...PUBLIC_INSTANCE_WEB_HOSTS] : [];
+  }
+  const hosts: string[] = [];
+  for (const entry of text.split(',')) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    try {
+      hosts.push(new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`).hostname);
+    } catch {
+      // A malformed entry names no host; the others still count.
+    }
+  }
+  return [...new Set(hosts)];
+}
+
+/** The other web hosts of this app; links on them are this instance's own links. */
+export const WEB_ALIAS_HOSTS: readonly string[] = parseWebAliasHosts(
+  process.env.EXPO_PUBLIC_WEB_ALIAS_HOSTS,
+  WEB_BASE_URL,
+);
+
 // Allo store listings, offered when Allo is not installed and a profile's
 // "Message" or a post's "Send in Allo" is pressed (hooks/useOpenInAllo.tsx).
 // Unset while Allo has no listing.
