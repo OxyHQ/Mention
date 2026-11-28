@@ -613,6 +613,9 @@
     "replyPublished": "你的回复已发布！",
     "emptyHint": "添加文字、图片、投票或文章",
     "poll": {
+      "duration": "投票时长",
+      "days_one": "{{count}} 天",
+      "days_other": "{{count}} 天",
       "addOption": "添加选项",
       "addMoreOptions": "最多还可添加 2 个选项",
       "create": "创建投票",

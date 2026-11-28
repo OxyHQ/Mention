@@ -613,6 +613,9 @@
     "replyPublished": "Balasanmu sudah diposting!",
     "emptyHint": "Tambahkan teks, gambar, polling, atau artikel",
     "poll": {
+      "duration": "Durasi jajak pendapat",
+      "days_one": "{{count}} hari",
+      "days_other": "{{count}} hari",
       "addOption": "Tambah opsi",
       "addMoreOptions": "Tambahkan hingga 2 opsi lagi",
       "create": "Buat polling",

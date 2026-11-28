@@ -455,6 +455,7 @@ describe('a draft round-trips every field it keeps', () => {
           postingMode: 'beast',
           pollOptions: ['yes', ''],
           pollTitle: 'Apply?',
+          pollDurationDays: 3,
         }),
       );
     });
@@ -473,6 +474,7 @@ describe('a draft round-trips every field it keeps', () => {
     expect(restored.postingMode).toBe('beast');
     expect(restored.showPollCreator).toBe(true);
     expect(restored.pollTitle).toBe('Apply?');
+    expect(restored.pollDurationDays).toBe(3);
     expect(restored.attachmentOrder).toEqual(expect.arrayContaining(['podcast', 'job']));
     expect(restored.attachmentOrder).not.toContain('poll');
   });

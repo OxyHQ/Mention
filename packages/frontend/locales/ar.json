@@ -613,6 +613,13 @@
     "replyPublished": "تم نشر ردّك!",
     "emptyHint": "أضف نصًا أو صورة أو استطلاعًا أو مقالًا",
     "poll": {
+      "duration": "مدة الاستطلاع",
+      "days_zero": "{{count}} يوم",
+      "days_one": "يوم واحد",
+      "days_two": "يومان",
+      "days_few": "{{count}} أيام",
+      "days_many": "{{count}} يومًا",
+      "days_other": "{{count}} يوم",
       "addOption": "إضافة خيار",
       "addMoreOptions": "يمكنك إضافة خيارين آخرين كحد أقصى",
       "create": "إنشاء استطلاع",

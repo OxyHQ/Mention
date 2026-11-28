@@ -110,6 +110,7 @@ import { useDraftManager, type ComposeDraftRefs } from '@/hooks/useDraftManager'
 import { MAX_POST_TEXT_LENGTH } from '@mention/shared-types/post';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
 import {
+  DEFAULT_POLL_DURATION_DAYS,
   boxHasContent,
   hasArticleContent as articleHasContent,
   hasDraftContent,
@@ -378,6 +379,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const {
     pollTitle,
     setPollTitle,
+    pollDurationDays,
+    setPollDurationDays,
     pollOptions,
     setPollOptions,
     showPollCreator,
@@ -415,6 +418,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     removeThreadPollOption,
     removeThreadPoll,
     updateThreadPollTitle,
+    updateThreadPollDuration,
     setThreadLocation,
     removeThreadLocation,
     addThreadSource,
@@ -667,6 +671,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       setMediaIds(draft.mediaIds);
       setPollOptions(draft.pollOptions);
       setPollTitle(draft.pollTitle);
+      setPollDurationDays(draft.pollDurationDays ?? DEFAULT_POLL_DURATION_DAYS);
       setShowPollCreator(draft.showPollCreator);
       setLocation(draft.location);
       setSources(draft.sources);
@@ -930,6 +935,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
     if (intent.poll) {
       setPollOptions(intent.poll.options);
+      setPollDurationDays(intent.poll.durationDays);
       setShowPollCreator(true);
     }
 
@@ -1246,6 +1252,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     () => ({
       ...composeContent,
       pollTitle,
+      pollDurationDays,
       showPollCreator,
       mentions,
       postingMode,
@@ -1257,6 +1264,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     [
       composeContent,
       pollTitle,
+      pollDurationDays,
       showPollCreator,
       mentions,
       postingMode,
@@ -1379,6 +1387,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     setMediaIds([]);
     setPollOptions([]);
     setPollTitle('');
+    setPollDurationDays(DEFAULT_POLL_DURATION_DAYS);
     setShowPollCreator(false);
     setLocation(null);
     setSources([]);
@@ -1565,6 +1574,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         mediaIds,
         pollTitle,
         pollOptions,
+        pollDurationDays,
         article,
         event,
         room: attachedRoom,
@@ -3700,6 +3710,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           <PollCreator
                             pollTitle={pollTitle}
                             onTitleChange={setPollTitle}
+                            durationDays={pollDurationDays}
+                            onDurationChange={setPollDurationDays}
                             pollOptions={pollOptions}
                             onAddOption={addPollOption}
                             onOptionChange={updatePollOption}
@@ -3827,6 +3839,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                         onEventPress={openThreadEventEditor}
                         onRoomPress={handleThreadRoomPress}
                         onPollTitleChange={handleThreadPollTitleChange}
+                        onPollDurationChange={updateThreadPollDuration}
                         onPollOptionChange={handleThreadPollOptionChange}
                         onPollOptionAdd={handleThreadPollOptionAdd}
                         onPollOptionRemove={handleThreadPollOptionRemove}

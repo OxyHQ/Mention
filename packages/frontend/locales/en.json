@@ -613,6 +613,9 @@
     "replyPublished": "Your reply has been posted!",
     "emptyHint": "Add text, an image, a poll, or an article",
     "poll": {
+      "duration": "Poll length",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
       "addOption": "Add option",
       "addMoreOptions": "Add up to 2 more options",
       "create": "Create a poll",

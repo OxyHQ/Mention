@@ -613,6 +613,9 @@
     "replyPublished": "返信を投稿しました！",
     "emptyHint": "テキスト、画像、アンケート、記事を追加できます",
     "poll": {
+      "duration": "投票期間",
+      "days_one": "{{count}}日間",
+      "days_other": "{{count}}日間",
       "addOption": "選択肢を追加",
       "addMoreOptions": "選択肢はあと2件まで追加できます",
       "create": "アンケートを作成",

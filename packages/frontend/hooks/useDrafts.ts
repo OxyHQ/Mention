@@ -30,6 +30,7 @@ export interface DraftBox {
   mediaIds: Array<{ id: string; type: 'image' | 'video' | 'gif' }>;
   pollOptions: string[];
   pollTitle?: string;
+  pollDurationDays?: number;
   showPollCreator: boolean;
   location: { latitude: number; longitude: number; address?: string } | null;
   mentions: Array<{ userId: string; handle: string; name: string }>;

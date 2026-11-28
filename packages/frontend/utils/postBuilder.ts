@@ -17,6 +17,7 @@ import {
   hasArticleContent,
   hasJobContent,
   hasPodcastContent,
+  DEFAULT_POLL_DURATION_DAYS,
   hasPollOption,
   hasRoomContent,
   isCompleteEvent,
@@ -42,6 +43,7 @@ interface BuildMainPostParams {
   mediaIds: ComposerMediaItem[];
   pollTitle: string;
   pollOptions: string[];
+  pollDurationDays?: number;
   article: ArticleData | null;
   event: EventData | null;
   room: RoomAttachmentData | null;
@@ -122,6 +124,10 @@ const roomContent = (room: RoomAttachmentData) => ({
   ...(room.host && { host: room.host }),
 });
 
+/** The instant a poll of this length closes, counted from now. */
+const pollEndTime = (days: number = DEFAULT_POLL_DURATION_DAYS): string =>
+  new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+
 export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest => {
   const {
     postContent,
@@ -130,6 +136,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     mediaIds,
     pollTitle,
     pollOptions,
+    pollDurationDays,
     article,
     event,
     room,
@@ -197,7 +204,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
         poll: {
           question: pollTitle.trim() || postContent.trim() || 'Poll',
           options: pollOptions.filter((opt) => opt.trim().length > 0),
-          endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          endTime: pollEndTime(pollDurationDays),
           votes: {},
           userVotes: {},
         },
@@ -394,7 +401,7 @@ export const buildThreadPost = (
         poll: {
           question: (item.pollTitle && item.pollTitle.trim()) || item.text.trim() || 'Poll',
           options: item.pollOptions.filter((opt) => opt.trim().length > 0),
-          endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          endTime: pollEndTime(item.pollDurationDays),
           votes: {},
           userVotes: {},
         },

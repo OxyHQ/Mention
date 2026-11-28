@@ -613,6 +613,10 @@
     "replyPublished": "La tua risposta è stata pubblicata!",
     "emptyHint": "Aggiungi testo, un'immagine, un sondaggio o un articolo",
     "poll": {
+      "duration": "Durata del sondaggio",
+      "days_one": "{{count}} giorno",
+      "days_many": "{{count}} di giorni",
+      "days_other": "{{count}} giorni",
       "addOption": "Aggiungi opzione",
       "addMoreOptions": "Puoi aggiungere altre 2 opzioni",
       "create": "Crea un sondaggio",

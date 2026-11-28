@@ -244,6 +244,7 @@ function renderItem(
         onEventPress={noop}
         onRoomPress={noop}
         onPollTitleChange={noop}
+        onPollDurationChange={noop}
         onPollOptionChange={noop}
         onPollOptionAdd={noop}
         onPollOptionRemove={noop}

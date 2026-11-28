@@ -613,6 +613,11 @@
     "replyPublished": "Ваш ответ опубликован!",
     "emptyHint": "Добавьте текст, изображение, опрос или статью",
     "poll": {
+      "duration": "Длительность опроса",
+      "days_one": "{{count}} день",
+      "days_few": "{{count}} дня",
+      "days_many": "{{count}} дней",
+      "days_other": "{{count}} дня",
       "addOption": "Добавить вариант",
       "addMoreOptions": "Можно добавить ещё до 2 вариантов",
       "create": "Создать опрос",
