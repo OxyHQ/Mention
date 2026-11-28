@@ -1,6 +1,6 @@
 // Printed by bloom migrate from components/CommunityNotes/WriteNoteSheet.tsx (migrated); relative imports as @/ paths. DEV ONLY.
 import { NoteSheetHeader } from "@/components/CommunityNotes/NoteSheetHeader"
-import { default as PostItem } from "@/components/Feed/PostItem"
+import { PostItem } from "@/components/Feed/PostItem.bloom"
 import { type HydratedPostSummary } from "@mention/shared-types"
 import { TextFieldHint } from "@oxy.so/bloom/text-field"
 import { RegExp } from "js"

@@ -87,7 +87,7 @@ public struct ExperienceEmployerField: View {
   }
   let create = useMutation(
     mutationFn: { organization: CreateOrganization in
-      if (((!canUsePrivateApi || disabled) || !supervision.ready) || supervision.supervised) ||
+      if (((!canUsePrivateApi || disabled) || !supervision.ready) || !!supervision.supervised) ||
         oxyServices.http.getSessionEpoch() != ownerSessionEpoch {
         fail(Error("A personal session is required"))
       }

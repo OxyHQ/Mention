@@ -14,7 +14,7 @@ import { WizardProgress, type WizardStep } from "@oxy.so/bloom/wizard"
 /// is honoured, so `next` can never send anyone off-site.
 private func destination(_ next: String?) -> Href {
   // bloom: review: `as Href` dropped: annotate where the value lands if tsc needs it
-  (next?.startsWith("/")) == true && !next!.startsWith("//") ? (next) : "/"
+  (next?.startsWith("/")) == true && !next!.startsWith("//") ? next : "/"
 }
 
 /// A step's heading: its title, and the line under it, in Bloom's card header.

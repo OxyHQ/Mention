@@ -33,7 +33,7 @@ public struct VideoReplies: View {
       testID: "video-replies-screen",
       bottomBarKeyboardBehavior: "follow",
       header: Header(String(localized: "videos.replies")).onBack(none).safeArea(false).inPage(),
-      bottomBar: user && postAcceptsReplies(post) ? (PageFooter(
+      bottomBar: !!user && postAcceptsReplies(post) ? (PageFooter(
         scrim: "auto",
         contentContainerStyle: { paddingLeft: 8, paddingRight: 8 },
       ) {

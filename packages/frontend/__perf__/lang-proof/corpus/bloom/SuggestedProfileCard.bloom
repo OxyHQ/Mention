@@ -1,4 +1,4 @@
-// Printed by bloom migrate from components/SuggestedProfileCard.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+// Printed by bloom migrate from components/SuggestedProfileCard.tsx (migrated); relative imports as @/ paths. DEV ONLY.
 import { useResolvedProfileIdentity, type ProfileCardData } from "@/components/ProfileCard"
 import { default as UserName } from "@/components/UserName"
 import { FollowButton } from "@/components/FollowButton"
@@ -67,9 +67,6 @@ public struct SuggestedProfileCard: View {
   let bio = resolved.description?.trim()
 
   var body: some View {
-    // bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
-    // bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
-    // bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
     VStack {
       // Bloom's PressableScale as JSX: an inert tile (no route) is a pressable with no role,
       // which a language press host cannot be (it names itself a button).
@@ -81,7 +78,7 @@ public struct SuggestedProfileCard: View {
       ) {
         AccountAvatar(
           account: resolved,
-          source: resolved.avatar,
+          source: (resolved.avatar ? resolved.avatar : none),
           size: AVATAR_SIZE,
           variant: MEDIA_VARIANT_AVATAR,
           verified: resolved.verified,
@@ -89,7 +86,7 @@ public struct SuggestedProfileCard: View {
         )
         UserName(
           name: nameLabel,
-          handle: handle,
+          handle: (handle ? handle : none),
           verified: resolved.verified,
           isFederated: resolved.isFederated,
           kind: resolved.kind,
@@ -114,7 +111,7 @@ public struct SuggestedProfileCard: View {
       }
       FollowButton(
         userId: resolved.id,
-        username: handle,
+        username: (handle ? handle : none),
         size: "sm",
         style: styles.followButton,
         onFollowChange: onFollowChange,

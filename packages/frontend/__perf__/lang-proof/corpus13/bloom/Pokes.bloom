@@ -118,7 +118,7 @@ public struct PokesScreen: Screen {
   func renderUserRow(
     _ key: String,
     _ user: PokeUser,
-    _ meta: View?,
+    _ meta: String?,
     _ buttonVariant: "poke" | "pokeBack" | "undo",
   ) -> View {
     ProfileCard(
@@ -226,9 +226,7 @@ public struct PokesScreen: Screen {
                   renderUserRow(
                     item.id,
                     item.user,
-                    RawText(
-                      "\(formatRelativeTime(((try? Date(item.createdAt, strategy: .iso8601)) ?? Date(millisecondsSince1970: .nan)), locale, style: "short"))\(item.pokeCount > 1 ? " · \(item.pokeCount) \(t("pokes.count", defaultValue: "pokes"))" : "")",
-                    ),
+                    "\(formatRelativeTime(((try? Date(item.createdAt, strategy: .iso8601)) ?? Date(millisecondsSince1970: .nan)), locale, style: "short"))\(item.pokeCount > 1 ? " · \(item.pokeCount) \(t("pokes.count", defaultValue: "pokes"))" : "")",
                     item.pokedBack ? "undo" : "pokeBack",
                   )
                 },
@@ -251,13 +249,11 @@ public struct PokesScreen: Screen {
                   renderUserRow(
                     item.id,
                     item.user,
-                    RawText(
-                      formatRelativeTime(
-                        ((try? Date(item.createdAt, strategy: .iso8601)) ??
-                          Date(millisecondsSince1970: .nan)),
-                        locale,
-                        style: "short",
-                      ),
+                    formatRelativeTime(
+                      ((try? Date(item.createdAt, strategy: .iso8601)) ??
+                        Date(millisecondsSince1970: .nan)),
+                      locale,
+                      style: "short",
                     ),
                     "undo",
                   )

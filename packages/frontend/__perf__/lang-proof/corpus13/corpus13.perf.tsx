@@ -36,19 +36,29 @@ function mockHint(props: Record<string, unknown>): string {
  * A stand-in for a child component the file draws: a host view carrying its props, with each
  * prop that is a React element drawn inside it (a slot), so what the file hands it is compared.
  */
-function mockStub(name: string) {
+function mockStub(name: string, nodeProps: readonly string[] = []) {
   const { createElement: h, isValidElement: valid } =
     jest.requireActual<typeof import('react')>('react');
   const { View: V } = jest.requireActual<typeof import('react-native')>('react-native');
   // biome-ignore lint/correctness/noComponentHookFactories: one stub per mocked module, made once when jest.mock runs
   return function Stub(props: Record<string, unknown>) {
     const { children, ...rest } = props;
+    // A `ReactNode` prop the component draws in its own `Text` (`nodeProps`) is a slot whether
+    // it is an element or a string: the component draws both the same.
+    const slot = (k: string, v: unknown) =>
+      valid(v) || (nodeProps.includes(k) && typeof v === 'string');
     const slots = Object.entries(rest)
-      .filter(([, v]) => valid(v))
+      .filter(([k, v]) => slot(k, v))
       .map(([k, v]) => h(V, { key: k, testID: `slot:${name}.${k}` }, v as ReactNode));
+    const hinted = Object.fromEntries(
+      Object.entries(rest)
+        // …and `null` is `undefined` there: both draw nothing.
+        .filter(([k, v]) => !(nodeProps.includes(k) && v == null))
+        .map(([k, v]) => [k, slot(k, v) ? '[node]' : v]),
+    );
     return h(
       V,
-      { testID: `stub:${name}`, accessibilityHint: mockHint(rest) },
+      { testID: `stub:${name}`, accessibilityHint: mockHint(hinted) },
       ...slots,
       children as ReactNode,
     );
@@ -191,7 +201,8 @@ jest.mock('@/services/pokeService', () => ({
     unpoke: async () => undefined,
   },
 }));
-jest.mock('@/components/ProfileCard', () => ({ ProfileCard: mockStub('ProfileCard') }));
+// `meta` is drawn as `LText(Embed(meta))`: a string and a fragment of strings are the same text.
+jest.mock('@/components/ProfileCard', () => ({ ProfileCard: mockStub('ProfileCard', ['meta']) }));
 jest.mock('@/components/suggestions/SuggestedUsers', () => ({
   SuggestedUsers: mockStub('SuggestedUsers'),
 }));
@@ -204,6 +215,68 @@ jest.mock('@/hooks/useRecommendations', () => ({
 }));
 jest.mock('@/lib/actorCache', () => ({ actorWriter: () => ({ cacheActors: () => undefined }) }));
 jest.mock('@/utils/userEnrichment', () => ({ enrichMissingAvatars: async () => undefined }));
+// PostDetailScreen's stand-ins: its children, data and services.
+jest.mock('@/components/Post/CompactReplyComposer', () => ({
+  CompactReplyComposer: mockStub('CompactReplyComposer'),
+}));
+jest.mock('@/components/Post/PostReplyFooter', () => ({
+  PostReplyFooter: mockStub('PostReplyFooter'),
+}));
+jest.mock('@/components/Post/PostReplyNavigationContext', () => ({
+  usePostOwnsNavigation: () => false,
+}));
+jest.mock('@/components/Feed/Feed', () => ({ __esModule: true, default: mockStub('Feed') }));
+jest.mock('@/components/ReplyPreferencesSheet', () => ({
+  __esModule: true,
+  default: mockStub('ReplyPreferencesSheet'),
+}));
+jest.mock('@/components/loading/ContentSkeleton', () => ({
+  ...jest.requireActual('@/components/loading/ContentSkeleton'),
+  FeedSkeleton: mockStub('FeedSkeleton'),
+}));
+jest.mock('@/data/feeds', () => ({ prefetchFeed: () => undefined }));
+jest.mock('@/data/posts', () => ({ Post: { load: async () => undefined } }));
+jest.mock('@/hooks/useAfterFirstFrame', () => ({ useAfterFirstFrame: () => true }));
+jest.mock('@/hooks/usePostReadAccess', () => ({ usePostReadAccess: () => mockWorld.postAccess }));
+jest.mock('@/hooks/useThreadPreferences', () => {
+  const prefs = { sortOrder: 'top', treeView: false, loaded: true };
+  return {
+    SORT_TO_API: { top: 'top', latest: 'latest' },
+    useThreadPreferences: () => prefs,
+    useThreadPreferencesStore: (pick: (s: typeof prefs) => unknown) => pick(prefs),
+  };
+});
+jest.mock('@/lib/seoHandoff', () => ({ readServerSEO: () => undefined }));
+jest.mock('@/modules/mention-widgets', () => ({ getFollowingCachedPost: async () => null }));
+jest.mock('@/services/commerceService', () => ({
+  commerceService: { recordMetric: async () => undefined },
+}));
+jest.mock('@/services/feedService', () => ({
+  feedService: { getThreadContinuations: async () => mockWorld.detail.continuations },
+}));
+jest.mock('@/services/insightsService', () => ({
+  insightsService: { trackPostView: async () => ({ viewsCount: 1 }) },
+}));
+jest.mock('@/services/socketService', () => ({
+  socketService: { joinPost: () => undefined, leavePost: () => undefined },
+}));
+jest.mock('@/stores/postsStore', () => {
+  const state = () => ({
+    getPostById: async () => mockWorld.detail.fetched,
+    revalidatePostById: async () => mockWorld.detail.cached,
+    getPostFromDb: () => mockWorld.detail.cached ?? undefined,
+    loadPostAncestors: async () => mockWorld.detail.ancestors,
+    cachePosts: () => undefined,
+  });
+  const usePostsStore = (pick: (s: ReturnType<typeof state>) => unknown) => pick(state());
+  usePostsStore.getState = state;
+  return {
+    applyServerViewCounts: () => undefined,
+    getCachedAncestorChain: () => mockWorld.detail.ancestors,
+    usePostsStore,
+    usePostSelector: () => mockWorld.detail.cached,
+  };
+});
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ isSupervised: false, restrictions: {} }),
 }));
@@ -239,7 +312,25 @@ const mockWorld = {
     sent: [] as unknown[],
     suggested: [] as unknown[],
   },
+  postAccess: {} as Record<string, unknown>,
+  detail: {
+    cached: null as unknown,
+    fetched: null as unknown,
+    ancestors: [] as unknown[],
+    continuations: [] as unknown[],
+  },
 };
+
+const detailPost = (id: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  user: { id: 'u1', username: 'user1', name: { displayName: 'User 1' } },
+  content: { text: `Post ${id}` },
+  metadata: { createdAt: longAgo, updatedAt: longAgo, visibility: 'public' },
+  visibility: 'public',
+  status: 'published',
+  ...extra,
+});
+const allowed = { allowed: true, failed: false, supervised: false, retry: () => undefined };
 
 const signedIn = () => ({
   user: { id: 'me', username: 'me' },
@@ -426,6 +517,12 @@ interface Case {
  * `it.failing`, so a fix shows up here as a failure to remove; `PROOF_BROKEN=1` runs them as tests.
  */
 const BROKEN: Record<string, string> = {
+  ...Object.fromEntries(
+    ['accessFailed', 'gated', 'notFound', 'fetched', 'reply'].map((state) => [
+      `components/Post/PostDetailScreen.tsx/${state}`,
+      "task-defer-runs-at-once (mention15: the load's `cancelled = true` runs at once); the chrome from the drawn branch (core12)",
+    ]),
+  ),
   'components/Compose/PodcastPickerSheet.tsx/results': 'closure-view-to-reactelement (renderItem)',
   'components/payments/MerchantInstallmentSettings.tsx/closed': 'record-update-arrow-body',
   'components/payments/MerchantInstallmentSettings.tsx/open': 'record-update-arrow-body',
@@ -440,8 +537,6 @@ const BROKEN: Record<string, string> = {
     "screen-group-root: each branch's .header under a Group root",
   'app/(app)/jobs/[id].tsx/draftOnMention':
     "screen-group-root: each branch's .header under a Group root",
-  'app/(app)/notifications/pokes.tsx/populated':
-    'fragment-text-run: a run of strings as one RawText (the same text, one nested Text)',
 };
 
 const noop = () => undefined;
@@ -797,6 +892,66 @@ const CASES: Case[] = [
     },
   },
   {
+    file: 'components/Post/PostDetailScreen.tsx',
+    name: 'default',
+    bloomExport: 'PostDetailScreen',
+    bloomComponent: true,
+    ts: () => require('@/components/Post/PostDetailScreen'),
+    bloom: () => require('./bloom/PostDetailScreen.bloom'),
+    states: {
+      accessFailed: {
+        props: { postId: 'p1' },
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.postAccess = { ...allowed, allowed: false, failed: true };
+          mockWorld.detail = { cached: null, fetched: null, ancestors: [], continuations: [] };
+        },
+      },
+      gated: {
+        props: { postId: 'p1' },
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.postAccess = { ...allowed, allowed: false };
+          mockWorld.detail = { cached: null, fetched: null, ancestors: [], continuations: [] };
+        },
+      },
+      notFound: {
+        props: { postId: 'p1' },
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.postAccess = allowed;
+          mockWorld.detail = { cached: null, fetched: null, ancestors: [], continuations: [] };
+        },
+      },
+      fetched: {
+        props: { postId: 'p2' },
+        before: () => {
+          mockWorld.auth = { isAuthResolved: true, canUsePrivateApi: false };
+          mockWorld.postAccess = allowed;
+          mockWorld.detail = {
+            cached: null,
+            fetched: detailPost('p2'),
+            ancestors: [],
+            continuations: [],
+          };
+        },
+      },
+      reply: {
+        props: { postId: 'p3' },
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.postAccess = allowed;
+          mockWorld.detail = {
+            cached: detailPost('p3', { parentPostId: 'p0' }),
+            fetched: null,
+            ancestors: [detailPost('p0')],
+            continuations: [],
+          };
+        },
+      },
+    },
+  },
+  {
     file: 'app/(app)/notifications/pokes.tsx',
     name: 'default',
     bloomExport: 'PokesScreen',
@@ -904,7 +1059,15 @@ function lines(node: Json | Json[] | string | null, depth = 0, out: string[] = [
   }
   // React's `useId` names (`…-r3-…`) count the renders before this one, not what is drawn.
   out.push(`${pad}<${node.type} ${plain(props).replace(/-r[0-9a-z]+-/g, '-r·-')}>`);
-  for (const child of node.children ?? []) lines(child as Json | string, depth + 1, out);
+  // Adjacent strings are one text run (a fragment's `{a}{b}` and the string `a + b` draw the same).
+  const children: (Json | string)[] = [];
+  for (const child of (node.children ?? []) as (Json | string)[]) {
+    const last = children[children.length - 1];
+    if (typeof child === 'string' && typeof last === 'string')
+      children[children.length - 1] = last + child;
+    else children.push(child);
+  }
+  for (const child of children) lines(child, depth + 1, out);
   return out;
 }
 
@@ -979,6 +1142,9 @@ beforeAll(async () => {
 const ROWS = CASES.flatMap((c) =>
   Object.entries(c.states).map(([state, s]) => [`${c.file}/${state}`, c, s] as const),
 );
+
+// PostDetailScreen's states take ~30 s each under Jest (its screen chrome and list).
+jest.setTimeout(60_000);
 
 describe.each(ROWS)('%s', (key, c, s) => {
   (BROKEN[key] && !process.env.PROOF_BROKEN ? it.failing : it)(
