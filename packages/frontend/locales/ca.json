@@ -2914,6 +2914,12 @@
     "dayCount_many": "{{count}} dies"
   },
   "search": {
+    "filters": {
+      "label": "Filtra publicacions",
+      "media": "Amb multimèdia",
+      "pastWeek": "Darrera setmana",
+      "popular": "Populars"
+    },
     "title": "Cerca",
     "placeholder": "Cerca...",
     "posts": "publicacions",

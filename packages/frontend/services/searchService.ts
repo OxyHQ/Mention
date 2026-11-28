@@ -1,3 +1,8 @@
+import {
+  NO_POST_SEARCH_FILTERS,
+  type PostSearchFilters,
+  postSearchParams,
+} from '@/utils/postSearchFilters';
 import type { AvatarIdentitySummary } from '@mention/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient, isUnauthorizedError, publicClient } from '@/utils/api';
@@ -438,9 +443,14 @@ class SearchService {
     query: string,
     cursor?: string,
     signal?: AbortSignal,
+    filters: PostSearchFilters = NO_POST_SEARCH_FILTERS,
   ): Promise<SearchPostsPage> {
     try {
-      const params: Record<string, string> = { query, type: 'posts' };
+      const params: Record<string, string> = {
+        query,
+        type: 'posts',
+        ...postSearchParams(filters),
+      };
       if (cursor) params.cursor = cursor;
       const res = await authenticatedClient.get<{
         posts?: SearchPostResult[];

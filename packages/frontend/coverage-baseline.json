@@ -328,6 +328,7 @@
     "utils/postPermalink.ts": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[1,1]},
     "utils/postReplies.ts": {"statements":[5,5],"branches":[2,2],"functions":[3,3],"lines":[4,4]},
     "utils/postSchedule.ts": {"statements":[7,7],"branches":[7,7],"functions":[2,2],"lines":[6,6]},
+    "utils/postSearchFilters.ts": {"statements":[4,4],"branches":[7,7],"functions":[1,1],"lines":[4,4]},
     "utils/prepareDraftSwitch.ts": {"statements":[21,22],"branches":[20,21],"functions":[5,5],"lines":[19,19]},
     "utils/prettifyUrl.ts": {"statements":[2,2],"branches":[0,0],"functions":[1,1],"lines":[2,2]},
     "utils/profileAccountFacts.ts": {"statements":[3,3],"branches":[9,10],"functions":[1,1],"lines":[3,3]},

@@ -2890,6 +2890,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "投稿を絞り込む",
+      "media": "メディアあり",
+      "pastWeek": "過去1週間",
+      "popular": "人気"
+    },
     "title": "検索",
     "placeholder": "検索...",
     "posts": "件の投稿",

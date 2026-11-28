@@ -2986,6 +2986,12 @@
     "dayCount_many": "{{count}} يومًا"
   },
   "search": {
+    "filters": {
+      "label": "تصفية المنشورات",
+      "media": "تحتوي على وسائط",
+      "pastWeek": "الأسبوع الماضي",
+      "popular": "الرائجة"
+    },
     "title": "بحث",
     "placeholder": "بحث...",
     "posts": "منشورات",

@@ -2938,6 +2938,12 @@
     "dayCount_many": "{{count}} дней"
   },
   "search": {
+    "filters": {
+      "label": "Фильтр постов",
+      "media": "С медиа",
+      "pastWeek": "За неделю",
+      "popular": "Популярные"
+    },
     "title": "Поиск",
     "placeholder": "Поиск...",
     "posts": "постов",

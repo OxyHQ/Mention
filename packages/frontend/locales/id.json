@@ -2890,6 +2890,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "Saring postingan",
+      "media": "Dengan media",
+      "pastWeek": "Seminggu terakhir",
+      "popular": "Populer"
+    },
     "title": "Cari",
     "placeholder": "Cari...",
     "posts": "postingan",

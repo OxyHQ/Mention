@@ -2890,6 +2890,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "筛选帖子",
+      "media": "含媒体",
+      "pastWeek": "过去一周",
+      "popular": "热门"
+    },
     "title": "搜索",
     "placeholder": "搜索…",
     "posts": "帖子",
