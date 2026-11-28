@@ -31,7 +31,7 @@ A real fediverse domain move (`Move` for every account) is feasible but not wort
 | `mention.org` | did not resolve | same app as mention.earth, canonical still mention.earth | canonical | primary |
 | `www.mention.org` | did not resolve | 301 to `mention.org` | same | same |
 | `api.mention.earth` | API | unchanged | unchanged, never redirected | serves forever (old native builds, stored media URLs, Oxy webhooks, federation fetches) |
-| `api.mention.org` | did not resolve | alias of the API (after oxy-infra#521) | new builds may use it | alias |
+| `api.mention.org` | did not resolve | second API host (oxy-infra#521/#522, #2111) | **primary API**: the web build and new native builds (2.2.0+, `org.mention.app`) call it | primary API (owner decision, 2026-11-28) |
 | `mcp.mention.earth` | remote MCP | unchanged | unchanged | stays the MCP resource: OAuth grants are bound to it (`MENTION_MCP_RESOURCE`) |
 | `cloud.mention.earth` | media CDN (DigitalOcean Spaces) | unchanged | unchanged | stored URLs |
 | `shell.mention.earth` | internal web-shell Worker, 403 without the key | unchanged | unchanged | internal |
@@ -403,8 +403,22 @@ Order. Each step is measured before the next one.
      hard-coded links moved to `WEB_BASE_URL`;
    - the fediverse handle read from the federation domain;
    - own-link recognition for both hosts.
-   - The API stays `api.mention.earth` until a native build has shipped `api.mention.org` (an
-     optional later step).
+   - **`api.mention.org` becomes the primary API host** (owner decision, 2026-11-28):
+     `EXPO_PUBLIC_API_URL=https://api.mention.org` for the web build and the native `production`
+     profile, so new builds (2.2.0+, `org.mention.app`) call it and the web is same-site with its
+     API.
+   - `api.mention.earth` stays a full alias forever, **never redirected**: a redirect breaks POST
+     bodies, `Authorization` on some clients, and every old build. Socket.IO, uploads, webhooks
+     (Oxy's `webhookUrl` stays on `api.mention.earth`; changing it rotates the secret) and the
+     ActivityPub fetch base answer on both hosts, from the same service and the same rule.
+   - Server-built media URLs (`MENTION_PUBLIC_API_URL`) and the AP actor redirect base
+     (`MENTION_API_ORIGIN`) stay `api.mention.earth` until the media resolver's own-host
+     recognition is checked for both hosts. Stored and federated URLs keep working either way.
+   - Oxy: `api.mention.org` is never a browser `Origin` toward Oxy, so it needs no registry entry;
+     telemetry attribution maps it to `mention` (oxy#2360).
+   - Body limit: the mention.org zone is Pro (100 MB per request) against Business (200 MB) on
+     mention.earth. Media goes presigned to Oxy above 64 MiB, so nothing Mention sends is affected.
+   - The flip is #2116 (draft until the gates above).
 4. **Cloudflare, mention.org zone:** the `/p/*` cache rule (runbook 72) moves here, after the purge
    is live.
 5. **The 301 on mention.earth** (`http_request_dynamic_redirect`, zone mention.earth).
