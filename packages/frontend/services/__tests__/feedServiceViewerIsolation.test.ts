@@ -168,6 +168,26 @@ describe('feedService viewer request isolation', () => {
     await Promise.all([chronological, relevance, direct]);
   });
 
+  it('keeps landscape recommendations separate from the unfiltered video feed', async () => {
+    const pending = deferred<{ data: unknown }>();
+    mockGetAccessToken.mockReturnValue('token');
+    setFeedViewerRequestScope('video-list-viewer');
+    mockAuthenticatedGet.mockReturnValue(pending.promise);
+
+    const feed = feedService.getMtnFeed('videos', { limit: 16 });
+    const suggestions = feedService.getMtnFeed('videos', { limit: 16, orientation: 'landscape' });
+    const repeated = feedService.getMtnFeed('videos', { limit: 16, orientation: 'landscape' });
+    expect(mockAuthenticatedGet).toHaveBeenCalledTimes(2);
+    expect(mockAuthenticatedGet.mock.calls[0][1].params).not.toHaveProperty('orientation');
+    expect(mockAuthenticatedGet.mock.calls[1][1].params).toMatchObject({
+      descriptor: 'videos',
+      orientation: 'landscape',
+    });
+
+    pending.resolve({ data: { items: [], hasMore: false } });
+    await Promise.all([feed, suggestions, repeated]);
+  });
+
   it('keeps concurrent page sizes separate while sharing identical reads', async () => {
     const pending = deferred<{ data: unknown }>();
     mockGetAccessToken.mockReturnValue('page-size-token');

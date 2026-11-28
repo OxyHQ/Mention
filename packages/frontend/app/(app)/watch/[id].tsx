@@ -12,6 +12,7 @@ import { WatchVideoDetails, usePublishWatchDetails } from '@/components/videos/W
 import { watchVideo } from '@/components/videos/watchVideo';
 import { usePostReadAccess } from '@/hooks/usePostReadAccess';
 import { useLocalSearchParams, useRouter } from '@/lib/navigation/router';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { usePostsStore } from '@/stores/postsStore';
 
 export default function WatchRoute() {
@@ -24,7 +25,7 @@ export default function WatchRoute() {
   const width = useWindowDimensions().width;
   const hasSidebar = width >= 990;
   const postRead = useQuery({
-    queryKey: ['watch-post', user?.id, i18n.resolvedLanguage, id],
+    queryKey: viewerQueryKeys.watchVideo(user?.id, id, i18n.resolvedLanguage),
     enabled: isAuthResolved && access.allowed && Boolean(id),
     queryFn: () => getPostById(id),
   });

@@ -6,7 +6,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
-import { MAX_POST_TEXT_LENGTH, PostVisibility } from '@mention/shared-types';
+import { MAX_POST_TEXT_LENGTH, PostVisibility } from '@mention/shared-types/post';
 import { COMMUNITY_POST_TITLE_MAX_LENGTH } from '@mention/shared-types/community';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useSupervisionState } from '@/hooks/useSupervisionState';
@@ -107,9 +107,7 @@ export default function VideoUploadRoute() {
             </Button>
           </>
         ) : (
-          <Button onPress={() => void signIn().catch(() => {})}>
-            {t('auth.banner.signIn')}
-          </Button>
+          <Button onPress={() => void signIn().catch(() => {})}>{t('auth.banner.signIn')}</Button>
         )}
       </View>
     </Screen>

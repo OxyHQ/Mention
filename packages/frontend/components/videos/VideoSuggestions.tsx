@@ -11,6 +11,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { formatDuration } from '@/utils/formatDuration';
 import { Link } from '@/lib/navigation/router';
 import { feedService } from '@/services/feedService';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { watchVideo, type WatchPost } from './watchVideo';
 import { videoPublicationDate, videoViewCount } from './videoMetadata';
 
@@ -50,7 +51,7 @@ export function VideoRecommendations({
   const locale = i18n.resolvedLanguage || i18n.language;
   const { oxyServices, user, isAuthResolved } = useAuth();
   const feed = useQuery({
-    queryKey: ['watch-video-suggestions', user?.id, i18n.resolvedLanguage],
+    queryKey: viewerQueryKeys.videoSuggestions(user?.id, i18n.resolvedLanguage),
     enabled: isAuthResolved,
     queryFn: ({ signal }) =>
       feedService.getMtnFeed('videos', { limit: 16, orientation: 'landscape', signal }),
