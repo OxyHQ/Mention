@@ -62,6 +62,9 @@
     "setupFiles": [
       "<rootDir>/jest.setup.ts"
     ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/test-support/bloomStrings.setup.ts"
+    ],
     "resolver": "react-native-reanimated/jest/resolver",
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1",
