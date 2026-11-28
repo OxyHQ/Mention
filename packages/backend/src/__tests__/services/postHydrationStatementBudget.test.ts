@@ -311,8 +311,9 @@ describe('the statement budget for one cold hydration', () => {
 describe('the statement budget for an anonymous feed cache hit', () => {
   it('re-authorizes an unchanged page from current records without hydrating it again', async () => {
     /**
-     * A hit loads the current records of the page's graph (posts + its ten
-     * child tables, once for the whole graph), the authors' privacy settings and
+     * A hit loads the current records of the page's graph (posts, and its ten
+     * child tables in ONE statement — `readPostChildTables`, once for the whole
+     * graph), the authors' privacy settings and
      * the safety evidence, and asks Oxy for current decisions. A signed-out read
      * also asks `federated_actors` once whether an author hides from signed-out
      * readers at their origin (Bluesky's `!no-unauthenticated`). It does NOT run
@@ -338,6 +339,7 @@ describe('the statement budget for an anonymous feed cache hit', () => {
     expect(statements.get('posts')).toBe(1);
     expect(statements.get('post_recent_repliers')).toBeUndefined();
     expect(statements.get('federated_actors')).toBe(1);
-    expect([...statements.values()].reduce((sum, count) => sum + count, 0)).toBe(14);
+    // posts, the child tables (one statement), user_settings, safety, federated_actors.
+    expect([...statements.values()].reduce((sum, count) => sum + count, 0)).toBe(5);
   });
 });
