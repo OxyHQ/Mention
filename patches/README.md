@@ -93,6 +93,16 @@ is wanted open, a close cancels the pending enter frame, and a modal closed
 before it was ever shown unmounts at once. Remove it when Mention moves to a
 Bloom release that includes #250.
 
+# @oxy.so/bloom 23.10.1
+
+`BloomThemeProvider` takes `modeOverride`, a temporary app-wide appearance that
+leaves the chosen mode and its persistence untouched. The video routes use it
+(`useRouteThemeMode`, mounted on the root `BloomProvider`) to draw the whole app
+dark while a video is on screen. Forwarded from the 22.1.7 patch to `src`, both
+built outputs and both declaration files; the gate is
+`components/navigation/__tests__/useRouteThemeMode.test.tsx`. Remove it when
+Bloom publishes the prop.
+
 # @shopify/flash-list 2.3.3
 
 `stickyHeaderConfig.offset` does two things. It sets where a stuck header sits,
@@ -156,7 +166,7 @@ import above loads; the probe's answer is unchanged (Reanimated 4.7.1 has no
 `_refreshComponentRef` in either build). Remove the patch when upstream
 imports Reanimated statically.
 
-# react-native-css 3.1.0-rc.0
+# react-native-css 3.1.0-rc.1
 
 Backport of [nativewind/react-native-css#511](https://github.com/nativewind/react-native-css/pull/511).
 Metro serializes compiled stylesheets as JSON: an omitted `color-mix` percentage

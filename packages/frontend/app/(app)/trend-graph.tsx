@@ -14,6 +14,28 @@ import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { buildTrendTree, type TrendTreeNode } from '@/utils/trendGraphTree';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { EmptyState } from '@/components/common/EmptyState';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  label: { lineHeight: 24, marginRight: 12, flexShrink: 1 },
+  labelEmphasis: { fontSize: 15, fontWeight: '700' },
+  labelPlain: { fontSize: 14 },
+  filter: { fontSize: 13, lineHeight: 24, fontWeight: '500' },
+  filterActive: { color: t.primaryForeground },
+  subtitle: {
+    fontSize: 13,
+    lineHeight: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 4,
+    color: t.mutedForeground,
+  },
+  errorText: { fontSize: 14, lineHeight: 24, textAlign: 'center', color: t.mutedForeground },
+  retry: { fontSize: 14, lineHeight: 24, fontWeight: '600', color: t.primaryForeground },
+  sectionTitle: { fontSize: 14, lineHeight: 24, fontWeight: '500', color: t.mutedForeground },
+  related: { fontSize: 12, lineHeight: 24, color: t.mutedForeground },
+  counts: { fontSize: 12, lineHeight: 24, flexShrink: 0, color: t.mutedForeground },
+}));
 
 /**
  * Trend relations (route `/trend-graph`).
@@ -41,6 +63,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 const GRAPH_STALE_TIME_MS = 5 * 60_000;
 
 export default function TrendGraphScreen() {
+  const textStyles = useTextStyles();
   const { t } = useTranslation();
 
   const [language, setLanguage] = useState<string | null>(null);
@@ -74,15 +97,13 @@ export default function TrendGraphScreen() {
           />
         }
       >
-        <ScreenScrollView contentContainerClassName="pb-16">
+        <ScreenScrollView contentView contentContainerStyle={{ paddingBottom: 64 }}>
           {/*
           No title block here. The header above already names the screen, and
           repeating it in 28px — under an uppercase eyebrow — spent the first
           fifth of the viewport saying the same thing three times.
         */}
-          <Text className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground leading-6">
-            {t('trendGraph.subtitle')}
-          </Text>
+          <Text style={textStyles.subtitle}>{t('trendGraph.subtitle')}</Text>
 
           <FilterRow
             values={data?.availableLanguages ?? []}
@@ -110,17 +131,13 @@ export default function TrendGraphScreen() {
             // An unreachable graph must not render as an empty one: "no relations
             // found" over an outage would say the network has no stories.
             <View className="items-center gap-3 px-4 py-10">
-              <Text className="text-center font-primary text-sm text-muted-foreground leading-6">
-                {t('trendGraph.error')}
-              </Text>
+              <Text style={textStyles.errorText}>{t('trendGraph.error')}</Text>
               <TouchableOpacity
                 accessibilityRole="button"
                 onPress={() => void refetch()}
                 className="rounded-full bg-primary px-4 py-2 web:cursor-pointer"
               >
-                <Text className="font-primary text-sm font-semibold text-primary-foreground leading-6">
-                  {t('trendGraph.retry')}
-                </Text>
+                <Text style={textStyles.retry}>{t('trendGraph.retry')}</Text>
               </TouchableOpacity>
             </View>
           ) : isEmpty ? (
@@ -156,12 +173,11 @@ export default function TrendGraphScreen() {
 
 /** A titled block of rows, matching the section headers used across the app. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const textStyles = useTextStyles();
   return (
     <View className="mb-2">
       <View className="px-4 py-2">
-        <Text className="font-primary text-sm font-medium text-muted-foreground leading-6">
-          {title}
-        </Text>
+        <Text style={textStyles.sectionTitle}>{title}</Text>
       </View>
       <View className="px-4">{children}</View>
     </View>
@@ -222,6 +238,7 @@ const RELATED_SHOWN = 3;
  * merged, and the exact counts belong on the term's own screen.
  */
 function RelatedLine({ entry }: { entry: TrendTreeNode }) {
+  const textStyles = useTextStyles();
   const { t } = useTranslation();
 
   const names = useMemo(() => {
@@ -244,7 +261,7 @@ function RelatedLine({ entry }: { entry: TrendTreeNode }) {
 
   return (
     <View className="ml-1 border-border pb-1 pl-3" style={styles.dashedTrunk}>
-      <Text className="font-primary text-[12px] text-muted-foreground leading-6" numberOfLines={2}>
+      <Text style={textStyles.related} numberOfLines={2}>
         {t('trendGraph.related', {
           terms: shown.join(', '),
           count: rest,
@@ -274,6 +291,7 @@ function TermRow({
   authors: number;
   emphasis?: boolean;
 }) {
+  const textStyles = useTextStyles();
   const { t } = useTranslation();
   const { navigateToTerm } = useTrendNavigation();
 
@@ -285,12 +303,12 @@ function TermRow({
       className="web:cursor-pointer flex-row items-baseline justify-between py-1.5"
     >
       <Text
-        className={`mr-3 shrink font-primary text-foreground ${emphasis ? 'text-[15px] font-bold' : 'text-[14px]'} leading-6`}
+        style={[textStyles.label, emphasis ? textStyles.labelEmphasis : textStyles.labelPlain]}
         numberOfLines={1}
       >
         {label}
       </Text>
-      <Text className="shrink-0 font-primary text-[12px] text-muted-foreground leading-6">
+      <Text style={textStyles.counts}>
         {t('trendGraph.node.posts', { count: volume })}
         {' · '}
         {t('trendGraph.node.authors', { count: authors })}
@@ -311,6 +329,7 @@ function FilterRow({
   onSelect: (value: string | null) => void;
   allLabel: string;
 }) {
+  const textStyles = useTextStyles();
   if (values.length === 0) return null;
 
   return (
@@ -329,9 +348,7 @@ function FilterRow({
             onPress={() => onSelect(value)}
             className={`web:cursor-pointer rounded-full px-3 py-1.5 ${isActive ? 'bg-primary' : 'bg-muted'}`}
           >
-            <Text
-              className={`font-primary text-[13px] font-medium ${isActive ? 'text-primary-foreground' : 'text-foreground'} leading-6`}
-            >
+            <Text style={[textStyles.filter, isActive && textStyles.filterActive]}>
               {value ?? allLabel}
             </Text>
           </TouchableOpacity>

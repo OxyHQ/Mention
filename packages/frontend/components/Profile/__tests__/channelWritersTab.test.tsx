@@ -148,6 +148,7 @@ jest.mock('@oxy.so/bloom/skeleton', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
   useTheme: () => ({
     colors: {
       primary: '#0000ff',

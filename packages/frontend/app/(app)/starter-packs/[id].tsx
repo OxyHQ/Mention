@@ -8,7 +8,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { useRouter, useLocalSearchParams, useFocusEffect } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { starterPacksService } from '@/services/starterPacksService';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { FollowButton } from '@/components/FollowButton';
 import { useHaptics } from '@oxy.so/bloom/hooks';
@@ -22,6 +22,21 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@oxy.so/core/logger';
 import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
+
+const useTextStyles = createTokenStyles((t) => ({
+  name: { fontSize: 22, lineHeight: 24, fontWeight: '700', textAlign: 'center' },
+  description: { fontSize: 15, lineHeight: 22, textAlign: 'center', color: t.mutedForeground },
+  count: { fontSize: 14, lineHeight: 24, color: t.mutedForeground },
+  joined: { fontSize: 14, lineHeight: 24, fontWeight: '600', color: t.mutedForeground },
+  membersTitle: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '700',
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  error: { color: t.destructive },
+}));
 
 interface MemberProfile {
   id: string;
@@ -42,6 +57,7 @@ interface StarterPackDetail {
 }
 
 export default function StarterPackDetailScreen() {
+  const textStyles = useTextStyles();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -142,20 +158,13 @@ export default function StarterPackDetailScreen() {
           </View>
         )}
 
-        <Text
-          className="text-[22px] leading-6 font-bold text-center text-foreground"
-          numberOfLines={2}
-        >
+        <Text style={textStyles.name} numberOfLines={2}>
           {pack.name}
         </Text>
 
-        {pack.description && (
-          <Text className="text-[15px] leading-[22px] text-center text-muted-foreground">
-            {pack.description}
-          </Text>
-        )}
+        {pack.description && <Text style={textStyles.description}>{pack.description}</Text>}
 
-        <Text className="text-sm leading-6 text-muted-foreground">
+        <Text style={textStyles.count}>
           {members.length} {members.length === 1 ? 'account' : 'accounts'}
           {pack.useCount > 0
             ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
@@ -178,18 +187,14 @@ export default function StarterPackDetailScreen() {
         {pack.useCount >= 50 && (
           <View className="flex-row items-center gap-1.5 mt-1">
             <RiLineChartLine width={14} height={14} fill={theme.colors.textSecondary} />
-            <Text className="text-sm leading-6 font-semibold text-muted-foreground">
-              {formatCompactNumber(pack.useCount)} joined
-            </Text>
+            <Text style={textStyles.joined}>{formatCompactNumber(pack.useCount)} joined</Text>
           </View>
         )}
       </View>
 
       {/* Member list — rows are full-bleed, so only the section title is inset. */}
       <View className="pt-2 pb-8">
-        <Text className="text-base leading-6 font-bold mb-3 px-4 text-foreground">
-          Accounts in this pack
-        </Text>
+        <Text style={textStyles.membersTitle}>Accounts in this pack</Text>
         {/* The shared user row; its follow button renders nothing on the viewer's own row. */}
         {members.map((m) => (
           <ProfileCard
@@ -237,7 +242,7 @@ export default function StarterPackDetailScreen() {
         <ScreenScrollView>
           {error ? (
             <View className="items-center justify-center py-16">
-              <Text className="text-destructive">{error}</Text>
+              <Text style={textStyles.error}>{error}</Text>
             </View>
           ) : loading ? (
             <DetailSkeleton />

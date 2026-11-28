@@ -136,15 +136,10 @@ jest.mock('@oxy.so/services', () => {
       get: (_t, name) => {
         if (name === '__esModule') return true;
         if (name === 'useAuth' || name === 'useOxy') return () => auth;
-        if (name === 'queryKeys')
-          return new Proxy(
-            {},
-            {
-              get:
-                (_q, key) =>
-                (...args: unknown[]) => [key, ...args],
-            },
-          );
+        // The people the rows read (Services 15's `User`) and the actor cache's
+        // write, real: a stand-in component would have neither `get` nor `put`.
+        if (name === 'User' || name === 'storeUsers')
+          return require('@/test-support/oxyUsers').oxyUsers[name];
         if (typeof name === 'string' && /^use[A-Z]/.test(name))
           return () => ({ data: undefined, isLoading: false });
         if (typeof name === 'string' && /^[A-Z]/.test(name)) return () => null;

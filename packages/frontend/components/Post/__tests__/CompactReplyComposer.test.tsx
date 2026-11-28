@@ -1,14 +1,19 @@
 import TestRenderer, { act } from 'react-test-renderer';
 import { TextInput } from 'react-native';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 import { CompactReplyComposer } from '../CompactReplyComposer';
 
 let mockSessionEpoch = 1;
 let mockViewerId: string | null = 'a';
+/** The rendered viewer (`useAuth`) and the signed-in account (the scope), moved together as on device. */
+function setViewer(id: string | null) {
+  mockViewerId = id;
+  signInAs(id);
+}
 const mockCreateReply = jest.fn();
 const mockToast = jest.fn();
 const mockOpenMediaPicker = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuthStore: { getState: () => ({ user: mockViewerId ? { id: mockViewerId } : null }) },
   useOxy: () => ({ sessionClient: null, sessionMode: 'account' }),
   useAuth: () => ({
     user: mockViewerId ? { id: mockViewerId } : null,
@@ -67,16 +72,18 @@ jest.mock('@oxy.so/bloom/layout', () => ({
   ScrollArea: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+afterEach(signOutForTests);
+
 beforeEach(() => {
   mockSessionEpoch = 1;
-  mockViewerId = 'a';
+  setViewer('a');
   mockCreateReply.mockReset();
   mockToast.mockReset();
   mockOpenMediaPicker.mockReset();
 });
 
 it('reports an unavailable session without sending or clearing a reply', async () => {
-  mockViewerId = null;
+  setViewer(null);
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(<CompactReplyComposer postId="p" onPosted={jest.fn()} />);
@@ -120,7 +127,7 @@ it.each(['success', 'failure'] as const)(
         .props.onPress();
     });
     mockSessionEpoch += 1;
-    mockViewerId = 'b';
+    setViewer('b');
     await act(async () => {
       if (outcome === 'success') complete();
       else fail(new Error('unknown outcome'));
@@ -263,10 +270,10 @@ it.each(['aba', 'logout', 'unmount'] as const)(
         .props.onPress();
     });
     mockSessionEpoch += 1;
-    mockViewerId = transition === 'logout' ? null : 'b';
+    setViewer(transition === 'logout' ? null : 'b');
     if (transition === 'aba') {
       mockSessionEpoch += 1;
-      mockViewerId = 'a';
+      setViewer('a');
     }
     if (transition === 'unmount') act(() => renderer.unmount());
     await act(async () => {
@@ -634,7 +641,7 @@ it('uses the existing image picker and rejects a late selection from an earlier 
   expect(draft.store.getState().mediaIds).toEqual([
     { id: 'private-image', type: 'image', alt: 'Original alt' },
   ]);
-  mockViewerId = 'b';
+  setViewer('b');
   act(() => select([{ id: 'old-viewer-image', type: 'image' }]));
   expect(draft.store.getState().mediaIds).toHaveLength(1);
   act(() => renderer.unmount());

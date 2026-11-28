@@ -21,8 +21,9 @@ export function viewerCacheId(viewerId: ViewerId): string {
 
 /**
  * Mention-owned data that is identical for every caller. Canonical Oxy identity
- * objects are intentionally not duplicated here: callers must use
- * `@oxy.so/services`' `queryKeys.users.*` for those public identity records only.
+ * objects are intentionally not duplicated here: they live in `@oxy.so/services`'
+ * `User` (the account's bloom-data store), read with its `useUserById` or
+ * `useEntity(User, id)` and written through `lib/actorCache`.
  */
 export const publicQueryKeys = {
   commerceProducts: (query: string) => [...PUBLIC_ROOT, 'commerce-products', query] as const,
@@ -618,6 +619,9 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'recommendations', 'infinite', excludeTypesCsv] as const,
   newestUsers: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'newest-users'] as const,
   viewerFollowing: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'following'] as const,
+  /** The profiles of a few of the accounts the viewer follows (the video tab's faces). */
+  followingProfiles: (viewerId: ViewerId, ids: readonly string[]) =>
+    [...viewerQueryKeys.viewerFollowing(viewerId), 'profiles', ids.join(',')] as const,
   postActivity: (viewerId: ViewerId, userId: string | null | undefined) =>
     [...viewerQueryKeys.all(viewerId), 'post-activity', userId ?? ''] as const,
   /** Syra podcast shows the viewer is subscribed to (the podcast card's save button). */
@@ -625,6 +629,9 @@ export const viewerQueryKeys = {
     [...viewerQueryKeys.all(viewerId), 'syra-podcast-subscriptions'] as const,
   federatedProfile: (viewerId: ViewerId, handle: string) =>
     [...viewerQueryKeys.all(viewerId), 'federated-profile', handle] as const,
+  /** A handle Oxy answered under another username, which the SDK's index cannot find. */
+  renamedProfile: (viewerId: ViewerId, handle: string) =>
+    [...viewerQueryKeys.all(viewerId), 'renamed-profile', handle] as const,
   liveUsers: (viewerId: ViewerId) => [...viewerQueryKeys.all(viewerId), 'live-users'] as const,
   profileMediaSearch: (viewerId: ViewerId, type: string, query: string) =>
     [...viewerQueryKeys.all(viewerId), 'profile-media-search', type, query] as const,

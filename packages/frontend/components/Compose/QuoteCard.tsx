@@ -49,7 +49,12 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
 
   if (loading) {
     return (
-      <Card appearance="subtle" border="thin" radius="radius-16" className="px-4 py-3">
+      <Card
+        appearance="subtle"
+        border="thin"
+        radius="radius-16"
+        style={{ paddingHorizontal: 16, paddingVertical: 12 }}
+      >
         <FeedSkeleton count={1} />
       </Card>
     );
@@ -58,7 +63,12 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   if (!post) return null;
 
   return (
-    <Card appearance="subtle" border="thin" radius="radius-16" className="relative px-4 py-3">
+    <Card
+      appearance="subtle"
+      border="thin"
+      radius="radius-16"
+      style={{ position: 'relative', paddingHorizontal: 16, paddingVertical: 12 }}
+    >
       <View className="flex-row items-start">
         {/* `avatar` is a bare Oxy file id OR an absolute URL, for local and
             federated authors alike — Bloom's Avatar accepts both shapes

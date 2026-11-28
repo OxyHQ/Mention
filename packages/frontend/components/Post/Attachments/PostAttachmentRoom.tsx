@@ -9,9 +9,8 @@ interface PostAttachmentRoomProps {
   topic?: string;
   host?: string;
   onPress?: () => void;
+  /** Layout from the row. */
   style?: StyleProp<ViewStyle>;
-  /** Layout classes from the row. */
-  className?: string;
 }
 
 const PostAttachmentRoom: React.FC<PostAttachmentRoomProps> = ({
@@ -22,7 +21,6 @@ const PostAttachmentRoom: React.FC<PostAttachmentRoomProps> = ({
   host,
   onPress,
   style,
-  className,
 }) => {
   return (
     <RoomCard
@@ -37,7 +35,6 @@ const PostAttachmentRoom: React.FC<PostAttachmentRoomProps> = ({
       variant="compact"
       onPress={onPress}
       style={style}
-      className={className}
     />
   );
 };

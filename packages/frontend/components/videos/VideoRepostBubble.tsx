@@ -5,6 +5,11 @@ import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles(() => ({
+  label: { fontSize: 10, lineHeight: 12, textAlign: 'center', color: '#525252' },
+}));
 
 interface VideoRepostBubbleProps {
   visible: boolean;
@@ -14,6 +19,7 @@ interface VideoRepostBubbleProps {
 
 /** The active reel's repost acknowledgement, using the viewer's actual account. */
 export function VideoRepostBubble({ visible, onAddThought }: VideoRepostBubbleProps) {
+  const textStyles = useTextStyles();
   const { user } = useAuth();
   const { t } = useTranslation();
   if (!visible || !user) return null;
@@ -32,11 +38,11 @@ export function VideoRepostBubble({ visible, onAddThought }: VideoRepostBubblePr
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onAddThought}
-      className="w-16 items-center gap-1"
+      style={{ width: 64, alignItems: 'center', gap: 4 }}
       testID="video-repost-thought"
     >
       <View className="relative w-16 items-center rounded-2xl bg-neutral-100 px-2 py-2">
-        <Text className="text-center text-[10px] leading-3 text-neutral-600">{label}</Text>
+        <Text style={textStyles.label}>{label}</Text>
         <View className="absolute -bottom-1 h-2 w-2 rotate-45 bg-neutral-100" />
       </View>
       {avatar}

@@ -28,6 +28,11 @@ const mockViewer: { current: User | null } = { current: null };
 const mockFetchProfile = jest.fn<Promise<User | null>, [string | null]>();
 const mockLoadAppearance = jest.fn();
 const mockResolveProfile = jest.fn();
+const mockByUsername = jest.fn();
+beforeEach(() => {
+  mockByUsername.mockReset();
+  mockByUsername.mockResolvedValue(null);
+});
 const mockPeople = jest.fn();
 const mockDocumentProfile = jest.fn<User | null, [string]>(() => null);
 
@@ -50,25 +55,46 @@ jest.mock('@oxy.so/services/ui/client', () => {
     useAuth: () => ({
       user: mockViewer.current,
       oxyServices: {
-        users: { resolveHandle: mockResolveProfile },
+        users: { resolveHandle: mockResolveProfile, byUsername: mockByUsername },
         safety: { people: mockPeople },
         assets: { renderUrl: (ref: string) => `https://cloud.oxy.so/${ref}` },
       },
     }),
-    queryKeys: { users: { byUsername } },
-    // The SDK hook's own options, verbatim — a 5-minute `staleTime`, a
-    // 30-minute `gcTime`, `refetchOnMount: true` and the viewer in the key. The
-    // point of running real react-query here rather than a stub is that
-    // `isPending` has to mean what it means in the app: this key holds nothing.
-    useUserByUsername: (username: string | null) =>
-      useQuery({
+    // The SDK read's own freshness, verbatim — a 5-minute staleness, a
+    // 30-minute retention, a re-read on mount and the viewer in the key — run on
+    // a real react-query and presented as the Services 15 `RecordView` the hook
+    // reads (`value`, `status`, `refresh`). The point of running a real cache
+    // here rather than a stub is that "nothing to show yet" has to mean what it
+    // means in the app: this key holds nothing.
+    useUserByUsername: (username: string | null) => {
+      const query = useQuery({
         queryKey: byUsername(username ?? '', mockViewer.current?.id ?? ''),
         queryFn: () => mockFetchProfile(username),
         enabled: Boolean(username),
         staleTime: 5 * 60 * 1000,
         gcTime: 30 * 60 * 1000,
         refetchOnMount: true,
-      }),
+      });
+      const fetching = query.fetchStatus === 'fetching';
+      return {
+        // The SDK's `username` index: an answer under another name is not found.
+        value:
+          query.data?.username?.toLowerCase() === username?.trim().toLowerCase()
+            ? query.data
+            : undefined,
+        status: query.status === 'pending' ? (fetching ? 'loading' : 'idle') : query.status,
+        fetchStatus: query.fetchStatus,
+        error: query.error,
+        failureCount: query.failureCount,
+        updatedAt: query.dataUpdatedAt,
+        origin: query.data === undefined ? undefined : 'network',
+        isLoading: query.isLoading,
+        isFetching: fetching,
+        refresh: async () => {
+          await query.refetch();
+        },
+      };
+    },
   };
 });
 
@@ -207,6 +233,20 @@ describe('useProfileData — the viewer’s own profile', () => {
     const renderer = mountProbe('nate', sink);
 
     expect(sink[0]).toEqual({ loading: true, displayName: null });
+    act(() => renderer.unmount());
+  });
+
+  it('shows a profile Oxy answers under another username', async () => {
+    const merged = user('other-1', 'ada-lovelace', 'Ada');
+    mockFetchProfile.mockResolvedValue(merged);
+    mockByUsername.mockResolvedValue(merged);
+
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe('ada', sink);
+    await settle();
+
+    expect(mockByUsername).toHaveBeenCalledWith('ada');
+    expect(sink.at(-1)).toEqual({ loading: false, displayName: 'Ada' });
     act(() => renderer.unmount());
   });
 

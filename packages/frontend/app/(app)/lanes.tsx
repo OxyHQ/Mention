@@ -289,7 +289,11 @@ export default function LanesScreen() {
         })}
       />
       <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="py-2" keyboardShouldPersistTaps="handled">
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{ paddingVertical: 8 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <GroupedSection>
             <View className="px-4 py-3.5 flex-row items-center gap-3">
               <RiInformationFill size="md" fill={colors.primary} />
@@ -318,12 +322,7 @@ export default function LanesScreen() {
                 editable={!createMutation.isPending && !atCap}
               />
               {createMutation.isPending ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
+                <Loading variant="inline" size="sm" style={{ flex: undefined }} />
               ) : (
                 <TouchableOpacity
                   accessibilityRole="button"

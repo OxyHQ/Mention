@@ -138,7 +138,10 @@ export function CommunityNotesScreen({
         />
       }
     >
-      <ScreenScrollView contentContainerClassName="gap-6 pb-10 pt-4">
+      <ScreenScrollView
+        contentView
+        contentContainerStyle={{ gap: 24, paddingBottom: 40, paddingTop: 16 }}
+      >
         <Text className="text-foreground px-4 text-[15px] leading-5">{intro}</Text>
         {entries.length === 0 ? (
           <EmptyState title={empty} sticker="communityNotes" />

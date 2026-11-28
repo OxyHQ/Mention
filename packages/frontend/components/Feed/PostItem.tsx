@@ -41,6 +41,7 @@ import { usePostInteractions } from './postInteractions';
 import { showRepostMenu } from './showRepostMenu';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { useColorTokens } from '@oxy.so/bloom/theme';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { presentSheet } from '@/utils/sheet';
@@ -189,6 +190,8 @@ const PostItemContent: React.FC<PostItemProps> = ({
 }) => {
   const { t } = useTranslation();
   const router = useRouter();
+  // The context rows' leading glyphs are drawn in the muted text colour.
+  const contextIconColor = useColorTokens().mutedForeground;
   // Every command this row can issue — engagement, share, the ⋯ menu, sources,
   // insights, community notes — from ONE app-lifetime controller. Nothing is
   // instantiated per row; each command resolves the post when pressed.
@@ -844,13 +847,8 @@ const PostItemContent: React.FC<PostItemProps> = ({
     contextRows.push(
       <ProfileHoverCard key="reposted" username={reposterHandle}>
         <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-          <View className="-ml-4 mr-[3px]">
-            <RiRepeat2Line
-              width={13}
-              height={13}
-              fill="currentColor"
-              className="text-muted-foreground"
-            />
+          <View style={styles.contextRowIcon}>
+            <RiRepeat2Line width={13} height={13} fill={contextIconColor} />
           </View>
           {reposterHref ? (
             // A link to the BOOSTER's profile. The click stops here:
@@ -918,21 +916,11 @@ const PostItemContent: React.FC<PostItemProps> = ({
             else openLikesList();
           }}
         >
-          <View className="-ml-4 mr-[3px]">
+          <View style={styles.contextRowIcon}>
             {isRepostSocialContext ? (
-              <RiRepeat2Line
-                width={13}
-                height={13}
-                fill="currentColor"
-                className="text-muted-foreground"
-              />
+              <RiRepeat2Line width={13} height={13} fill={contextIconColor} />
             ) : (
-              <RiHeartFill
-                width={13}
-                height={13}
-                fill="currentColor"
-                className="text-muted-foreground"
-              />
+              <RiHeartFill width={13} height={13} fill={contextIconColor} />
             )}
           </View>
           <Text
@@ -951,13 +939,8 @@ const PostItemContent: React.FC<PostItemProps> = ({
         className="flex-row items-center"
         style={{ height: POST_CONTEXT_ROW_HEIGHT }}
       >
-        <View className="-ml-4 mr-[3px]">
-          <RiPushpinLine
-            width={13}
-            height={13}
-            fill="currentColor"
-            className="text-muted-foreground"
-          />
+        <View style={styles.contextRowIcon}>
+          <RiPushpinLine width={13} height={13} fill={contextIconColor} />
         </View>
         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
           {t('post.pinned', { defaultValue: 'Pinned' })}
@@ -991,13 +974,8 @@ const PostItemContent: React.FC<PostItemProps> = ({
     // a context-free reply read as an ordinary top-level post.
     const replyRow = (
       <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-        <View className="-ml-4 mr-[3px]">
-          <RiCornerDownRightLine
-            width={13}
-            height={13}
-            fill="currentColor"
-            className="text-muted-foreground"
-          />
+        <View style={styles.contextRowIcon}>
+          <RiCornerDownRightLine width={13} height={13} fill={contextIconColor} />
         </View>
         <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
           {replyContextRow.label
@@ -1366,6 +1344,10 @@ const PostItemContent: React.FC<PostItemProps> = ({
 };
 
 const styles = StyleSheet.create({
+  contextRowIcon: {
+    marginLeft: -16,
+    marginRight: 3,
+  },
   postContainer: {
     borderBottomWidth: StyleSheet.hairlineWidth,
   },

@@ -42,7 +42,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
         <RiMapPinLine width={16} height={16} fill={theme.colors.primary} />
         {isGettingLocation ? (
           <>
-            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
+            <Loading size="sm" style={{ flex: undefined }} />
             <Text style={[styles.text, { color: theme.colors.textSecondary }]}>
               {t('compose.location.getting', { defaultValue: 'Getting location...' })}
             </Text>

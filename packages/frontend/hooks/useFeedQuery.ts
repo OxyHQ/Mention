@@ -10,6 +10,7 @@ import { createLogger } from '@oxy.so/core/logger';
 import { nextUnvisitedCursor } from '@oxy.so/utils/paging';
 import { requestFeedPage, takeBootFeedRead } from '@/services/feedPageRead';
 import { usePostsStore } from '@/stores/postsStore';
+import { actorWriter } from '@/lib/actorCache';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
@@ -81,6 +82,8 @@ async function readFeedPage(
   // may already have been read while the app booted, for this same viewer.
   // Not awaited when there is none: the read must leave in this same tick, while
   // the feed is still rendering.
+  // Bound to the account asking, before the request leaves.
+  const actors = actorWriter();
   const bootRead = takeBootFeedRead(feed, cursor);
   const response = (bootRead && (await bootRead)) ?? (await requestFeedPage(feed, cursor, signal));
 
@@ -98,12 +101,12 @@ async function readFeedPage(
     interstitials: response.interstitials,
   });
 
-  // Prime the React Query actor cache so avatars/names render on web (no
+  // Prime the actor cache so avatars/names render on web (no
   // SQLite) — this is the web feed's only actor source — and seed the shared
   // post cache, so a row overlays the canonical post by id and the post-detail
   // screen renders instantly from `getPostFromDb(id)`. The query keeps its
   // own ordering; this only upserts the post objects.
-  precacheActorsFromPosts(content.items);
+  precacheActorsFromPosts(content.items, actors);
   usePostsStore.getState().cachePosts(content.items);
 
   return {

@@ -1,11 +1,12 @@
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 import { muteService } from '../muteService';
 
 const mockPost = jest.fn();
 const mockDelete = jest.fn();
 const mockGet = jest.fn();
 const mockNotify = jest.fn();
-let mockViewerId: string | undefined = 'viewer-a';
-const mockListeners = new Set<() => void>();
+/** Account-scope subscriptions still open: each call must release its own. */
+const mockListeners = new Set<object>();
 jest.mock('@/utils/api', () => ({
   authenticatedClient: {
     post: (...args: unknown[]) => mockPost(...args),
@@ -16,24 +17,33 @@ jest.mock('@/utils/api', () => ({
 jest.mock('@/stores/feedRankingInvalidation', () => ({
   notifyFeedRankingChanged: (...args: unknown[]) => mockNotify(...args),
 }));
-jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuthStore: {
-    getState: () => ({ user: mockViewerId ? { id: mockViewerId } : undefined }),
-    subscribe: (listener: () => void) => {
-      mockListeners.add(listener);
-      return () => mockListeners.delete(listener);
+// The real account scope, with its subscriptions counted.
+jest.mock('@/lib/accountScope', () => {
+  const actual = jest.requireActual('@/lib/accountScope');
+  return {
+    ...actual,
+    subscribeAccount: (listener: () => void) => {
+      const subscription = {};
+      mockListeners.add(subscription);
+      const unsubscribe = actual.subscribeAccount(listener);
+      return () => {
+        mockListeners.delete(subscription);
+        unsubscribe();
+      };
     },
-  },
-}));
+  };
+});
 jest.mock('@oxy.so/core/logger', () => ({ createLogger: () => ({ warn: jest.fn() }) }));
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockViewerId = 'viewer-a';
+  signInAs('viewer-a');
   mockPost.mockResolvedValue({});
   mockDelete.mockResolvedValue({});
   mockListeners.clear();
 });
+
+afterEach(signOutForTests);
 
 it.each(['muteUser', 'unmuteUser'] as const)(
   '%s notifies only after a successful originating-viewer write',
@@ -51,9 +61,9 @@ it.each(['muteUser', 'unmuteUser'] as const)(
 );
 
 it('refuses an old confirmation after account switch, and an anonymous action', async () => {
-  mockViewerId = 'viewer-b';
+  signInAs('viewer-b');
   expect(await muteService.muteUser('target', 'viewer-a')).toBe(false);
-  mockViewerId = undefined;
+  signInAs(null);
   expect(await muteService.muteUser('target', undefined)).toBe(false);
   expect(mockPost).not.toHaveBeenCalled();
   expect(mockNotify).not.toHaveBeenCalled();
@@ -69,8 +79,8 @@ it('aborts SDK preflight on account change and cannot invalidate the incoming vi
   );
   const pending = muteService.muteUser('target', 'viewer-a');
   const signal: AbortSignal = mockPost.mock.calls[0][2].signal;
-  mockViewerId = 'viewer-b';
-  for (const listener of mockListeners) listener();
+  // The runtime's switch: the scope tells its subscribers synchronously.
+  signInAs('viewer-b');
   expect(signal.aborted).toBe(true);
   if (!finish) throw new Error('Mute was not dispatched');
   // Even a transport that resolves despite cancellation can notify only A.

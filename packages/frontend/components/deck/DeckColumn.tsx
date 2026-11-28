@@ -165,7 +165,7 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
           )}
           <View className="flex-row gap-3">
             <Button
-              className="flex-1"
+              style={{ flex: 1 }}
               appearance="outline"
               onPress={() => {
                 resetPanel(panelId);
@@ -177,7 +177,7 @@ export function DeckColumnHeaderActions({ panelId }: { panelId: string }) {
               {t('deck.reset')}
             </Button>
             <Button
-              className="flex-1"
+              style={{ flex: 1 }}
               disabled={!canRemove}
               appearance="subtle"
               onPress={() => {

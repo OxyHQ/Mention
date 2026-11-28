@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import type { Href } from '@/lib/navigation/router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { cacheActors } from '@/lib/actorCache';
+import { actorWriter } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -57,9 +57,10 @@ export function SimilarAccountsInterstitial({
     queryKey: viewerQueryKeys.similarProfiles(user?.id, subjectId),
     queryFn: async () => {
       if (!subjectId) return [];
+      const actors = actorWriter();
       const similar = await oxyServices.users.similar(subjectId);
       if (similar.length > 0) {
-        cacheActors(similar);
+        actors.cacheActors(similar);
         void enrichMissingAvatars(
           similar.map((profile) => ({ ...profile, avatar: profile.avatar ?? undefined })),
           (ids) => oxyServices.users.getMany(ids),

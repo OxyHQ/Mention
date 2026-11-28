@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { type Store, withStore } from '@oxy.so/bloom-data';
+import { User } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { queryClient as mockQueryClient } from '@/lib/queryClient';
 import { getKnownIdentity, resetIdentityUpdates } from '@/stores/identityUpdates';
-import { cacheActor, cacheActors, noteIdentityChanged } from '../actorCache';
+import { openAccountStore, signOutForTests } from '@/test-support/accountScope';
+import { actorWriter, noteIdentityChanged } from '../actorCache';
 
 /**
  * The one door into the SDK's user cache.
@@ -16,16 +19,13 @@ import { cacheActor, cacheActors, noteIdentityChanged } from '../actorCache';
  * both that the door corrects what passes through it AND that nothing walks
  * around it.
  *
- * The MERGE itself is the SDK's own contract (verified in `@oxy.so/services`).
- * What Mention owns, and what these assert, is the wiring: what is handed to it,
- * keyed to which viewer, with which fields.
+ * The cache is the SDK's REAL `User` entity (Services 15, one bloom-data store
+ * per account) written through its real `storeUsers`, so each assertion reads
+ * the record a profile screen or a post row would render.
  */
 
-const mockUpsertCachedUser = jest.fn();
-const mockUpsertCachedUsers = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
-  upsertCachedUser: (...args: unknown[]) => mockUpsertCachedUser(...args),
-  upsertCachedUsers: (...args: unknown[]) => mockUpsertCachedUsers(...args),
+  ...require('@/test-support/oxyUsers').oxyUsers,
 }));
 
 jest.mock('@/lib/queryClient', () => ({
@@ -34,51 +34,50 @@ jest.mock('@/lib/queryClient', () => ({
 
 const invalidateQueries = mockQueryClient.invalidateQueries as unknown as jest.Mock;
 
-/** The users handed to the batch upsert on its last call. */
-function lastBatch(): unknown[] {
-  expect(mockUpsertCachedUsers).toHaveBeenCalled();
-  const calls = mockUpsertCachedUsers.mock.calls;
-  const [client, users] = calls[calls.length - 1];
-  expect(client).toBe(mockQueryClient);
-  return users as unknown[];
+let store: Store;
+
+/** The held record of `id` in the signed-in account's store. */
+function held(id: string, inStore: Store = store) {
+  return withStore(inStore, () => User.get(id));
+}
+
+/** A surface that already holds its answer: the writer is taken and used at once. */
+function cacheActors(actors: Parameters<ReturnType<typeof actorWriter>['cacheActors']>[0]): void {
+  actorWriter().cacheActors(actors);
+}
+function cacheActor(actor: Parameters<ReturnType<typeof actorWriter>['cacheActor']>[0]): void {
+  actorWriter().cacheActor(actor);
 }
 
 beforeEach(() => {
-  mockUpsertCachedUser.mockReset();
-  mockUpsertCachedUsers.mockReset();
   invalidateQueries.mockReset();
+  store = openAccountStore();
 });
 
 afterEach(() => {
   resetIdentityUpdates();
+  signOutForTests();
 });
 
 describe('noteIdentityChanged', () => {
-  it('hands the edit to the SDK merge-upsert, scoped to the acting viewer', () => {
-    noteIdentityChanged(
-      {
-        id: 'channel-1',
-        username: 'daily',
-        name: { displayName: 'Daily Digest' },
-        avatar: 'avatar-after',
-        bio: 'bio-after',
-      },
-      'viewer-1',
-    );
+  it("stores the edit in the acting viewer's User", () => {
+    noteIdentityChanged({
+      id: 'channel-1',
+      username: 'daily',
+      name: { displayName: 'Daily Digest' },
+      avatar: 'avatar-after',
+      bio: 'bio-after',
+    });
 
-    expect(mockUpsertCachedUser).toHaveBeenCalledTimes(1);
-    expect(mockUpsertCachedUser).toHaveBeenCalledWith(
-      mockQueryClient,
-      {
-        id: 'channel-1',
-        username: 'daily',
-        name: { displayName: 'Daily Digest' },
-        avatar: 'avatar-after',
-        bio: 'bio-after',
-      },
-      'viewer-1',
-      undefined,
-    );
+    expect(held('channel-1')).toMatchObject({
+      id: 'channel-1',
+      username: 'daily',
+      name: { displayName: 'Daily Digest' },
+      avatar: 'avatar-after',
+      bio: 'bio-after',
+    });
+    // Indexed by handle too: the profile screen finds it by username.
+    expect(withStore(store, () => User.lookup('username', 'daily'))).toBe('channel-1');
     expect(getKnownIdentity('channel-1')).toEqual({
       id: 'channel-1',
       username: 'daily',
@@ -88,60 +87,103 @@ describe('noteIdentityChanged', () => {
     });
   });
 
+  it('merges into what a profile read stored instead of replacing it', () => {
+    withStore(store, () =>
+      User.put({
+        id: 'channel-1',
+        username: 'daily',
+        avatar: 'avatar-before',
+        bio: 'kept',
+      } as never),
+    );
+
+    noteIdentityChanged({ id: 'channel-1', avatar: 'avatar-after' });
+
+    expect(held('channel-1')).toMatchObject({
+      username: 'daily',
+      avatar: 'avatar-after',
+      bio: 'kept',
+    });
+  });
+
+  it('wins over a held copy that Oxy dated, which the SDK keeps over an undated one', () => {
+    withStore(store, () =>
+      User.put({
+        id: 'channel-1',
+        username: 'daily',
+        avatar: 'avatar-before',
+        updatedAt: '2026-11-01T00:00:00.000Z',
+      } as never),
+    );
+
+    noteIdentityChanged({ id: 'channel-1', avatar: 'avatar-after' });
+
+    expect(held('channel-1')).toMatchObject({
+      avatar: 'avatar-after',
+      updatedAt: '2026-11-01T00:00:00.000Z',
+    });
+  });
+
   /**
    * The description, both directions.
    *
-   * The React Query user entry behind a channel's page is what renders it, and
-   * `upsertCachedUser` leaves an EXISTING entry's freshness alone — so an edit
-   * that never reaches this call is not merely late, it is invisible until the
-   * five-minute `staleTime` lapses or the page is reloaded. Setting it and
-   * emptying it are different mechanisms (a value that wins the merge versus a
-   * declared clear that lowers the SDK's anti-degradation guard), so one passing
-   * says nothing about the other.
+   * The `User` record behind a channel's page is what renders it, so an edit
+   * that never reaches it is invisible until the page reads the profile again.
+   * Setting it and emptying it are different mechanisms (a value that wins the
+   * merge versus a declared clear that lowers the SDK's anti-degradation
+   * guard), so one passing says nothing about the other.
    */
   describe('a description', () => {
-    it('reaches the cache when it is set', () => {
-      noteIdentityChanged({ id: 'channel-1', username: 'daily', bio: 'bio-after' }, 'viewer-1');
+    beforeEach(() => {
+      withStore(store, () =>
+        User.put({ id: 'channel-1', username: 'daily', bio: 'bio-before' } as never),
+      );
+    });
 
-      const [, user] = mockUpsertCachedUser.mock.calls[0];
-      expect(user).toMatchObject({ bio: 'bio-after' });
+    it('reaches the cache when it is set', () => {
+      noteIdentityChanged({ id: 'channel-1', username: 'daily', bio: 'bio-after' });
+
+      expect(held('channel-1')).toMatchObject({ bio: 'bio-after' });
     });
 
     it('reaches the cache as a DECLARED clear when it is emptied', () => {
       // Oxy omits a cleared scalar exactly as it omits an untouched one, so the
       // payload cannot carry the intent — only the declaration can. Without it
       // the SDK's guard (rightly) preserves the stale text.
-      noteIdentityChanged({ id: 'channel-1', username: 'daily' }, 'viewer-1', {
-        cleared: ['bio'],
-      });
-
-      expect(mockUpsertCachedUser).toHaveBeenCalledWith(
-        mockQueryClient,
+      noteIdentityChanged(
         { id: 'channel-1', username: 'daily' },
-        'viewer-1',
-        { cleared: ['bio'] },
+        {
+          cleared: ['bio'],
+        },
       );
+
+      expect(held('channel-1')?.bio).toBeUndefined();
+      expect(held('channel-1')).toMatchObject({ username: 'daily' });
+    });
+
+    it('keeps the description for an edit that omits it without declaring a clear', () => {
+      noteIdentityChanged({ id: 'channel-1', username: 'daily' });
+
+      expect(held('channel-1')).toMatchObject({ bio: 'bio-before' });
     });
 
     it('declares no clear for an edit that emptied nothing', () => {
       // The guard this lowers is what stops sparse hydration blanking real
       // identity across every Oxy app, so it must be lowered only for a field
       // the writer actually observed being emptied.
-      noteIdentityChanged({ id: 'channel-1', username: 'daily', bio: 'bio-after' }, 'viewer-1', {
-        cleared: [],
-      });
-
-      expect(mockUpsertCachedUser).toHaveBeenCalledWith(
-        mockQueryClient,
-        expect.objectContaining({ bio: 'bio-after' }),
-        'viewer-1',
-        { cleared: [] },
+      noteIdentityChanged(
+        { id: 'channel-1', username: 'daily', bio: 'bio-after' },
+        {
+          cleared: [],
+        },
       );
+
+      expect(held('channel-1')).toMatchObject({ bio: 'bio-after' });
     });
   });
 
   it('invalidates the operated-accounts list and nothing else in its family', () => {
-    noteIdentityChanged({ id: 'channel-1', avatar: 'avatar-after' }, 'viewer-1');
+    noteIdentityChanged({ id: 'channel-1', avatar: 'avatar-after' });
 
     expect(invalidateQueries).toHaveBeenCalledTimes(1);
     const { predicate } = invalidateQueries.mock.calls[0][0];
@@ -164,18 +206,25 @@ describe('noteIdentityChanged', () => {
   it('touches no cache for a write with no id', () => {
     noteIdentityChanged({ id: '', avatar: 'avatar-after' });
 
-    expect(mockUpsertCachedUser).not.toHaveBeenCalled();
+    expect(withStore(store, () => User.ids())).toEqual([]);
     expect(invalidateQueries).not.toHaveBeenCalled();
   });
 });
 
 describe('cacheActors / cacheActor', () => {
+  // Each case writes the stale server copy over what the edit stored: without
+  // the correction the SDK merge (a real value overrides a real value) would
+  // leave the pre-edit value held.
   it('corrects an actor a profile edit has since superseded', () => {
     noteIdentityChanged({ id: 'channel-1', username: 'daily', avatar: 'avatar-after' });
 
     cacheActors([{ id: 'channel-1', username: 'daily', avatar: 'avatar-before' }]);
 
-    expect(lastBatch()).toEqual([{ id: 'channel-1', username: 'daily', avatar: 'avatar-after' }]);
+    expect(held('channel-1')).toMatchObject({
+      id: 'channel-1',
+      username: 'daily',
+      avatar: 'avatar-after',
+    });
   });
 
   it('corrects a single actor the same way', () => {
@@ -183,7 +232,7 @@ describe('cacheActors / cacheActor', () => {
 
     cacheActor({ id: 'channel-1', username: 'daily', avatar: 'avatar-before' });
 
-    expect(mockUpsertCachedUser).toHaveBeenLastCalledWith(mockQueryClient, {
+    expect(held('channel-1')).toMatchObject({
       id: 'channel-1',
       username: 'daily',
       avatar: 'avatar-after',
@@ -198,10 +247,8 @@ describe('cacheActors / cacheActor', () => {
       { id: 'someone-else', username: 'else', avatar: 'their-avatar' },
     ]);
 
-    expect(lastBatch()).toEqual([
-      { id: 'channel-1', username: 'daily', avatar: 'avatar-after' },
-      { id: 'someone-else', username: 'else', avatar: 'their-avatar' },
-    ]);
+    expect(held('channel-1')).toMatchObject({ username: 'daily', avatar: 'avatar-after' });
+    expect(held('someone-else')).toMatchObject({ username: 'else', avatar: 'their-avatar' });
   });
 
   it('corrects a stale description on a surface that carries one', () => {
@@ -215,10 +262,8 @@ describe('cacheActors / cacheActor', () => {
       { id: 'someone-else', username: 'else', bio: 'their-bio' },
     ]);
 
-    expect(lastBatch()).toEqual([
-      { id: 'channel-1', username: 'daily', bio: 'bio-after' },
-      { id: 'someone-else', username: 'else', bio: 'their-bio' },
-    ]);
+    expect(held('channel-1')).toMatchObject({ bio: 'bio-after' });
+    expect(held('someone-else')).toMatchObject({ bio: 'their-bio' });
   });
 
   it('retires the correction once a surface carries the edit, and stops correcting', () => {
@@ -230,9 +275,7 @@ describe('cacheActors / cacheActor', () => {
     // So a value that differs AFTERWARDS is a genuine change made somewhere else
     // — another device, accounts.oxy.so — and must reach the cache unedited.
     cacheActors([{ id: 'channel-1', username: 'daily', avatar: 'avatar-elsewhere' }]);
-    expect(lastBatch()).toEqual([
-      { id: 'channel-1', username: 'daily', avatar: 'avatar-elsewhere' },
-    ]);
+    expect(held('channel-1')).toMatchObject({ avatar: 'avatar-elsewhere' });
   });
 
   it('retires from a SINGLE-actor surface too', () => {
@@ -248,19 +291,61 @@ describe('cacheActors / cacheActor', () => {
     ['an empty array', []],
   ])('does not touch the cache for %s', (_label, input) => {
     cacheActors(input as never);
-    expect(mockUpsertCachedUsers).not.toHaveBeenCalled();
+    expect(withStore(store, () => User.ids())).toEqual([]);
   });
 
   it('does not touch the cache for a missing single actor', () => {
     cacheActor(null);
-    expect(mockUpsertCachedUser).not.toHaveBeenCalled();
+    expect(withStore(store, () => User.ids())).toEqual([]);
+  });
+});
+
+/**
+ * A surface takes its writer before it awaits. An answer that lands after the
+ * account changed must prime nothing: neither the store of the account that
+ * asked (closed on device) nor the next account's, which would otherwise show
+ * the previous account's people and their viewer-relative `relationship`.
+ */
+describe('actorWriter', () => {
+  it('writes into the store it was taken in, even when another is active by then', () => {
+    const writer = actorWriter();
+    const other = openAccountStore();
+
+    writer.cacheActors([{ id: 'user-1', username: 'one' }]);
+
+    expect(held('user-1')).toMatchObject({ username: 'one' });
+    expect(held('user-1', other)).toBeUndefined();
+  });
+
+  it('writes nothing once the account it was taken for is left', () => {
+    const writer = actorWriter();
+    // A switch closes the account's store and opens the next one.
+    void store.close();
+    const next = openAccountStore();
+
+    writer.cacheActors([{ id: 'user-1', username: 'one' }]);
+    writer.cacheActor({ id: 'user-2', username: 'two' });
+
+    expect(held('user-1')).toBeUndefined();
+    expect(held('user-2')).toBeUndefined();
+    expect(withStore(next, () => User.ids())).toEqual([]);
+  });
+
+  it('leaves the identity overlay alone for an answer it drops', () => {
+    noteIdentityChanged({ id: 'channel-1', avatar: 'avatar-after' });
+    const writer = actorWriter();
+    void store.close();
+
+    writer.cacheActor({ id: 'channel-1', avatar: 'avatar-after' });
+
+    expect(getKnownIdentity('channel-1')).toEqual({ id: 'channel-1', avatar: 'avatar-after' });
   });
 });
 
 /**
  * Nothing walks around the door.
  *
- * Six surfaces used to call the SDK upserts directly, and a seventh added later
+ * Six surfaces used to call the SDK's user write directly, and a seventh added later
  * would inherit the bug in silence — the correction simply would not run for it,
  * with no error and no failing test anywhere. A guard per surface is the shape
  * that quietly becomes five of six; this asserts the property that makes one
@@ -301,13 +386,15 @@ describe('the door is the only way in', () => {
     expect(files.length).toBeGreaterThan(300);
   });
 
-  it('is the only module importing the SDK user-cache upserts', () => {
+  it('is the only module importing the SDK user-cache writes', () => {
     const importers = files.filter((file) => {
       const source = fs.readFileSync(file, 'utf8');
       // The IMPORT, not a mention in prose — several files name these helpers in
       // their docstrings, and a docstring cannot walk around anything.
       // Either SDK entry: the root barrel or the lean `ui/client` (services 9.2).
-      return /import\s*\{[^}]*\bupsertCachedUsers?\b[^}]*\}\s*from\s*['"]@oxy\.so\/services(?:\/ui\/client)?['"]/.test(
+      // `storeUsers` is the merge (Services 15); `userWriter` is the same write
+      // captured for later, so it would walk around the correction just as well.
+      return /import\s*\{[^}]*\b(?:storeUsers|userWriter)\b[^}]*\}\s*from\s*['"]@oxy\.so\/services(?:\/ui\/client)?['"]/.test(
         source,
       );
     });

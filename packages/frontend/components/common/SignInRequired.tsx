@@ -52,7 +52,7 @@ export function SignInRequired({ label, description, children }: SignInRequiredP
 
   if (!canUsePrivateApi) {
     return (
-      <ScreenScrollView contentContainerClassName="flex-grow">
+      <ScreenScrollView contentView contentContainerStyle={{ flexGrow: 1 }}>
         <OxyAuthPrompt label={label} description={description} />
       </ScreenScrollView>
     );

@@ -167,8 +167,7 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
           {statsEntries.map((stat) => (
             <PressableScale
               key={stat.key}
-              className="flex-row items-center"
-              style={{ gap: 4 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
               onPress={stat.onPress}
               disabled={!stat.onPress}
             >

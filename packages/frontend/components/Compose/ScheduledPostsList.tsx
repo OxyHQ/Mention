@@ -269,12 +269,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
             })}
           >
             {isCancelling ? (
-              <Loading
-                className="text-primary"
-                variant="inline"
-                size="sm"
-                style={{ flex: undefined }}
-              />
+              <Loading variant="inline" size="sm" style={{ flex: undefined }} />
             ) : (
               <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
             )}
@@ -282,7 +277,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
         </View>
       );
     },
-    [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme, viewerId],
+    [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme, viewerId, tokens],
   );
 
   if (isLoading) {
@@ -297,7 +292,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
             defaultValue: "We couldn't load your scheduled posts",
           })}
         </Text>
-        <Button className="mt-4" onPress={onRetry}>
+        <Button style={{ marginTop: 16 }} onPress={onRetry}>
           {t('common.retry', { defaultValue: 'Retry' })}
         </Button>
       </View>

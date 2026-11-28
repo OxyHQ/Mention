@@ -111,7 +111,12 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
         </Text>
 
         {imageUrl ? (
-          <Card appearance="outline" elevation="none" radius="radius-16" className="mx-4 mb-3">
+          <Card
+            appearance="outline"
+            elevation="none"
+            radius="radius-16"
+            style={{ marginHorizontal: 16, marginBottom: 12 }}
+          >
             <Image
               source={{ uri: imageUrl }}
               className="w-full"
@@ -185,7 +190,7 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
         />
       </ScrollView>
 
-      <Button className="mt-2 mx-4" size="lg" onPress={handleSave}>
+      <Button style={{ marginTop: 8, marginHorizontal: 16 }} size="lg" onPress={handleSave}>
         {t('common.done', { defaultValue: 'Done' })}
       </Button>
     </View>

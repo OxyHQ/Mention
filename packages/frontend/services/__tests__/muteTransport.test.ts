@@ -4,7 +4,6 @@ jest.mock('@/lib/oxyServices', () => {
 });
 jest.mock('@/config', () => ({ API_URL: 'https://mention.fixture.invalid' }));
 jest.mock('@/lib/i18n', () => ({ __esModule: true, default: { language: 'en' } }));
-jest.mock('@oxy.so/services/ui/client', () => ({ useAuthStore: {} }));
 jest.mock('@/stores/feedRankingInvalidation', () => ({ notifyFeedRankingChanged: jest.fn() }));
 
 import type { MutedUsersResponse } from '@mention/shared-types';

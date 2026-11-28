@@ -333,12 +333,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(
           >
             {(color) =>
               isGettingLocation ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
+                <Loading variant="inline" size="sm" style={{ flex: undefined }} />
               ) : (
                 <RiMapPinLine width={20} height={20} fill={color} />
               )

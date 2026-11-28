@@ -3,8 +3,8 @@ import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from '@/lib/navigation/router';
-import { useQueries } from '@tanstack/react-query';
-import { queryKeys } from '@oxy.so/services/ui/client';
+import { useEntities } from '@oxy.so/bloom-data';
+import { User as UserRecord } from '@oxy.so/services/ui/client';
 import type { OxyServices, User } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -35,7 +35,7 @@ import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
@@ -54,26 +54,27 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 
+const useTextStyles = createTokenStyles(() => ({
+  rowTitle: { fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  sectionHeading: { fontSize: 16, lineHeight: 24, fontWeight: '600', marginBottom: 12 },
+  roomTitle: { fontSize: 20, lineHeight: 28, fontWeight: '700', marginBottom: 8 },
+}));
+
 /** The participant pile stays glanceable; the overflow collapses into Bloom's "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
 
 /**
- * The faces for one of the room's avatar piles, read from the same user cache
- * `useRoomUsers` warms (same key, same fetch), for only the ids the pile shows.
+ * The faces for one of the room's avatar piles, read from the SDK's `User`,
+ * which `useRoomUsers` warms for every participant, for only the ids the pile
+ * shows.
  */
 function useRoomAvatarItems(
   userIds: string[],
-  oxyServices: Pick<OxyServices, 'assets' | 'users'>,
+  oxyServices: Pick<OxyServices, 'assets'>,
 ): AvatarGroupItem[] {
-  const results = useQueries({
-    queries: userIds.map((userId) => ({
-      queryKey: queryKeys.users.detail(userId),
-      queryFn: () => oxyServices.users.get(userId),
-      staleTime: 5 * 60 * 1000,
-    })),
-  });
+  const profiles = useEntities(UserRecord, userIds);
   return userIds.map((userId, index) => {
-    const profile = results[index]?.data as User | undefined;
+    const profile = profiles[index];
     return {
       id: userId,
       uri: getAvatarUrl(profile, oxyServices),
@@ -101,6 +102,7 @@ const HostInfo = ({
   hostId: string;
   oxyServices: Pick<OxyServices, 'assets'>;
 }) => {
+  const textStyles = useTextStyles();
   const profile = useUserById(hostId);
   const displayName = getDisplayName(profile, hostId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
@@ -110,9 +112,7 @@ const HostInfo = ({
       <View className="flex-row items-center">
         <Avatar size={48} source={avatarUri} shape="squircle" />
         <View className="flex-1 ml-3">
-          <BloomText className="text-foreground text-base leading-6 font-semibold">
-            {displayName}
-          </BloomText>
+          <BloomText style={textStyles.rowTitle}>{displayName}</BloomText>
           {profile?.username && (
             <Text className="text-sm mt-0.5 text-muted-foreground">@{profile.username}</Text>
           )}
@@ -122,13 +122,13 @@ const HostInfo = ({
   );
 };
 
-const SectionHeading = ({ children }: { children: React.ReactNode }) => (
-  <BloomText className="text-foreground text-base leading-6 font-semibold mb-3">
-    {children}
-  </BloomText>
-);
+const SectionHeading = ({ children }: { children: React.ReactNode }) => {
+  const textStyles = useTextStyles();
+  return <BloomText style={textStyles.sectionHeading}>{children}</BloomText>;
+};
 
 const RoomDetailScreen = () => {
+  const textStyles = useTextStyles();
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -337,7 +337,7 @@ const RoomDetailScreen = () => {
               <View className="flex-row gap-2">
                 {isLive && (
                   <Button
-                    className="flex-1"
+                    style={{ flex: 1 }}
                     leadingIcon={RiBroadcastLine}
                     onPress={() => joinLiveRoom(id)}
                     disabled={actionLoading}
@@ -347,7 +347,7 @@ const RoomDetailScreen = () => {
                 )}
                 {isHost && isScheduled && (
                   <Button
-                    className="flex-1"
+                    style={{ flex: 1 }}
                     leadingIcon={RiPlayFill}
                     onPress={handleStartRoom}
                     loading={actionLoading}
@@ -357,7 +357,7 @@ const RoomDetailScreen = () => {
                 )}
                 {!isHost && isScheduled && (
                   <Button
-                    className="flex-1"
+                    style={{ flex: 1 }}
                     appearance="subtle"
                     tone="neutral"
                     leadingIcon={RiTimeLine}
@@ -368,7 +368,7 @@ const RoomDetailScreen = () => {
                 )}
                 {isHost && isLive && (
                   <Button
-                    className="flex-1"
+                    style={{ flex: 1 }}
                     tone="danger"
                     leadingIcon={RiStopFill}
                     onPress={handleEndRoom}
@@ -379,7 +379,7 @@ const RoomDetailScreen = () => {
                 )}
                 {isEnded && (
                   <Button
-                    className="flex-1"
+                    style={{ flex: 1 }}
                     appearance="subtle"
                     tone="neutral"
                     leadingIcon={RiCheckboxCircleLine}
@@ -434,9 +434,7 @@ const RoomDetailScreen = () => {
 
               {/* Title and description */}
               <View className="px-4 pt-4">
-                <BloomText className="text-foreground text-xl font-bold mb-2">
-                  {room.title}
-                </BloomText>
+                <BloomText style={textStyles.roomTitle}>{room.title}</BloomText>
                 {room.topic && (
                   <Text className="text-base mb-2 text-muted-foreground">{room.topic}</Text>
                 )}
@@ -493,7 +491,13 @@ const RoomDetailScreen = () => {
               {room.stats && (
                 <Card
                   radius="radius-12"
-                  className="mx-4 mt-6 flex-row items-center p-4"
+                  style={{
+                    marginHorizontal: 16,
+                    marginTop: 24,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 16,
+                  }}
                   appearance="outline"
                 >
                   <View className="flex-1 items-center">

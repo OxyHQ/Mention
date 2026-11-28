@@ -13,6 +13,14 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  name: { fontSize: 14, lineHeight: 18, fontWeight: '600' },
+  quiet: { fontSize: 14, lineHeight: 18, color: t.mutedForeground },
+  description: { fontSize: 14, lineHeight: 20, color: t.mutedForeground },
+  pinned: { fontSize: 14, lineHeight: 18, fontWeight: '600', color: t.mutedForeground },
+}));
 
 export interface FeedCardData {
   id: string;
@@ -48,10 +56,17 @@ interface FeedCardProps {
 }
 
 /** Card surface (default) vs. flush full-width feed row (result lists). */
-const OUTER_CLASS: Record<FeedCardVariant, string> = {
-  card: 'w-full p-4 gap-2 rounded-xl bg-card',
-  row: 'w-full px-3 py-3 gap-1 border-b border-border',
-};
+const useOuterStyles = createTokenStyles((t) => ({
+  card: { width: '100%', padding: 16, gap: 8, borderRadius: 12, backgroundColor: t.card },
+  row: {
+    width: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderColor: t.border,
+  },
+}));
 
 /**
  * Feed card matching Bluesky's FeedSourceCard layout:
@@ -70,7 +85,9 @@ export function FeedCard({
   showLikes = false,
   variant = 'card',
 }: FeedCardProps) {
+  const textStyles = useTextStyles();
   const router = useRouter();
+  const outerStyles = useOuterStyles();
   const handlePress = useCallback(() => {
     if (onPress) {
       onPress();
@@ -125,7 +142,7 @@ export function FeedCard({
   return (
     <PressableScale
       onPress={handlePress}
-      className={OUTER_CLASS[variant]}
+      style={outerStyles[variant]}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       testID={`feed-${feed.id}`}
@@ -142,12 +159,12 @@ export function FeedCard({
 
         {/* Text content */}
         <View className="flex-1">
-          <Text className="text-sm font-semibold leading-[18px] text-foreground" numberOfLines={1}>
+          <Text style={textStyles.name} numberOfLines={1}>
             {feed.displayName}
           </Text>
           {feed.creator && (
             <ProfileHoverCard username={getNormalizedUserHandle(feed.creator) ?? undefined}>
-              <Text className="text-sm text-muted-foreground leading-[18px]" numberOfLines={1}>
+              <Text style={textStyles.quiet} numberOfLines={1}>
                 Feed by @{feed.creator.username}
               </Text>
             </ProfileHoverCard>
@@ -168,25 +185,19 @@ export function FeedCard({
       </View>
 
       {showDescription && feed.description ? (
-        <Text
-          className="text-muted-foreground text-sm leading-5"
-          numberOfLines={variant === 'row' ? 2 : 3}
-        >
+        <Text style={textStyles.description} numberOfLines={variant === 'row' ? 2 : 3}>
           {feed.description}
         </Text>
       ) : null}
 
       {statsLine ? (
-        <Text className="text-sm text-muted-foreground leading-[18px]" numberOfLines={1}>
+        <Text style={textStyles.quiet} numberOfLines={1}>
           {statsLine}
         </Text>
       ) : null}
 
       {showLikes && feed.likeCount && feed.likeCount > 0 ? (
-        <Text
-          className="text-sm font-semibold text-muted-foreground leading-[18px]"
-          numberOfLines={1}
-        >
+        <Text style={textStyles.pinned} numberOfLines={1}>
           Pinned by {formatCompactNumber(feed.likeCount)} {feed.likeCount === 1 ? 'user' : 'users'}
         </Text>
       ) : null}
@@ -202,8 +213,9 @@ export function FeedCard({
  * geometry stays as plain style objects here.
  */
 export function FeedCardSkeleton() {
+  const outerStyles = useOuterStyles();
   return (
-    <View className={OUTER_CLASS.card}>
+    <View style={outerStyles.card}>
       <Skeleton.Row style={{ alignItems: 'center', gap: 12 }}>
         <Skeleton.Circle size={36} />
         <Skeleton.Col style={{ flex: 1, gap: 6 }}>

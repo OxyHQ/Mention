@@ -1,7 +1,7 @@
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { ListSkeleton, SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
-import { queryClient } from '@/lib/queryClient';
+import { actorWriter } from '@/lib/actorCache';
 import { refreshPrivacyLists } from '@/services/privacyService';
 import { searchService } from '@/services/searchService';
 import { setPrivacyListMembership } from '@/hooks/usePrivacyControls';
@@ -18,7 +18,6 @@ import {
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { User } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
-import { queryKeys } from '@oxy.so/services/ui/client';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 import React, { useCallback, useState } from 'react';
@@ -71,6 +70,8 @@ export default function BlockedUsersScreen() {
     try {
       setLoading(true);
       blockedLogger.debug('Loading blocked users...');
+      // Bound to the account asking, before the first request leaves.
+      const actors = actorWriter();
       const blockedUsersList = await oxyServices.privacy.blocked();
       blockedLogger.debug('Oxy response received', {
         count: blockedUsersList?.length,
@@ -99,11 +100,7 @@ export default function BlockedUsersScreen() {
       // results are primed into the shared React Query cache so any
       // `useUserById`/profile read for these ids hits the cache.
       const fetched = await oxyServices.users.getMany(userIds);
-      for (const user of fetched) {
-        if (user?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
-        }
-      }
+      actors.cacheActors(fetched.filter((user) => Boolean(user?.id)));
       // Preserve the blocked order; drop ids the bulk fetch couldn't resolve.
       const byId = new Map(fetched.map((user) => [user.id, user]));
       const users = userIds.map((id) => byId.get(id)).filter((user): user is User => Boolean(user));
@@ -327,12 +324,7 @@ export default function BlockedUsersScreen() {
                           accessibilityLabel={user.name.displayName}
                         >
                           {isBlocking ? (
-                            <Loading
-                              className="text-primary"
-                              variant="inline"
-                              size="sm"
-                              style={{ flex: undefined }}
-                            />
+                            <Loading variant="inline" size="sm" style={{ flex: undefined }} />
                           ) : (
                             <RiAddCircleLine width={22} height={22} fill={colors.primary} />
                           )}

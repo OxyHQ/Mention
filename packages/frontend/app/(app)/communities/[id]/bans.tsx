@@ -97,7 +97,7 @@ function CommunityBansScreen() {
           defaultValue: 'Sign in to manage your communities',
         })}
       >
-        <ScreenScrollView contentContainerClassName="pb-10">
+        <ScreenScrollView contentView contentContainerStyle={{ paddingBottom: 40 }}>
           {isLoading ? (
             <View className="py-8">
               <ListSkeleton />

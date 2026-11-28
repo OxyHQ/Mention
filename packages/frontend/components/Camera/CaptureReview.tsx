@@ -9,6 +9,19 @@ import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import type { LocalCapture } from './useCaptureUpload';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles(() => ({
+  close: { fontSize: 24, lineHeight: 32, color: '#ffffff' },
+  failure: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  progress: { fontSize: 16, lineHeight: 24, color: '#ffffff', textAlign: 'center' },
+}));
 
 interface CaptureReviewProps {
   capture: LocalCapture;
@@ -49,6 +62,7 @@ export function CaptureReview({
   publishFailed,
   uploadProgress,
 }: CaptureReviewProps) {
+  const textStyles = useTextStyles();
   const { t } = useTranslation();
   const percentage =
     uploadProgress && uploadProgress.total > 0
@@ -93,7 +107,7 @@ export function CaptureReview({
         accessibilityRole="button"
         accessibilityLabel={t('camera.retake', { defaultValue: 'Retake' })}
       >
-        <Text className="text-white text-2xl">×</Text>
+        <Text style={textStyles.close}>×</Text>
       </Pressable>
 
       <View style={styles.actions}>
@@ -101,14 +115,14 @@ export function CaptureReview({
             does next: one means the file never left the device, the other means
             it did and no post came of it. Neither loses the capture. */}
         {uploadFailed ? (
-          <Text className="text-white text-base leading-6 text-center mb-3">
+          <Text style={textStyles.failure}>
             {t('camera.uploadFailed', {
               defaultValue: "That didn't upload. Check your connection and try again.",
             })}
           </Text>
         ) : null}
         {publishFailed ? (
-          <Text className="text-white text-base leading-6 text-center mb-3">
+          <Text style={textStyles.failure}>
             {t('camera.publishFailed', {
               defaultValue:
                 'Could not confirm publication. Check your posts before trying again. Your capture is still here.',
@@ -117,9 +131,9 @@ export function CaptureReview({
         ) : null}
         {busy ? (
           <View style={styles.busy}>
-            <Loading className="text-white" size="sm" />
+            <Loading color="#ffffff" size="sm" />
             <Text
-              className="text-white text-base text-center"
+              style={textStyles.progress}
               accessibilityRole="progressbar"
               accessibilityLabel={progressLabel}
               accessibilityValue={

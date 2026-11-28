@@ -1,6 +1,8 @@
 import type React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
+import { User } from '@oxy.so/services/ui/client';
 import type { PrivateMentionConversation } from '@mention/shared-types';
 
 /**
@@ -27,8 +29,8 @@ jest.mock('@/hooks/usePrivateMentionConversations', () => ({
 }));
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@oxy.so/services/ui/client', () => ({
+  ...require('@/test-support/oxyUsers').oxyUsers,
   OxyAuthPrompt: () => null,
-  queryKeys: { users: { detail: (id: string) => ['users', id] } },
   useAuth: () => ({
     user: { id: 'viewer' },
     isAuthResolved: true,
@@ -95,17 +97,19 @@ function conversation(
 
 function render() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  client.setQueryData(['users', 'u2'], {
-    id: 'u2',
-    username: 'luis',
-    name: { displayName: 'Luis' },
-  });
+  // The account's `User` holds one participant: the row names them from it.
+  const store = new Store();
+  withStore(store, () =>
+    User.put({ id: 'u2', username: 'luis', name: { displayName: 'Luis' } } as never),
+  );
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
     tree = TestRenderer.create(
-      <QueryClientProvider client={client}>
-        <PrivateMentionsScreen />
-      </QueryClientProvider>,
+      <DataProvider store={store}>
+        <QueryClientProvider client={client}>
+          <PrivateMentionsScreen />
+        </QueryClientProvider>
+      </DataProvider>,
     );
   });
   return tree;

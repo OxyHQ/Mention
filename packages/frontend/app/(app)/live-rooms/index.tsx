@@ -16,7 +16,7 @@ import { RoomsListSkeleton } from '@/components/rooms/RoomsListSkeleton';
 import RoomCard from '@/components/RoomCard';
 import { SEO } from '@/components/SEO';
 
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
@@ -27,6 +27,10 @@ import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
+const useTextStyles = createTokenStyles(() => ({
+  sectionTitle: { fontSize: 20, lineHeight: 28, fontWeight: '700' },
+}));
+
 const SectionHeader = ({
   icon,
   title,
@@ -35,15 +39,18 @@ const SectionHeader = ({
   icon: React.ReactNode;
   title: string;
   subtitle: string;
-}) => (
-  <View className="flex-row items-center mb-3">
-    <View className="mr-3">{icon}</View>
-    <View className="flex-1">
-      <BloomText className="text-foreground text-xl font-bold">{title}</BloomText>
-      <Text className="text-[13px] mt-0.5 text-muted-foreground">{subtitle}</Text>
+}) => {
+  const textStyles = useTextStyles();
+  return (
+    <View className="flex-row items-center mb-3">
+      <View className="mr-3">{icon}</View>
+      <View className="flex-1">
+        <BloomText style={textStyles.sectionTitle}>{title}</BloomText>
+        <Text className="text-[13px] mt-0.5 text-muted-foreground">{subtitle}</Text>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const LiveRoomsScreen = () => {
   const router = useRouter();
@@ -219,7 +226,8 @@ const LiveRoomsScreen = () => {
                 tintColor={theme.colors.primary}
               />
             }
-            contentContainerClassName="pb-6"
+            contentView
+            contentContainerStyle={{ paddingBottom: 24 }}
           >
             {body}
           </ScreenScrollView>

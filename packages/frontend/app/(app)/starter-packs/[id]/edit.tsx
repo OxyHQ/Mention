@@ -269,7 +269,16 @@ export default function EditStarterPackScreen() {
   if (error) {
     return (
       <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            paddingHorizontal: 32,
+          }}
+        >
           <RiCloseCircleLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
@@ -453,7 +462,7 @@ export default function EditStarterPackScreen() {
           accessibilityRole="button"
           accessibilityLabel="Save starter pack"
         >
-          {savingDetails && <SpinnerIcon size={16} className="text-primary-foreground" />}
+          {savingDetails && <SpinnerIcon size={16} color={theme.colors.primaryForeground} />}
           <Text className="text-primary-foreground font-bold font-primary">
             {savingDetails ? 'Saving...' : 'Save changes'}
           </Text>

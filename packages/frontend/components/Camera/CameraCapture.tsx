@@ -23,7 +23,7 @@ import { RiCameraSwitchLine } from '@oxy.so/bloom/icons/RiCameraSwitchLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
 import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
-import { Text } from '@oxy.so/bloom/typography';
+import { fontFamilyStyle, Text } from '@oxy.so/bloom/typography';
 import {
   FLASH_CHOICES,
   HOLD_TO_RECORD_MS,
@@ -43,6 +43,37 @@ import {
 } from './constants';
 import { useVideoRecorder } from './useVideoRecorder';
 import type { LocalCapture } from './useCaptureUpload';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles(() => ({
+  control: { fontSize: 12, lineHeight: 16, color: '#ffffff' },
+  controlSelected: { color: '#fcc800' },
+  modeSelected: { fontSize: 12, lineHeight: 16, color: '#ffffff', fontWeight: '700' },
+  mode: { fontSize: 12, lineHeight: 16, color: 'rgba(255, 255, 255, 0.5)' },
+  permissionTitle: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  permissionBody: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  countdown: {
+    fontFamily: fontFamilyStyle('display').fontFamily,
+    fontSize: 96,
+    lineHeight: 96,
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  recordingTime: { fontSize: 14, lineHeight: 20, color: '#ffffff' },
+  badge: { fontSize: 9, color: '#000000', fontWeight: '700' },
+}));
 
 /** The arc drawn around the shutter while recording. */
 const RING_SIZE = 92;
@@ -128,6 +159,7 @@ interface CameraCaptureProps {
  * Home's neighbour would do all of that behind the feed.
  */
 export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
+  const textStyles = useTextStyles();
   const { t } = useTranslation();
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -388,10 +420,10 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   if (!permission.granted) {
     return (
       <View style={[styles.root, styles.explain]}>
-        <Text className="text-white text-lg text-center mb-2">
+        <Text style={textStyles.permissionTitle}>
           {t('camera.permissionTitle', { defaultValue: 'Let Mention use the camera' })}
         </Text>
-        <Text className="text-white/70 text-base leading-6 text-center mb-6">
+        <Text style={textStyles.permissionBody}>
           {t('camera.permissionBody', {
             defaultValue: 'Photos and videos you take here are only posted when you choose to.',
           })}
@@ -482,14 +514,14 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
 
       {countdown !== null ? (
         <View style={styles.countdown} pointerEvents="none">
-          <Text className="text-white text-8xl font-bold">{countdown}</Text>
+          <Text style={textStyles.countdown}>{countdown}</Text>
         </View>
       ) : null}
 
       {recording ? (
         <View style={styles.recordingBadge} pointerEvents="none">
           <View style={styles.recordingDot} />
-          <Text className="text-white text-sm">
+          <Text style={textStyles.recordingTime}>
             {phase === 'starting' ? t('camera.preparing') : formatRemaining(remaining)}
           </Text>
         </View>
@@ -518,7 +550,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                 amount: `${stop}×`,
               })}
             >
-              <Text className={selected ? 'text-yellow-400 text-xs' : 'text-white text-xs'}>
+              <Text style={[textStyles.control, selected && textStyles.controlSelected]}>
                 {text}
               </Text>
             </Pressable>
@@ -619,11 +651,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                   : t('camera.modePhoto', { defaultValue: 'Photo' })
               }
             >
-              <Text
-                className={
-                  option === captureMode ? 'text-white text-xs font-bold' : 'text-white/50 text-xs'
-                }
-              >
+              <Text style={option === captureMode ? textStyles.modeSelected : textStyles.mode}>
                 {option === 'video'
                   ? t('camera.modeVideo', { defaultValue: 'Video' })
                   : t('camera.modePhoto', { defaultValue: 'Photo' })}
@@ -660,6 +688,7 @@ function RoundButton({
   style?: StyleProp<ViewStyle>;
   onPress: () => void;
 }) {
+  const textStyles = useTextStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -673,7 +702,7 @@ function RoundButton({
       <Icon width={20} height={20} fill={active ? '#facc15' : '#fff'} />
       {badge ? (
         <View style={styles.roundBadge}>
-          <Text className="text-black text-[9px] font-bold">{badge}</Text>
+          <Text style={textStyles.badge}>{badge}</Text>
         </View>
       ) : null}
     </Pressable>

@@ -277,6 +277,8 @@ for display.
 
 - **Import runtime values from `@mention/shared-types` public subpaths; reserve its root for types.** The CommonJS root also exports Zod schemas, pulling a second, CommonJS Zod runtime beside the ESM runtime already used by the frontend. Use `/job`, `/lane`, `/realtime`, `/communityNotes`, `/post`, `/feed`, or `/mtn/config` as appropriate. Gate: `sharedTypesEntryIsolation.test.ts`; verify the production bundle after changing entry boundaries.
 - **React Query keys and effect deps MUST include `isAuthenticated` / `user?.id`** — SSO restore takes 5–25 s, and keying on `oxyServices` or `[]` fetches once while anonymous and never recovers. Gate private endpoints on `useAuth().canUsePrivateApi`, not just `isAuthenticated` (`usePrivacyControls`'s infinite-401 pattern). Jest does not reproduce this; verify in a real foregrounded tab.
+- **People live in the SDK's per-account `User` entity; take the writer before the request.** Fetched actors go in through `lib/actorCache.ts`: call `actorWriter()` before the `await` and write the answer through it, so an answer that lands after an account switch is dropped instead of entering the next account's cache. Code outside React reads the signed-in account through `lib/accountScope.ts`.
+- **Bloom components take no `className`.** Use their props, `style`, token styles (`createTokenStyles`) or a wrapping `View`. Typecheck does not catch every case (`Text`, `PressableScale` and icons still accept the prop, which then does not style them as written).
 - **Web lists are Bloom's `VirtualList`.** It windows against the Screen's scroller (window or element-kind panel) and owns `onEndReached`, origin measurement and retained-screen idling. Do not add an app-local virtualizer or a load-more sentinel; a missing capability goes into Bloom. Gate: `validate:source-rules`. Why a direct `@tanstack/react-virtual` caller freezes under the React Compiler: `docs/frontend-compiler-notes.md`.
 - **Bind the root Bloom provider to Expo Router.** Pass the stable `expoRouterScrollAdapter` so saved offsets and measurements include the nearest route identity and focus. Bloom's universal default is inert; a static shell panel id alone cannot identify different pages. Deck keeps its own navigation scope.
 - **Restore layout with the same identity as its content.** Web route `Slot` navigation legitimately unmounts lists. Pass the canonical viewer/feed, saved-query, notification-tab or profile-media identity as Bloom's `restorationKey` so measured heights survive alongside the saved offset. Mention's list wrappers require that identity; never fall back to a route-only or tab-only key. Bloom owns the bounded measurement store. Profile grids keep the profile shell as their sole offset owner.
@@ -378,7 +380,7 @@ native event ordering and encoded clip.
 
 ## Shared controls and rows
 
-Bloom 22 supplies `Button` and `Button.Group` for actions, `GroupedSection` and
+Bloom supplies `Button` and `Button.Group` for actions, `GroupedSection` and
 `GroupedSectionItem` for settings, and `ListItem` for person and conversation rows.
 Mention supplies identities, translated labels, permissions and callbacks. Custom
 noninteractive row text uses `pointerEvents="none"` so clicking the visible name

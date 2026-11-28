@@ -36,7 +36,7 @@ import {
 } from '@oxy.so/bloom/segmented-control';
 import type { AccountInsights, EngagementRatios } from '@/services/insightsService';
 import type { HydratedPost } from '@mention/shared-types';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { RiCalendarEventLine } from '@oxy.so/bloom/icons/RiCalendarEventLine';
 import { RiChat3Line } from '@oxy.so/bloom/icons/RiChat3Line';
 import { RiHeart3Line } from '@oxy.so/bloom/icons/RiHeart3Line';
@@ -48,6 +48,11 @@ import {
   buildWeekdayInteractions,
   buildPublishingSummary,
 } from './insightsSeries';
+
+const useTextStyles = createTokenStyles((t) => ({
+  quietSmall: { fontSize: 12, lineHeight: 16, color: t.mutedForeground },
+  quiet: { fontSize: 14, lineHeight: 20, color: t.mutedForeground },
+}));
 
 const PERIOD_OPTIONS = [
   { labelKey: 'insights.period.7days', value: 7 },
@@ -101,6 +106,7 @@ export function InsightsDashboard({
   activeTab,
   isFetching,
 }: InsightsDashboardProps) {
+  const textStyles = useTextStyles();
   const { colors } = useTheme();
   const router = useRouter();
   const openPostEngagement = useOpenPostEngagement();
@@ -287,11 +293,11 @@ export function InsightsDashboard({
             </Button>
           )}
         </View>
-        <Text className="text-xs text-muted-foreground" accessibilityLiveRegion="polite">
+        <Text style={textStyles.quietSmall} accessibilityLiveRegion="polite">
           {isFetching ? t('insights.updating') : `${range} · UTC`}
         </Text>
       </View>
-      <Text className="text-sm text-muted-foreground">{t('insights.periodScope')}</Text>
+      <Text style={textStyles.quiet}>{t('insights.periodScope')}</Text>
 
       {activeTab === 'overview' ? (
         <>
@@ -489,7 +495,7 @@ export function InsightsDashboard({
               legendLabels={[t('insights.fewer'), t('insights.more')]}
             />
           </ResponsiveGrid>
-          <Text className="text-xs text-muted-foreground">{t('insights.weekdayScope')}</Text>
+          <Text style={textStyles.quietSmall}>{t('insights.weekdayScope')}</Text>
           <ResponsiveGrid stretchItems>
             <BarListCard
               title={t('insights.engagementRatios')}

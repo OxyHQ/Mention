@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { FeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
@@ -11,6 +11,7 @@ import {
 import { useAgeProtections } from '@/hooks/useAgeProtections';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@oxy.so/core/logger';
+import { isRecentCopy, savedFeedsWriter, useSavedFeedsCopy } from '@/lib/savedFeedsCopy';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -73,11 +74,25 @@ export function useFeedPreferences(): UseFeedPreferences {
     queryKey,
     enabled: canUsePrivateApi,
     staleTime: 5 * 60 * 1000,
-    queryFn: () => feedPreferencesService.get(),
-    // The home tab row: kept for this account across restarts, so a returning
-    // viewer's first paint shows their tabs instead of shifting the feed down.
-    meta: { persist: 'account' },
+    queryFn: async () => {
+      // The home tab row: kept for this account across restarts, so a returning
+      // viewer's first paint shows their tabs instead of shifting the feed down.
+      const keep = user?.id ? savedFeedsWriter(user.id) : undefined;
+      const preferences = await feedPreferencesService.get();
+      keep?.(preferences);
+      return preferences;
+    },
   });
+
+  // The kept layout stands in as the query's data until the server answers, dated
+  // when it was read, so it never replaces anything newer.
+  const kept = useSavedFeedsCopy(user?.id);
+  useEffect(() => {
+    if (!kept || !isRecentCopy(kept) || queryClient.getQueryData(queryKey) !== undefined) return;
+    queryClient.setQueryData<FeedPreferences>(queryKey, kept.preferences, {
+      updatedAt: kept.readAt,
+    });
+  }, [kept, queryClient, queryKey]);
 
   // A minor's account is not offered the ranked presets (oxy ADR 0068), so its
   // home tabs open on Following. The server refuses those feeds to it as well.

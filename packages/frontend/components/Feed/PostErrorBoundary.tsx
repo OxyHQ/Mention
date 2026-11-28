@@ -4,6 +4,11 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { logger } from '@oxy.so/core/logger';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  message: { fontSize: 14, lineHeight: 20, color: t.mutedForeground },
+}));
 
 interface Props {
   children: React.ReactNode;
@@ -17,9 +22,10 @@ interface State {
 }
 
 function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
+  const textStyles = useTextStyles();
   return (
     <View className="border-border" style={styles.container}>
-      <Text className="text-muted-foreground text-sm">This post could not be displayed.</Text>
+      <Text style={textStyles.message}>This post could not be displayed.</Text>
       <Button appearance="plain" size="sm" onPress={onRetry}>
         Tap to retry
       </Button>

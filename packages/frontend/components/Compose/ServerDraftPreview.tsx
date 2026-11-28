@@ -106,7 +106,7 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
 
       <View className="flex-row items-center gap-2 px-4 py-3">
         <Button
-          className="flex-1"
+          style={{ flex: 1 }}
           appearance="subtle"
           tone="neutral"
           size="lg"
@@ -118,7 +118,7 @@ const ServerDraftPreview: React.FC<ServerDraftPreviewProps> = ({
           {t('common.edit', { defaultValue: 'Edit' })}
         </Button>
         <Button
-          className="flex-1"
+          style={{ flex: 1 }}
           appearance="solid"
           tone="danger"
           size="lg"

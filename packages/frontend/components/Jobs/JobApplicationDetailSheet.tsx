@@ -220,7 +220,7 @@ const JobApplicationDetailSheet = ({
             </Chip>
           ))}
         </View>
-        {statusMutation.isPending ? <Loading className="text-primary mt-2" size="sm" /> : null}
+        {statusMutation.isPending ? <Loading size="sm" style={{ marginTop: 8 }} /> : null}
       </View>
 
       <View className="pt-3 border-t border-border">

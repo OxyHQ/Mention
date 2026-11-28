@@ -261,7 +261,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
           onPress={onToggleSubscribe}
         />
         <Button
-          className="flex-1"
+          style={{ flex: 1 }}
           appearance={isPinned ? 'solid' : 'subtle'}
           tone={isPinned ? 'accent' : 'neutral'}
           leadingIcon={isPinned ? RiPushpinFill : RiPushpinLine}
@@ -465,7 +465,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
   return (
     <View className="p-4 gap-1">
       <Button
-        className="mb-2"
+        style={{ marginBottom: 8 }}
         appearance="outline"
         tone="neutral"
         leadingIcon={RiEditBoxLine}
@@ -534,7 +534,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
 
       {hasNextPage && (
         <Button
-          className="my-3"
+          style={{ marginVertical: 12 }}
           appearance="plain"
           tone="accent"
           loading={isFetchingNextPage}

@@ -578,6 +578,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
     // The same two heights as classes, for the cells that take their size from
     // layout. Literal strings: NativeWind compiles them at build time.
     const rowCellClass = isTallRow ? 'h-[264px]' : 'h-[200px]';
+    // The same sizes as a style, for the cells a Bloom card draws.
+    const cardCellStyle = (width: number): ViewStyle =>
+      isSingleItem ? { width: '100%' } : { width, height: rowHeight };
 
     const { measureAnchor, flyTo } = useMediaFlight();
 
@@ -950,7 +953,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
                 ? () => router.push(`/events/${encodeURIComponent(postId)}`)
                 : onEventPress || undefined
             }
-            className={isSingleItem ? 'w-full' : `w-[240px] ${rowCellClass}`}
+            style={cardCellStyle(240)}
           />
         );
       }
@@ -964,7 +967,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             topic={room?.topic}
             host={room?.host}
             onPress={onRoomPress || undefined}
-            className={isSingleItem ? undefined : `w-[260px] ${rowCellClass}`}
+            style={isSingleItem ? undefined : cardCellStyle(260)}
           />
         );
       }
@@ -1033,7 +1036,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(
             siteName={item.siteName}
             author={item.author}
             coverFill={!isSingleItem}
-            className={isSingleItem ? 'w-full' : `w-[280px] ${rowCellClass}`}
+            style={cardCellStyle(280)}
           />
         );
       }

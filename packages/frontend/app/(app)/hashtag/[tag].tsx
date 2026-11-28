@@ -10,8 +10,14 @@ import { SEO } from '@/components/SEO';
 import { WEB_BASE_URL } from '@/config';
 import { matchesServerSEOPath, readServerSEO } from '@/lib/seoHandoff';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles(() => ({
+  title: { fontSize: 28, lineHeight: 32, fontWeight: '700', marginBottom: 4, flex: 1 },
+}));
 
 export default function HashtagScreen() {
+  const textStyles = useTextStyles();
   const { tag } = useLocalSearchParams<{ tag: string }>();
   const { t } = useTranslation();
 
@@ -34,9 +40,7 @@ export default function HashtagScreen() {
     () => (
       <View className="px-4 pb-2">
         <View className="flex-row items-center justify-between">
-          <Text className="text-[28px] leading-8 font-bold mb-1 font-primary flex-1 text-foreground">
-            {displayTag}
-          </Text>
+          <Text style={textStyles.title}>{displayTag}</Text>
           <EntityFollowButton
             entityType="hashtag"
             entityId={hashtag}
@@ -46,7 +50,7 @@ export default function HashtagScreen() {
         </View>
       </View>
     ),
-    [displayTag, hashtag],
+    [displayTag, hashtag, textStyles],
   );
 
   return (

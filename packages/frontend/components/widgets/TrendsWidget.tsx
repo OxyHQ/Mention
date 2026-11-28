@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { Text } from '@oxy.so/bloom/typography';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/lib/navigation/router';
@@ -13,6 +13,10 @@ import type { Trend } from '@/interfaces/Trend';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { TrendItemRow, TrendItemRowSkeleton } from '@/components/trending/TrendItemRow';
+
+const useTextStyles = createTokenStyles(() => ({
+  trendName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+}));
 
 const MAX_TRENDS_DISPLAYED = 5;
 /** Height of the small plain "Show more" button (Bloom `Button size="small"`). */
@@ -25,6 +29,7 @@ interface TrendsWidgetProps {
 }
 
 export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
+  const textStyles = useTextStyles();
   const { t } = useTranslation();
   const { trends, summary, hasFetched, error, hiddenTrendIds, startPolling, stopPolling } =
     useTrendsStore(
@@ -133,9 +138,7 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   if (variant === 'inline') {
     return (
       <View className="px-4 pt-3 pb-2 border-b border-border">
-        <Text className="text-[15px] font-bold text-foreground mb-1">
-          {t('discovery.trending')}
-        </Text>
+        <Text style={textStyles.trendName}>{t('discovery.trending')}</Text>
         {content}
       </View>
     );

@@ -2,7 +2,7 @@ import { memo, useState, useMemo, useCallback } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { cacheActors } from '@/lib/actorCache';
+import { actorWriter } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Text } from '@oxy.so/bloom/typography';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
@@ -12,6 +12,11 @@ import { logger } from '@oxy.so/core/logger';
 import type { ProfileData } from '@/lib/recommendations';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles(() => ({
+  heading: { fontSize: 15, fontWeight: '700', paddingHorizontal: 16, marginBottom: 4 },
+}));
 
 interface SuggestedUsersProps {
   visible?: boolean;
@@ -33,6 +38,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   maxCards = DEFAULT_MAX_CARDS,
   hideDismiss,
 }: SuggestedUsersProps) {
+  const textStyles = useTextStyles();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
 
@@ -51,10 +57,11 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       // `getSimilarProfiles` returns the SDK `User` shape (optional id); narrow
       // through `unknown` to the looser `ProfileData`, the same erasure the
       // recommendations path produces.
+      const actors = actorWriter();
       const similar: unknown = await oxyServices.users.similar(src);
       const list: ProfileData[] = Array.isArray(similar) ? similar : [];
       if (list.length > 0) {
-        cacheActors(list);
+        actors.cacheActors(list);
         void enrichMissingAvatars(list.slice(0, maxCards), (ids) => oxyServices.users.getMany(ids));
       }
       return list;
@@ -106,9 +113,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
 
   return (
     <View className="pt-3">
-      <Text className="text-foreground text-[15px] font-bold px-4 mb-1">
-        {title || t('suggestions.title')}
-      </Text>
+      <Text style={textStyles.heading}>{title || t('suggestions.title')}</Text>
       {displayedUsers.map((suggested) => (
         <SuggestedUserCard
           key={suggested.id}

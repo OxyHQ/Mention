@@ -162,12 +162,12 @@ function ChannelInfoDialogContent({ onClose }: { onClose: () => void }) {
           appearance="plain"
           tone="neutral"
           size="lg"
-          className="flex-1"
+          style={{ flex: 1 }}
           onPress={onSecondary}
         >
           {isFirstStep ? t('channels.explainer.cancel') : t('channels.explainer.back')}
         </Button>
-        <Button appearance="solid" tone="accent" size="lg" className="flex-1" onPress={onPrimary}>
+        <Button appearance="solid" tone="accent" size="lg" style={{ flex: 1 }} onPress={onPrimary}>
           {isLastStep ? t('channels.explainer.done') : t('channels.explainer.next')}
         </Button>
       </View>

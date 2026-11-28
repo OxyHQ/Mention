@@ -20,10 +20,10 @@ import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { EmptyStateStickerName } from '@/lib/stickers';
-import { cacheActors } from '@/lib/actorCache';
+import { actorWriter } from '@/lib/actorCache';
 import { useAuth, type CacheableUser } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
 import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
@@ -37,6 +37,11 @@ import { shareLink } from '@/utils/shareLink';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
+
+const useTextStyles = createTokenStyles((t) => ({
+  mutualTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  mutualSubtitle: { fontSize: 13, fontWeight: '500', color: t.mutedForeground },
+}));
 
 type TabType = ConnectionTab;
 
@@ -186,6 +191,7 @@ function ConnectionsContent({
   profileNotFound,
   refreshProfile,
 }: ConnectionsContentProps) {
+  const textStyles = useTextStyles();
   const pathname = usePathname();
   const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
@@ -218,18 +224,19 @@ function ConnectionsContent({
     queryFn: async ({ pageParam }): Promise<ConnectionsPage> => {
       if (!profileId) return { users: [] };
       const kind = listKind ?? 'followers';
+      const actors = actorWriter();
       try {
         if (isFederatedProfile) {
           const page = await fetchProfileConnections(profileId, kind, pageParam);
           // `PostUser` is an interface, so it is spread into a plain record to cache.
-          cacheActors(page.users.map((item): CacheableUser => ({ ...item })));
+          actors.cacheActors(page.users.map((item): CacheableUser => ({ ...item })));
           return { users: page.users, nextCursor: page.nextCursor };
         }
         const list =
           kind === 'following'
             ? (await oxyServices.follows.following(profileId)).following
             : (await oxyServices.follows.followers(profileId)).followers;
-        cacheActors(list);
+        actors.cacheActors(list);
         return { users: list };
       } catch (err) {
         // The lists are public; an auth error (no usable bearer yet on cold
@@ -308,10 +315,11 @@ function ConnectionsContent({
     queryFn: async () => {
       const targetId = profileId;
       if (!targetId) return [];
+      const actors = actorWriter();
       try {
         const result = await oxyServices.follows.mutuals(targetId, { limit: 50 });
         const list = result.mutuals;
-        cacheActors(list);
+        actors.cacheActors(list);
         return list;
       } catch (err) {
         // Mutuals require a viewer; on an auth error (no usable bearer yet on
@@ -381,12 +389,12 @@ function ConnectionsContent({
           <RiGroupFill size="md" fill={theme.colors.card} />
         </View>
         <View className="flex-1">
-          <Text className="text-[15px] font-bold mb-0.5 text-foreground">
+          <Text style={textStyles.mutualTitle}>
             {t('settings.inviteContacts.inviteBannerTitle', {
               defaultValue: 'Invite friends from your contacts',
             })}
           </Text>
-          <Text className="text-[13px] font-medium text-muted-foreground">
+          <Text style={textStyles.mutualSubtitle}>
             {t('settings.inviteContacts.inviteBannerSubtitle', {
               defaultValue: 'Share Mention and grow your community.',
             })}
@@ -395,7 +403,7 @@ function ConnectionsContent({
         <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
       </TouchableOpacity>
     ),
-    [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t],
+    [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t, textStyles],
   );
 
   const currentData = useMemo(() => {

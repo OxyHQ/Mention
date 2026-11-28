@@ -80,7 +80,9 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: ({ username }: { username?: string }) => username,
 }));
 jest.mock('@oxy.so/core/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
-jest.mock('@/lib/actorCache', () => ({ cacheActors: jest.fn() }));
+jest.mock('@/lib/actorCache', () => ({
+  actorWriter: () => ({ cacheActors: jest.fn(), cacheActor: jest.fn() }),
+}));
 jest.mock('@/utils/authErrors', () => ({ isAuthError: () => false }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -164,6 +166,7 @@ jest.mock('@oxy.so/bloom/icons/RiGroupFill', () => ({ RiGroupFill: () => null })
 jest.mock('@oxy.so/bloom/icons/RiGroupLine', () => ({ RiGroupLine: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => ({ Tabs: () => null, TabsTrigger: () => null }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
   BloomColorScope: ({ children }: { children: React.ReactNode }) => children,
   useTheme: () => ({ colors: { card: '#fff', textSecondary: '#666' } }),
 }));

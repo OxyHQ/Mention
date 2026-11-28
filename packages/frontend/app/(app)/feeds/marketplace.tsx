@@ -440,7 +440,10 @@ function FeedMarketplaceScreen() {
       }
     >
       {loading && feeds.length === 0 ? (
-        <ScreenScrollView contentContainerClassName="px-4 pt-4 gap-3">
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}
+        >
           {Array.from({ length: 4 }).map((_, i) => (
             <FeedCardSkeleton key={i} />
           ))}
@@ -451,7 +454,8 @@ function FeedMarketplaceScreen() {
         // category-pills ScrollView inside ListHeader stays — a horizontal
         // scroller does not conflict with the document scroll.
         <ScreenScrollView
-          contentContainerClassName="pb-8"
+          contentView
+          contentContainerStyle={{ paddingBottom: 32 }}
           onEndReached={handleLoadMore}
           keyboardShouldPersistTaps="handled"
         >

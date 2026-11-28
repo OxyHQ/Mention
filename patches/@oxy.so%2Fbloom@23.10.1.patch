@@ -1,56 +1,56 @@
 diff --git a/lib/commonjs/theme/BloomThemeProvider.js b/lib/commonjs/theme/BloomThemeProvider.js
-index 29e12b29bb828fe6beb41c3ac5a04a665caadf10..bc0c82fcc0afbbecd1934da93c39ee3e6757f3a7 100644
+index c8e14c7030b0a8eda1881b1c22bb2056f04821a8..fa291f4ea5127399bce4422585aefd034f0c9b71 100644
 --- a/lib/commonjs/theme/BloomThemeProvider.js
 +++ b/lib/commonjs/theme/BloomThemeProvider.js
-@@ -183,6 +183,7 @@ function presetNamed(accent) {
- }
- function BloomThemeProvider({
-   mode: controlledMode,
-+  modeOverride,
-   colorPreset: controlledPreset,
-   defaultMode: requestedDefaultMode,
-   defaultColorPreset: requestedDefaultPreset,
-@@ -287,8 +288,9 @@ function BloomThemeProvider({
-   // already selects the actual preference without changing React attributes.
+@@ -178,6 +178,7 @@ function BloomThemeProvider(t0) {
+   const $ = (0, _compilerRuntime.c)(108);
+   const {
+     mode: controlledMode,
++    modeOverride,
+     colorPreset: controlledPreset,
+     defaultMode: requestedDefaultMode,
+     defaultColorPreset: requestedDefaultPreset,
+@@ -287,8 +288,9 @@ function BloomThemeProvider(t0) {
+   const livePreset = (followSystemAccent ? systemPreset ?? appPreset : appPreset ?? systemPreset) ?? DEFAULT_PRESET;
    const mode = serverPaint ? prepaintTheme?.defaultMode ?? DEFAULT_MODE : liveMode;
    const colorPreset = serverPaint ? prepaintTheme?.defaultColorPreset ?? DEFAULT_PRESET : livePreset;
--  const isAdaptive = mode === 'adaptive';
--  const effectiveMode = isAdaptive ? 'system' : mode;
+-  const isAdaptive = mode === "adaptive";
+-  const effectiveMode = isAdaptive ? "system" : mode;
 +  const appearanceMode = modeOverride ?? mode;
-+  const isAdaptive = appearanceMode === 'adaptive';
-+  const effectiveMode = isAdaptive ? 'system' : appearanceMode;
-   const resolved = effectiveMode === 'system' ? !serverPaint && rnScheme === 'dark' ? 'dark' : 'light' : effectiveMode;
- 
-   // Apply native color scheme, dark class, and CSS vars whenever the resolved
++  const isAdaptive = appearanceMode === "adaptive";
++  const effectiveMode = isAdaptive ? "system" : appearanceMode;
+   const resolved = effectiveMode === "system" ? !serverPaint && rnScheme === "dark" ? "dark" : "light" : effectiveMode;
+   let t9;
+   if ($[16] !== colorPreset || $[17] !== effectiveSecondary || $[18] !== effectiveSeed || $[19] !== effectiveTertiary || $[20] !== explicitAccents || $[21] !== isAdaptive || $[22] !== resolved) {
 diff --git a/lib/module/theme/BloomThemeProvider.js b/lib/module/theme/BloomThemeProvider.js
-index 2019a6e21c209f7b9c60190f5a537789c41f92ad..c026494c37a4a282f8a0f6ae691b3568bf46d623 100644
+index ea7271188683c0ca7eafd000286038c7e2f25dc6..39dfe6740070229f9ae4d42d4a0c0295398a7ef9 100644
 --- a/lib/module/theme/BloomThemeProvider.js
 +++ b/lib/module/theme/BloomThemeProvider.js
-@@ -177,6 +177,7 @@ function presetNamed(accent) {
- }
- export function BloomThemeProvider({
-   mode: controlledMode,
-+  modeOverride,
-   colorPreset: controlledPreset,
-   defaultMode: requestedDefaultMode,
-   defaultColorPreset: requestedDefaultPreset,
-@@ -281,8 +282,9 @@ export function BloomThemeProvider({
-   // already selects the actual preference without changing React attributes.
+@@ -173,6 +173,7 @@ export function BloomThemeProvider(t0) {
+   const $ = _c(108);
+   const {
+     mode: controlledMode,
++    modeOverride,
+     colorPreset: controlledPreset,
+     defaultMode: requestedDefaultMode,
+     defaultColorPreset: requestedDefaultPreset,
+@@ -282,8 +283,9 @@ export function BloomThemeProvider(t0) {
+   const livePreset = (followSystemAccent ? systemPreset ?? appPreset : appPreset ?? systemPreset) ?? DEFAULT_PRESET;
    const mode = serverPaint ? prepaintTheme?.defaultMode ?? DEFAULT_MODE : liveMode;
    const colorPreset = serverPaint ? prepaintTheme?.defaultColorPreset ?? DEFAULT_PRESET : livePreset;
--  const isAdaptive = mode === 'adaptive';
--  const effectiveMode = isAdaptive ? 'system' : mode;
+-  const isAdaptive = mode === "adaptive";
+-  const effectiveMode = isAdaptive ? "system" : mode;
 +  const appearanceMode = modeOverride ?? mode;
-+  const isAdaptive = appearanceMode === 'adaptive';
-+  const effectiveMode = isAdaptive ? 'system' : appearanceMode;
-   const resolved = effectiveMode === 'system' ? !serverPaint && rnScheme === 'dark' ? 'dark' : 'light' : effectiveMode;
- 
-   // Apply native color scheme, dark class, and CSS vars whenever the resolved
++  const isAdaptive = appearanceMode === "adaptive";
++  const effectiveMode = isAdaptive ? "system" : appearanceMode;
+   const resolved = effectiveMode === "system" ? !serverPaint && rnScheme === "dark" ? "dark" : "light" : effectiveMode;
+   let t9;
+   if ($[16] !== colorPreset || $[17] !== effectiveSecondary || $[18] !== effectiveSeed || $[19] !== effectiveTertiary || $[20] !== explicitAccents || $[21] !== isAdaptive || $[22] !== resolved) {
 diff --git a/lib/typescript/commonjs/theme/BloomThemeProvider.d.ts b/lib/typescript/commonjs/theme/BloomThemeProvider.d.ts
-index 06bf9ecc651e384455521b63fbb936d95b477098..04702b3cbf4c5c7a3c33c7c258fa2079ec94a5a7 100644
+index d9197314999bf87dd9f6b509cb91412121d17571..3d2e8fb8a76cda0a9d2b26b93e185d2e7fb6b190 100644
 --- a/lib/typescript/commonjs/theme/BloomThemeProvider.d.ts
 +++ b/lib/typescript/commonjs/theme/BloomThemeProvider.d.ts
-@@ -48,6 +48,8 @@ export interface BloomThemeProviderProps {
+@@ -46,6 +46,8 @@ export interface BloomThemeProviderProps {
      prepaintTheme?: BloomThemeBootstrapConfig;
      /** Controlled mode. Omit to use Bloom's internal state (with optional persistence). */
      mode?: ThemeMode;
@@ -59,7 +59,7 @@ index 06bf9ecc651e384455521b63fbb936d95b477098..04702b3cbf4c5c7a3c33c7c258fa2079
      /**
       * Controlled color preset. Omit to use Bloom's internal state. Like
       * `defaultColorPreset`, it is the app's own colour, which the platform's accent
-@@ -160,5 +162,5 @@ export interface BloomThemeProviderProps {
+@@ -158,5 +160,5 @@ export interface BloomThemeProviderProps {
      surfaces?: SurfaceTint;
      children: React.ReactNode;
  }
@@ -68,10 +68,10 @@ index 06bf9ecc651e384455521b63fbb936d95b477098..04702b3cbf4c5c7a3c33c7c258fa2079
  //# sourceMappingURL=BloomThemeProvider.d.ts.map
 \ No newline at end of file
 diff --git a/lib/typescript/module/theme/BloomThemeProvider.d.ts b/lib/typescript/module/theme/BloomThemeProvider.d.ts
-index ba9a90b2643d58a76384d27072ab1de03735a975..1ca04ad4d11f5e05f5c2f2a2fff4da6864ef3572 100644
+index 19cdc28f4b4b165284aa0c14721237105eb0e621..3df8fef626796fa8f98a8e4eebe73d8f585e87e3 100644
 --- a/lib/typescript/module/theme/BloomThemeProvider.d.ts
 +++ b/lib/typescript/module/theme/BloomThemeProvider.d.ts
-@@ -48,6 +48,8 @@ export interface BloomThemeProviderProps {
+@@ -46,6 +46,8 @@ export interface BloomThemeProviderProps {
      prepaintTheme?: BloomThemeBootstrapConfig;
      /** Controlled mode. Omit to use Bloom's internal state (with optional persistence). */
      mode?: ThemeMode;
@@ -80,7 +80,7 @@ index ba9a90b2643d58a76384d27072ab1de03735a975..1ca04ad4d11f5e05f5c2f2a2fff4da68
      /**
       * Controlled color preset. Omit to use Bloom's internal state. Like
       * `defaultColorPreset`, it is the app's own colour, which the platform's accent
-@@ -160,5 +162,5 @@ export interface BloomThemeProviderProps {
+@@ -158,5 +160,5 @@ export interface BloomThemeProviderProps {
      surfaces?: SurfaceTint;
      children: React.ReactNode;
  }
@@ -89,10 +89,10 @@ index ba9a90b2643d58a76384d27072ab1de03735a975..1ca04ad4d11f5e05f5c2f2a2fff4da68
  //# sourceMappingURL=BloomThemeProvider.d.ts.map
 \ No newline at end of file
 diff --git a/src/theme/BloomThemeProvider.tsx b/src/theme/BloomThemeProvider.tsx
-index 7b221eeb10a4e7fa33a22b3050ea6c2aba4a1016..a86c976cf841c5142bbe3eefe287cd5729633a00 100644
+index 4f4f5c3d99be11be0de5ea9476ef280e6a1ee044..a3f31d06bea3ae4e5c465e03ec9f27b4d028fe4a 100644
 --- a/src/theme/BloomThemeProvider.tsx
 +++ b/src/theme/BloomThemeProvider.tsx
-@@ -121,6 +121,8 @@ export interface BloomThemeProviderProps {
+@@ -113,6 +113,8 @@ export interface BloomThemeProviderProps {
    prepaintTheme?: BloomThemeBootstrapConfig;
    /** Controlled mode. Omit to use Bloom's internal state (with optional persistence). */
    mode?: ThemeMode;
@@ -101,7 +101,7 @@ index 7b221eeb10a4e7fa33a22b3050ea6c2aba4a1016..a86c976cf841c5142bbe3eefe287cd57
    /**
     * Controlled color preset. Omit to use Bloom's internal state. Like
     * `defaultColorPreset`, it is the app's own colour, which the platform's accent
-@@ -406,6 +408,7 @@ function presetNamed(accent: string | null | undefined): AppColorName | null {
+@@ -398,6 +400,7 @@ function presetNamed(accent: string | null | undefined): AppColorName | null {
  
  export function BloomThemeProvider({
    mode: controlledMode,
@@ -109,7 +109,7 @@ index 7b221eeb10a4e7fa33a22b3050ea6c2aba4a1016..a86c976cf841c5142bbe3eefe287cd57
    colorPreset: controlledPreset,
    defaultMode: requestedDefaultMode,
    defaultColorPreset: requestedDefaultPreset,
-@@ -535,8 +538,9 @@ export function BloomThemeProvider({
+@@ -527,8 +530,9 @@ export function BloomThemeProvider({
      ? (prepaintTheme?.defaultColorPreset ?? DEFAULT_PRESET)
      : livePreset;
  

@@ -44,7 +44,7 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: { error: jest.fn() } }));
 jest.mock('@oxy.so/bloom/button', () => ({
   Button: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock('@oxy.so/bloom/typography', () => ({ Text: 'Text' }));
+jest.mock('@oxy.so/bloom/typography', () => ({ Text: 'Text', fontFamilyStyle: () => ({}) }));
 
 import { CameraCapture } from '../CameraCapture';
 

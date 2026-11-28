@@ -15,6 +15,12 @@ import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  handle: { fontSize: 14, lineHeight: 18, color: t.mutedForeground },
+  bio: { fontSize: 14, lineHeight: 20, color: t.mutedForeground },
+}));
 
 /**
  * The identity line is the shared {@link UserName} — display name plus the
@@ -181,6 +187,7 @@ export function ProfileCard({
   showDivider = true,
   size = 'md',
 }: ProfileCardProps) {
+  const textStyles = useTextStyles();
   const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
 
   return (
@@ -216,12 +223,12 @@ export function ProfileCard({
               style={IDENTITY_STYLE}
             />
             {meta ? (
-              <Text className="text-sm leading-[18px] text-muted-foreground" numberOfLines={1}>
+              <Text style={textStyles.handle} numberOfLines={1}>
                 {meta}
               </Text>
             ) : null}
             {resolved.description ? (
-              <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
+              <Text style={textStyles.bio} numberOfLines={2}>
                 {resolved.description}
               </Text>
             ) : null}

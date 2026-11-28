@@ -120,10 +120,10 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                   appearance="outline"
                   elevation="none"
                   radius="radius-12"
-                  className="p-3 gap-2.5"
-                  style={
-                    isUrlInvalid ? { borderColor: theme.colors.error || '#ff4d4f' } : undefined
-                  }
+                  style={[
+                    { padding: 12, gap: 10 },
+                    isUrlInvalid && { borderColor: theme.colors.error || '#ff4d4f' },
+                  ]}
                 >
                   <View className="flex-row items-center justify-between">
                     <Text className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
@@ -184,7 +184,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
 
       {sources.length > 0 && (
         <Button
-          className="mt-3 mx-4"
+          style={{ marginTop: 12, marginHorizontal: 16 }}
           appearance="subtle"
           tone="neutral"
           size="lg"

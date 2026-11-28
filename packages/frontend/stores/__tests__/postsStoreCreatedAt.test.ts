@@ -40,6 +40,12 @@ jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/stores/engagementInvalidation', () => ({ invalidateEngagementLists: jest.fn() }));
 jest.mock('@/stores/profileCountsInvalidation', () => ({ invalidateProfileCounts: jest.fn() }));
 jest.mock('@/lib/queryClient', () => ({ queryClient: {} }));
+// The feed binds its actor writer (`lib/actorCache`) to the account before
+// each read: the SDK's real `User` and `storeUsers`, without loading the whole
+// SDK entry.
+jest.mock('@oxy.so/services/ui/client', () => ({
+  ...require('@/test-support/oxyUsers').oxyUsers,
+}));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({ precacheActorsFromPosts: jest.fn() }));
 jest.mock('@/stores/feedQueryCache', () => ({
   publishNewLocalPost: jest.fn(),

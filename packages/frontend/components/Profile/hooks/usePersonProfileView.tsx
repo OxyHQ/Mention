@@ -194,10 +194,10 @@ export function usePersonProfileView({
    * profile's document-scroll pager quietly paging a feed nobody is looking at
    * while the reader scrolls a followers list.
    *
-   * `useProfileData` inside `useProfileAccount` still runs, deliberately: it is
-   * a React Query read the sibling screens make themselves (`connections.tsx`,
-   * `AccountInfoScreen`) under the same key, so it is a cache hit rather than a
-   * second fetch, and masking it would only delay the chrome on the way back.
+   * `useProfileData` inside `useProfileAccount` still runs, deliberately: the
+   * sibling screens make the same cached read themselves (`connections.tsx`,
+   * `AccountInfoScreen`), so it is a cache hit rather than a second fetch, and
+   * masking it would only delay the chrome on the way back.
    */
   const profileData = active ? account.profileData : null;
   const loading = active ? account.loading : false;
@@ -314,9 +314,8 @@ export function usePersonProfileView({
     await Promise.all([
       refreshAccount(),
       ...(profileData?.id && !isFederated ? [refetchLaneTabs()] : []),
-      ...(stableUserId && refreshFollowStatus && refreshFollowCounts
-        ? [refreshFollowStatus(), refreshFollowCounts()]
-        : []),
+      // `useFollow` reads one person only when it is given their id.
+      ...(stableUserId ? [refreshFollowStatus(), refreshFollowCounts()] : []),
     ]);
   }, [
     refreshAccount,

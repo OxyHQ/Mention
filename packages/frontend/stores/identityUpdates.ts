@@ -36,11 +36,8 @@ import type { AccountCategoryId } from '@oxy.so/contracts';
  * What has no signal is the copies the CLIENT IS ALREADY HOLDING, and none of
  * them re-ask:
  *
- *   * the React Query user entry. The write merges into it but leaves its
- *     freshness alone (that is `upsertCachedUser`'s contract for an existing
- *     entry), and `useUserByUsername` pairs a five-minute `staleTime` with
- *     `refetchOnMount: true`, which deliberately does NOT refetch an entry that
- *     is still fresh.
+ *   * the SDK's `User` record. Writing an actor merges into the record held and
+ *     is not a read, so nothing about the write asks Oxy for the profile again.
  *   * every `post.user` already embedded in a rendered post — in a feed
  *     query's cached pages and in SQLite. Nothing rewrites those, and a
  *     remount warm-starts from those pages rather than refetching page 1.
@@ -48,11 +45,12 @@ import type { AccountCategoryId } from '@oxy.so/contracts';
  * A full reload is the only thing that discards all of them at once, which is
  * exactly why one appeared to be required.
  *
- * **And the write is actively undone.** Every feed response is fed through
- * `lib/precacheActorsFromPosts` into the SDK's user cache, and that merge
- * overrides a real value with a real value — so a response whose authors were
- * hydrated before the invalidation landed puts the pre-edit picture straight
- * back over what this write stored. On a channel's own page every post in that
+ * **And the write can be undone.** Every feed response is fed through
+ * `lib/precacheActorsFromPosts` into the SDK's `User`, whose merge overrides a
+ * real value with a real value unless the held copy carries a later
+ * `updatedAt` — so a response whose authors were hydrated before the
+ * invalidation landed can put the pre-edit picture straight back over what this
+ * write stored. On a channel's own page every post in that
  * response is authored by the account whose picture just changed, so the header
  * is decided by a race it should not be in.
  *
@@ -61,9 +59,9 @@ import type { AccountCategoryId } from '@oxy.so/contracts';
  * (`applyKnownIdentity`) instead of being allowed to win. Two consumers, and
  * between them they cover both caches:
  *
- *   * React Query — `lib/actorCache.ts` is the one door into the SDK's user
- *     cache, so the edit is written through there and every incoming actor is
- *     corrected there, wherever the surface that fetched it lives.
+ *   * The SDK's `User` — `lib/actorCache.ts` is the one door into it, so the
+ *     edit is written through there and every incoming actor is corrected
+ *     there, wherever the surface that fetched it lives.
  *   * The post rows themselves — `components/Feed/PostItem.tsx` resolves its
  *     actors through {@link useKnownIdentitySet}, so a feed row, a post detail, a
  *     quote card and a boosted original all correct themselves wherever their
@@ -204,7 +202,7 @@ function notify(changedIds: Iterable<string> | 'all'): void {
  * nobody edited.
  *
  * Empty and cleared values are dropped rather than recorded, which mirrors the
- * SDK's own merge (`upsertCachedUser` never lets a degraded value overwrite a
+ * SDK's own merge (`storeUsers` never lets a degraded value overwrite a
  * good one) so identity resolves under ONE rule everywhere instead of two that
  * disagree at the edges.
  *
@@ -212,9 +210,9 @@ function notify(changedIds: Iterable<string> | 'all'): void {
  * exactly like a field this write did not carry, and telling them apart needs
  * the one thing the payload does not hold — what the writer intended. The SDK
  * takes that as a DECLARATION from the call site instead
- * (`upsertCachedUser(…, { cleared })`, bounded to its own closed
+ * (`storeUsers(…, { cleared })`, bounded to its own closed
  * `CLEARABLE_USER_FIELDS`), which `noteIdentityChanged` passes straight through,
- * so a clear does reach the React Query user entry. What it does not reach is
+ * so a clear does reach the SDK's `User` record. What it does not reach is
  * the overlay: an actor cannot express "this field is empty" distinguishably
  * from "I do not carry it", so a recorded clear could never be retired against
  * one and would pin an emptied field for the whole session. A clear therefore

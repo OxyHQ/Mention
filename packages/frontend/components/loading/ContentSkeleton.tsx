@@ -6,7 +6,7 @@ import { POST_ITEM_SPACING } from '@/styles/shared';
 /** Mention content anatomy; Bloom owns animation, accessibility and responsive layout. */
 export function FeedSkeleton({ count = 5 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="feed-skeleton" className="w-full">
+    <Skeleton.Region testID="feed-skeleton" style={{ width: '100%' }}>
       {Array.from({ length: count }, (_, index) => (
         <View key={index} className="w-full border-b border-border px-3 py-3 flex-row gap-3">
           <Skeleton.Circle size={POST_ITEM_SPACING.AVATAR_SIZE} />
@@ -28,7 +28,7 @@ export function FeedSkeleton({ count = 5 }: { count?: number }) {
 
 export function ListSkeleton({ count = 5 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="list-skeleton" className="w-full">
+    <Skeleton.Region testID="list-skeleton" style={{ width: '100%' }}>
       {Array.from({ length: count }, (_, index) => (
         <View key={index} className="px-4 py-4 border-b border-border flex-row items-center gap-3">
           <Skeleton.Circle size={40} />
@@ -44,7 +44,7 @@ export function ListSkeleton({ count = 5 }: { count?: number }) {
 
 export function FormSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="form-skeleton" className="w-full p-4 gap-5">
+    <Skeleton.Region testID="form-skeleton" style={{ width: '100%', padding: 16, gap: 20 }}>
       {Array.from({ length: count }, (_, index) => (
         <View key={index} className="gap-2">
           <Skeleton.Box width="34%" height={14} borderRadius={6} />
@@ -57,7 +57,7 @@ export function FormSkeleton({ count = 4 }: { count?: number }) {
 
 export function SettingsSkeleton({ count = 5 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="settings-skeleton" className="w-full gap-3">
+    <Skeleton.Region testID="settings-skeleton" style={{ width: '100%', gap: 12 }}>
       {Array.from({ length: count }, (_, index) => (
         <View
           key={index}
@@ -76,7 +76,7 @@ export function SettingsSkeleton({ count = 5 }: { count?: number }) {
 
 export function PollSkeleton() {
   return (
-    <Skeleton.Region testID="poll-skeleton" className="w-full gap-3">
+    <Skeleton.Region testID="poll-skeleton" style={{ width: '100%', gap: 12 }}>
       <Skeleton.Box width="80%" height={18} borderRadius={6} />
       {[0, 1, 2].map((index) => (
         <Skeleton.Box key={index} width="100%" height={40} borderRadius={12} />
@@ -88,7 +88,7 @@ export function PollSkeleton() {
 
 export function DetailSkeleton() {
   return (
-    <Skeleton.Region testID="detail-skeleton" className="w-full p-4 gap-5">
+    <Skeleton.Region testID="detail-skeleton" style={{ width: '100%', padding: 16, gap: 20 }}>
       <Skeleton.Box width="75%" height={28} borderRadius={8} />
       <Skeleton.Box width="45%" height={14} borderRadius={6} />
       <Skeleton.Box width="100%" height={180} borderRadius={16} />
@@ -106,7 +106,10 @@ export function DetailSkeleton() {
 
 export function MediaGridSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="media-grid-skeleton" className="w-full flex-row flex-wrap">
+    <Skeleton.Region
+      testID="media-grid-skeleton"
+      style={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap' }}
+    >
       {Array.from({ length: count }, (_, index) => (
         <View key={index} className="w-1/3 p-0.5">
           <Skeleton.Box width="100%" style={{ aspectRatio: 1 }} borderRadius={0} />
@@ -118,7 +121,7 @@ export function MediaGridSkeleton({ count = 6 }: { count?: number }) {
 
 export function InsightsSkeleton() {
   return (
-    <Skeleton.Region testID="insights-skeleton" className="w-full p-4 gap-4">
+    <Skeleton.Region testID="insights-skeleton" style={{ width: '100%', padding: 16, gap: 16 }}>
       <Skeleton.Box width={220} height={36} borderRadius={18} />
       <ResponsiveGrid stretchItems>
         {[0, 1, 2, 3].map((index) => (
@@ -139,24 +142,30 @@ export function InsightsSkeleton() {
 
 export function VideoSkeleton() {
   return (
-    <Skeleton.Region
-      testID="video-skeleton"
-      className="w-full flex-1 justify-end gap-4 p-6 native:min-h-96 web:min-h-[var(--bloom-screen-viewport-height)]"
-    >
-      <View className="flex-1" />
-      <View className="flex-row items-center gap-3">
-        <Skeleton.Circle size={40} />
-        <Skeleton.Box width="40%" height={16} borderRadius={6} />
-      </View>
-      <Skeleton.Box width="85%" height={14} borderRadius={6} />
-      <Skeleton.Box width="65%" height={14} borderRadius={6} />
-    </Skeleton.Region>
+    // The wrapper holds the per-platform minimum height; the region fills it.
+    <View className="w-full flex-1 native:min-h-96 web:min-h-[var(--bloom-screen-viewport-height)]">
+      <Skeleton.Region
+        testID="video-skeleton"
+        style={{ flexGrow: 1, justifyContent: 'flex-end', gap: 16, padding: 24 }}
+      >
+        <View className="flex-1" />
+        <View className="flex-row items-center gap-3">
+          <Skeleton.Circle size={40} />
+          <Skeleton.Box width="40%" height={16} borderRadius={6} />
+        </View>
+        <Skeleton.Box width="85%" height={14} borderRadius={6} />
+        <Skeleton.Box width="65%" height={14} borderRadius={6} />
+      </Skeleton.Region>
+    </View>
   );
 }
 
 export function WatchVideoSkeleton({ showDetails }: { showDetails: boolean }) {
   return (
-    <Skeleton.Region testID="watch-video-skeleton" className="w-full gap-4 px-3 pb-8 pt-2">
+    <Skeleton.Region
+      testID="watch-video-skeleton"
+      style={{ width: '100%', gap: 16, paddingHorizontal: 12, paddingBottom: 32, paddingTop: 8 }}
+    >
       <Skeleton.Box width="100%" style={{ aspectRatio: 16 / 9 }} borderRadius={16} />
       {showDetails && (
         <View className="gap-2">

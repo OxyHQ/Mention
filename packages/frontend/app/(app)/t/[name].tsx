@@ -34,11 +34,29 @@ import { useTopicRailStore } from '@/stores/topicRailStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { shareLink } from '@/utils/shareLink';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  category: {
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.30000000000000004,
+    color: t.mutedForeground,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  heading: { fontSize: 28, lineHeight: 32, fontWeight: '700', marginBottom: 8 },
+  updated: { fontSize: 12, lineHeight: 16, color: t.mutedForeground, marginBottom: 12 },
+  stats: { fontSize: 14, lineHeight: 20, marginBottom: 8 },
+  summary: { fontSize: 14, lineHeight: 20, color: t.mutedForeground, marginBottom: 8 },
+}));
 
 /** How the topic's posts are ordered. `top` is the default, as on the mock. */
 type TopicSort = 'top' | 'latest';
 
 export default function TrendScreen() {
+  const textStyles = useTextStyles();
   // The TERM is the whole address. Everything shown about the trend is
   // resolved from it, never carried alongside it.
   const { name } = useLocalSearchParams<{ name: string }>();
@@ -204,15 +222,13 @@ export default function TrendScreen() {
   const listHeader = useMemo(
     () => (
       <View className="px-4 pb-2">
-        <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
+        <Text style={textStyles.category}>
           {categoryLabel || t('trend.trendingLabel', { defaultValue: 'Trending' })}
         </Text>
-        <Text className="text-[28px] leading-8 font-bold mb-2 text-foreground">{heading}</Text>
-        {updatedLabel ? (
-          <Text className="text-xs text-muted-foreground mb-3">{updatedLabel}</Text>
-        ) : null}
-        {statsLabel ? <Text className="text-sm text-foreground mb-2">{statsLabel}</Text> : null}
-        {summary ? <Text className="text-sm text-muted-foreground mb-2">{summary}</Text> : null}
+        <Text style={textStyles.heading}>{heading}</Text>
+        {updatedLabel ? <Text style={textStyles.updated}>{updatedLabel}</Text> : null}
+        {statsLabel ? <Text style={textStyles.stats}>{statsLabel}</Text> : null}
+        {summary ? <Text style={textStyles.summary}>{summary}</Text> : null}
         {/* Native has no right rail: the same widgets sit under the header. */}
         {Platform.OS !== 'web' && term ? <TopicInlineWidgets term={term} /> : null}
         <Tabs
@@ -232,7 +248,7 @@ export default function TrendScreen() {
         </Tabs>
       </View>
     ),
-    [heading, summary, categoryLabel, updatedLabel, statsLabel, term, sort, t],
+    [heading, summary, categoryLabel, updatedLabel, statsLabel, term, sort, t, textStyles],
   );
 
   return (

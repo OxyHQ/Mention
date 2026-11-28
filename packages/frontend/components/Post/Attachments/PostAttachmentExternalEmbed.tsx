@@ -23,6 +23,8 @@ interface PostAttachmentExternalEmbedProps {
 
 const GIF_ASPECT_RATIO = 16 / 9;
 
+const fullWidthStyle: ViewStyle = { width: '100%' };
+
 /**
  * Wraps a link attachment in an inline external media player when the URL maps
  * to a supported provider AND the viewer hasn't hidden that provider. Mirrors
@@ -76,8 +78,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
         image={image}
         siteName={siteName}
         author={author}
-        className="w-full"
-        style={style}
+        style={{ ...fullWidthStyle, ...style }}
       />
     );
   }

@@ -265,12 +265,12 @@ function FediverseInfoSteps({
           appearance="plain"
           tone="neutral"
           size="lg"
-          className="shrink"
+          style={{ flexShrink: 1 }}
           onPress={onSecondary}
         >
           {secondaryLabel}
         </Button>
-        <Button appearance="solid" tone="accent" size="lg" className="flex-1" onPress={onPrimary}>
+        <Button appearance="solid" tone="accent" size="lg" style={{ flex: 1 }} onPress={onPrimary}>
           {primaryLabel}
         </Button>
       </View>

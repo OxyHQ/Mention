@@ -6,6 +6,11 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Link, type Href } from '@/lib/navigation/router';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
+import { createTokenStyles, useColorTokens } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  label: { fontSize: 13, color: t.mutedForeground, fontWeight: '600' },
+}));
 
 /**
  * "in !technology@lemmy.world" — the community a federated post was written in.
@@ -25,10 +30,12 @@ interface Props {
 }
 
 const PostCommunityRow: React.FC<Props> = ({ handle, href }) => {
+  const textStyles = useTextStyles();
+  const tokens = useColorTokens();
   const { t } = useTranslation();
 
   const label = (
-    <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+    <Text style={textStyles.label} numberOfLines={1}>
       {t('post.inCommunity', { handle })}
     </Text>
   );
@@ -37,12 +44,7 @@ const PostCommunityRow: React.FC<Props> = ({ handle, href }) => {
     <ProfileHoverCard username={handle}>
       <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
         <View className="-ml-4 mr-[3px]">
-          <RiGroupLine
-            width={13}
-            height={13}
-            fill="currentColor"
-            className="text-muted-foreground"
-          />
+          <RiGroupLine width={13} height={13} fill={tokens.mutedForeground} />
         </View>
         {href ? (
           // The row lives inside the post's own press target: opening the

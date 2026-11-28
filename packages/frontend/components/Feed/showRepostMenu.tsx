@@ -22,14 +22,14 @@ export function showRepostMenu({
       [
         {
           label: isReposted ? t('post.undoRepost', 'Undo repost') : t('post.repost', 'Repost'),
-          icon: <RiRepeat2Line width={20} height={20} className="text-foreground" />,
+          icon: <RiRepeat2Line width={20} height={20} />,
           onPress: onRepost,
         },
         ...(!quotesDisabled
           ? [
               {
                 label: t('post.quote', 'Quote'),
-                icon: <RiDoubleQuotesL width={20} height={20} className="text-foreground" />,
+                icon: <RiDoubleQuotesL width={20} height={20} />,
                 onPress: onQuote,
               },
             ]

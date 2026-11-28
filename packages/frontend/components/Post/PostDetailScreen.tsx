@@ -59,6 +59,10 @@ const postDetailLogger = createLogger('PostDetail');
 /** Breathing room (px) below the last reply, before the pinned composer / screen edge. */
 const FEED_BOTTOM_PADDING = 16;
 
+/** The thread continuation trigger's roomier padding on native; the web keeps Bloom's. */
+const continuationTriggerStyle =
+  Platform.OS === 'web' ? undefined : { paddingHorizontal: 12, paddingVertical: 12 };
+
 interface PostDetailScreenProps {
   postId: string;
   onBack?: () => void;
@@ -511,14 +515,14 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
             value={continuationsExpanded ? 'continuations' : undefined}
             onValueChange={(value) => setCollapsedThreadId(value ? null : id)}
           >
-            <AccordionItem value="continuations" className="border-0">
-              <AccordionTrigger className="px-3 py-3" textStyle={{ fontSize: 13 }}>
+            <AccordionItem value="continuations">
+              <AccordionTrigger style={continuationTriggerStyle} textStyle={{ fontSize: 13 }}>
                 {t('post.threadContinuation', {
                   defaultValue: 'Thread continuation ({{count}})',
                   count: continuations.length,
                 })}
               </AccordionTrigger>
-              <AccordionContent contentClassName="p-0">
+              <AccordionContent>
                 {continuations.map((continuation, index) => {
                   const isLast = index === continuations.length - 1;
                   return (

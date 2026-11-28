@@ -25,7 +25,7 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import {
   searchService,
   captureSearchHistoryEpoch,
@@ -452,10 +452,15 @@ function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardDa
   return starterPackId(pack) ? starterPackCardData(pack) : null;
 }
 
+const useStickyStyles = createTokenStyles((t) => ({
+  tabs: { borderBottomWidth: 1, borderColor: t.border },
+}));
+
 function SearchIndex() {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
+  const stickyStyles = useStickyStyles();
   // The box is autofocused; leaving by a result or a tab must not carry the
   // keyboard onto the next screen.
   useDismissKeyboardOnBlur();
@@ -1448,6 +1453,7 @@ function SearchIndex() {
       handleOpenList,
       handleOpenStarterPack,
       commitCurrentQuery,
+      tokens,
     ],
   );
 
@@ -1482,7 +1488,7 @@ function SearchIndex() {
             />
           }
         >
-          <StickySection testID="search-sticky-tabs" className="border-b border-border">
+          <StickySection testID="search-sticky-tabs" style={stickyStyles.tabs}>
             <View className="mx-4 my-2">
               <Search
                 ref={searchInputRef}
