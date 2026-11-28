@@ -53,6 +53,9 @@ export const INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS = 30 * MS_PER_MINUTE;
 /** Retry copying Oxy asset metadata onto post content.media[] when ffprobe was pending at create. */
 export const MEDIA_METADATA_ENRICH_QUEUE = 'media-metadata-enrich';
 
+/** A post's notifications to the readers subscribed to its author. */
+export const SUBSCRIBER_NOTIFICATION_QUEUE = 'subscriber-notifications';
+
 /**
  * One job per Oxy `account.deleted` event: erase everything Mention holds for the
  * account (`services/accountErasure`). The event is recorded in `account_erasures`
@@ -310,3 +313,11 @@ export const ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT = 500;
 
 /** Failed account-erasure jobs retained before automatic removal. */
 export const ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT = 2000;
+
+// --- Subscriber-notification worker tunables ---------------------------------
+
+export const SUBSCRIBER_NOTIFICATION_JOB_ATTEMPTS = 6;
+export const SUBSCRIBER_NOTIFICATION_BACKOFF_BASE_MS = 15 * MS_PER_SECOND;
+export const SUBSCRIBER_NOTIFICATION_WORKER_CONCURRENCY = 2;
+export const SUBSCRIBER_NOTIFICATION_REMOVE_ON_COMPLETE_COUNT = 500;
+export const SUBSCRIBER_NOTIFICATION_REMOVE_ON_FAIL_COUNT = 2000;

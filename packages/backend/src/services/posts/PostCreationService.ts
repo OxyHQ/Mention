@@ -4,7 +4,6 @@ import {
 } from './access/postPublicationPolicy';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { postSubscriptions } from '../../db/schema/engagement';
 import { posts } from '../../db/schema/posts';
 import {
   claimUnpublishedPost,
@@ -34,11 +33,14 @@ import { reconcileMentionIdsForPost } from '../../utils/textProcessing';
 import { foldProfileLinkMentions } from './profileLinkMentions';
 import {
   createMentionNotifications,
-  createBatchNotifications,
   createPrivateMentionNotifications,
   createPostAuthorNotifications,
 } from '../../utils/notificationUtils';
 import { logger } from '../../utils/logger';
+import {
+  announcePostToSubscribers,
+  isSubscriberNotificationEligible,
+} from '../notifications/subscriberNotifications';
 import { ApiError } from '../../utils/error';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
@@ -240,15 +242,7 @@ export interface CreatePostParams {
   updatedAt?: Date;
 }
 
-/**
- * Account subscriptions are an opt-in to PUBLIC publication announcements,
- * not permission to read an author's unpublished or restricted posts.
- */
-export function isSubscriberNotificationEligible(
-  post: Pick<PostRecord, 'status' | 'visibility'>,
-): boolean {
-  return post.status === 'published' && post.visibility === PostVisibility.PUBLIC;
-}
+export { isSubscriberNotificationEligible };
 
 /**
  * What KIND of post this is, from the links and media it carries.
@@ -907,7 +901,7 @@ class PostCreationService {
     // The cost it was charging the author is not incidental. Measured against a
     // seeded database with Oxy and push stubbed to zero latency, `create` on a
     // public post takes ~26 ms with no subscribers and ~112 ms with 200, and the
-    // slope is the fan-out: the `post_subscriptions` select has no LIMIT, so a
+    // slope is the fan-out: subscriber fan-out reads every subscription, so a
     // popular author pays one INSERT, one conditional UPDATE and one push-token
     // SELECT per subscriber before their own post returns. Production adds an
     // FCM multicast per recipient who has a device, which this bench charged
@@ -1082,32 +1076,7 @@ class PostCreationService {
         if (!oxyUserId || !isTopLevelPost || !isSubscriberNotificationEligible(post)) {
           return;
         }
-        // Subscribers of the AUTHOR, plus — for a channel post — everyone who
-        // follows the channel with `notify`.
-        const recipientIds = new Set<string>();
-
-        // Postgres: `post_subscriptions` is where every subscription is written.
-        const subs = await getDb()
-          .select({ subscriberId: postSubscriptions.subscriberId })
-          .from(postSubscriptions)
-          .where(eq(postSubscriptions.authorId, oxyUserId));
-        for (const sub of subs) recipientIds.add(sub.subscriberId);
-
-        // The author never notifies themselves. `createNotification` refuses that
-        // too, but dropping it here keeps the batch honest about its own size.
-        recipientIds.delete(oxyUserId);
-        if (recipientIds.size === 0) return;
-
-        const notifications = [...recipientIds].map((recipientId) => ({
-          recipientId,
-          actorId: oxyUserId,
-          type: 'post' as const,
-          entityId: post.id,
-          entityType: 'post' as const,
-        }));
-        if (notifications.length > 0) {
-          await createBatchNotifications(notifications, true);
-        }
+        await announcePostToSubscribers({ postId: post.id, authorId: oxyUserId });
       })(),
     ]);
 

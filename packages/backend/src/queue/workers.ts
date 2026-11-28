@@ -11,6 +11,8 @@ import {
   INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY,
   INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS,
   MEDIA_METADATA_ENRICH_QUEUE,
+  SUBSCRIBER_NOTIFICATION_QUEUE,
+  SUBSCRIBER_NOTIFICATION_WORKER_CONCURRENCY,
   ACCOUNT_ERASURE_QUEUE,
   ACCOUNT_ERASURE_WORKER_CONCURRENCY,
   INBOX_WORKER_CONCURRENCY,
@@ -30,7 +32,9 @@ import type {
   InstagramGraphSyncJobData,
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
+  SubscriberNotificationJobData,
 } from './types';
+import { runSubscriberNotificationJob } from '../services/notifications/subscriberNotifications';
 import { logger } from '../utils/logger';
 import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
 import { federationJobScheduler } from '../services/federation/FederationJobScheduler';
@@ -68,6 +72,7 @@ let sharingCleanupWorker: Worker<SharingCleanupJobData> | null = null;
 let instagramGraphSyncWorker: Worker<InstagramGraphSyncJobData> | null = null;
 let mediaMetadataEnrichWorker: Worker<MediaMetadataEnrichJobData> | null = null;
 let accountErasureWorker: Worker<AccountErasureJobData> | null = null;
+let subscriberNotificationWorker: Worker<SubscriberNotificationJobData> | null = null;
 let workersStarted = false;
 
 /**
@@ -190,6 +195,13 @@ export async function processMediaMetadataEnrichWorkerJob(
   job: Job<MediaMetadataEnrichJobData>,
 ): Promise<void> {
   await processMediaMetadataEnrichJob(job.data.postId);
+}
+
+/** Process one post's subscriber notifications. */
+export async function processSubscriberNotificationWorkerJob(
+  job: Job<SubscriberNotificationJobData>,
+): Promise<void> {
+  await runSubscriberNotificationJob(job.data);
 }
 
 /**
@@ -315,6 +327,15 @@ export function startWorkers(): void {
     },
   );
 
+  subscriberNotificationWorker = new Worker<SubscriberNotificationJobData>(
+    SUBSCRIBER_NOTIFICATION_QUEUE,
+    processSubscriberNotificationWorkerJob,
+    {
+      connection,
+      concurrency: SUBSCRIBER_NOTIFICATION_WORKER_CONCURRENCY,
+    },
+  );
+
   accountErasureWorker = new Worker<AccountErasureJobData>(
     ACCOUNT_ERASURE_QUEUE,
     processAccountErasureJob,
@@ -347,6 +368,7 @@ export function startWorkers(): void {
     sharingCleanupWorker,
     mediaMetadataEnrichWorker,
     accountErasureWorker,
+    subscriberNotificationWorker,
     ...(instagramGraphSyncWorker ? [instagramGraphSyncWorker] : []),
   ]) {
     worker.on('failed', (job, err) => {
@@ -372,7 +394,7 @@ export function startWorkers(): void {
   }
 
   logger.info(
-    'Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure, instagram-graph-sync)',
+    'Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure, subscriber-notifications, instagram-graph-sync)',
   );
 }
 
@@ -392,6 +414,7 @@ export async function shutdownQueues(): Promise<void> {
     | Worker<SharingCleanupJobData>
     | Worker<MediaMetadataEnrichJobData>
     | Worker<AccountErasureJobData>
+    | Worker<SubscriberNotificationJobData>
     | Worker<InstagramGraphSyncJobData>
   > = [];
   if (inboxWorker) workers.push(inboxWorker);
@@ -400,6 +423,7 @@ export async function shutdownQueues(): Promise<void> {
   if (sharingCleanupWorker) workers.push(sharingCleanupWorker);
   if (mediaMetadataEnrichWorker) workers.push(mediaMetadataEnrichWorker);
   if (accountErasureWorker) workers.push(accountErasureWorker);
+  if (subscriberNotificationWorker) workers.push(subscriberNotificationWorker);
   if (instagramGraphSyncWorker) workers.push(instagramGraphSyncWorker);
 
   await Promise.allSettled(workers.map((w) => w.close()));
@@ -410,6 +434,7 @@ export async function shutdownQueues(): Promise<void> {
   sharingCleanupWorker = null;
   mediaMetadataEnrichWorker = null;
   accountErasureWorker = null;
+  subscriberNotificationWorker = null;
   instagramGraphSyncWorker = null;
   workersStarted = false;
 

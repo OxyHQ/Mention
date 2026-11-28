@@ -9,6 +9,9 @@ import {
   INSTAGRAM_GRAPH_SYNC_REMOVE_ON_COMPLETE_COUNT,
   INSTAGRAM_GRAPH_SYNC_REMOVE_ON_FAIL_COUNT,
   MEDIA_METADATA_ENRICH_QUEUE,
+  SUBSCRIBER_NOTIFICATION_QUEUE,
+  SUBSCRIBER_NOTIFICATION_REMOVE_ON_COMPLETE_COUNT,
+  SUBSCRIBER_NOTIFICATION_REMOVE_ON_FAIL_COUNT,
   ACCOUNT_ERASURE_QUEUE,
   ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT,
   ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT,
@@ -31,6 +34,7 @@ import type {
   InstagramGraphSyncJobData,
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
+  SubscriberNotificationJobData,
 } from './types';
 
 /**
@@ -57,6 +61,7 @@ let periodicQueue: Queue<PeriodicJobData> | null = null;
 let sharingCleanupQueue: Queue<SharingCleanupJobData> | null = null;
 let mediaMetadataEnrichQueue: Queue<MediaMetadataEnrichJobData> | null = null;
 let accountErasureQueue: Queue<AccountErasureJobData> | null = null;
+let subscriberNotificationQueue: Queue<SubscriberNotificationJobData> | null = null;
 let instagramGraphSyncQueue: Queue<InstagramGraphSyncJobData> | null = null;
 
 /**
@@ -123,6 +128,21 @@ export function getSharingCleanupQueue(): Queue<SharingCleanupJobData> | null {
   return sharingCleanupQueue;
 }
 
+/** Get the subscriber-notification queue, or null when Redis is not configured. */
+export function getSubscriberNotificationQueue(): Queue<SubscriberNotificationJobData> | null {
+  if (!isQueueEnabled()) return null;
+  if (!subscriberNotificationQueue) {
+    subscriberNotificationQueue = new Queue<SubscriberNotificationJobData>(
+      SUBSCRIBER_NOTIFICATION_QUEUE,
+      baseQueueOptions(
+        SUBSCRIBER_NOTIFICATION_REMOVE_ON_COMPLETE_COUNT,
+        SUBSCRIBER_NOTIFICATION_REMOVE_ON_FAIL_COUNT,
+      ),
+    );
+  }
+  return subscriberNotificationQueue;
+}
+
 /** Get the media-metadata enrich queue, or null when Redis is not configured. */
 export function getMediaMetadataEnrichQueue(): Queue<MediaMetadataEnrichJobData> | null {
   if (!isQueueEnabled()) return null;
@@ -184,6 +204,7 @@ export async function closeQueues(): Promise<void> {
   if (periodicQueue) open.push(periodicQueue);
   if (sharingCleanupQueue) open.push(sharingCleanupQueue);
   if (mediaMetadataEnrichQueue) open.push(mediaMetadataEnrichQueue);
+  if (subscriberNotificationQueue) open.push(subscriberNotificationQueue);
   if (accountErasureQueue) open.push(accountErasureQueue);
   if (instagramGraphSyncQueue) open.push(instagramGraphSyncQueue);
 
@@ -194,6 +215,7 @@ export async function closeQueues(): Promise<void> {
   periodicQueue = null;
   sharingCleanupQueue = null;
   mediaMetadataEnrichQueue = null;
+  subscriberNotificationQueue = null;
   accountErasureQueue = null;
   instagramGraphSyncQueue = null;
 }

@@ -479,6 +479,13 @@ export const createBatchNotifications = async (
   }
 };
 
+/** Durable-worker variant of the batch writer: persistence failures reject for retry. */
+export const createBatchNotificationsStrict = async (
+  notifications: CreateNotificationData[],
+): Promise<void> => {
+  await writeNotifications(notifications, { throwOnPersistenceError: true });
+};
+
 /** Notify owner + accepted collaborators (excludes actor). */
 export const createPostAuthorNotifications = async (
   authorship: PostAuthorshipEntry[] | undefined,
