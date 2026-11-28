@@ -163,6 +163,46 @@ const commaSeparatedDomains = (fallback: readonly string[] = []) =>
       .filter(Boolean);
   }, z.array(domain));
 
+/** The value of `FEDERATION_HANDLE_DOMAIN_ACCOUNTS` that switches every local account. */
+export const ALL_HANDLE_DOMAIN_ACCOUNTS = 'all';
+
+/** A local username as a rollout list names it: lowercase, no `@`, no separators. */
+const handleRolloutUsername = z
+  .string()
+  .regex(/^[a-z0-9_][a-z0-9_.-]{0,63}$/, 'must be a local username (no @, spaces or commas)');
+
+/**
+ * `FEDERATION_HANDLE_DOMAIN_ACCOUNTS`: the local accounts whose fediverse handle is
+ * on `FEDERATION_HANDLE_DOMAIN`. Absent or blank is nobody, `all` is everyone,
+ * anything else a comma-separated list of usernames (case-insensitive). `all`
+ * beside names is refused rather than guessed at.
+ */
+const handleDomainAccounts = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null) return [];
+    if (Array.isArray(value)) return value;
+    const text = String(value).trim().toLowerCase();
+    if (text === ALL_HANDLE_DOMAIN_ACCOUNTS) return ALL_HANDLE_DOMAIN_ACCOUNTS;
+    return [
+      ...new Set(
+        text
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter(Boolean),
+      ),
+    ];
+  },
+  z.union([
+    z.literal(ALL_HANDLE_DOMAIN_ACCOUNTS),
+    z
+      .array(handleRolloutUsername)
+      .refine(
+        (names) => !names.includes(ALL_HANDLE_DOMAIN_ACCOUNTS),
+        '`all` switches everyone and cannot be listed beside usernames',
+      ),
+  ]),
+);
+
 const feedToggle = z.preprocess(
   emptyAsUndefined,
   z
@@ -408,6 +448,18 @@ const environmentSchema = z
 
     FEDERATION_DOMAIN: z.preprocess(emptyAsUndefined, domain.default('mention.earth')),
     ACTOR_DOMAIN: optionalDomain,
+    /**
+     * The domain of local accounts' fediverse handle (`acct:<user>@<this>`), when
+     * it is not FEDERATION_DOMAIN: Mastodon's LOCAL_DOMAIN/WEB_DOMAIN split. Actor
+     * and object ids stay on FEDERATION_DOMAIN / ACTOR_DOMAIN for good. Unset, it
+     * is FEDERATION_DOMAIN and nothing changes. It must be a host this service
+     * answers WebFinger on (FEDERATION_DOMAIN or a web host), or the handle could
+     * not be verified. Only the accounts in FEDERATION_HANDLE_DOMAIN_ACCOUNTS
+     * switch. `connectors/activitypub/federationHandleDomain.ts`,
+     * docs/mention-org-domain-move.md (Phase 3).
+     */
+    FEDERATION_HANDLE_DOMAIN: optionalDomain,
+    FEDERATION_HANDLE_DOMAIN_ACCOUNTS: handleDomainAccounts,
     OXY_IDENTITY_APEX: optionalDomain,
     FEDERATION_ENABLED: booleanFromEnv(true),
     FEDERATION_MAX_CONTENT_LENGTH: integerFromEnv(50_000, {
@@ -667,6 +719,20 @@ const environmentSchema = z
           'Oxy service keys are retired here; configure an infrastructure workload role instead',
       });
     }
+    const handleDomain = environment.FEDERATION_HANDLE_DOMAIN;
+    if (handleDomain && handleDomain !== environment.FEDERATION_DOMAIN) {
+      const servedHosts = webHostsOf(
+        environment.MENTION_WEB_ORIGIN,
+        aliasOriginsOf(environment.MENTION_WEB_ALIAS_ORIGINS, environment.MENTION_WEB_ORIGIN),
+      );
+      if (!servedHosts.includes(handleDomain)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['FEDERATION_HANDLE_DOMAIN'],
+          message: `must be FEDERATION_DOMAIN or a web host this service answers WebFinger on (${servedHosts.join(', ')})`,
+        });
+      }
+    }
     const hasFirebaseCredential = Boolean(environment.FIREBASE_SERVICE_ACCOUNT_BASE64);
     const hasFirebaseProject = Boolean(environment.FIREBASE_PROJECT_ID);
     if (hasFirebaseCredential !== hasFirebaseProject) {
@@ -746,6 +812,26 @@ const webAliasOrigins = aliasOriginsOf(
   environment.MENTION_WEB_ALIAS_ORIGINS,
   environment.MENTION_WEB_ORIGIN,
 );
+
+/**
+ * The `acct:` domains WebFinger answers for besides FEDERATION_DOMAIN: the web
+ * alias hosts, plus the handle domain when one is set (it must answer for the
+ * handle it hands out). Unset, the handle domain is FEDERATION_DOMAIN and drops
+ * out, so the list is the alias hosts exactly as before. Exported for tests.
+ */
+export function webfingerAliasDomainsOf(
+  environmentValue: Pick<RuntimeEnvironment, 'FEDERATION_DOMAIN' | 'FEDERATION_HANDLE_DOMAIN'>,
+  aliasOrigins: readonly string[],
+): string[] {
+  const handleDomain = environmentValue.FEDERATION_HANDLE_DOMAIN;
+  return [
+    ...new Set(
+      [...aliasOrigins.map(originHost), ...(handleDomain ? [handleDomain] : [])].filter(
+        (host) => host !== environmentValue.FEDERATION_DOMAIN,
+      ),
+    ),
+  ];
+}
 
 export interface RedisConnectionConfig {
   url?: string;
@@ -1001,11 +1087,15 @@ export const config = {
      * resolve to the SAME local actor; the JRD `subject`, the actor id and every
      * link stay on `domain` (`connectors/activitypub/webfingerAliasDomains.ts`).
      */
-    webfingerAliasDomains: [
-      ...new Set(
-        webAliasOrigins.map(originHost).filter((host) => host !== environment.FEDERATION_DOMAIN),
-      ),
-    ],
+    webfingerAliasDomains: webfingerAliasDomainsOf(environment, webAliasOrigins),
+    /**
+     * The domain of a switched account's fediverse handle
+     * (`FEDERATION_HANDLE_DOMAIN`, default `domain`), and which accounts switch
+     * (`FEDERATION_HANDLE_DOMAIN_ACCOUNTS`: usernames or `all`; empty is nobody).
+     * Read through `connectors/activitypub/federationHandleDomain.ts`.
+     */
+    handleDomain: environment.FEDERATION_HANDLE_DOMAIN ?? environment.FEDERATION_DOMAIN,
+    handleDomainAccounts: environment.FEDERATION_HANDLE_DOMAIN_ACCOUNTS,
     oxyIdentityApex: environment.OXY_IDENTITY_APEX,
     enabled: environment.FEDERATION_ENABLED,
     maxContentLength: environment.FEDERATION_MAX_CONTENT_LENGTH,
