@@ -59,6 +59,26 @@ const httpOrigin = httpUrl
 
 const optionalHttpOrigin = z.preprocess(emptyAsUndefined, httpOrigin.optional());
 
+/** The value that turns a defaulted origin list off; blank still means "use the default". */
+const NO_ORIGINS = 'none';
+
+/**
+ * A comma-separated list of origins. Absent or blank takes `fallback`, `none`
+ * is the empty list, and every entry must be a bare origin (`httpOrigin`).
+ */
+const commaSeparatedOrigins = (fallback: readonly string[]) =>
+  z.preprocess((value) => {
+    if (value === undefined || value === null) return [...fallback];
+    if (Array.isArray(value)) return value;
+    const text = String(value).trim();
+    if (text.length === 0) return [...fallback];
+    if (text.toLowerCase() === NO_ORIGINS) return [];
+    return text
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }, z.array(httpOrigin));
+
 const redisUrl = z
   .string()
   .trim()
@@ -318,10 +338,21 @@ const environmentSchema = z
       httpOrigin.default('https://mention.earth'),
     ),
     MENTION_WEB_ORIGIN: z.preprocess(emptyAsUndefined, httpOrigin.default('https://mention.earth')),
+    // More web origins served by THIS service, answered exactly like
+    // MENTION_WEB_ORIGIN: the same apex web plane, CORS and well-known documents.
+    // They are aliases, never canonical: canonical links, OG URLs, sitemaps and
+    // every ActivityPub id stay on MENTION_WEB_ORIGIN / FEDERATION_DOMAIN. Their
+    // hosts are also accepted as the domain of a WebFinger `acct:`, which resolves
+    // to the same local actor. `none` turns them off; a managed deployment has none
+    // unless it names some (`parseRuntimeEnvironment`). docs/mention-org-domain-move.md
+    MENTION_WEB_ALIAS_ORIGINS: commaSeparatedOrigins(['https://mention.org']),
     MENTION_API_ORIGIN: z.preprocess(
       emptyAsUndefined,
       httpOrigin.default('https://api.mention.earth'),
     ),
+    // The API's alias origins (served by this same service: any host that is not
+    // a web origin is the API). Only the CSP's `connect-src` reads them.
+    MENTION_API_ALIAS_ORIGINS: commaSeparatedOrigins(['https://api.mention.org']),
     // The static Expo export. A Cloudflare Worker on its own hostname, NOT the
     // apex: `mention.earth` is this backend, and asking it for the shell would
     // loop. It was `https://mention-frontend.pages.dev` until the shell moved off
@@ -590,8 +621,27 @@ export type RuntimeEnvironment = z.output<typeof environmentSchema>;
 type EnvironmentSource = Readonly<Record<string, string | undefined>>;
 
 /** Parse an explicit source; exported so configuration validation is unit-testable. */
+/** The alias lists whose public-instance defaults a managed deployment never inherits. */
+const ALIAS_ORIGIN_KEYS = ['MENTION_WEB_ALIAS_ORIGINS', 'MENTION_API_ALIAS_ORIGINS'] as const;
+
+/**
+ * A managed deployment answers on its own origin only: the public instance's
+ * `mention.org` aliases are not its hosts, so absent or blank means `none` there.
+ * A value the operator names is still honoured.
+ */
+function withoutPublicAliasDefaults(source: EnvironmentSource): EnvironmentSource {
+  if (!readManagedDeployment(source)) return source;
+  const resolved: Record<string, string | undefined> = { ...source };
+  for (const key of ALIAS_ORIGIN_KEYS) {
+    if (!resolved[key]?.trim()) resolved[key] = NO_ORIGINS;
+  }
+  return resolved;
+}
+
 export function parseRuntimeEnvironment(source: EnvironmentSource): RuntimeEnvironment {
-  const parsed = environmentSchema.safeParse(withManagedDeploymentEnvironment(source));
+  const parsed = environmentSchema.safeParse(
+    withManagedDeploymentEnvironment(withoutPublicAliasDefaults(source)),
+  );
   if (!parsed.success) {
     throw new Error(`Invalid Mention runtime configuration:\n${z.prettifyError(parsed.error)}`);
   }
@@ -612,6 +662,21 @@ export function parseRuntimeEnvironment(source: EnvironmentSource): RuntimeEnvir
 }
 
 const environment = parseRuntimeEnvironment(process.env);
+
+/** Bare lowercase hostname of an origin the schema has already validated. */
+function originHost(origin: string): string {
+  return new URL(origin).hostname.toLowerCase();
+}
+
+/** The alias origins, without the canonical origin itself and without repeats. */
+function aliasOriginsOf(aliases: readonly string[], canonical: string): string[] {
+  return [...new Set(aliases)].filter((origin) => origin !== canonical);
+}
+
+const webAliasOrigins = aliasOriginsOf(
+  environment.MENTION_WEB_ALIAS_ORIGINS,
+  environment.MENTION_WEB_ORIGIN,
+);
 
 export interface RedisConnectionConfig {
   url?: string;
@@ -853,6 +918,16 @@ export const config = {
   federation: {
     domain: environment.FEDERATION_DOMAIN,
     actorDomain: environment.ACTOR_DOMAIN ?? environment.FEDERATION_DOMAIN,
+    /**
+     * Extra `acct:` domains WebFinger answers for: the web alias hosts. They
+     * resolve to the SAME local actor; the JRD `subject`, the actor id and every
+     * link stay on `domain` (`connectors/activitypub/webfingerAliasDomains.ts`).
+     */
+    webfingerAliasDomains: [
+      ...new Set(
+        webAliasOrigins.map(originHost).filter((host) => host !== environment.FEDERATION_DOMAIN),
+      ),
+    ],
     oxyIdentityApex: environment.OXY_IDENTITY_APEX,
     enabled: environment.FEDERATION_ENABLED,
     maxContentLength: environment.FEDERATION_MAX_CONTENT_LENGTH,
@@ -868,9 +943,16 @@ export const config = {
   },
   web: {
     origin: environment.MENTION_WEB_ORIGIN,
+    /** More origins of this same web app (`MENTION_WEB_ALIAS_ORIGINS`); never canonical. */
+    aliasOrigins: webAliasOrigins,
     shellOrigin: environment.WEB_SHELL_ORIGIN,
     shellAccessKey: environment.MENTION_SHELL_ACCESS_KEY,
     apiOrigin: environment.MENTION_API_ORIGIN,
+    /** More origins of this same API (`MENTION_API_ALIAS_ORIGINS`), for the CSP. */
+    apiAliasOrigins: aliasOriginsOf(
+      environment.MENTION_API_ALIAS_ORIGINS,
+      environment.MENTION_API_ORIGIN,
+    ),
     oxyMediaCdnOrigin: environment.OXY_MEDIA_CDN_ORIGIN,
   },
   federatedMediaDeletion: {

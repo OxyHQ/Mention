@@ -11,6 +11,8 @@
  *
  * It is a STRICT no-op for the API host (`api.mention.earth`): a non-apex request
  * calls `next()` untouched, so every existing API route behaves exactly as before.
+ * The alias hosts (`mention.org`, `api.mention.org`) reach this same service and
+ * are answered like their `mention.earth` counterparts (`APEX_HOSTS` below).
  *
  * Mount order (see app.ts): it runs AFTER the federation routers (`/ap`,
  * `/.well-known`, `/xrpc`, `/nodeinfo`, `/media`) and the OG web-shell (`/@…`,
@@ -36,11 +38,16 @@ import {
 } from '../services/webshell/webShellDocument';
 
 /**
- * The frontend apex host (`mention.earth`). Derived from the SAME `MENTION_WEB_ORIGIN`
- * config the OG web-shell renderer uses, so the public web origin is defined in one
- * place. Only the bare hostname (no scheme / port) is compared.
+ * The frontend apex hosts: `mention.earth`, derived from the SAME `MENTION_WEB_ORIGIN`
+ * config the OG web-shell renderer uses, plus every alias of it
+ * (`MENTION_WEB_ALIAS_ORIGINS`, `mention.org`), which this service serves as the
+ * same web app. An alias is answered exactly like the apex; only the canonical
+ * origin ever appears in a link. Only the bare hostname (no scheme / port) is
+ * compared.
  */
-const APEX_HOST = extractHost(config.web.origin);
+const APEX_HOSTS: ReadonlySet<string> = new Set(
+  [config.web.origin, ...config.web.aliasOrigins].map(extractHost),
+);
 
 /**
  * Static frontend CDN the SPA + its assets are proxied from (a Cloudflare Worker).
@@ -104,19 +111,20 @@ function normalizeHost(value: string): string {
 }
 
 /**
- * True when the request targets the frontend apex (`mention.earth`) rather than the
- * API host (`api.mention.earth`). Checks the ALB-forwarded `X-Forwarded-Host`
- * (first token — the original client host) AND Express's resolved `req.hostname`
- * (which also honors `X-Forwarded-Host` under `trust proxy`). Non-apex hosts are API.
+ * True when the request targets a frontend apex host (`mention.earth`, or an alias
+ * such as `mention.org`) rather than the API host (`api.mention.earth`,
+ * `api.mention.org`). Checks the ALB-forwarded `X-Forwarded-Host` (first token —
+ * the original client host) AND Express's resolved `req.hostname` (which also
+ * honors `X-Forwarded-Host` under `trust proxy`). Non-apex hosts are API.
  */
 export function isApexHost(req: Request): boolean {
   const forwarded = req.headers['x-forwarded-host'];
   const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded;
   if (forwardedValue) {
     const first = forwardedValue.split(',')[0];
-    if (first && normalizeHost(first) === APEX_HOST) return true;
+    if (first && APEX_HOSTS.has(normalizeHost(first))) return true;
   }
-  if (req.hostname && normalizeHost(req.hostname) === APEX_HOST) return true;
+  if (req.hostname && APEX_HOSTS.has(normalizeHost(req.hostname))) return true;
   return false;
 }
 

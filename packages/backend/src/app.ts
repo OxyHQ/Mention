@@ -31,6 +31,11 @@ export interface AppMiddleware {
 
 export interface CreateAppDependencies {
   deployment?: PublicDeploymentInfo;
+  /**
+   * More origins of this same API (`api.mention.org`), added to the CSP's
+   * `connect-src` beside the API origin, each with its `wss:` socket.
+   */
+  apiAliasOrigins?: readonly string[];
   frontendUrl?: string;
   federationDomain: string;
   isAllowedOrigin(origin: string): boolean;
@@ -190,8 +195,10 @@ export function createApp(deps: CreateAppDependencies): express.Express {
         ...MENTION_CSP_EXTENSIONS,
         connectSrc: [
           ...MENTION_CSP_EXTENSIONS.connectSrc,
-          deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth',
-          (deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth').replace(/^https:/, 'wss:'),
+          ...[
+            deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth',
+            ...(deps.apiAliasOrigins ?? []),
+          ].flatMap((origin) => [origin, origin.replace(/^https:/, 'wss:')]),
         ],
       }),
       helmet: {

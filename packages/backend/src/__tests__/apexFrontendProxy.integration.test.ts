@@ -109,6 +109,9 @@ function stubCdn(overrides?: {
 
 const APEX = 'mention.earth';
 const API = 'api.mention.earth';
+/** The alias hosts (`MENTION_WEB_ALIAS_ORIGINS` / `MENTION_API_ALIAS_ORIGINS` defaults). */
+const ALIAS_APEX = 'mention.org';
+const ALIAS_API = 'api.mention.org';
 
 describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   beforeEach(() => {
@@ -347,6 +350,34 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  // mention.org is the same web app on a second host: everything the apex gets,
+  // the alias gets, from the same CDN, and api.mention.org stays the API.
+  it('proxies the alias apex (`mention.org`) exactly like the apex, by X-Forwarded-Host or Host', async () => {
+    const fetchMock = stubCdn();
+
+    for (const header of ['X-Forwarded-Host', 'Host']) {
+      const res = await request(makeApp()).get('/feed?tab=latest').set(header, ALIAS_APEX);
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('id="root"');
+      expect(res.body.who).toBeUndefined();
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchMock.mock.calls) {
+      expect(String(call[0])).toBe('https://shell.mention.earth/feed?tab=latest');
+    }
+  });
+
+  it('does NOT proxy the alias API host — `api.mention.org` is the API', async () => {
+    const fetchMock = stubCdn();
+
+    const root = await request(makeApp()).get('/').set('X-Forwarded-Host', ALIAS_API);
+    const feed = await request(makeApp()).get('/feed').set('Host', ALIAS_API);
+
+    expect(root.body).toEqual({ who: 'api-welcome' });
+    expect(feed.body).toEqual({ who: 'api-feed' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('answers 405 for a non-GET/HEAD method on the apex host without proxying', async () => {
     const fetchMock = stubCdn();
 
@@ -382,6 +413,16 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
         hostname: 'api.mention.earth',
       } as unknown as express.Request;
       expect(isApexHost(req)).toBe(false);
+    });
+
+    it('matches every alias apex host and none of the API hosts', () => {
+      const requestFor = (host: string) =>
+        ({ headers: { 'x-forwarded-host': host }, hostname: host }) as unknown as express.Request;
+      expect(isApexHost(requestFor(ALIAS_APEX))).toBe(true);
+      expect(isApexHost(requestFor('MENTION.ORG:443'))).toBe(true);
+      expect(isApexHost(requestFor(ALIAS_API))).toBe(false);
+      expect(isApexHost(requestFor('www.mention.org'))).toBe(false);
+      expect(isApexHost(requestFor('mention.org.example'))).toBe(false);
     });
 
     it('ignores a :port suffix when matching', () => {
@@ -421,6 +462,8 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
       expect(isApexWebPlaneRequest(makeRequest('/explore', { method: 'HEAD' }))).toBe(true);
       expect(isApexWebPlaneRequest(makeRequest('/explore', { method: 'POST' }))).toBe(false);
       expect(isApexWebPlaneRequest(makeRequest('/explore', { host: API }))).toBe(false);
+      expect(isApexWebPlaneRequest(makeRequest('/explore', { host: ALIAS_APEX }))).toBe(true);
+      expect(isApexWebPlaneRequest(makeRequest('/explore', { host: ALIAS_API }))).toBe(false);
     });
 
     it('keeps federation, discovery, XRPC and media on the API limiter', () => {
@@ -428,6 +471,12 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
       expect(isApexWebPlaneRequest(makeRequest('/.well-known/webfinger'))).toBe(false);
       expect(isApexWebPlaneRequest(makeRequest('/xrpc/app.bsky.actor.getProfile'))).toBe(false);
       expect(isApexWebPlaneRequest(makeRequest('/media/proxy'))).toBe(false);
+      expect(
+        isApexWebPlaneRequest(makeRequest('/.well-known/webfinger', { host: ALIAS_APEX })),
+      ).toBe(false);
+      expect(isApexWebPlaneRequest(makeRequest('/ap/users/alice', { host: ALIAS_APEX }))).toBe(
+        false,
+      );
       expect(
         isApexWebPlaneRequest(makeRequest('/@alice', { accept: 'application/activity+json' })),
       ).toBe(false);

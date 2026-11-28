@@ -125,8 +125,9 @@ run_scenario() {
   fi
 
   # Vacuity floor: a scenario that silently skipped checks would otherwise pass
-  # by never exercising the assertion it was written for.
-  if [[ "$(<"$scenario_directory/calls.log")" != "$EXPECTED_CHECK_ORDER" ]]; then
+  # by never exercising the assertion it was written for. A scenario that sets
+  # the optional WEB_ALIAS_ORIGIN names its longer order in EXPECTED_ORDER.
+  if [[ "$(<"$scenario_directory/calls.log")" != "${EXPECTED_ORDER:-$EXPECTED_CHECK_ORDER}" ]]; then
     echo "Scenario $scenario did not run every check in order:" >&2
     cat "$scenario_directory/calls.log" >&2
     return 1
@@ -220,6 +221,25 @@ expect_output hermetic-outranks-dependent "readiness returned HTTP 503 (expected
 expect_output hermetic-outranks-dependent "webfinger returned HTTP 500 (expected 404)"
 expect_output hermetic-outranks-dependent "rolling the deployment back"
 refute_output hermetic-outranks-dependent "will NOT be rolled back"
+
+# --- the optional alias web origin --------------------------------------------
+
+# Unset (every scenario above) adds no check. Set, it is one more DEPENDENT check:
+# healthy passes, and an SPA answer on the alias pages without a rollback.
+readonly ALIAS_CHECK_ORDER="$EXPECTED_CHECK_ORDER
+webfinger-alias"
+EXPECTED_ORDER="$ALIAS_CHECK_ORDER" run_scenario alias-healthy 0 \
+  WEB_ALIAS_ORIGIN=https://mention.org \
+  SMOKE_TEST_STATUS_webfinger_alias=404
+expect_output alias-healthy "Mention post-deploy smoke checks passed."
+refute_output alias-healthy "::error::"
+
+EXPECTED_ORDER="$ALIAS_CHECK_ORDER" run_scenario alias-html 75 \
+  WEB_ALIAS_ORIGIN=https://mention.org \
+  SMOKE_TEST_STATUS_webfinger_alias=404 \
+  "SMOKE_TEST_CT_webfinger_alias=text/html; charset=utf-8"
+expect_output alias-html "webfinger-alias did not return a JSON/ActivityPub content type"
+expect_output alias-html "will NOT be rolled back"
 
 # --- the population floor ----------------------------------------------------
 #

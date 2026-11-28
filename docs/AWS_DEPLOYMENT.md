@@ -44,6 +44,18 @@ CI's `merge_group` trigger is inert until the merge-queue ruleset is enabled on
 | `mcp.mention.earth`                              | AWS ECS service `mention-mcp`, port `3100` | `oxy/mention-mcp` | `.github/workflows/deploy-mcp-aws.yml`   |
 | `shell.mention.earth` (static Expo web export)   | Cloudflare Worker `mention-frontend`       | —                 | `.github/workflows/deploy-frontends.yml` |
 
+`mention.org` and `api.mention.org` are aliases of `mention.earth` and
+`api.mention.earth`: Cloudflare proxies them to the same ALB and the same
+`mention` service, which answers them exactly like their `mention.earth`
+counterparts (the apex web plane, CORS, the CSP, every well-known document, and
+WebFinger for `acct:<user>@mention.org`). The canonical is still `mention.earth`:
+canonical tags, OG URLs, sitemaps, share links, the native apps' associated
+domains and every ActivityPub id stay there. The backend reads the aliases from
+`MENTION_WEB_ALIAS_ORIGINS` (default `https://mention.org`) and
+`MENTION_API_ALIAS_ORIGINS` (default `https://api.mention.org`); `none` turns
+either off. The move itself is planned in
+[mention-org-domain-move](./mention-org-domain-move.md).
+
 The native apps ship outside AWS:
 
 | Surface                              | How it ships                                                                                                                                   | Workflow                                              |

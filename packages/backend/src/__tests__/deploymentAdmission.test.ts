@@ -37,6 +37,15 @@ describe('managed deployment runtime', () => {
     expect(parsed.FEDERATION_DOMAIN).toBe('social.alpha.example');
     expect(parsed.ACTOR_DOMAIN).toBe('social.alpha.example');
     expect(parsed.MENTION_MCP_PUBLIC_URL).toBe(example.mcpBaseUrl);
+    // The public instance's mention.org aliases are not a tenant's hosts.
+    expect(parsed.MENTION_WEB_ALIAS_ORIGINS).toEqual([]);
+    expect(parsed.MENTION_API_ALIAS_ORIGINS).toEqual([]);
+    expect(
+      parseRuntimeEnvironment({
+        ...dedicatedEnvironment,
+        MENTION_WEB_ALIAS_ORIGINS: 'https://social-alias.alpha.example',
+      }).MENTION_WEB_ALIAS_ORIGINS,
+    ).toEqual(['https://social-alias.alpha.example']);
     expect(() =>
       parseRuntimeEnvironment({
         MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
