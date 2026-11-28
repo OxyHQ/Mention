@@ -1,0 +1,33 @@
+-- oxy:deploy-phase=pre
+-- Two reads swept the whole of `federated_actors` (~1 GB heap, ~117k pages,
+-- 988k rows) to keep a small part of it, about 17 times an hour between them
+-- (production, PlanetScale, 2026-11-28):
+--
+--   * `findKnownBlueskyAccounts`, the Jetstream handlers' in-memory set, every
+--     five minutes: a bitmap heap scan returning 485k rows, 117,567 blocks read
+--     and 71,662 written back dirty per call, 2.8 s mean. Served now by
+--     `federated_actors_known_bluesky_idx` as an index-only scan: its keys are
+--     the two columns read and its predicate is the query's.
+--   * `findAtprotoHistoryBackfillCandidates`, a few times an hour: a bitmap heap
+--     scan of every atproto row (116k pages, 1.1 s) to keep ~6.8k and sort them
+--     for a LIMIT 10. Its cheap half walks `federated_actors_atproto_cheap_history_idx`
+--     (~6.4k entries, already in the order taken); its followed half goes through
+--     `federated_actors_uri_key`.
+--
+-- Both predicates are LITERALS (`knownBlueskyActorSql`, `atprotoCheapHistorySql`
+-- in `schema/federation.ts`), the same text the queries render, so the planner
+-- can prove the implication under a generic plan.
+--
+-- CREATE INDEX takes SHARE on `federated_actors`, which blocks federation ingest
+-- for the build. Build both CONCURRENTLY out of band first, with the same names
+-- and definitions, and these statements pass over them:
+--
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS "federated_actors_known_bluesky_idx" ON "federated_actors" USING btree ("uri","oxy_user_id") WHERE ("federated_actors"."protocol" = 'atproto' or "federated_actors"."domain" = 'bsky.brid.gy') and "federated_actors"."oxy_user_id" is not null and "federated_actors"."suspended" = false;
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS "federated_actors_atproto_cheap_history_idx" ON "federated_actors" USING btree ("outbox_backfill_last_run_at" asc nulls first,"id") WHERE "federated_actors"."protocol" = 'atproto' and "federated_actors"."oxy_user_id" is not null and "federated_actors"."suspended" = false and ("federated_actors"."outbox_backfill_status" is null or "federated_actors"."outbox_backfill_status" in ('pending', 'failed')) and "federated_actors"."last_outbox_sync_at" is not null and "federated_actors"."posts_count" > 0 and "federated_actors"."posts_count" <= 200;
+--   VACUUM (ANALYZE) "federated_actors";
+--
+-- The VACUUM sets the visibility map an index-only scan needs: after the
+-- PlanetScale copy `relallvisible` was 0. A failed CONCURRENTLY build leaves an
+-- INVALID index that IF NOT EXISTS skips; check `pg_index.indisvalid` first.
+CREATE INDEX IF NOT EXISTS "federated_actors_known_bluesky_idx" ON "federated_actors" USING btree ("uri","oxy_user_id") WHERE ("federated_actors"."protocol" = 'atproto' or "federated_actors"."domain" = 'bsky.brid.gy') and "federated_actors"."oxy_user_id" is not null and "federated_actors"."suspended" = false;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "federated_actors_atproto_cheap_history_idx" ON "federated_actors" USING btree ("outbox_backfill_last_run_at" asc nulls first,"id") WHERE "federated_actors"."protocol" = 'atproto' and "federated_actors"."oxy_user_id" is not null and "federated_actors"."suspended" = false and ("federated_actors"."outbox_backfill_status" is null or "federated_actors"."outbox_backfill_status" in ('pending', 'failed')) and "federated_actors"."last_outbox_sync_at" is not null and "federated_actors"."posts_count" > 0 and "federated_actors"."posts_count" <= 200;

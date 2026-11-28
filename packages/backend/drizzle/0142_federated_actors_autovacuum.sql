@@ -1,0 +1,15 @@
+-- oxy:deploy-phase=pre
+-- Vacuum `federated_actors` after 1% of its rows change instead of 20%.
+--
+-- `federated_actors_known_bluesky_idx` (0141) serves the Jetstream set as an
+-- INDEX-ONLY scan, which skips the heap only for pages the visibility map marks
+-- all-visible; a page an UPDATE touched is fetched until a vacuum marks it again.
+-- At the default scale factor (0.2) the ~988k-row table is vacuumed after ~200k
+-- dead rows — every two days at today's ~4k updates an hour — so the map would
+-- decay back toward a full heap read. At 0.01 it is vacuumed every few hours,
+-- and each vacuum reads only the pages changed since the last (the map lets it
+-- skip the rest). Inserts likewise.
+--
+-- SHARE UPDATE EXCLUSIVE: reads and writes continue; it waits only for a running
+-- autovacuum or DDL on the table, under the migrator's 3 s lock_timeout.
+ALTER TABLE "federated_actors" SET (autovacuum_vacuum_scale_factor = 0.01, autovacuum_vacuum_insert_scale_factor = 0.01);

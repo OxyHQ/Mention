@@ -22,7 +22,7 @@
  * silent normalization into a 500.
  */
 
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import {
   boolean,
   check,
@@ -33,6 +33,7 @@ import {
   primaryKey,
   text,
   unique,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
@@ -95,6 +96,60 @@ export const actorKeyPairs = pgTable('actor_key_pairs', {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+/**
+ * The Bridgy Fed host a Bluesky account bridged into ActivityPub lives under
+ * (`connectors/shared/bridgyActor.ts` re-exports it). It is part of
+ * `federated_actors_known_bluesky_idx`'s predicate, so it is a constant here.
+ */
+export const BRIDGY_FED_BSKY_DOMAIN = 'bsky.brid.gy';
+
+/** The largest post history the atproto backfill reads for an account nobody here follows. */
+export const ATPROTO_CHEAP_HISTORY_POSTS = 200;
+
+type FederatedActorPredicateColumns = {
+  protocol: AnyPgColumn;
+  domain: AnyPgColumn;
+  oxyUserId: AnyPgColumn;
+  suspended: AnyPgColumn;
+  lastOutboxSyncAt: AnyPgColumn;
+  postsCount: AnyPgColumn;
+  outboxBackfillStatus: AnyPgColumn;
+};
+
+/**
+ * A Bluesky account known here — native (`protocol = 'atproto'`) or bridged
+ * (`domain = 'bsky.brid.gy'`), linked to an Oxy user, not suspended: the
+ * predicate of `federated_actors_known_bluesky_idx`, and of the query it serves.
+ *
+ * Rendered as LITERALS, never bind parameters: a partial index is usable only
+ * when the planner can prove the query's predicate implies the index's, and
+ * postgres.js prepares statements, so after five executions Postgres may plan
+ * a generic plan in which a parameter proves nothing.
+ */
+export function knownBlueskyActorSql(t: FederatedActorPredicateColumns): SQL {
+  return sql`(${t.protocol} = 'atproto' or ${t.domain} = ${sql.raw(`'${BRIDGY_FED_BSKY_DOMAIN}'`)}) and ${t.oxyUserId} is not null and ${t.suspended} = false`;
+}
+
+/**
+ * An atproto account whose post history is unfinished and small enough to read
+ * on discovery: linked, not suspended, synced once, at most
+ * {@link ATPROTO_CHEAP_HISTORY_POSTS} posts — the predicate of
+ * `federated_actors_atproto_cheap_history_idx`. Literals, for the reason
+ * {@link knownBlueskyActorSql} gives.
+ */
+export function atprotoCheapHistorySql(t: FederatedActorPredicateColumns): SQL {
+  return sql`${atprotoHistoryDueSql(t)} and ${t.lastOutboxSyncAt} is not null and ${t.postsCount} > 0 and ${t.postsCount} <= ${sql.raw(String(ATPROTO_CHEAP_HISTORY_POSTS))}`;
+}
+
+/**
+ * An atproto account whose post history is unfinished: linked, not suspended,
+ * never backfilled or left `pending`/`failed`. Literals, for the reason
+ * {@link knownBlueskyActorSql} gives.
+ */
+export function atprotoHistoryDueSql(t: FederatedActorPredicateColumns): SQL {
+  return sql`${t.protocol} = 'atproto' and ${t.oxyUserId} is not null and ${t.suspended} = false and (${t.outboxBackfillStatus} is null or ${t.outboxBackfillStatus} in ('pending', 'failed'))`;
+}
 
 /**
  * `federated_actors` — a remote account Mention knows about.
@@ -310,6 +365,20 @@ export const federatedActors = pgTable(
     index('federated_actors_network_acct_idx')
       .on(t.networkAcct)
       .where(sql`${t.networkAcct} is not null`),
+    // The Jetstream handlers' in-memory set of Bluesky accounts known here,
+    // re-read every five minutes (`findKnownBlueskyAccounts`). Keyed by every
+    // column that read returns, so it is an index-only scan of ~485k entries
+    // instead of a bitmap heap scan of the whole ~1 GB table (117k blocks per
+    // read on production, 2026-11-28).
+    index('federated_actors_known_bluesky_idx')
+      .on(t.uri, t.oxyUserId)
+      .where(knownBlueskyActorSql(t)),
+    // The cheap half of the atproto history backfill's candidates
+    // (`findAtprotoHistoryBackfillCandidates`), in the order it takes them: a
+    // few thousand rows walked in order instead of every atproto row sorted.
+    index('federated_actors_atproto_cheap_history_idx')
+      .on(sql`${t.outboxBackfillLastRunAt} asc nulls first`, t.id)
+      .where(atprotoCheapHistorySql(t)),
   ],
 );
 
