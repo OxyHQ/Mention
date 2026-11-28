@@ -8,6 +8,7 @@ import {
   readServerSEO,
   releaseServerSEO,
   releaseServerSEOForNavigation,
+  serverDocumentPathIs,
 } from '../seoHandoff';
 
 let document: Document;
@@ -183,4 +184,19 @@ test('missing canonical metadata never authorizes a body mutation', () => {
   expect(readServerSEO(document, '/@nate')).toBeUndefined();
   releaseServerSEOForNavigation(document, '/explore');
   expect(document.body.innerHTML).toBe('<div id="root">Application content</div>');
+});
+
+test("a federated copy's document describes its own path, though its canonical is the origin's", () => {
+  Object.defineProperty(document, 'URL', {
+    configurable: true,
+    value: 'https://mention.earth/p/019f-copy',
+  });
+  document.head.innerHTML = `<title data-mention-seo="true">Someone on Mention</title>
+    <link data-mention-seo="true" rel="canonical" href="https://origin.example/@someone/1">
+    <meta data-mention-seo="true" name="robots" content="noindex,follow">`;
+  const server = readServerSEO(document, '/p/019f-copy');
+  expect(server?.url).toBe('https://origin.example/@someone/1');
+  expect(server?.robots).toBe('noindex,follow');
+  expect(server && serverDocumentPathIs(server, '/p/019f-copy')).toBe(true);
+  expect(server && serverDocumentPathIs(server, '/p/another')).toBe(false);
 });
