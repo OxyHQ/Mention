@@ -174,7 +174,7 @@ freshness. Oxy membership and push provider behavior are tested through fixtures
 not live credentials. Native-device behavior has not been validated in this change.
 
 `packages/contracts` and `packages/sdk` are published to npm as
-`@oxy.so/mention-contracts` and `@oxy.so/mention-sdk` (Schedio's publishing
+`@oxy.so/mention-contracts` and `@oxy.so/mention-sdk` (the publishing
 client: `POST /posts` with an `Idempotency-Key`, `GET /mcp/bundles/me`). They are
 released by merging a version bump to main: `release-packages.yml` publishes them,
 contracts first (the SDK pins the same contracts version), once CI passed on that
