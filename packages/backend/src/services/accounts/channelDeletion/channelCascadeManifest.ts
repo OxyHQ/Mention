@@ -265,6 +265,16 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'A trigger-maintained hashtag index row for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_engagement_ranks',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why:
+      'The popular-order row of a destroyed post. No foreign key (`deferredForeignKeys.ts` says why): ' +
+      'the AFTER DELETE trigger `posts_engagement_rank_delete` removes it in the deleting statement, ' +
+      'the effect an ON DELETE CASCADE on `posts.id` would have.',
+  },
+  {
     table: 'post_corrections',
     column: 'postId',
     scope: 'channel-posts',

@@ -97,6 +97,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Expires unattached upload drafts globally; concurrent unrelated fixture uploads must not enter its deletion candidates.',
   },
   {
+    path: 'src/__tests__/scripts/backfillPostEngagementRanks.test.ts',
+    jobEntryPoint: 'backfillPostEngagementRanks',
+    reason:
+      'Walks every post by id and copies or repairs post_engagement_ranks for every listed one, so ' +
+      "another file's posts are in its ranges, and its repair would remove the stale side rows " +
+      '`popularEngagementBands.test.ts` writes on purpose.',
+  },
+  {
     path: 'src/__tests__/scripts/backfillPostHashtags.test.ts',
     jobEntryPoint: 'backfillPostHashtags',
     reason:

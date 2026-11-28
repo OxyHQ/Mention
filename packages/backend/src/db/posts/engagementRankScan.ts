@@ -368,7 +368,7 @@ function runKeyFields(run: number) {
     id: sql<string>`${postEngagementRanks.postId}`.as('page_post_id'),
     run: sql<number>`${run}::int`.as('page_run'),
     k1: sql<number>`${postEngagementRanks.engagementRank}`.as('page_rank'),
-    k2: sql<Date>`${postEngagementRanks.createdAt}`.as('page_created_at'),
+    k2: sql`${postEngagementRanks.createdAt}`.as('page_created_at'),
   };
 }
 
@@ -445,7 +445,7 @@ function zeroRunQuery(scan: EngagementRankScan, limit: SQL) {
       id: sql<string>`${posts.id}`.as('page_post_id'),
       run: sql<number>`2::int`.as('page_run'),
       k1: sql<number>`0::double precision`.as('page_rank'),
-      k2: sql<Date>`${posts.createdAt}`.as('page_created_at'),
+      k2: sql`${posts.createdAt}`.as('page_created_at'),
     })
     .from(posts)
     .where(and(...conditions))

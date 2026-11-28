@@ -248,6 +248,14 @@ afterAll(async () => {
   await closePostgres();
 });
 
+/**
+ * A walk in pages of one is ~2 x 60 sequential statements, and a sweep over
+ * every limit is as many: well under a second alone, but it took 8 s once in a
+ * full parallel run against the shared database. The bound is generous on
+ * purpose; a hang still fails.
+ */
+const WALK_TIMEOUT_MS = 60_000;
+
 const WINDOWS = [
   { name: 'unbounded', window: {} },
   { name: '7 days', window: { since: at(24 * 7) } },
@@ -267,21 +275,25 @@ describe('selectPostsByEngagementRank: banded equals single', () => {
   for (const { name, window } of WINDOWS) {
     for (const tiebreak of ['createdAt', 'id'] as const) {
       for (const prefilter of PREFILTERS) {
-        it(`${name}, ${tiebreak} tiebreak, ${prefilter.name}, at every limit`, async () => {
-          const total = mine.length + 2;
-          for (let limit = 1; limit <= total; limit += 1) {
-            const scan: EngagementRankScan = {
-              where: scoped(),
-              window,
-              tiebreak,
-              limit,
-              isReply: prefilter.isReply,
-              languages: prefilter.languages,
-            };
-            const [single, banded] = await bothModes(() => selectPostsByEngagementRank(scan));
-            expect(banded).toEqual(single);
-          }
-        });
+        it(
+          `${name}, ${tiebreak} tiebreak, ${prefilter.name}, at every limit`,
+          async () => {
+            const total = mine.length + 2;
+            for (let limit = 1; limit <= total; limit += 1) {
+              const scan: EngagementRankScan = {
+                where: scoped(),
+                window,
+                tiebreak,
+                limit,
+                isReply: prefilter.isReply,
+                languages: prefilter.languages,
+              };
+              const [single, banded] = await bothModes(() => selectPostsByEngagementRank(scan));
+              expect(banded).toEqual(single);
+            }
+          },
+          WALK_TIMEOUT_MS,
+        );
       }
     }
 
@@ -300,38 +312,42 @@ describe('selectPostsByEngagementRank: banded equals single', () => {
     });
 
     for (const pageSize of [1, 2, 3, 5]) {
-      it(`${name}: a keyset walk in pages of ${pageSize}`, async () => {
-        const walk = async (): Promise<{ id: string }[]> => {
-          const served: { id: string }[] = [];
-          let after: EngagementRankScan['after'];
-          for (let page = 0; page < 200; page += 1) {
-            const rows = await selectPostsByEngagementRank({
+      it(
+        `${name}: a keyset walk in pages of ${pageSize}`,
+        async () => {
+          const walk = async (): Promise<{ id: string }[]> => {
+            const served: { id: string }[] = [];
+            let after: EngagementRankScan['after'];
+            for (let page = 0; page < 200; page += 1) {
+              const rows = await selectPostsByEngagementRank({
+                where: scoped(),
+                window,
+                tiebreak: 'createdAt',
+                after,
+                limit: pageSize,
+              });
+              served.push(...rows);
+              if (rows.length < pageSize) break;
+              const last = rows[rows.length - 1];
+              after = { score: last.engagementScore, createdAt: last.createdAt, id: last.id };
+            }
+            return served;
+          };
+          const [single, banded] = await bothModes(walk);
+          expect(banded).toEqual(single);
+          // And the walk is the one-shot order: nothing skipped, nothing repeated.
+          const [whole] = await bothModes(() =>
+            selectPostsByEngagementRank({
               where: scoped(),
               window,
               tiebreak: 'createdAt',
-              after,
-              limit: pageSize,
-            });
-            served.push(...rows);
-            if (rows.length < pageSize) break;
-            const last = rows[rows.length - 1];
-            after = { score: last.engagementScore, createdAt: last.createdAt, id: last.id };
-          }
-          return served;
-        };
-        const [single, banded] = await bothModes(walk);
-        expect(banded).toEqual(single);
-        // And the walk is the one-shot order: nothing skipped, nothing repeated.
-        const [whole] = await bothModes(() =>
-          selectPostsByEngagementRank({
-            where: scoped(),
-            window,
-            tiebreak: 'createdAt',
-            limit: 500,
-          }),
-        );
-        expect(single).toEqual(whole);
-      });
+              limit: 500,
+            }),
+          );
+          expect(single).toEqual(whole);
+        },
+        WALK_TIMEOUT_MS,
+      );
     }
   }
 
