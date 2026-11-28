@@ -49,6 +49,7 @@ import {
   canonicalProfilePath,
   injectHeadHtml,
   isFederatedProfile,
+  lcpPreloadHtml,
   mapHashtagOg,
   mapHomepageOg,
   mapPostOg,
@@ -59,6 +60,15 @@ import {
   type ShellBootstrap,
 } from '../services/webshell/webShellRenderer';
 import { getShellCached, postOgCacheKey } from '../services/webshell/webShellOgCache';
+import {
+  firstPaintFontUrl,
+  injectPrerender,
+  postPath,
+  prerenderPost,
+  prerenderStyle,
+  renderPrerenderPost,
+  shellRemovesFirstFrame,
+} from '../services/webshell/prerender';
 import { normalizeHashtag } from '../utils/textProcessing';
 import { loadPublicProfileFacts } from '../services/accounts/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
@@ -66,7 +76,11 @@ import { authorSeoPolicy, fetchProfile } from '../services/webshell/postPageAuth
 import { webShellRateLimiter } from '../middleware/security';
 import { namedRoutePattern } from '../middleware/requestObservability';
 import { isApexHost } from '../middleware/apexFrontendProxy';
-import { getShell } from '../services/webshell/webShellDocument';
+import {
+  authorizeInlineScripts,
+  getShell,
+  inlineScriptHashes,
+} from '../services/webshell/webShellDocument';
 import {
   SitemapNotReadyError,
   hashtagHasListablePosts,
@@ -245,7 +259,13 @@ async function fetchPostOg(post: PostRecord, safety: PostOgSafety): Promise<OgDa
     // nameless author here is a lookup that failed for this request — not a
     // card to cache for an hour as "Unknown user" with no profile to link.
     if (!getNormalizedUserHandle(hydrated.user)) throw new Error('post author did not resolve');
-    return mapPostOg(hydrated, String(post.id), safety, { isBoost: Boolean(post.boostOf) });
+    const og = mapPostOg(hydrated, String(post.id), safety, { isBoost: Boolean(post.boostOf) });
+    // A first frame only for a post anyone may read as it stands: never behind
+    // a warning, and never a boost (whose page shows someone else's post under
+    // the booster's name, which the frame would misattribute).
+    return safety.requiresWarning || post.boostOf
+      ? og
+      : { ...og, prerender: prerenderPost(hydrated) };
   } catch (error) {
     logger.debug('[webShell] Post OG fetch failed', error);
     throw error;
@@ -371,13 +391,23 @@ async function serveShell(
   status = 200,
   bootstrap?: ShellBootstrap,
   cacheControl: string = ENTITY_PREVIEW_CACHE,
+  layer = '',
 ): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
+  // The first frame goes only on a page served as a success, in a release
+  // that removes it.
+  const frame = status === 200 && shellRemovesFirstFrame(shell) ? layer : '';
   res.status(status);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', status === 200 ? cacheControl : 'no-store');
-  const head = bootstrap ? HEAD_HINTS + buildShellBootstrapHtml(bootstrap) : HEAD_HINTS;
-  res.send(renderShellWithOg(injectHeadHtml(shell, head), og));
+  const head =
+    HEAD_HINTS +
+    lcpPreloadHtml(og) +
+    (frame ? prerenderStyle(firstPaintFontUrl(shell)) : '') +
+    (bootstrap ? buildShellBootstrapHtml(bootstrap) : '');
+  // The theme prepaint is an inline script; authorize exactly its bytes.
+  authorizeInlineScripts(res, inlineScriptHashes(shell));
+  res.send(injectPrerender(renderShellWithOg(injectHeadHtml(shell, head), og), frame));
 }
 
 function noindexPage(url: string, title: string, description: string): OgData {
@@ -701,6 +731,10 @@ router.get(
     // The page's first request is this very lookup; hand the app the public
     // answer so its feed and design reads start with the route, not ~one
     // round-trip later. Only reached for a profile Mention publishes.
+    // No first frame for a profile yet: the app paints a profile in its
+    // owner's colour and banner, which the frame cannot match before the app
+    // runs, and a frame that changes colour under the reader is the flash it
+    // exists to avoid.
     await serveShell(res, og, 200, { profile: { handle, data: profile } });
   },
 );
@@ -929,8 +963,18 @@ router.get(
       // The same boundary as the sitemaps and nodeinfo: a row is another
       // server's when it carries an activity id or an actor URI (a local
       // post's own content warning also lives on the federation columns).
+      const frame = og.prerender
+        ? renderPrerenderPost(og.prerender, postPath(String(post.id)))
+        : '';
       if (post.federation?.activityId || post.federation?.actorUri) {
-        await serveShell(res, federatedCopy(og, post.federation.url));
+        await serveShell(
+          res,
+          federatedCopy(og, post.federation.url),
+          200,
+          undefined,
+          ENTITY_PREVIEW_CACHE,
+          frame,
+        );
         return;
       }
       await serveShell(
@@ -938,6 +982,10 @@ router.get(
         verdict.indexable
           ? await withComments(og, String(post.id), policyFor)
           : withoutIndexing(og),
+        200,
+        undefined,
+        ENTITY_PREVIEW_CACHE,
+        frame,
       );
     } catch (error) {
       logger.warn('[webShell] Post page resolution failed', {

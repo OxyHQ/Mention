@@ -808,7 +808,8 @@
       "label": "Job"
     },
     "inCommunity": "في !{{handle}}",
-    "sources": "المصادر"
+    "sources": "المصادر",
+    "imageWithoutAlt": "صورة"
   },
   "navigation": {
     "menu": "قائمة التنقل",

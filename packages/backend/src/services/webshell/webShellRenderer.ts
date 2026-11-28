@@ -22,6 +22,7 @@ import { siteStructuredData } from '@mention/shared-types/seo';
 import { toReaderText } from '@mention/shared-types/textEntities';
 import { resolveMediaRef } from '../../utils/mediaResolver';
 import { config } from '../../config';
+import type { PrerenderPost } from './prerender';
 
 /** Normalized OG payload injected into a shell for one profile / post URL. */
 export interface OgData {
@@ -56,6 +57,20 @@ export interface OgData {
   robots?: 'index,follow' | 'noindex,follow' | 'noindex,nofollow';
   /** JSON-LD entity represented by the public profile or post. */
   jsonLd?: Record<string, unknown>;
+  /**
+   * The page's largest contentful paint image, at the EXACT URL the app's media
+   * card requests (`thumbUrl`, else `url`): preloaded at high priority, and the
+   * card loads it eagerly (`frontend/lib/lcpImage.ts`).
+   */
+  lcpImage?: string;
+  /** A public, ungated post's first frame (`prerender.ts`), shown before the app runs. */
+  prerender?: PrerenderPost;
+}
+
+/** The `<link rel=preload>` for a page's LCP image, or nothing. */
+export function lcpPreloadHtml(og: OgData | null): string {
+  if (!og?.lcpImage || !/^https?:\/\//i.test(og.lcpImage)) return '';
+  return `<link rel="preload" as="image" href="${escapeHtml(og.lcpImage)}" fetchpriority="high" data-mention-lcp>`;
 }
 
 /** Canonical web origin used for `og:url` (the apex the SPA is served from). */
@@ -606,6 +621,14 @@ export function mapPostOg(
   const avatarImage = ogImageForAvatar(user.avatar);
   const image = mediaImage || documentImage || avatarImage || undefined;
   const imageIsMedia = Boolean(mediaImage) && image === mediaImage;
+  // What the media card renders first: an image's thumb (a GIF animates only at
+  // its original), never a video's file.
+  const lcpImage =
+    first?.type === 'image'
+      ? first.thumbUrl || first.url
+      : first?.type === 'gif'
+        ? first.url || first.fullUrl || first.thumbUrl
+        : undefined;
 
   const authorHandle = handle ? `@${handle}` : author;
   const createdAt = post.metadata?.createdAt;
@@ -663,6 +686,7 @@ export function mapPostOg(
     url,
     type: 'article',
     lang,
+    ...(lcpImage ? { lcpImage } : {}),
     // A boost repeats someone else's post: the original is the page to index,
     // and this one still passes its links on.
     robots: shape.isBoost ? 'noindex,follow' : 'index,follow',

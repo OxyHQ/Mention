@@ -82,7 +82,7 @@ export async function getShellCached<T>(
  * edge purge that evicts it. Bump the version when the card's shape changes.
  */
 export function postOgCacheKey(postId: string): string {
-  return `post:semantic-v2:${postId}`;
+  return `post:semantic-v3:${postId}`;
 }
 
 /**

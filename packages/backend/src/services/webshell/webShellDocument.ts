@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 /**
  * The web shell's index.html, as the backend holds it.
  *
@@ -134,4 +135,66 @@ export function invalidateShellDocument(): void {
 export function resetShellDocumentForTests(): void {
   shellCache = null;
   shellInFlight = null;
+}
+
+/**
+ * The inline scripts the app's own document carries, as CSP source hashes.
+ *
+ * The page's `script-src` has no `'unsafe-inline'`, so an inline script runs
+ * only when its exact bytes are authorized. The one the shell carries is the
+ * theme prepaint (`<script data-bloom-theme-bootstrap>`, written into
+ * `index.html` by the frontend build, `scripts/web-theme-prepaint.mjs`): it sets
+ * the reader's light or dark mode before the body paints. Reading the hash from
+ * the document itself means a Bloom upgrade that changes those bytes needs no
+ * backend change; a document without it yields no hash and changes nothing.
+ */
+const INLINE_SCRIPT_RE = /<script data-bloom-theme-bootstrap>([\s\S]*?)<\/script>/g;
+let hashedHtml: string | null = null;
+let hashedSources: string[] = [];
+
+export function inlineScriptHashes(html: string): string[] {
+  if (html === hashedHtml) return hashedSources;
+  const sources = [...html.matchAll(INLINE_SCRIPT_RE)].map(
+    (match) => `'sha256-${createHash('sha256').update(match[1], 'utf8').digest('base64')}'`,
+  );
+  hashedHtml = html;
+  hashedSources = sources;
+  return sources;
+}
+
+/**
+ * Add `sources` to the response's `script-src` (set by the security middleware
+ * before any route). A response without a policy, or without that directive,
+ * is left alone: this only ever widens a policy by the document's own bytes.
+ */
+export function authorizeInlineScripts(
+  res: { getHeader(name: string): unknown; setHeader(name: string, value: string): unknown },
+  sources: readonly string[],
+): void {
+  if (!sources.length) return;
+  const policy = res.getHeader('Content-Security-Policy');
+  if (typeof policy !== 'string') return;
+  const next = policy.replace(
+    /(^|;)\s*script-src\s+([^;]*)/,
+    (_match, lead: string, values: string) => {
+      const present = new Set(values.trim().split(/\s+/));
+      const added = sources.filter((source) => !present.has(source));
+      return `${lead}script-src ${[values.trim(), ...added].join(' ')}`;
+    },
+  );
+  if (next !== policy) res.setHeader('Content-Security-Policy', next);
+}
+
+/**
+ * The hashes of the HELD shell's inline scripts, for a document served from the
+ * same release (the apex proxy streams that same `index.html`). Never fetches:
+ * with nothing held it starts the fetch for next time and answers none, and
+ * that one document paints by the OS preference alone.
+ */
+export function shellInlineScriptHashes(): string[] {
+  if (!shellCache) {
+    void getShell();
+    return [];
+  }
+  return inlineScriptHashes(shellCache.html);
 }

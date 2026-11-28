@@ -80,6 +80,31 @@ function readWebPresetSync(): AppColorName | null {
 }
 
 /**
+ * On web, the mode the document was painted in before any JavaScript ran: the
+ * theme prepaint (`scripts/web-theme-prepaint.mjs`) sets `data-bloom-theme-mode`
+ * from the saved theme and the OS preference. Null on native, or on a document
+ * without the prepaint.
+ */
+function webPrepaintMode(): 'light' | 'dark' | null {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
+  const mode = document.documentElement.getAttribute('data-bloom-theme-mode');
+  return mode === 'light' || mode === 'dark' ? mode : null;
+}
+
+/** A painted CSS color token of the document, or `fallback`. */
+function documentColor(token: string, fallback: string): string {
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+    return value || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** The light-mode logo colour when the document gives none: the blue preset's primary. */
+const LIGHT_LOGO_FALLBACK = '#006eaf';
+
+/**
  * The web boot visual, shown while fonts load, while the viewer's cache owner and
  * session resolve, and until startup initialization completes. It is static and
  * unmounts the moment its gate opens: nothing waits for it, so it cannot delay
@@ -113,6 +138,21 @@ const AppSplashScreen: React.FC = () => {
   }, []);
 
   const gradient = useMemo(() => buildDarkGradient(preset), [preset]);
+  // A document painted light stays light: the dark gradient here turned every
+  // light-mode boot into light (prepaint) → dark (splash) → light (app).
+  const [lightLogo] = useState(() =>
+    webPrepaintMode() === 'light' ? documentColor('--primary', LIGHT_LOGO_FALLBACK) : null,
+  );
+
+  if (lightLogo) {
+    return (
+      <View style={[styles.container, styles.gradient, styles.prepaintBackground]}>
+        <View style={styles.logoContainer}>
+          <LogoIcon size={LOGO_SIZE} color={lightLogo} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -133,6 +173,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // The document's own painted background (react-native-web passes `var()` through).
+  prepaintBackground: {
+    backgroundColor: 'var(--background)',
   },
   logoContainer: {
     alignItems: 'center',

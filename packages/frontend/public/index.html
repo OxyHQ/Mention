@@ -14,6 +14,14 @@
     <meta name="mobile-web-app-capable" content="yes" />
 
     <!--
+      This release removes the server's first-frame layer once its route is
+      ready (`lib/prerender.ts`). The web shell adds that layer only to a
+      document carrying this marker, so a backend that deploys before the
+      frontend never covers an app that cannot remove it.
+    -->
+    <meta name="mention-first-frame" content="1" />
+
+    <!--
       Resource hints for the two cross-origin hosts the first screen hits before
       any JS-driven fetch can resolve DNS/TLS on its own:
         - the Mention API   (feed JSON + federated media proxy)

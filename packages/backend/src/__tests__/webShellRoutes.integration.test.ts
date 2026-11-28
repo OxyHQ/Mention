@@ -106,6 +106,7 @@ import type { HydratedPost } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { federatedActors, userSettings } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { PostVisibility } from '@mention/shared-types';
 import type { PostRecordInput } from '../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 
@@ -113,7 +114,7 @@ const scope = postScope('web-shell');
 const AUTHOR = scope.user('author');
 
 const SHELL =
-  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title></head>' +
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="mention-first-frame" content="1"><title>Mention</title></head>' +
   '<body><div id="root"></div><script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
 
 /** An id that matches no row — the "missing post" case, and a browser fast-path probe. */
@@ -125,6 +126,14 @@ function profileJsonLd(html: string): Record<string, unknown> {
     /<script data-mention-seo="true" type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
   if (!match) throw new Error('no JSON-LD in the document');
   return JSON.parse(match[1]) as Record<string, unknown>;
+}
+
+/** The document with the server's first-frame layer taken out. */
+function withoutFirstFrame(html: string): string {
+  return html.replace(
+    /<div id="mention-prerender" data-mention-prerender>[\s\S]*?<\/main><\/div>/,
+    '',
+  );
 }
 
 function makeApp() {
@@ -487,7 +496,7 @@ describe('webShell routes (integration)', () => {
     expect(cardTags).not.toContain('files.remote.social/avatars');
   });
 
-  it('serves profile metadata without modifying the SPA body to a browser', async () => {
+  it("serves profile metadata, leaving the app's own body unmodified, to a browser", async () => {
     stubFetch({
       ok: true,
       body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } },
@@ -507,7 +516,8 @@ describe('webShell routes (integration)', () => {
       '<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">',
     );
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(
+    // The app's own body is untouched; the first frame is a layer ahead of it.
+    expect(withoutFirstFrame(res.text).match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(
       SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0],
     );
     expect(res.text).toContain('rel="preconnect"');
@@ -605,6 +615,8 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain(
       '<meta data-mention-seo="true" name="robots" content="noindex,follow">',
     );
+    // A copy of another server's account gets no first frame.
+    expect(res.text).not.toContain('mention-prerender');
   });
 
   it('serves a federated profile flagged by Oxy as noindex,follow', async () => {
@@ -947,7 +959,7 @@ describe('webShell routes (integration)', () => {
     );
   });
 
-  it('serves post metadata without modifying the SPA body to a browser', async () => {
+  it("serves post metadata, leaving the app's own body unmodified, to a browser", async () => {
     stubPublicAuthor();
     const postId = await seedOgPost();
 
@@ -966,7 +978,8 @@ describe('webShell routes (integration)', () => {
       '<meta data-mention-seo="true" property="og:title" content="Nate on Mention: &quot;hi there&quot;">',
     );
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(
+    // The app's own body is untouched; the first frame is a layer ahead of it.
+    expect(withoutFirstFrame(res.text).match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(
       SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0],
     );
     expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();
@@ -1118,6 +1131,30 @@ describe('webShell post OG sensitivity gate', () => {
     expect(res.text).toContain(
       '<meta data-mention-seo="true" name="robots" content="index,follow">',
     );
+  });
+
+  it('serves an ungated public post with its first frame, and a gated one without', async () => {
+    const open = await seedOgPost();
+    mockHydrated(open, { content: { text: 'plain words for everyone' } } as Partial<HydratedPost>);
+    const page = await crawl(open);
+    expect(page.text).toContain('<div id="mention-prerender" data-mention-prerender>');
+    expect(page.text).toContain('plain words for everyone');
+    expect(page.text.indexOf('id="mention-prerender"')).toBeLessThan(
+      page.text.indexOf('id="root"'),
+    );
+
+    const gated = await seedGatedPost({ metadata: { isSensitive: true } });
+    const gatedPage = await crawl(gated);
+    expect(gatedPage.text).not.toContain('mention-prerender');
+    expect(gatedPage.text).not.toContain(SENSITIVE_BODY);
+  });
+
+  it('serves no first frame for a post that is not public', async () => {
+    const postId = await seedOgPost({ visibility: PostVisibility.PRIVATE });
+    mockHydrated(postId);
+    const res = await crawl(postId);
+    expect(res.text).not.toContain('mention-prerender');
+    expect(res.text).not.toContain('hi there');
   });
 
   it('emits NO og:image for a post tagged with an NSFW hashtag', async () => {

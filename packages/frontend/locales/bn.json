@@ -752,7 +752,8 @@
       "label": "Job"
     },
     "inCommunity": "!{{handle}}-এ",
-    "sources": "সূত্র"
+    "sources": "সূত্র",
+    "imageWithoutAlt": "ছবি"
   },
   "navigation": {
     "menu": "নেভিগেশন মেনু",

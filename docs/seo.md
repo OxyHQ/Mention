@@ -12,17 +12,62 @@ The renderer marks its title, meta, canonical and JSON-LD elements with
 also retires the initial metadata. Proven aliases preserve the original request
 identity separately from the canonical URL until their profile is ready.
 
-SEO must not introduce an alternate visible interface. The renderer leaves the
-application body unchanged: no injected profile/post article, boot overlay,
-hidden replacement content or crawler-specific body. React owns the visible
-application throughout startup, including its normal loading states.
-
 Initial post metadata remains authoritative because the backend evaluates raw
 safety and visibility signals that the hydrated client DTO does not contain.
 When navigating client-side to a post without that server proof, use generic
 `noindex,nofollow` metadata without body text, content-derived images or structured
 data. A direct request for an eligible public URL still receives indexable head
 metadata. Do not infer eligibility from `metadata.isSensitive` alone.
+
+## The first frame (public post pages)
+
+A public, ungated post page carries its content in the initial HTML: the
+author (linked), the words (with real links; someone else's link is
+`rel="nofollow ugc"`), the media with alt text (the author's, else "Image by
+<author>") and its box reserved, the time and the counts
+(`packages/backend/src/services/webshell/prerender.ts`). It is laid out like the app's mobile post
+screen (measured on the live app at 412 px) and painted with the document's
+theme tokens, as a fixed layer over `#root` — never inside it, because React's
+first commit clears its container and the app first draws its loading states.
+
+The app boots underneath, untouched. When the route has committed the same
+content (`<SEO ready>`) and its own `<h1>` is on screen, `packages/frontend/lib/prerender.ts`
+fades the layer out (160 ms) and removes it; navigating elsewhere first, or
+eight seconds after the app mounts, removes it too. A reader without
+JavaScript keeps the layer. Measured on a local production export through the
+real renderer (Lighthouse mobile, applied Slow 4G and 4x CPU): an image post's
+LCP 2.0–2.15 s and CLS 0.005, against FCP ~10.6 s and LCP ~14.5 s without it.
+
+Only a page the web shell already renders for anyone gets a frame: public,
+published, a visible author, no content warning, not a boost (whose frame would
+put the original's words under the booster's name). The frame is built from the
+same hydrated post as the card and cached with it (`post:semantic-v3`); the
+visibility verdicts are this request's own. Profiles have no frame yet: the app
+paints a profile in its owner's colour and banner, which the document cannot
+know before the app runs.
+
+The #1211 lesson stands: the frame must look like the app's screen, or the
+handover is the flash #1211 removed. Change the post screen's layout, and change
+`prerenderStyle` with it.
+
+## Theme before JavaScript
+
+The exported `index.html` starts with Bloom's theme bootstrap
+(`packages/frontend/scripts/web-theme-prepaint.mjs`: `getThemeBootstrap`, the default preset in
+light and dark plus a 1.5 KB script that reads the saved theme), and the
+provider adopts it (`prepaintTheme={THEME_PREPAINT}`). `global.css` no longer
+paints a fixed `#0b0b0f`, and the web splash stays light on a light document.
+The script is inline; the backend authorizes exactly its bytes by a SHA-256 read
+from the document itself (`inlineScriptHashes`), so a Bloom upgrade needs no
+backend change, and a missing hash only leaves the OS preference to decide.
+
+## The LCP image
+
+A post page preloads its first image at the exact URL the media card requests
+(`<link rel="preload" as="image" fetchpriority="high" data-mention-lcp>`), and
+that card loads it eagerly at high priority (`packages/frontend/lib/lcpImage.ts`) instead of
+expo-image's default `loading="lazy"`. Every image without author alt text is
+labelled "Image".
 
 ## Profile structured data
 
@@ -127,9 +172,11 @@ The profile's display name is the page's `<h1>` (`UserName asHeading`).
 
 ## Verification
 
-Use a production web export and the real backend renderer. Verify that JavaScript-
-disabled and delayed-script responses preserve the application's original body,
-that no intermediate SEO screen appears, and that `#root` is never hidden by SEO.
+Use a production web export and the real backend renderer. Verify that the
+app's own body is unchanged (the first frame is a sibling layer ahead of
+`#root`), that `#root` is never hidden, that the frame matches the app's screen
+at the handover (a filmstrip at 4x CPU shows the same layout before and after),
+and that it is gone once the route is ready.
 Assert a single title/canonical/robots/description after readiness, no transient
 home pathname on deep-link loads, and removal of stale metadata after navigation,
 and that a profile renders one `<h1>` and anchors to its posts

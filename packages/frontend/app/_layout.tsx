@@ -40,7 +40,11 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@oxy.so/core/logger';
 import { configureAppLogging } from '@/lib/logging';
-import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
+import {
+  BLOOM_THEME_PERSIST_KEY,
+  BLOOM_THEME_STORAGE,
+  THEME_PREPAINT,
+} from '@/lib/themePersistence';
 import { registerSocketBfcacheRelease } from '@/lib/socketBfcache';
 import { initializeWebTelemetry } from '@/lib/webTelemetry';
 import { registerPendingDocuments } from '@/stores/pendingDocuments';
@@ -177,6 +181,9 @@ export default function RootLayout() {
         defaultColorPreset={APP_DEFAULT_COLOR_PRESET}
         persistKey={BLOOM_THEME_PERSIST_KEY}
         storage={BLOOM_THEME_STORAGE}
+        // The document painted this theme before any JavaScript ran
+        // (`scripts/web-theme-prepaint.mjs`); the provider adopts that paint.
+        prepaintTheme={THEME_PREPAINT}
         // WEB shows the custom splash while fonts load; NATIVE shows nothing here
         // because the held OS splash is already covering the screen.
         onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}

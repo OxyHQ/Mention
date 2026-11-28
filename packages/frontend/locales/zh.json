@@ -752,7 +752,8 @@
       "label": "Job"
     },
     "inCommunity": "发布于 !{{handle}}",
-    "sources": "来源"
+    "sources": "来源",
+    "imageWithoutAlt": "图片"
   },
   "navigation": {
     "menu": "导航菜单",
