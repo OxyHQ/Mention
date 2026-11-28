@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import type { TextInputInstance } from 'react-native';
+import { DEFAULT_POLL_DURATION_DAYS } from '@/utils/composeContent';
 
 /**
  * Spelled out rather than inferred: the inferred ref type names React Native
@@ -19,6 +20,8 @@ export interface PollManager {
   setPollTitle: Dispatch<SetStateAction<string>>;
   pollOptions: string[];
   setPollOptions: Dispatch<SetStateAction<string[]>>;
+  pollDurationDays: number;
+  setPollDurationDays: Dispatch<SetStateAction<number>>;
   pollTitleInputRef: RefObject<TextInputInstance | null>;
   focusPollCreator: () => void;
   addPollOption: () => void;
@@ -32,6 +35,7 @@ export const usePollManager = (): PollManager => {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollTitle, setPollTitle] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>([]);
+  const [pollDurationDays, setPollDurationDays] = useState(DEFAULT_POLL_DURATION_DAYS);
   const pollTitleInputRef = useRef<TextInputInstance | null>(null);
 
   const focusPollCreator = useCallback(() => {
@@ -63,6 +67,7 @@ export const usePollManager = (): PollManager => {
     setShowPollCreator(false);
     setPollOptions([]);
     setPollTitle('');
+    setPollDurationDays(DEFAULT_POLL_DURATION_DAYS);
     pollTitleInputRef.current?.blur();
   }, []);
 
@@ -70,6 +75,7 @@ export const usePollManager = (): PollManager => {
     setShowPollCreator(false);
     setPollOptions([]);
     setPollTitle('');
+    setPollDurationDays(DEFAULT_POLL_DURATION_DAYS);
   }, []);
 
   return {
@@ -79,6 +85,8 @@ export const usePollManager = (): PollManager => {
     setPollTitle,
     pollOptions,
     setPollOptions,
+    pollDurationDays,
+    setPollDurationDays,
     pollTitleInputRef,
     focusPollCreator,
     addPollOption,

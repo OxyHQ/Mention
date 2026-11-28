@@ -613,6 +613,9 @@
     "replyPublished": "Yanıtın paylaşıldı!",
     "emptyHint": "Metin, görsel, anket veya makale ekle",
     "poll": {
+      "duration": "Anket süresi",
+      "days_one": "{{count}} gün",
+      "days_other": "{{count}} gün",
       "addOption": "Seçenek ekle",
       "addMoreOptions": "En fazla 2 seçenek daha ekleyebilirsin",
       "create": "Anket oluştur",

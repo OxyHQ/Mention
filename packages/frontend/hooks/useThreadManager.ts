@@ -28,6 +28,7 @@ export type DraftBoxContent = Pick<
   | 'mediaIds'
   | 'pollOptions'
   | 'pollTitle'
+  | 'pollDurationDays'
   | 'showPollCreator'
   | 'location'
   | 'mentions'
@@ -49,6 +50,8 @@ export interface ThreadItem {
   mediaIds: ComposerMediaItem[];
   pollOptions: string[];
   pollTitle: string;
+  /** Absent means the default length. */
+  pollDurationDays?: number;
   showPollCreator: boolean;
   location: { latitude: number; longitude: number; address?: string } | null;
   mentions: MentionData[];
@@ -313,6 +316,7 @@ export const useThreadManager = () => {
               showPollCreator: false,
               pollOptions: [],
               pollTitle: '',
+              pollDurationDays: undefined,
             }
           : item,
       ),
@@ -322,6 +326,12 @@ export const useThreadManager = () => {
   const updateThreadPollTitle = useCallback((threadId: string, title: string) => {
     setThreadItems((prev) =>
       prev.map((item) => (item.id === threadId ? { ...item, pollTitle: title } : item)),
+    );
+  }, []);
+
+  const updateThreadPollDuration = useCallback((threadId: string, days: number) => {
+    setThreadItems((prev) =>
+      prev.map((item) => (item.id === threadId ? { ...item, pollDurationDays: days } : item)),
     );
   }, []);
 
@@ -546,6 +556,7 @@ export const useThreadManager = () => {
         mediaIds: thread.mediaIds,
         pollOptions: thread.pollOptions,
         pollTitle: thread.pollTitle ?? '',
+        pollDurationDays: thread.pollDurationDays,
         showPollCreator: thread.showPollCreator,
         location: thread.location,
         mentions: thread.mentions,
@@ -589,6 +600,7 @@ export const useThreadManager = () => {
     removeThreadPollOption,
     removeThreadPoll,
     updateThreadPollTitle,
+    updateThreadPollDuration,
     setThreadLocation,
     removeThreadLocation,
     setThreadSources,

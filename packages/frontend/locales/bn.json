@@ -613,6 +613,9 @@
     "replyPublished": "আপনার উত্তর পোস্ট করা হয়েছে!",
     "emptyHint": "লেখা, ছবি, পোল বা নিবন্ধ যোগ করুন",
     "poll": {
+      "duration": "পোলের মেয়াদ",
+      "days_one": "{{count}} দিন",
+      "days_other": "{{count}} দিন",
       "addOption": "অপশন যোগ করুন",
       "addMoreOptions": "আরও সর্বোচ্চ ২টি অপশন যোগ করতে পারেন",
       "create": "একটি পোল তৈরি করুন",

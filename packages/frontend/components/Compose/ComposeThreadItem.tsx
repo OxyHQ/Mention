@@ -104,6 +104,7 @@ interface ComposeThreadItemProps {
   onEventPress: (threadId: string) => void;
   onRoomPress: (threadId: string) => void;
   onPollTitleChange: (threadId: string, value: string) => void;
+  onPollDurationChange: (threadId: string, days: number) => void;
   onPollOptionChange: (threadId: string, index: number, value: string) => void;
   onPollOptionAdd: (threadId: string) => void;
   onPollOptionRemove: (threadId: string, index: number) => void;
@@ -174,6 +175,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     onEventPress,
     onRoomPress,
     onPollTitleChange,
+    onPollDurationChange,
     onPollOptionChange,
     onPollOptionAdd,
     onPollOptionRemove,
@@ -249,6 +251,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
     const handlePollTitleChange = useCallback(
       (v: string) => onPollTitleChange(threadId, v),
       [threadId, onPollTitleChange],
+    );
+    const handlePollDurationChange = useCallback(
+      (days: number) => onPollDurationChange(threadId, days),
+      [threadId, onPollDurationChange],
     );
     const handlePollOptionAdd = useCallback(
       () => onPollOptionAdd(threadId),
@@ -633,6 +639,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(
             <PollCreator
               pollTitle={item.pollTitle || ''}
               onTitleChange={handlePollTitleChange}
+              durationDays={item.pollDurationDays}
+              onDurationChange={handlePollDurationChange}
               pollOptions={item.pollOptions}
               onOptionChange={(index, value) => onPollOptionChange(threadId, index, value)}
               onAddOption={handlePollOptionAdd}

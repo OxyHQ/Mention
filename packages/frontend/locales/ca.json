@@ -613,6 +613,10 @@
     "replyPublished": "S'ha publicat la teva resposta!",
     "emptyHint": "Afegeix text, una imatge, una enquesta o un article",
     "poll": {
+      "duration": "Durada de l'enquesta",
+      "days_one": "{{count}} dia",
+      "days_many": "{{count}} de dies",
+      "days_other": "{{count}} dies",
       "addOption": "Afegeix una opció",
       "addMoreOptions": "Pots afegir fins a 2 opcions més",
       "create": "Crea una enquesta",

@@ -613,6 +613,9 @@
     "replyPublished": "Deine Antwort wurde veröffentlicht!",
     "emptyHint": "Füge Text, ein Bild, eine Umfrage oder einen Artikel hinzu",
     "poll": {
+      "duration": "Laufzeit der Umfrage",
+      "days_one": "{{count}} Tag",
+      "days_other": "{{count}} Tage",
       "addOption": "Option hinzufügen",
       "addMoreOptions": "Füge bis zu 2 weitere Optionen hinzu",
       "create": "Umfrage erstellen",

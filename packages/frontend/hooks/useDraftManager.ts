@@ -179,6 +179,7 @@ const writeBox = (box: LiveBox, variants: ComposeVariantsState): DraftBox => ({
   mediaIds: box.mediaIds.map((media) => ({ id: media.id, type: media.type })),
   pollOptions: box.pollOptions,
   pollTitle: box.pollTitle,
+  ...(box.pollDurationDays ? { pollDurationDays: box.pollDurationDays } : {}),
   showPollCreator: box.showPollCreator || hasPollOption(box.pollOptions),
   location: box.location
     ? {
@@ -232,6 +233,9 @@ const readBox = (
     mediaIds,
     pollOptions,
     pollTitle: readString(stored.pollTitle) ?? '',
+    ...(typeof stored.pollDurationDays === 'number' && stored.pollDurationDays > 0
+      ? { pollDurationDays: stored.pollDurationDays }
+      : {}),
     showPollCreator,
     location,
     mentions: reconcileMentionData(
@@ -268,6 +272,8 @@ const readBox = (
  */
 export interface ComposeDraftRefs extends ComposeContent {
   pollTitle: string;
+  /** The root poll's chosen length. */
+  pollDurationDays?: number;
   showPollCreator: boolean;
   mentions: MentionData[];
   postingMode: 'thread' | 'beast';

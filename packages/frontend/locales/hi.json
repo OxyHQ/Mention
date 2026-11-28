@@ -613,6 +613,9 @@
     "replyPublished": "आपका जवाब पोस्ट हो गया है!",
     "emptyHint": "टेक्स्ट, इमेज, पोल या लेख जोड़ें",
     "poll": {
+      "duration": "पोल की अवधि",
+      "days_one": "{{count}} दिन",
+      "days_other": "{{count}} दिन",
       "addOption": "विकल्प जोड़ें",
       "addMoreOptions": "2 और विकल्प तक जोड़ सकते हैं",
       "create": "पोल बनाएँ",

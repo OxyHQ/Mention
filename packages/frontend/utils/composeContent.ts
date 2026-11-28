@@ -71,6 +71,11 @@ export interface ComposeContent {
 
 const hasText = (value: string | undefined): boolean => Boolean(value?.trim());
 
+/** How long a poll stays open when the author does not choose. */
+export const DEFAULT_POLL_DURATION_DAYS = 7;
+/** The lengths the composer offers; the server accepts up to 30 days. */
+export const POLL_DURATION_CHOICES_DAYS: readonly number[] = [1, 3, 7, 14];
+
 export const hasPollOption = (options: string[]): boolean => options.some(hasText);
 
 export const hasArticleContent = (
