@@ -57,6 +57,7 @@ export const APP_ROUTE_FIRST_SEGMENTS: ReadonlySet<string> = new Set([
   'saved',
   'search',
   'settings',
+  'signup',
   'starter-packs',
   't',
   'trend-graph',

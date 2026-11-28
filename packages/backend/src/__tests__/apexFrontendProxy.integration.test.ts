@@ -380,14 +380,14 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     const fetchMock = stubCdn();
 
     for (const header of ['X-Forwarded-Host', 'Host']) {
-      const res = await request(makeApp()).get('/feed?tab=latest').set(header, ALIAS_APEX);
+      const res = await request(makeApp()).get('/explore?tab=latest').set(header, ALIAS_APEX);
       expect(res.status).toBe(200);
       expect(res.text).toContain('id="root"');
       expect(res.body.who).toBeUndefined();
     }
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const call of fetchMock.mock.calls) {
-      expect(String(call[0])).toBe('https://shell.mention.earth/feed?tab=latest');
+      expect(String(call[0])).toBe('https://shell.mention.earth/explore?tab=latest');
     }
   });
 
