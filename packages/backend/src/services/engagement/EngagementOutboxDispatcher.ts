@@ -9,10 +9,13 @@ import {
   type EngagementOutboxEvent,
   type EngagementOutboxHandlerContext,
 } from './EngagementOutboxService';
+import { reportEngagementOutboxBacklog } from './engagementOutboxBacklog';
 import { createPostAuthorNotificationsStrict } from '../../utils/notificationUtils';
 import { logger } from '../../utils/logger';
 
 const DISPATCH_INTERVAL_MS = 1_000;
+/** How often the dispatcher reports how far behind it is. */
+export const BACKLOG_REPORT_INTERVAL_MS = 60_000;
 const DISPATCH_BATCH_SIZE = 100;
 
 /**
@@ -219,6 +222,7 @@ export class EngagementOutboxDispatcher {
   private inFlight: Promise<void> | null = null;
   private abortController: AbortController | null = null;
   private running = false;
+  private backlogReportedAt = 0;
 
   start(): void {
     if (this.running) return;
@@ -247,6 +251,12 @@ export class EngagementOutboxDispatcher {
 
   private async tick(): Promise<void> {
     if (!this.running) return;
+    // Beside the dispatch, not after it: a tick stuck on one delivery is the
+    // case the report exists to show.
+    if (Date.now() - this.backlogReportedAt >= BACKLOG_REPORT_INTERVAL_MS) {
+      this.backlogReportedAt = Date.now();
+      void reportEngagementOutboxBacklog();
+    }
     if (this.inFlight) return this.inFlight;
     const work = dispatchEngagementOutbox({
       handler: handleEngagementOutboxEvent,

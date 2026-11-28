@@ -174,6 +174,16 @@ const DEFINITIONS = {
     help: 'On-demand trend summary generations, by outcome (generated, failed)',
     labelNames: ['result'],
   },
+  engagement_outbox_backlog_events: {
+    kind: 'gauge',
+    help: 'Engagement outbox events not yet processed',
+    labelNames: [],
+  },
+  engagement_outbox_oldest_age_seconds: {
+    kind: 'gauge',
+    help: 'Age of the oldest unprocessed engagement outbox event',
+    labelNames: [],
+  },
   trending_batch_age_seconds: {
     kind: 'gauge',
     help: 'Age of the trending batch being served, observed on a cache miss',

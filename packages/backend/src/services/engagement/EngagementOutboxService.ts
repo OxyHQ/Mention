@@ -28,15 +28,11 @@
  * a worker that dies mid-delivery cannot strand its event — and a downstream
  * effect can therefore be applied twice. Handlers deduplicate on `event.id`.
  *
- * ## Retention deletes UNPROCESSED work
+ * ## Retention never deletes unprocessed work
  *
- * `expires_at` is a hard ceiling (`ENGAGEMENT_OUTBOX_RETENTION_SECONDS`) and the
- * sweep in `db/expiry.ts` deletes by that deadline ALONE, not by status. A
- * `pending` event whose dispatcher stalled for the whole window is destroyed
- * rather than retried, so the like never reaches federation or
- * notifications. That is deliberate — an unbounded outbox is the worse failure —
- * but it is only safe if operational alerting fires long before the deadline.
- * There is no such alert today; see the module docblock in `db/expiry.ts`.
+ * `expires_at` is a ceiling on PROCESSED rows only: `db/expiry.ts` leaves a
+ * `pending` event past its deadline where a person can find it. The risk is a
+ * backlog nobody notices, which `engagementOutboxBacklog.ts` reports.
  */
 
 import { randomUUID } from 'node:crypto';
