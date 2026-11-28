@@ -1,0 +1,233 @@
+// Printed by bloom migrate from components/Profile/MediaGrid.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { default as LiveVideoPosterCell } from "@/components/Profile/LiveVideoPosterCell"
+import { ProfileGridList } from "@/components/Profile/ProfileGridList"
+import { useProfileMediaFeed } from "@/components/Profile/useProfileMediaFeed"
+import { EmptyState } from "@/components/common/EmptyState"
+import { MediaGridSkeleton } from "@/components/loading/ContentSkeleton"
+import { type FeedItem } from "@/db"
+import { useRouter } from "@/lib/navigation/router"
+import { isVideoMediaRef, readMediaDurationSec } from "@/utils/mediaTypes"
+import { type HydratedPostSummary, type MediaItem } from "@mention/shared-types"
+import { defineTokens } from "@oxy.so/bloom-language"
+import { useTheme } from "@oxy.so/bloom/theme"
+import { Image, type ImageStyle } from "expo-image"
+
+private struct MediaGridEntry {
+  let postId: String
+  let mediaIndex: Float
+  let uri: String
+  let isVideo: Bool
+  let isCarousel: Bool
+  // Play count of the post this cell's media came from — set on video entries
+  // only, so the type says outright that image cells carry neither of these.
+  // Per-POST, so two videos in one post repeat it, exactly as `isCarousel`
+  // already paints on every one of a post's cells. Fetch-time value: the cell
+  // prefers the live count from the shared cache when the post is in it.
+  var views: Float? = none
+  // The post {@link MediaGridEntry.views} describes, which is NOT always
+  // {@link ProfileGridEntry.postId}: a boost/quote with no media of its own
+  // borrows the ORIGINAL's media, and `postId` stays the outer post so the tap
+  // still opens what the viewer sees on the profile. Subscribing to `postId`
+  // there would paint the BOOST's count under the original's video.
+  var viewsPostId: String? = none
+  // Duration of THIS item's video, in seconds. Per-item, so per-cell correct.
+  var durationSec: Float? = none
+}
+
+/// The carousel marker's glyph is white over the photo, as written (`fill="white"`).
+private let gridColors = defineTokens(color: { glyph: "white" })
+
+// What the image's classes drew, as a plain object: expo-image takes one style object, not a list.
+private let FILL: ImageStyle = { width: "100%", height: "100%" }
+
+private let INITIAL_RENDER_COUNT = 18
+
+private let WINDOW_SIZE = 7
+
+// Grid image thumbnail from the server-resolved media object (`thumbUrl`,
+// fallback `url`).
+// bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
+private func resolveImageUri(_ ref: MediaItem) -> String? { ref.thumbUrl || ref.url }
+
+// Static video still from the server-resolved media object (`thumbUrl`, fallback
+// `posterUrl`). `thumbUrl` comes FIRST because a grid cell is ~130px and
+// `posterUrl` is sized for a full-width player — an order of magnitude more
+// bytes than this surface can show. Both fields are a still image for a video of
+// EITHER origin (the resolver points a federated video's `thumbUrl` at its
+// extracted poster, not at the proxied video), so this order is safe.
+// Undefined → icon placeholder; a 404/error from the URL is handled by the
+// cell's own image-error fallback.
+// bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
+private func resolveVideoPosterUri(_ ref: MediaItem) -> String? { ref.thumbUrl || ref.posterUrl }
+
+public struct MediaGrid: View {
+  var userId: String? = none
+  var isPrivate: Bool? = none
+  var isOwnProfile: Bool? = none
+  var ownsScroll: Bool? = none
+  var listHeaderComponent: View? = none
+  var listContentHeaderComponent: View? = none
+  var listStickyHeaderComponent: View? = none
+  let router = useRouter()
+  let theme = useTheme()
+  let { primaryFeed, postsFeed, items, loadMore, restorationKey } = useProfileMediaFeed(
+    userId: userId,
+    isPrivate: isPrivate,
+    isOwnProfile: isOwnProfile,
+  )
+
+  let mediaItems = {
+    var out: [MediaGridEntry] = []
+
+    let pushUris = { post: HydratedPostSummary, targetId: String, sources: [MediaItem] in
+      var seen = Set<String>()
+
+      for (idx, ref) in sources.enumerated() {
+        // Dedup/video-detection key is the raw id/url; resolution reads the
+        // object's server URLs first (handled inside the resolvers).
+        let key = (ref.id.isEmpty ? ref.url : ref.id)
+        if key == none || key.isEmpty { continue }
+        let isVideo = isVideoMediaRef(key!, mediaType: ref.type)
+
+        if seen.contains(key!) { continue }
+        seen = seen.inserting(key!)
+
+        if isVideo {
+          // For videos the cell renders a static poster; an empty/unresolvable
+          // poster still produces a placeholder cell, so a video entry is
+          // always valid.
+          let posterUri = resolveVideoPosterUri(ref)
+          out = [
+            ..out,
+            {
+              postId: targetId,
+              uri: posterUri ?? "",
+              isVideo: true,
+              isCarousel: sources.count > 1,
+              mediaIndex: idx, // `post`, not the outer feed item: for a boost/quote with no
+              // media of its own the media belongs to the ORIGINAL, and the
+              // count has to describe the video being shown. The live
+              // subscription has to follow that same post, hence the id.
+              views: post.engagement?.views,
+              viewsPostId: !post.id.isEmpty ? "\(post.id)" : none,
+              durationSec: readMediaDurationSec(ref),
+            },
+          ]
+          continue
+        }
+
+        let uri = resolveImageUri(ref)
+        if uri == none || uri.isEmpty { continue }
+        // Images require a resolvable uri.
+        out = [
+          ..out,
+          {
+            postId: targetId,
+            uri: uri!,
+            isVideo: false,
+            isCarousel: sources.count > 1,
+            mediaIndex: idx,
+          },
+        ]
+      }
+    }
+
+    let extractFrom = { post: HydratedPostSummary, targetId: String in
+      // The server-resolved `content.media` objects carry the final URLs
+      // (url/thumbUrl/posterUrl) — the single source for grid thumbnails.
+      let media = post.content?.media
+      if media == none || media.count == 0 { return }
+      pushUris(post, targetId, media)
+    }
+
+    for rawPost in items {
+      let p: FeedItem = rawPost
+      extractFrom(p, "\(p.id)")
+
+      let ownMedia = p.content?.media
+      if !(ownMedia is [Foreign] && ownMedia.length > 0) {
+        // Related media is embedded by the canonical hydrated contract, so it
+        // works identically on web and native without a second SQLite lookup.
+        let embeddedOriginal = p.boost?.originalPost ?? p.quotedPost ?? p.originalPost
+        if embeddedOriginal { extractFrom(embeddedOriginal, "\(p.id)") }
+      }
+    }
+
+    out
+  }()
+
+  func renderCell(_ item: MediaGridEntry, _ itemSize: Float) -> View {
+    let handlePress = {
+      if item.isVideo {
+        router.push("/videos?postId=\(item.postId)")
+      } else {
+        router.push("/p/\(item.postId)")
+      }
+    }
+    // bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
+    VStack {
+      if item.isVideo {
+        LiveVideoPosterCell(
+          posterUri: item.uri,
+          size: itemSize,
+          placeholderColor: theme.colors.textSecondary,
+          viewsPostId: item.viewsPostId,
+          fallbackViews: item.views,
+          durationSec: item.durationSec,
+          scrim: true,
+        )
+      } else {
+        Image(
+          source: { uri: item.uri },
+          style: { backgroundColor: theme.colors.contrast50, ..FILL },
+          contentFit: "cover",
+          transition: 150,
+          cachePolicy: "memory-disk",
+        )
+      }
+      // The carousel mark: 4pt in from the top right corner, on black at 50%.
+      if item.isCarousel {
+        VStack { Icon(.stack).size(.xs).foregroundStyle(gridColors.color.glyph) }
+        .padding(.xxs)
+        .background("black/half")
+        .corner(.xs)
+        .position(top: .xs, right: .xs)
+      }
+    }
+    .frame(width: itemSize, height: itemSize)
+    .onPress(handlePress)
+    .pressFade("80")
+  }
+
+  // Loading state first; if no items yet and feeds are still loading, show spinner
+  let isLoading = (false && false) ||
+    (primaryFeed?.isLoading ? primaryFeed?.isLoading : (postsFeed?.isLoading == true))
+  let emptyContent = isLoading && mediaItems.count == 0 ? (MediaGridSkeleton()) : !isLoading &&
+    mediaItems.count == 0 ? (EmptyState(
+    title: String(localized: "profile.media.empty.title"),
+    subtitle: String(localized: "profile.media.empty.subtitle"),
+    sticker: "profileMedia",
+    containerStyle: { flex: 1 },
+  )) : none
+
+  var body: some View {
+    if ownsScroll != true && emptyContent != none {
+      emptyContent
+    } else {
+      ProfileGridList(
+        restorationKey: restorationKey,
+        data: mediaItems,
+        renderCell: renderCell,
+        background: theme.colors.card,
+        initialNumToRender: INITIAL_RENDER_COUNT,
+        windowSize: WINDOW_SIZE,
+        ownsScroll: ownsScroll,
+        listHeaderComponent: listHeaderComponent,
+        listContentHeaderComponent: listContentHeaderComponent,
+        listStickyHeaderComponent: listStickyHeaderComponent,
+        emptyComponent: emptyContent,
+        onEndReached: loadMore,
+      )
+    }
+  }
+}

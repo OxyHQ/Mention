@@ -1,0 +1,168 @@
+// Printed by bloom migrate from components/Compose/EmojiPickerSheet.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { EMOJI_CATEGORIES, MAX_RECENT_EMOJIS } from "@/utils/emojiData"
+import { defineTokens } from "@oxy.so/bloom-language"
+import { useColorTokens } from "@oxy.so/bloom/theme"
+import { chunk } from "@oxy.so/utils/text"
+import { default as AsyncStorage } from "@react-native-async-storage/async-storage"
+import { JSON } from "js"
+import { ScrollView, Platform, type ScrollViewInstance } from "react-native"
+
+private let RECENT_EMOJIS_KEY = "@mention/recent_emojis"
+
+private let NUM_COLUMNS = 8
+
+/// The sheet's floor (`min-h-[350px]`): the grid has room before the emoji load.
+private let sheetTokens = defineTokens(space: { minHeight: 350 })
+
+/// The category strip (`border-b max-h-[48px]`), one line of glyphs.
+private let TABS = { borderBottomWidth: 1, maxHeight: 48 }
+
+/// A glyph's size: 28pt on the web, 26pt on a device.
+private let EMOJI_FONT = Platform.OS == "web" ? "28" : "3xl"
+
+public struct EmojiPickerSheet: View {
+  let onClose: () -> Unit
+  let onSelectEmoji: (String) -> Unit
+  let colorTokens = useColorTokens()
+  @State private var activeCategory = "smileys"
+  @State private var recentEmojis: [String] = []
+  @State private var scrollViewRef = ViewRef<ScrollViewInstance>()
+  @State private var sectionOffsets: Ref<[String: Float]> = Ref([:])
+
+  // Load recent emojis from storage
+
+  func saveRecentEmoji(_ emoji: String) async {
+    do {
+      let updated = [emoji, ..recentEmojis.filter { e in e != emoji }].slice(0, MAX_RECENT_EMOJIS)
+      recentEmojis = updated
+      try await AsyncStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(updated))
+    } catch {
+
+      // Silently ignore storage errors
+    }
+  }
+
+  func handleEmojiPress(_ emoji: String) {
+    onSelectEmoji(emoji)
+    task { await saveRecentEmoji(emoji) }
+    onClose()
+  }
+
+  // Build categories with recent emojis populated
+  let categories = EMOJI_CATEGORIES
+    .map { cat in
+      if cat.id == "recent" { return { ..cat, emojis: recentEmojis } }
+      return cat
+    }
+    .filter { cat in cat.emojis.count > 0 }
+
+  func handleCategoryPress(_ categoryId: String) {
+    activeCategory = categoryId
+    let offset = sectionOffsets.value[categoryId]
+    if offset != none && scrollViewRef != none {
+      scrollViewRef!.scrollTo(y: offset, animated: true)
+    }
+  }
+
+  func handleSectionLayout(_ categoryId: String, _ y: Float) {
+    sectionOffsets.value[categoryId] = y
+  }
+
+  var body: some View {
+    VStack {
+      Header(String(localized: "compose.emoji.title"))
+      .safeArea(false)
+      .toolbar(
+        Button(Icon(.close))
+          .shape(.circle)
+          .style(.subtle)
+          .tint(.neutral)
+          .onPress(onClose)
+          .label(String(localized: "common.close")),
+      )
+      .inPage()
+      // Category tabs
+      ScrollView(
+        horizontal: true,
+        showsHorizontalScrollIndicator: false,
+        contentContainerStyle: { paddingHorizontal: 8, gap: 4 },
+        style: [TABS, { borderColor: colorTokens.border }],
+      ) {
+        for cat in categories {
+          VStack { RawText(cat.icon).font(.xl).leading("28px") }
+          .padding(.horizontal, "10")
+          .padding(.vertical, "10")
+          .border(activeCategory == cat.id ? .primary : .transparent, .thick, .bottom)
+          .onPress { handleCategoryPress(cat.id) }
+          .pressFade()
+          .id(cat.id)
+        }
+      }
+      // Emoji grid
+      ScrollView(
+        ref: scrollViewRef,
+        showsVerticalScrollIndicator: false,
+        contentContainerStyle: { paddingBottom: 16 },
+      ) {
+        for cat in categories {
+          let rows = chunk(cat.emojis, NUM_COLUMNS)
+          VStack {
+            VStack {
+              RawText(cat.name)
+              .font(.sm)
+              .weight(.semibold)
+              .textCase(.uppercase)
+              .tracking(.wide)
+              .foregroundStyle(.muted)
+            }
+            .padding(.horizontal, .lg)
+            .padding(.top, .md)
+            .padding(.bottom, "6")
+            for (rowIndex, row) in rows.enumerated() {
+              HStack {
+                for (colIndex, emoji) in row.enumerated() {
+                  VStack { RawText(emoji).font(EMOJI_FONT) }
+                  .aspectRatio(1)
+                  .justify(.center)
+                  .align(.center)
+                  .grow()
+                  .onPress { handleEmojiPress(emoji) }
+                  .pressFade("60")
+                  .id("\(cat.id)-\(rowIndex)-\(colIndex)")
+                }
+                // Fill remaining cells to maintain grid alignment
+                if row.count < NUM_COLUMNS {
+                  for (i, _) in (0..<(NUM_COLUMNS - row.count)).enumerated() {
+                    VStack().aspectRatio(1).justify(.center).align(.center).grow().id("pad-\(i)")
+                  }
+                }
+              }
+              .padding(.horizontal, .sm)
+              .id(rowIndex)
+            }
+          }
+          .onLayout { e in handleSectionLayout(cat.id, e.nativeEvent.layout.y) }
+          .id(cat.id)
+        }
+      }
+    }
+    .flex("1")
+    .frame(minHeight: sheetTokens.space.minHeight)
+    .background(.background)
+    .onAppear {
+      let loadRecent = {
+        do {
+          let stored = try await AsyncStorage.getItem(RECENT_EMOJIS_KEY)
+          if stored != none && !stored.isEmpty {
+            let parsed: [String] = JSON.parse(stored)
+            recentEmojis = parsed
+          }
+        } catch {
+
+          // Silently ignore storage errors
+        }
+      }
+      task { await loadRecent() }
+    }
+  }
+}
