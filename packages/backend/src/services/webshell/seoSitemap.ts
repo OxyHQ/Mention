@@ -557,7 +557,7 @@ async function buildPostSitemaps(
       // backfill stamped most rows), so it is not when the page changed. Google
       // ignores a sitemap's lastmod once it proves inaccurate.
       modifiedAt:
-        sql<Date>`case when ${posts.isEdited} then ${posts.updatedAt} else ${posts.createdAt} end`.as(
+        sql<string>`case when ${posts.isEdited} then ${posts.updatedAt} else ${posts.createdAt} end`.as(
           'modified_at',
         ),
       imageRefs: sql<
