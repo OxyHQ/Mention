@@ -325,6 +325,7 @@
     "utils/notifications.ts": {"statements":[33,64],"branches":[17,44],"functions":[4,11],"lines":[29,53]},
     "utils/openExternalLink.ts": {"statements":[3,31],"branches":[0,13],"functions":[0,2],"lines":[3,31]},
     "utils/ownProfileLinks.ts": {"statements":[4,5],"branches":[0,0],"functions":[2,2],"lines":[4,5]},
+    "utils/oxyAuthRedirectUri.ts": {"statements":[5,5],"branches":[9,9],"functions":[2,2],"lines":[4,4]},
     "utils/pendingShareMedia.ts": {"statements":[7,7],"branches":[0,0],"functions":[2,2],"lines":[7,7]},
     "utils/podcastReference.ts": {"statements":[4,4],"branches":[9,11],"functions":[1,1],"lines":[3,3]},
     "utils/postBuilder.ts": {"statements":[43,47],"branches":[99,149],"functions":[13,17],"lines":[41,45]},
