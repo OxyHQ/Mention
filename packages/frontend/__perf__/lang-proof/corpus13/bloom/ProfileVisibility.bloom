@@ -1,0 +1,124 @@
+// Printed by bloom migrate from components/settings/pages/privacy/profile-visibility.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { SupervisedFeatureGate } from "@/components/SupervisedFeatureGate"
+import { SettingsSkeleton } from "@/components/loading/ContentSkeleton"
+import { type BloomIcon } from "@/components/settings/RowIcon"
+import { useSettingsBack } from "@/context/MentionSettingsContext"
+import { useViewerSettingsSection } from "@/hooks/useViewerSettings"
+import { alertDialog } from "@/utils/alerts"
+import { RiEarthLine } from "@oxy.so/bloom/icons/RiEarthLine"
+import { RiGroupLine } from "@oxy.so/bloom/icons/RiGroupLine"
+import { RiLockLine } from "@oxy.so/bloom/icons/RiLockLine"
+import { SettingsGeneralPage } from "@oxy.so/bloom/settings-modal"
+import { logger } from "@oxy.so/core/logger"
+import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client"
+import { setTimeout } from "js"
+
+private type VisibilityOption = "public" | "private" | "followers_only"
+
+private struct VisibilityOptionConfig {
+  let value: VisibilityOption
+  let label: String
+  let description: String
+  let icon: BloomIcon
+}
+
+private struct ProfileVisibilityScreen: View {
+  let back = useSettingsBack()
+  let { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth()
+  let { value: privacy, isLoading: loading, update } = useViewerSettingsSection("privacy")
+  let profileVisibility: VisibilityOption = privacy.profileVisibility || "public"
+  @State private var saving = false
+
+  func handleSave(_ newVisibility: VisibilityOption) async {
+    if newVisibility == profileVisibility {
+      back()
+      return
+    }
+
+    saving = true
+    defer { saving = false }
+    do {
+      try await update(profileVisibility: newVisibility)
+      try await alertDialog(
+        title: String(localized: "common.success"),
+        message: String(localized: "settings.privacy.profileVisibilityUpdated"),
+      )
+      setTimeout({ back() }, 300)
+    } catch {
+      let err = error.jsValue
+      logger.error("Error updating profile visibility", error)
+      await alertDialog(
+        title: String(localized: "common.error"),
+        message: err?["response"]?["data"]?["error"]?.string ||
+          String(localized: "settings.privacy.updateError"),
+      )
+    }
+  }
+
+  var body: some View {
+    if !isAuthResolved || isPrivateApiPending {
+      VStack(spacing: .lg) { SettingsSkeleton() }
+    } else if !canUsePrivateApi {
+      VStack(spacing: .lg) {
+        OxyAuthPrompt(
+          label: String(localized: "settings.privacy.profileVisibility.signInRequired"),
+          description: String(localized: "settings.privacy.profileVisibility.signInRequiredDesc"),
+        )
+      }
+    } else if loading {
+      VStack(spacing: .lg) { SettingsSkeleton() }
+    } else {
+      let options: [VisibilityOptionConfig] = [
+        {
+          value: "public",
+          label: String(localized: "settings.privacy.public"),
+          description: String(localized: "settings.privacy.publicDescription"),
+          icon: RiEarthLine,
+        },
+        {
+          value: "followers_only",
+          label: String(localized: "settings.privacy.followersOnly"),
+          description: String(localized: "settings.privacy.followersOnlyDescription"),
+          icon: RiGroupLine,
+        },
+        {
+          value: "private",
+          label: String(localized: "settings.privacy.private"),
+          description: String(localized: "settings.privacy.privateDescription"),
+          icon: RiLockLine,
+        },
+      ]
+      SettingsGeneralPage(
+        sections: [
+          {
+            key: "privacy",
+            rows: [
+              {
+                key: "visibility",
+                label: String(localized: "settings.privacy.privateProfile"),
+                description: options.find {
+                  option in
+                  option.value == profileVisibility
+                }?.description,
+                control: SettingsSelect(
+                  String(localized: "settings.privacy.privateProfile"),
+                  Binding(
+                    get: profileVisibility,
+                    set: { value in if !saving { task { await handleSave(value) } } },
+                  ),
+                  options.map { option in ({ value: option.value, label: option.label }) },
+                ),
+              },
+            ],
+          },
+        ],
+      )
+    }
+  }
+}
+
+public struct AvailableProfileVisibilityScreen: View {
+  var body: some View {
+    SupervisedFeatureGate() { ProfileVisibilityScreen() }
+  }
+}

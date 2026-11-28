@@ -204,6 +204,9 @@ jest.mock('@/lib/payments/checkoutPreview', () => ({
   ...jest.requireActual('@/lib/payments/checkoutPreview'),
   isLocalCheckoutPreview: () => mockWorld.checkoutPreview,
 }));
+jest.mock('@/services/privacyService', () => ({ refreshPrivacyLists: async () => undefined }));
+jest.mock('@/hooks/usePrivacyControls', () => ({ setPrivacyListMembership: () => undefined }));
+jest.mock('@/services/searchService', () => ({ searchService: { searchUsers: async () => [] } }));
 jest.mock('@/components/FeedCard', () => ({
   FeedCard: mockStub('FeedCard'),
   FeedCardSkeleton: mockStub('FeedCardSkeleton'),
@@ -387,6 +390,32 @@ const detailPost = (id: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 const allowed = { allowed: true, failed: false, supervised: false, retry: () => undefined };
+
+/** A signed-in session whose Oxy client answers the privacy lists with `people`. */
+const withPrivacy = (
+  people: { id: string; username: string; name?: { displayName: string } }[],
+) => {
+  const auth = signedIn() as Record<string, unknown> & { oxyServices: Record<string, unknown> };
+  return {
+    ...auth,
+    oxyServices: {
+      ...auth.oxyServices,
+      privacy: {
+        blocked: async () => people.map((p) => ({ blockedId: p.id })),
+        restricted: async () => people.map((p) => ({ restrictedId: p.id })),
+        block: async () => undefined,
+        unblock: async () => undefined,
+        restrict: async () => undefined,
+        unrestrict: async () => undefined,
+      },
+      users: {
+        ...(auth.oxyServices.users as object),
+        getMany: async (ids: string[]) => people.filter((p) => ids.includes(p.id)),
+        search: async () => ({ data: [] }),
+      },
+    },
+  };
+};
 
 const signedIn = () => ({
   user: { id: 'me', username: 'me' },
@@ -1258,6 +1287,54 @@ const CASES: Case[] = [
         props: {},
         before: () => {
           mockWorld.checkoutPreview = true;
+        },
+      },
+    },
+  },
+  {
+    file: 'components/settings/pages/privacy/blocked.tsx',
+    name: 'default',
+    bloomExport: 'BlockedUsersScreen',
+    ts: () => require('@/components/settings/pages/privacy/blocked'),
+    bloom: () => require('./bloom/BlockedUsers.bloom'),
+    states: {
+      people: {
+        props: {},
+        before: () => {
+          mockWorld.auth = withPrivacy([
+            { id: 'u1', username: 'troll', name: { displayName: 'A Troll' } },
+            { id: 'u2', username: 'pest' },
+          ]);
+        },
+      },
+      none: {
+        props: {},
+        before: () => {
+          mockWorld.auth = withPrivacy([]);
+        },
+      },
+    },
+  },
+  {
+    file: 'components/settings/pages/privacy/restricted.tsx',
+    name: 'default',
+    bloomExport: 'RestrictedUsersScreen',
+    ts: () => require('@/components/settings/pages/privacy/restricted'),
+    bloom: () => require('./bloom/RestrictedUsers.bloom'),
+    states: {
+      people: {
+        props: {},
+        before: () => {
+          mockWorld.auth = withPrivacy([
+            { id: 'u1', username: 'troll', name: { displayName: 'A Troll' } },
+            { id: 'u2', username: 'pest' },
+          ]);
+        },
+      },
+      none: {
+        props: {},
+        before: () => {
+          mockWorld.auth = withPrivacy([]);
         },
       },
     },

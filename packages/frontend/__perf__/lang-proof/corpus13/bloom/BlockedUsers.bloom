@@ -1,0 +1,370 @@
+// Printed by bloom migrate from components/settings/pages/privacy/blocked.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { EmptyState } from "@/components/common/EmptyState"
+import { ListSkeleton, SettingsSkeleton } from "@/components/loading/ContentSkeleton"
+import { setPrivacyListMembership } from "@/hooks/usePrivacyControls"
+import { actorWriter } from "@/lib/actorCache"
+import { refreshPrivacyLists } from "@/services/privacyService"
+import { searchService } from "@/services/searchService"
+import {
+  confirm as confirmSettingsAction,
+  alert as showSettingsAlert,
+} from "@oxy.so/bloom/surfaces"
+import { type User } from "@oxy.so/core"
+import { createLogger } from "@oxy.so/core/logger"
+import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client"
+
+private let blockedLogger = createLogger("BlockedUsers")
+
+private struct BlockedUser {
+  var id: String? = none
+  var _id: String? = none
+  var name: Foreign<"User['name']">? = none
+  var username: String? = none
+  var handle: String? = none
+  // Populated from the SDK `User`/`SearchUserResult` (avatar is `string | null`).
+  var avatar: String? = none
+}
+
+private func getUserId(_ user: BlockedUser) -> String? { user.id || user._id }
+
+public struct BlockedUsersScreen: View {
+  let { user: currentUser, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth()
+
+  @State private var blockedUserIds: [String] = []
+  @State private var blockedUsers: [BlockedUser] = []
+  @State private var loading = true
+  @State private var searchQuery = ""
+  @State private var searchResults: [BlockedUser] = []
+  @State private var searching = false
+  @State private var blocking: String? = none
+
+  func loadBlockedUsers() async {
+    if !oxyServices {
+      blockedLogger.warn("oxyServices not available")
+      blockedUsers = []
+      blockedUserIds = []
+      loading = false
+      return
+    }
+
+    defer {
+      // Bound to the account asking, before the first request leaves.
+      // Single bulk fetch for all blocked profiles (no per-id N+1). The
+      // results are primed into the shared React Query cache so any
+      // `useUserById`/profile read for these ids hits the cache.
+      // Preserve the blocked order; drop ids the bulk fetch couldn't resolve.
+      loading = false
+    }
+    do {
+      loading = true
+      blockedLogger.debug("Loading blocked users...")
+
+      let actors = actorWriter()
+      let blockedUsersList = try await oxyServices.privacy.blocked()
+      blockedLogger.debug("Oxy response received", count: blockedUsersList?.length)
+      let userIds = (blockedUsersList.map { user in
+        // bloom: review: `as string | { _id?: string } | undefined` dropped: annotate where the value lands if tsc needs it
+        let blockedId = user.blockedId
+        if blockedId { return blockedId is String ? blockedId : blockedId._id }
+        // bloom: review: `as string | undefined` dropped: annotate where the value lands if tsc needs it
+        return (user.id || (user._id || user.userId))
+      }).filter { id in !!id }
+      blockedLogger.debug("Blocked user IDs resolved", count: userIds.length)
+      blockedUserIds = userIds
+
+      if userIds.length == 0 {
+        blockedUsers = []
+        loading = false
+        return
+      }
+
+      let fetched = try await oxyServices.users.getMany(userIds)
+      actors.cacheActors(fetched.filter { user in !!user?.id })
+
+      let byId = Map(fetched.map { user in (user.id, user) })
+      let users = (userIds.map { id in byId.get(id) }).filter { user in !!user }
+      blockedLogger.debug("Loaded users: \(users.length)")
+      blockedUsers = users
+    } catch {
+      let err = error.jsValue
+      blockedLogger
+      .error("Error loading blocked users", error, responseData: err?["response"]?["data"])
+      showSettingsAlert(
+        String(localized: "common.error"),
+        String(localized: "settings.privacy.failedToLoadBlockedUsers"),
+      )
+    }
+  }
+
+  func searchUsersViaOxy(_ query: String) async throws -> [BlockedUser] {
+    if oxyServices {
+      do {
+        let { data } = try await oxyServices.users.search(query, limit: 20)
+        return data is [Foreign] ? data : []
+      } catch { blockedLogger.warn("oxyServices.users.search failed, falling back", error: error) }
+    }
+    let results = try await searchService.searchUsers(query)
+    results.filter { user in !!user.name }
+  }
+
+  func handleSearch(_ query: String) async {
+    searchQuery = query
+    if (query.trimmed()).isEmpty {
+      searchResults = []
+      return
+    }
+
+    defer { searching = false }
+    do {
+      searching = true
+      let results = try await searchUsersViaOxy(query)
+      let filtered = results.filter { user in
+        let userId = getUserId(user)
+        return userId != none &&
+          !userId.isEmpty &&
+          !blockedUserIds.contains(userId) &&
+          userId != currentUser?.id
+      }
+      searchResults = filtered
+    } catch { blockedLogger.error("Error searching users", error) }
+  }
+
+  func handleBlock(_ user: BlockedUser) async {
+    let blockedUsersBefore = blockedUsers
+    let blockedUserIdsBefore = blockedUserIds
+    let userId = getUserId(user)
+    if userId == none || userId.isEmpty { return }
+
+    if currentUser?.id == userId {
+      showSettingsAlert(
+        String(localized: "common.error"),
+        String(localized: "settings.privacy.cannotBlockYourself"),
+      )
+      return
+    }
+
+    defer {
+      // Drop Mention's cached copy of this viewer's blocked list so the
+      // feed acts on the block now rather than when the freshness window
+      // expires. Best-effort: the write to Oxy has already landed.
+      // The feeds filter on the viewer's held block list; record it now
+      // rather than when that list goes stale.
+      blocking = none
+    }
+    do {
+      blocking = userId
+
+      blockedUserIds = [..blockedUserIds, userId]
+      blockedUsers = [..blockedUsers, user]
+
+      searchResults = searchResults.filter { u in getUserId(u) != userId }
+
+      try await oxyServices.privacy.block(userId)
+      blockedLogger.info("User blocked successfully")
+
+      try await refreshPrivacyLists()
+
+      setPrivacyListMembership(currentUser?.id, "blocked", userId, true)
+
+      await loadBlockedUsers()
+
+      searchQuery = ""
+      showSettingsAlert(
+        String(localized: "common.success"),
+        String(localized: "settings.privacy.userBlocked"),
+      )
+    } catch {
+      let err = error.jsValue
+      blockedLogger.error("Error blocking user", error)
+      blockedUserIds = blockedUserIdsBefore.filter { id in id != userId }
+      blockedUsers = blockedUsersBefore.filter { u in getUserId(u) != userId }
+      let errorMessage = err?["response"]?["data"]?["error"]?.string ||
+        String(localized: "settings.privacy.failedToBlockUser")
+      showSettingsAlert(String(localized: "common.error"), errorMessage)
+    }
+  }
+
+  func handleUnblock(_ userId: String) async {
+    let blockedUsersBefore = blockedUsers
+    let blockedUserIdsBefore = blockedUserIds
+    let userToRemove = blockedUsers.find { u in getUserId(u) == userId }
+
+    let performUnblock = {
+      do {
+        blockedLogger.debug("Unblocking user: \(userId)")
+
+        blockedUserIds = blockedUserIds.filter { id in id != userId }
+        blockedUsers = blockedUsers.filter { u in getUserId(u) != userId }
+
+        try await oxyServices.privacy.unblock(userId)
+        blockedLogger.info("User unblocked successfully")
+
+        try await refreshPrivacyLists()
+
+        setPrivacyListMembership(currentUser?.id, "blocked", userId, false)
+
+        await loadBlockedUsers()
+
+        showSettingsAlert(
+          String(localized: "common.success"),
+          String(localized: "settings.privacy.userUnblocked"),
+        )
+      } catch {
+        let err = error.jsValue
+        blockedLogger.error("Error unblocking user", error, responseData: err?["response"]?["data"])
+        if let userToRemove = userToRemove {
+          blockedUserIds = [..blockedUserIdsBefore, userId]
+          blockedUsers = [..blockedUsersBefore, userToRemove]
+        }
+        let errorMessage = err?["response"]?["data"]?["error"]?.string ||
+          String(localized: "settings.privacy.failedToUnblockUser")
+        showSettingsAlert(String(localized: "common.error"), errorMessage)
+      }
+    }
+
+    task {
+      do {
+        let confirmed = try await confirmSettingsAction(
+          title: String(localized: "settings.privacy.unblockUser"),
+          description: String(localized: "settings.privacy.unblockUserConfirm"),
+          confirmLabel: String(localized: "settings.privacy.unblock"),
+          cancelLabel: String(localized: "common.cancel"),
+          destructive: true,
+        )
+        if confirmed { task { await performUnblock() } }
+      } catch {}
+    }
+  }
+
+  var body: some View {
+    Group {
+      if !isAuthResolved || isPrivateApiPending {
+        VStack(spacing: .lg) { SettingsSkeleton() }
+      } else if !canUsePrivateApi {
+        VStack(spacing: .lg) {
+          OxyAuthPrompt(
+            label: String(localized: "settings.privacy.blocked.signInRequired"),
+            description: String(localized: "settings.privacy.blocked.signInRequiredDesc"),
+          )
+        }
+      } else {
+        VStack(spacing: .lg) {
+          VStack {
+            SettingsSection(
+              String(localized: "settings.privacy.searchUsersToBlock"),
+              GroupedSection(
+                HStack {
+                  Icon(.search).size(.md).foreground(.muted)
+                  Search(Binding(get: searchQuery, set: handleSearch))
+                  .autocapitalize(.none)
+                  .autocorrect(false)
+                  .placeholder(String(localized: "settings.privacy.searchUsersToBlock"))
+                  .label(String(localized: "settings.privacy.searchUsersToBlock"))
+                  .onClearText { task { await handleSearch("") } }
+                  if searching { ListSkeleton(count: 2) }
+                }
+                  .padding(.horizontal, .lg)
+                  .padding(.vertical, .md)
+                  .align(.center)
+                  .spacing(.md),
+              ),
+            )
+            if searchQuery.utf16.count > 0 && searchResults.count > 0 {
+              SettingsSection(
+                none,
+                GroupedSection(
+                  searchResults.map { user in
+                    let userId = getUserId(user)
+                    let handle = user.username || user.handle ?? ""
+                    let isBlocking = blocking == userId
+                    if userId == none || userId.isEmpty || !(user.name?.displayName) { return none }
+
+                    return GroupedSectionItem(user.name!.displayName)
+                      .wrapControl()
+                      .description("@\(handle)")
+                      .trailing(
+                        Button {
+                          if isBlocking {
+                            Loading().style(.inline).size(.sm)
+                          } else {
+                            Group { Icon(.addCircle).size("22").foreground(.primary) }
+                          }
+                        }
+                          .size(.sm)
+                          .style(.subtle)
+                          .tint(.neutral)
+                          .onPress { if !isBlocking { task { await handleBlock(user) } } }
+                          .disabled(isBlocking)
+                          .label(user.name!.displayName),
+                      )
+                      .id(userId)
+                  },
+                ),
+              )
+            }
+            if (searchQuery.utf16.count > 0 && !searching) && searchResults.count == 0 {
+              VStack {
+                RawText(String(localized: "settings.privacy.noUsersFound"))
+                .font("14")
+                .leading("20px")
+                .foreground(.muted)
+              }
+              .padding(.vertical, .lg)
+              .align(.center)
+            }
+            SettingsSection(
+              String(localized: "settings.privacy.blockedUsers"),
+              GroupedSection(
+                if loading {
+                  ListSkeleton()
+                } else if blockedUsers.count == 0 {
+                  VStack {
+                    EmptyState(
+                      title: String(localized: "settings.privacy.noBlockedUsers"),
+                      sticker: "blockedAccounts",
+                    )
+                  }
+                  .padding(.vertical, .lg)
+                } else {
+                  Group {
+                    for user in blockedUsers {
+                      let userId = getUserId(user)
+                      let handle = user.username || user.handle ?? ""
+                      if !(userId == none || userId.isEmpty || !(user.name?.displayName)) {
+                        GroupedSectionItem(user.name!.displayName)
+                        .wrapControl()
+                        .description("@\(handle)")
+                        .trailing(
+                          Button(Text(String(localized: "settings.privacy.unblock")))
+                            .size(.sm)
+                            .style(.subtle)
+                            .tint(.danger)
+                            .onPress {
+                              if userId != none && !userId.isEmpty {
+                                task { await handleUnblock(userId) }
+                              } else {
+                                blockedLogger.error("No userId found for user")
+                                showSettingsAlert(
+                                  String(localized: "common.error"),
+                                  "Invalid user ID",
+                                )
+                              }
+                            },
+                        )
+                        .id(userId)
+                      }
+                    }
+                  }
+                },
+              ),
+            )
+          }
+          .spacing(.lg)
+        }
+      }
+    }
+    .task(id: (canUsePrivateApi, loadBlockedUsers)) {
+      if canUsePrivateApi { task { await loadBlockedUsers() } }
+    }
+  }
+}
