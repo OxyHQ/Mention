@@ -1,5 +1,6 @@
 import type { Locator } from '@playwright/test';
 import { expect, contractTest as test } from '../fixtures';
+import { API_ORIGIN } from '../environment';
 
 const people = Array.from({ length: 40 }, (_, index) => ({
   id: `019e23ee-2d68-7000-8000-${String(index + 500).padStart(12, '0')}`,
@@ -23,13 +24,13 @@ test.beforeEach(async ({ page }) => {
       },
     }),
   );
-  await page.route('https://api.mention.earth/feeds?**', (route) =>
+  await page.route(`${API_ORIGIN}/feeds?**`, (route) =>
     route.fulfill({ json: { items: [], feeds: [], pagination: { hasMore: false } } }),
   );
-  await page.route('https://api.mention.earth/hashtags/search?**', (route) =>
+  await page.route(`${API_ORIGIN}/hashtags/search?**`, (route) =>
     route.fulfill({ json: { hashtags: [], items: [], pagination: { hasMore: false } } }),
   );
-  await page.route('https://api.mention.earth/starter-packs?**', (route) =>
+  await page.route(`${API_ORIGIN}/starter-packs?**`, (route) =>
     route.fulfill({ json: { items: [], starterPacks: [], hasMore: false } }),
   );
   await page.route('**/feed/mtn?**', (route) =>
@@ -156,7 +157,7 @@ test('search header stays painted within the Deck column', async ({ page, candid
 
 test('starter pack results keep the same horizontal gutter as their panel', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
-  await page.route('https://api.mention.earth/starter-packs?**', (route) =>
+  await page.route(`${API_ORIGIN}/starter-packs?**`, (route) =>
     route.fulfill({
       json: {
         items: [{ id: 'gutter-pack', name: 'Gutter pack', memberCount: 3, useCount: 0 }],

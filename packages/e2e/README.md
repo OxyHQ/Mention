@@ -24,14 +24,23 @@ has actually shipped passes all of that:
 foregrounded browser and that jest and tsc do not catch them. This package is
 that statement, automated.
 
-## Why it browses at `https://mention.earth` and not at the preview URL
+## Why it browses at `https://mention.org` and not at the preview URL
 
-Because at the preview URL there is nothing to assert. The production deployment
-uses `https://api.mention.earth` as its API, and that API answers
-every request with a fixed `access-control-allow-origin: https://mention.earth`
-(`packages/backend/src/utils/allowedOrigins.ts` allowlists exactly one
-production frontend origin). A browser parked on `*.pages.dev` therefore has
-every API response blocked by CORS and boots into a permanently empty shell.
+Because at the preview URL there is nothing to assert. The production web build
+uses `https://api.mention.org` as its API and `https://mention.org` as its web
+origin (`deploy-frontends.yml`, docs/mention-org-domain-move.md), and that API
+answers with an `access-control-allow-origin` from a fixed allowlist of the
+production web origins (`packages/backend/src/utils/allowedOrigins.ts`). A
+browser parked on `*.pages.dev` therefore has every API response blocked by
+CORS and boots into a permanently empty shell.
+
+The gate's origins must be the ones the build was made for: `MENTION_E2E_APP_ORIGIN`
+equals its `EXPO_PUBLIC_WEB_BASE_URL` (share links, canonicals and OG URLs are
+asserted against it) and `MENTION_E2E_API_ORIGIN` its `EXPO_PUBLIC_API_URL`
+(synthetic fixtures route it). A build for mention.org gated on mention.earth
+routes its fixtures on a host the build never calls, and fails. The canonical
+ActivityPub actors stay on `https://api.mention.earth` (the fediverse identity
+does not move), so that has its own variable.
 
 Widening the production allowlist to admit preview origins would be a
 credentialed-CORS loosening of production, which `AGENTS.md` § CORS explicitly
@@ -134,20 +143,23 @@ MENTION_E2E_CANDIDATE_ORIGIN=https://<deployment>.mention-frontend.pages.dev \
 
 # Or against a local export configured for the same API as the release gate.
 # Expo also reads .env.local: verify its EXPO_PUBLIC_* values before building.
-EXPO_PUBLIC_API_URL=https://api.mention.earth \
-  EXPO_PUBLIC_API_URL_SOCKET=wss://api.mention.earth bun run build:frontend
+NODE_ENV=production EXPO_PUBLIC_ENV=production \
+  EXPO_PUBLIC_API_URL=https://api.mention.org \
+  EXPO_PUBLIC_WEB_BASE_URL=https://mention.org \
+  EXPO_PUBLIC_FEDERATION_DOMAIN=mention.earth bun run build:frontend
 bunx serve packages/frontend/dist
 MENTION_E2E_CANDIDATE_ORIGIN=http://127.0.0.1:3000 bun run --cwd packages/e2e test
 ```
 
 First run needs the browser: `bun run --cwd packages/e2e install-browser`.
 
-| Variable                       | Default                     | Meaning                                   |
-| ------------------------------ | --------------------------- | ----------------------------------------- |
-| `MENTION_E2E_CANDIDATE_ORIGIN` | _required_                  | Deployment holding the build under test   |
-| `MENTION_E2E_APP_ORIGIN`       | `https://mention.earth`     | Origin the browser runs at                |
-| `MENTION_E2E_API_ORIGIN`       | `https://api.mention.earth` | Expected canonical ActivityPub actor host |
-| `MENTION_E2E_PROFILE_HANDLE`   | `nate`                      | A local handle that exists in production  |
+| Variable                       | Default                     | Meaning                                                            |
+| ------------------------------ | --------------------------- | ------------------------------------------------------------------ |
+| `MENTION_E2E_CANDIDATE_ORIGIN` | _required_                  | Deployment holding the build under test                            |
+| `MENTION_E2E_APP_ORIGIN`       | `https://mention.org`       | Origin the browser runs at; the build's `EXPO_PUBLIC_WEB_BASE_URL` |
+| `MENTION_E2E_API_ORIGIN`       | `https://api.mention.org`   | The build's `EXPO_PUBLIC_API_URL`                                  |
+| `MENTION_E2E_ACTOR_ORIGIN`     | `https://api.mention.earth` | Expected canonical ActivityPub actor host                          |
+| `MENTION_E2E_PROFILE_HANDLE`   | `nate`                      | A local handle that exists in production                           |
 
 There is no default for the candidate origin, and it may not equal the app
 origin. Both rules exist so the suite cannot silently degrade into a test of
@@ -270,7 +282,7 @@ node --test packages/e2e/coldIdentityEvidence.test.mjs
 # Only after both successful absence artifacts have been reviewed.
 MENTION_E2E_COLD_IDENTITY=1 \
 MENTION_E2E_COLD_EVIDENCE=/absolute/path/evidence.json \
-MENTION_E2E_CANDIDATE_ORIGIN=https://mention.earth \
+MENTION_E2E_CANDIDATE_ORIGIN=https://mention.org \
 bun run --cwd packages/e2e test --config playwright.identity-cold.config.ts
 ```
 

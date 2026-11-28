@@ -40,23 +40,39 @@ export const CANDIDATE_ORIGIN = readOrigin('MENTION_E2E_CANDIDATE_ORIGIN');
  * The origin the browser runs at. For the ordinary release gate this is NOT
  * interchangeable with the candidate origin, because:
  *
- *   * the production deployment uses `https://api.mention.earth` as its API
- *     (an explicit `EXPO_PUBLIC_API_URL` overrides this even in production), and
- *   * that API answers every request with a fixed
- *     `access-control-allow-origin: https://mention.earth`
- *     (`packages/backend/src/utils/allowedOrigins.ts` allowlists exactly the one
- *     production frontend origin).
+ *   * the production web build calls `https://api.mention.org` as its API
+ *     (`EXPO_PUBLIC_API_URL` in `deploy-frontends.yml`; an explicit value
+ *     overrides the `config.ts` default even in production), and
+ *   * that API answers with an `access-control-allow-origin` drawn from a fixed
+ *     allowlist of the production web origins, canonically `https://mention.org`
+ *     (`packages/backend/src/utils/allowedOrigins.ts`; docs/mention-org-domain-move.md).
  *
  * So a browser parked on a `*.pages.dev` preview origin has EVERY API response
  * blocked by CORS: the app boots into a permanently empty shell and no feed
  * assertion can mean anything. Widening the production allowlist to admit
  * preview origins would be a credentialed-CORS loosening of production, which is
  * exactly what `AGENTS.md` § CORS says not to do.
+ *
+ * It must be the web origin the build was made for (`EXPO_PUBLIC_WEB_BASE_URL`):
+ * share links, canonicals and OG URLs are asserted against it. `API_ORIGIN` must
+ * likewise be the API the build was made for (`EXPO_PUBLIC_API_URL`): a build for
+ * one domain gated on another routes its fixtures on a host it never calls.
  */
-export const APP_ORIGIN = readOrigin('MENTION_E2E_APP_ORIGIN', 'https://mention.earth');
+export const APP_ORIGIN = readOrigin('MENTION_E2E_APP_ORIGIN', 'https://mention.org');
 
-/** Backend origin that serves the canonical ActivityPub actor documents. */
-export const API_ORIGIN = readOrigin('MENTION_E2E_API_ORIGIN', 'https://api.mention.earth');
+/**
+ * The API origin the candidate build calls (its `EXPO_PUBLIC_API_URL`). Synthetic
+ * fixtures route it and live flows read it, so it must equal the build's value.
+ */
+export const API_ORIGIN = readOrigin('MENTION_E2E_API_ORIGIN', 'https://api.mention.org');
+
+/**
+ * Backend origin that serves the canonical ActivityPub actor documents. The
+ * fediverse identity stays on mention.earth for good (`FEDERATION_DOMAIN` and
+ * `ACTOR_DOMAIN`), so actors keep living on `api.mention.earth` even though the
+ * web build calls `API_ORIGIN`: the two are different questions.
+ */
+export const ACTOR_ORIGIN = readOrigin('MENTION_E2E_ACTOR_ORIGIN', 'https://api.mention.earth');
 
 /** A local handle that exists in production, used by the profile flow. */
 export const PROFILE_HANDLE = process.env.MENTION_E2E_PROFILE_HANDLE?.trim() || 'nate';

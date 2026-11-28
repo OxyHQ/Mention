@@ -1,6 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 import { APP_ORIGIN } from './environment';
 
+// `seo-handoff.spec.ts` renders the shell with the backend's own renderer, which
+// takes its canonical web origin (canonical, OG and JSON-LD URLs) from
+// MENTION_WEB_ORIGIN, as the production backend does (`deploy-backend-config.yml`).
+// Render it for the web origin the build under test was made for. Set here, in
+// the config every worker loads before any test file, so it precedes the
+// renderer's config parse.
+process.env.MENTION_WEB_ORIGIN = APP_ORIGIN;
+
 /**
  * Chromium-only, on purpose. WebKit doubles the browser download and the wall
  * clock of a step that sits directly in front of a production promotion; it is

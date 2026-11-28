@@ -1,6 +1,6 @@
 /** Gallery sharing uses a post/profile permalink, never viewer-scoped media URLs. */
 import type { BrowserContext, Page } from '@playwright/test';
-import { APP_ORIGIN, API_ORIGIN } from '../environment';
+import { API_ORIGIN, APP_ORIGIN } from '../environment';
 import { expect, contractTest as test } from '../fixtures';
 
 const postId = 'c186e8a0-e9a5-4e84-9c97-15b285a79999';
@@ -107,7 +107,7 @@ test('post gallery shares the post permalink, not a scoped image URL', async ({
   await page.goto(`/p/${postId}`);
   await page.locator('img[alt="Private fixture image"]').first().click();
   await expect(page.getByRole('button', { name: 'Close media viewer', exact: true })).toBeVisible();
-  await expectSharedUrl(page, `https://mention.earth/p/${postId}`);
+  await expectSharedUrl(page, `${APP_ORIGIN}/p/${postId}`);
   expect(candidate.scriptErrors).toEqual([]);
 });
 
@@ -120,7 +120,7 @@ test('profile avatar shares the profile permalink, not a scoped avatar URL', asy
   await page.goto(`/@${author.username}`);
   await page.getByLabel('Profile avatar').first().click();
   await expect(page.getByRole('button', { name: 'Close media viewer', exact: true })).toBeVisible();
-  await expectSharedUrl(page, `https://mention.earth/@${author.username}`);
+  await expectSharedUrl(page, `${APP_ORIGIN}/@${author.username}`);
   expect(candidate.scriptErrors).toEqual([]);
 });
 
@@ -132,7 +132,7 @@ test('channel avatar shares its channel permalink', async ({ context, page, cand
   await page.goto(`/c/${author.username}`);
   await page.getByLabel('Profile avatar').first().click();
   await expect(page.getByRole('button', { name: 'Close media viewer', exact: true })).toBeVisible();
-  await expectSharedUrl(page, `https://mention.earth/c/${author.username}`);
+  await expectSharedUrl(page, `${APP_ORIGIN}/c/${author.username}`);
   expect(candidate.scriptErrors).toEqual([]);
 });
 
