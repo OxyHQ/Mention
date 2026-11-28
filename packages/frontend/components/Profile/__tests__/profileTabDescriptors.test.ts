@@ -31,6 +31,12 @@ describe('profile tab descriptors', () => {
   it('is exactly the static strip when the publisher has no lanes', () => {
     const descriptors = buildProfileTabDescriptors(LABELS);
     expect(descriptors.map((d) => d.key)).toEqual([...TAB_NAMES, 'experience']);
+    expect(descriptors.slice(0, 4).map((d) => d.key)).toEqual([
+      'posts',
+      'replies',
+      'videos',
+      'media',
+    ]);
     expect(descriptors.every((d) => d.laneId === undefined)).toBe(true);
   });
 
@@ -73,8 +79,8 @@ describe('profile tab descriptors', () => {
   it('gives a channel only the tabs its account kind can fill', () => {
     expect(profileTabsForAccountKind('channel')).toEqual([
       'posts',
-      'media',
       'videos',
+      'media',
       'reposts',
       'mentions',
       // Channel-only, and last: this asks the account kind whether the tab is
@@ -156,8 +162,8 @@ describe('profile tab descriptors', () => {
     expect(descriptors.map((d) => d.key)).toEqual([
       'posts',
       laneTabKey('lane-a'),
-      'media',
       'videos',
+      'media',
       'reposts',
       'mentions',
     ]);
@@ -175,16 +181,16 @@ describe('profile tab descriptors', () => {
 
     expect(disclosing.map((d) => d.key)).toEqual([
       'posts',
-      'media',
       'videos',
+      'media',
       'reposts',
       'mentions',
       'writers',
     ]);
     expect(notDisclosing.map((d) => d.key)).toEqual([
       'posts',
-      'media',
       'videos',
+      'media',
       'reposts',
       'mentions',
     ]);

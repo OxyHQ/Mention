@@ -35,6 +35,12 @@ export function readMediaAspectRatio(
   return undefined;
 }
 
+/** Prefer measured dimensions over the stored orientation label when both exist. */
+export function isLandscapeVideo(item: PersistedMediaDimensions): boolean {
+  const ratio = readMediaAspectRatio(item);
+  return ratio === undefined ? item.orientation === 'landscape' : ratio > 1;
+}
+
 /** Read stored duration in seconds from the media DTO. */
 export function readMediaDurationSec(
   item: PersistedMediaDimensions | undefined,

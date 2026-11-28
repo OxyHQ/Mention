@@ -14,8 +14,8 @@ import type { FollowButton, FollowVerb, useAuth } from '@oxy.so/services/ui/clie
 export const TAB_NAMES = [
   'posts',
   'replies',
-  'media',
   'videos',
+  'media',
   'likes',
   'reposts',
   'mentions',

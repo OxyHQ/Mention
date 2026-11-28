@@ -2,7 +2,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { PlayButton } from '@oxy.so/bloom/media-controls';
 import VideoPlayer from '../VideoPlayer';
 
-type Listener = (payload: { isPlaying: boolean }) => void;
+type Listener = (payload: { isPlaying: boolean } | { duration: number }) => void;
 const mockListeners = new Map<string, Set<Listener>>();
 const mockPlaybackReads = jest.fn();
 const mockToggleMuted = jest.fn();
@@ -11,6 +11,7 @@ const mockPlayer = {
   muted: false,
   loop: false,
   currentTime: 0,
+  playbackRate: 1,
   duration: 0,
   timeUpdateEventInterval: 0,
   play: jest.fn(),
@@ -42,7 +43,9 @@ jest.mock('expo', () => {
     useEventListener,
     useEvent: (player: typeof mockPlayer, event: string, initial: { isPlaying: boolean }) => {
       const [state, setState] = React.useState(initial);
-      useEventListener(player, event, setState);
+      useEventListener(player, event, (value) => {
+        if ('isPlaying' in value) setState(value);
+      });
       return state;
     },
   };
@@ -59,10 +62,13 @@ jest.mock('@oxy.so/bloom/video-playback', () => ({
 }));
 jest.mock('@oxy.so/bloom/icons', () => ({
   RiExpandDiagonalSLine: () => null,
+  RiReplay10Line: () => null,
+  RiForward10Line: () => null,
   RiVolumeMuteLine: () => null,
   RiVolumeUpLine: () => null,
 }));
 jest.mock('expo-image', () => ({ Image: () => null }));
+jest.mock('expo-linear-gradient', () => ({ LinearGradient: () => null }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('@/stores/videoMuteStore', () => ({
   useVideoMuteStore: (
@@ -246,3 +252,32 @@ it.each(['preview', 'gif'] as const)(
     }
   },
 );
+
+it('seeks within the video and changes actual playback speed with the watch controls', () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  mockPlayer.currentTime = 5;
+  mockPlayer.playbackRate = 1;
+  act(() => {
+    renderer = TestRenderer.create(<VideoPlayer src={SOURCE} controlsLayout="watch" />);
+  });
+  const press = (label: string) => {
+    const control = renderer.root.findAll(
+      (node) => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function',
+    )[0];
+    expect(control?.props.accessibilityLabel).toBe(label);
+    act(() => control?.props.onPress());
+  };
+  try {
+    act(() => {
+      for (const listener of mockListeners.get('sourceLoad') ?? []) listener({ duration: 120 });
+    });
+    press('videos.backTenSeconds');
+    expect(mockPlayer.currentTime).toBe(0);
+    press('videos.forwardTenSeconds');
+    expect(mockPlayer.currentTime).toBe(10);
+    press('videos.playbackSpeed');
+    expect(mockPlayer.playbackRate).toBe(1.25);
+  } finally {
+    act(() => renderer.unmount());
+  }
+});

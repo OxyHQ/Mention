@@ -193,3 +193,38 @@ it('entering the reserved Videos route drops only the departed route payload', (
   });
   act(() => renderer.unmount());
 });
+
+it('moves open replies to the playing video with a fresh draft, and never opens them', async () => {
+  let panels: ReturnType<typeof useVideoRepliesPanel> = null;
+  function Capture() {
+    const value = useVideoRepliesPanel();
+    useEffect(() => {
+      panels = value;
+    }, [value]);
+    return null;
+  }
+  let renderer: TestRenderer.ReactTestRenderer | undefined;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <PostEngagementProvider>
+        <Capture />
+      </PostEngagementProvider>,
+    );
+  });
+  const panel = () => usePostEngagementPanels.getState().panels['deck-2'];
+
+  await act(async () => panels?.followReplies('post-1'));
+  expect(panel()).toBeUndefined();
+
+  await act(async () => {
+    panels?.open('post-1', 'replies');
+  });
+  const draft = panel()?.replyDraft;
+  await act(async () => panels?.followReplies('post-2'));
+  expect(panel()).toMatchObject({ isOpen: true, destination: { postId: 'post-2' } });
+  expect(panel()?.replyDraft).not.toBe(draft);
+
+  await act(async () => panels?.followReplies(undefined));
+  expect(panel()?.isOpen).toBe(false);
+  await act(async () => renderer?.unmount());
+});

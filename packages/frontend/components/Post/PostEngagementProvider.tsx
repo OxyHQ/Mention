@@ -66,9 +66,28 @@ export function PostEngagementProvider({ children }: { children: ReactNode }) {
     },
     [viewer, generation, hostId, route],
   );
+  const followReplies = useCallback(
+    (postId: string | undefined) => {
+      const state = usePostEngagementPanels.getState();
+      const panel = hostId ? state.panels[hostId] : undefined;
+      if (
+        !hostId ||
+        !panel?.isOpen ||
+        panel.destination.kind !== 'replies' ||
+        panel.destination.route !== route ||
+        panel.destination.postId === postId
+      )
+        return;
+      // A new destination gets its own reply draft, so text written for one
+      // video is never posted on another.
+      if (postId) handleOpen(postId, 'replies', { inlineOnly: true });
+      else state.close(viewer, generation, hostId, route);
+    },
+    [handleOpen, viewer, generation, hostId, route],
+  );
   const actions = useMemo(
-    () => ({ open: handleOpen, publishReplies, closeReplies }),
-    [handleOpen, publishReplies, closeReplies],
+    () => ({ open: handleOpen, publishReplies, closeReplies, followReplies }),
+    [handleOpen, publishReplies, closeReplies, followReplies],
   );
   useFocusEffect(
     useCallback(() => {

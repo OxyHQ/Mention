@@ -13,7 +13,10 @@ jest.mock('@oxy.so/bloom/list', () => ({
   },
 }));
 
-it('windows the grid by rows of three cells', () => {
+it.each([
+  [undefined, [3, 3, 1]],
+  [2, [2, 2, 2, 1]],
+])('windows the grid with column override %s', (columns, lengths) => {
   const data: ProfileGridEntry[] = Array.from({ length: 7 }, (_, index) => ({
     postId: `post-${index}`,
     mediaIndex: 0,
@@ -26,12 +29,13 @@ it('windows the grid by rows of three cells', () => {
         restorationKey="viewer-1:profile-1:media"
         data={data}
         renderCell={renderCell}
+        layout={columns ? { columns, inset: 12, gap: 12, cellHeight: () => 200 } : undefined}
       />,
     );
   });
 
   const rows = mockVirtualList.mock.lastCall?.[0].data as ProfileGridEntry[][];
-  expect(rows.map((row) => row.length)).toEqual([3, 3, 1]);
+  expect(rows.map((row) => row.length)).toEqual(lengths);
   expect(renderer.root.findAllByType('span')).toHaveLength(7);
   act(() => renderer.unmount());
 });

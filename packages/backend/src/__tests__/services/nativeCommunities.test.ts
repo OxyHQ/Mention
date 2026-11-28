@@ -166,6 +166,33 @@ beforeEach(() => {
 });
 
 describe('a community hosted here', () => {
+  it('stores a title on a standalone video and still rejects titles on unrelated posts', async () => {
+    const content = {
+      title: 'A new video',
+      text: 'A short description',
+      media: [{ id: 'https://media.example.test/video.mp4', type: 'video' as const }],
+    };
+    const post = await postCreationService.create({ oxyUserId: MEMBER, content, ...quiet });
+    trackPost(scope, post.id);
+    expect((await readPost(post.id))?.content.title).toBe(content.title);
+
+    await expect(
+      postCreationService.create({
+        oxyUserId: MEMBER,
+        content: { title: 'Plain post', text: 'No video' },
+        ...quiet,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      postCreationService.create({
+        oxyUserId: REPLIER,
+        parentPostId: post.id,
+        content,
+        ...quiet,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
   it('takes posts from anybody it has not banned, and its threads keep it', async () => {
     const post = await postCreationService.create({
       oxyUserId: MEMBER,

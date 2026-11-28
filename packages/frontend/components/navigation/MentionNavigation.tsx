@@ -6,6 +6,7 @@ import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
@@ -20,8 +21,7 @@ import { RiSearchFill } from '@oxy.so/bloom/icons/RiSearchFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiSettings3Fill } from '@oxy.so/bloom/icons/RiSettings3Fill';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
-import { RiVideoFill } from '@oxy.so/bloom/icons/RiVideoFill';
-import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
+import { ClipsIcon } from '@/components/videos/ClipsIcon';
 import type { AppDestination } from '@oxy.so/bloom/tab-pager';
 import { TabPagerProvider } from '@oxy.so/bloom/tab-pager/expo-router';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
@@ -93,10 +93,10 @@ export function useMentionDestinations(): AppDestination[] {
         href: '/videos',
         bar: true,
         preload: true,
-        label: t('sidebar.videos'),
-        icon: RiVideoLine,
-        activeIcon: RiVideoFill,
+        label: t('videos.clips'),
+        icon: ClipsIcon,
       },
+      { name: 'watch', href: '/watch', label: t('sidebar.watch'), icon: RiFilmLine },
       {
         name: 'notifications',
         href: '/notifications',

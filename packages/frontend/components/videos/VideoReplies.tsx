@@ -1,3 +1,6 @@
+import { Button } from '@oxy.so/bloom/button';
+import { useDialogContext } from '@oxy.so/bloom/dialog';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { Screen } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -14,6 +17,7 @@ export interface VideoRepliesProps {
   postId: string;
   focusComposerNonce?: number;
   draft?: ReplyDraft;
+  onClose?: () => void;
   onNavigate?: (href: Href) => void;
 }
 
@@ -26,10 +30,12 @@ export function VideoReplies({
   postId,
   focusComposerNonce = 0,
   draft,
+  onClose,
   onNavigate,
 }: VideoRepliesProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { isWithinDialog } = useDialogContext();
   const post = usePostSelector(postId);
 
   return (
@@ -37,7 +43,25 @@ export function VideoReplies({
       scroll="auto"
       testID="video-replies-screen"
       bottomBarKeyboardBehavior="follow"
-      header={<PageHeader title={t('videos.replies')} onBack={null} safeArea={false} />}
+      header={
+        <PageHeader
+          title={t('videos.replies')}
+          onBack={null}
+          safeArea={false}
+          actions={
+            onClose && !isWithinDialog ? (
+              <Button
+                appearance="subtle"
+                tone="neutral"
+                iconOnly
+                leadingIcon={RiCloseLine}
+                accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+                onPress={onClose}
+              />
+            ) : undefined
+          }
+        />
+      }
       bottomBar={
         user && postAcceptsReplies(post) ? (
           <PageFooter scrim="auto" contentContainerStyle={{ paddingLeft: 8, paddingRight: 8 }}>

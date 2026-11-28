@@ -1068,19 +1068,26 @@ class FeedService {
    */
   async getMtnFeed(
     descriptor: FeedDescriptor,
-    options?: { cursor?: string; limit?: number; signal?: AbortSignal; sort?: FollowingFeedSort },
+    options?: {
+      cursor?: string;
+      limit?: number;
+      signal?: AbortSignal;
+      sort?: FollowingFeedSort;
+      orientation?: 'landscape';
+    },
   ): Promise<FeedServiceResponse> {
     const params: Record<string, unknown> = { descriptor };
     if (options?.cursor) params.cursor = options.cursor;
     if (options?.limit) params.limit = options.limit;
     const sort = descriptor === 'following' ? options?.sort : undefined;
     if (sort) params.sort = sort;
+    if (options?.orientation) params.orientation = options.orientation;
 
     // Dedup in-flight within one exact viewer generation. Authenticated accounts
     // must never share personalized hydration merely because both are `auth`.
     // Page size remains part of the key because the profile media grid and feed
     // can request the same descriptor with different limits.
-    const cacheKey = `mtn|${requestIdentityDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}|${options?.limit ?? 'default'}|${sort ?? 'stored'}`;
+    const cacheKey = `mtn|${requestIdentityDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}|${options?.limit ?? 'default'}|${sort ?? 'stored'}|${options?.orientation ?? 'default'}`;
 
     // In-flight sharing is ONLY safe for signal-less requests. A request that
     // carries an AbortSignal is owned by a single caller whose lifecycle controls

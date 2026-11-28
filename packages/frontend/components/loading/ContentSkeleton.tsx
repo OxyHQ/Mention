@@ -153,3 +153,18 @@ export function VideoSkeleton() {
     </Skeleton.Region>
   );
 }
+
+export function WatchVideoSkeleton({ showDetails }: { showDetails: boolean }) {
+  return (
+    <Skeleton.Region testID="watch-video-skeleton" className="w-full gap-4 px-3 pb-8 pt-2">
+      <Skeleton.Box width="100%" style={{ aspectRatio: 16 / 9 }} borderRadius={16} />
+      {showDetails && (
+        <View className="gap-2">
+          <Skeleton.Box width="76%" height={22} borderRadius={6} />
+          <Skeleton.Box width="40%" height={13} borderRadius={5} />
+          <Skeleton.Box width="88%" height={13} borderRadius={5} />
+        </View>
+      )}
+    </Skeleton.Region>
+  );
+}

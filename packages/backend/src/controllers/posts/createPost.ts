@@ -276,9 +276,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Build complete content object. `text` is the API's convenience shape for a
     // single-language post; `PostCreationService` turns it into the primary variant
     // (nothing stores a second copy of the body).
-    // A community post's optional headline (one plain-text line). Whether this
-    // post may carry one — only a top-level post written in a community — is
-    // decided with the community, inside `create`.
+    // Original video posts and community posts can carry a plain-text headline.
+    // The creation service validates the post type before writing it.
     const title = normalizeCommunityPostTitle(content?.title);
     const postContent: PostContent = {
       text: text || '',
