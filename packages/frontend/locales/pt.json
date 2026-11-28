@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Sugestões de hashtags",
+    "hashtagPosts_one": "{{count}} publicação",
+    "hashtagPosts_many": "{{count}} de publicações",
+    "hashtagPosts_other": "{{count}} publicações",
     "deleteDraftChanged": "Este rascunho foi alterado. Revê-o e tenta eliminá-lo novamente.",
     "draftMissing": "Este rascunho já não está disponível.",
     "draftConflict": "Este rascunho foi alterado noutro local. Guarda o teu trabalho como cópia.",

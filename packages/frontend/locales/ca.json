@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Suggeriments d'etiquetes",
+    "hashtagPosts_one": "{{count}} publicació",
+    "hashtagPosts_many": "{{count}} de publicacions",
+    "hashtagPosts_other": "{{count}} publicacions",
     "deleteDraftChanged": "Aquest esborrany ha canviat. Revisa'l i torna a provar d'eliminar-lo.",
     "draftMissing": "Aquest esborrany ja no està disponible.",
     "draftConflict": "Aquest esborrany ha canviat en un altre lloc. Desa la teva feina com a còpia.",

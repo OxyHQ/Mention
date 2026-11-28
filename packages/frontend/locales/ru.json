@@ -308,6 +308,11 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Подсказки хештегов",
+    "hashtagPosts_one": "{{count}} пост",
+    "hashtagPosts_few": "{{count}} поста",
+    "hashtagPosts_many": "{{count}} постов",
+    "hashtagPosts_other": "{{count}} поста",
     "deleteDraftChanged": "Черновик изменился. Проверьте его и повторите удаление.",
     "draftMissing": "Этот черновик больше недоступен.",
     "draftConflict": "Этот черновик изменился в другом месте. Сохраните свою работу как копию.",

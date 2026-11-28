@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Hashtag suggestions",
+    "hashtagPosts_one": "{{count}} post",
+    "hashtagPosts_other": "{{count}} posts",
     "deleteDraftChanged": "This draft changed. Review it and try deleting again.",
     "draftMissing": "This draft is no longer available.",
     "draftConflict": "This draft changed elsewhere. Save your work as a copy.",

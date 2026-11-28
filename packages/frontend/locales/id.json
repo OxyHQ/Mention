@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Saran tagar",
+    "hashtagPosts_one": "{{count}} postingan",
+    "hashtagPosts_other": "{{count}} postingan",
     "deleteDraftChanged": "Draf ini berubah. Tinjau dan coba hapus lagi.",
     "draftMissing": "Draf ini tidak lagi tersedia.",
     "draftConflict": "Draf ini berubah di tempat lain. Simpan pekerjaan Anda sebagai salinan.",

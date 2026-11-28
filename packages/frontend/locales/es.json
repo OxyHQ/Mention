@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personaliza Mention con el tema Mono."
   },
   "compose": {
+    "hashtagSuggestions": "Sugerencias de hashtags",
+    "hashtagPosts_one": "{{count}} publicación",
+    "hashtagPosts_many": "{{count}} de publicaciones",
+    "hashtagPosts_other": "{{count}} publicaciones",
     "deleteDraftChanged": "Este borrador ha cambiado. Revísalo y vuelve a intentar eliminarlo.",
     "draftMissing": "Este borrador ya no está disponible.",
     "draftConflict": "Este borrador ha cambiado en otra sesión. Guarda tu trabajo como una copia.",

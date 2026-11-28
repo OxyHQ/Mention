@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "话题标签建议",
+    "hashtagPosts_one": "{{count}} 条帖子",
+    "hashtagPosts_other": "{{count}} 条帖子",
     "deleteDraftChanged": "此草稿已更改。请检查后重试删除。",
     "draftMissing": "此草稿已不可用。",
     "draftConflict": "此草稿已在其他位置更改。请将您的工作保存为副本。",

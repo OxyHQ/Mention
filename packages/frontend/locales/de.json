@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Hashtag-Vorschläge",
+    "hashtagPosts_one": "{{count}} Beitrag",
+    "hashtagPosts_other": "{{count}} Beiträge",
     "deleteDraftChanged": "Dieser Entwurf wurde geändert. Prüfe ihn und versuche erneut, ihn zu löschen.",
     "draftMissing": "Dieser Entwurf ist nicht mehr verfügbar.",
     "draftConflict": "Dieser Entwurf wurde an anderer Stelle geändert. Speichere deine Arbeit als Kopie.",

@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "হ্যাশট্যাগ পরামর্শ",
+    "hashtagPosts_one": "{{count}}টি পোস্ট",
+    "hashtagPosts_other": "{{count}}টি পোস্ট",
     "deleteDraftChanged": "এই খসড়াটি পরিবর্তিত হয়েছে। পর্যালোচনা করে আবার মুছে ফেলার চেষ্টা করুন।",
     "draftMissing": "এই খসড়াটি আর উপলব্ধ নেই।",
     "draftConflict": "এই খসড়াটি অন্য কোথাও পরিবর্তিত হয়েছে। আপনার কাজ একটি অনুলিপি হিসেবে সংরক্ষণ করুন।",
