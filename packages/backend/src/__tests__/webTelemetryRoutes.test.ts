@@ -50,6 +50,16 @@ describe('web RUM telemetry', () => {
     expect(output).not.toContain('secret');
   });
 
+  it('accepts beacons from the web app on mention.earth and on the mention.org alias', async () => {
+    for (const origin of ['https://mention.earth', 'https://mention.org']) {
+      await request(app)
+        .post('/telemetry/web')
+        .set('origin', origin)
+        .send({ events: [{ type: 'runtime', kind: 'navigation', result: 'ok', route: '/' }] })
+        .expect(204);
+    }
+  });
+
   it('rejects malformed batches and untrusted origins', async () => {
     await request(app)
       .post('/telemetry/web')
