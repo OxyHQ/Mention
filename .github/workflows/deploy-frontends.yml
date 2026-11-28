@@ -196,7 +196,11 @@ jobs:
         env:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
-          EXPO_PUBLIC_API_URL: https://api.mention.earth
+          EXPO_PUBLIC_API_URL: https://api.mention.org
+          # mention.org is the canonical web host (docs/mention-org-domain-move.md);
+          # the fediverse identity stays mention.earth for good.
+          EXPO_PUBLIC_WEB_BASE_URL: https://mention.org
+          EXPO_PUBLIC_FEDERATION_DOMAIN: mention.earth
           # Mention's PRODUCTION Oxy client id. `packages/frontend/config.ts`
           # falls back to a committed id when this is unset, so a local build
           # runs unconfigured — which is why it must be injected here: without

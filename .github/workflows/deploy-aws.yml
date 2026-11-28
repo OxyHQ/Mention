@@ -329,6 +329,11 @@ jobs:
           # Until then Oxy refuses the tickets: ticket_catalog_no_longer_current.
           TASK_ENV_OVERRIDES_JSON: >-
             {"WEB_SHELL_ORIGIN":"https://shell.mention.earth",
+             "MENTION_WEB_ORIGIN":"https://mention.org",
+             "FRONTEND_URL":"https://mention.org",
+             "MENTION_WEB_ALIAS_ORIGINS":"https://mention.earth",
+             "FEDERATION_DOMAIN":"mention.earth",
+             "ACTOR_DOMAIN":"mention.earth",
              "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592",
              "MENTION_OXY_FOREGROUND_CATALOG_BINDING":"{\"registrationId\":\"01a16014-f77e-7013-b414-50deb9b61c60\",\"version\":\"1.1.0\",\"digest\":\"8cb3806c6caaade2f2b7b11d7a057907eb9a0d957f75334b8cb55f5d2c7bb658\"}"}
           # OPTIONAL environment, merged into the lists above and below by

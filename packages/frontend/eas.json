@@ -18,7 +18,9 @@
       "bun": "1.4.4",
       "env": {
         "EXPO_PUBLIC_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api.mention.earth",
+        "EXPO_PUBLIC_API_URL": "https://api.mention.org",
+        "EXPO_PUBLIC_WEB_BASE_URL": "https://mention.org",
+        "EXPO_PUBLIC_FEDERATION_DOMAIN": "mention.earth",
         "EXPO_PUBLIC_OXY_CLIENT_ID": "oxy_dk_463c7d9366ca7cfd442da884d4963dc78dca829412fd1125",
         "EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID": "mention",
         "EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY": "plus",
