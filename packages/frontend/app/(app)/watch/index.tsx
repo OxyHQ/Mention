@@ -8,7 +8,7 @@ import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Screen } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SEO } from '@/components/SEO';
 import {
   VideoPreviewCard,
@@ -47,7 +47,8 @@ export default function WatchHomeRoute() {
         signal,
       }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => (page.hasMore ? page.nextCursor : undefined),
+    getNextPageParam: ({ hasMore, nextCursor }, _pages, _currentCursor, cursors) =>
+      hasMore && nextCursor && !cursors.includes(nextCursor) ? nextCursor : undefined,
     enabled: isAuthResolved && filter !== 'clips',
     staleTime: 60_000,
   });
@@ -57,6 +58,10 @@ export default function WatchHomeRoute() {
     enabled: isAuthResolved && filter !== 'videos',
     staleTime: 60_000,
   });
+  const canLoadMore =
+    filter !== 'clips' && videos.hasNextPage && !videos.isFetching && !videos.isError;
+  const loadMore = () => void videos.fetchNextPage({ cancelRefetch: false });
+  const loadingVideos = videos.isPending || videos.isFetchingNextPage;
   const openClips = () => router.push('/videos');
 
   const seen = new Set<string>();
@@ -92,123 +97,129 @@ export default function WatchHomeRoute() {
       }
     >
       <SEO title={t('videos.browse')} robots="index,follow" />
-      <View
-        className="min-w-0 gap-6 pb-8 pt-3"
-        onLayout={({
-          nativeEvent: {
-            layout: { width },
-          },
-        }) => {
-          const available = width - WATCH_INSET * 2;
-          setColumns(available >= 1120 ? 4 : available >= 720 ? 3 : available >= 460 ? 2 : 1);
-        }}
+      <ScreenScrollView
+        onEndReached={canLoadMore ? loadMore : undefined}
+        onEndReachedThreshold={0.6}
       >
-        <ChipRow contentInset={WATCH_INSET} accessibilityLabel={t('search.filters.label')}>
-          {(Object.keys(FILTER_KEYS) as WatchFilter[]).map((option) => (
-            <Chip
-              key={option}
-              variant="subtle"
-              selected={filter === option}
-              onPress={() => setFilter(option)}
-            >
-              {t(FILTER_KEYS[option])}
-            </Chip>
-          ))}
-        </ChipRow>
-        {featuredCount > 0 && (
-          <View style={styles.gridInset}>
-            <VideoPreviewGrid cards={cards.slice(0, featuredCount)} columns={columns} />
-          </View>
-        )}
-        {hasShelf ? (
-          <View className="gap-3" testID="watch-clips">
-            <View className="flex-row items-center justify-between gap-3" style={styles.inset}>
-              <View className="flex-row items-center gap-2">
-                <RiPlayFill size="lg" className="text-primary" />
-                <Text accessibilityRole="header" className="text-lg font-bold text-foreground">
-                  {t('videos.clips')}
-                </Text>
-              </View>
-              <Button size="sm" appearance="subtle" onPress={openClips}>
-                {t('videos.openClips')}
-              </Button>
-            </View>
-            <ScrollView
-              testID="watch-clips-track"
-              horizontal
-              accessibilityLabel={t('videos.clips')}
-              className="w-full min-w-0"
-              contentContainerStyle={styles.clipTrack}
-            >
-              {clipPreviews.map((video) => (
-                <View key={video.post.id} className="w-[138px] sm:w-[164px]">
-                  <VideoPreviewCard video={video} clip locale={locale} t={t} />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        ) : filter === 'clips' && clips.isPending ? (
-          <Skeleton.Region
-            testID="watch-clips-skeleton"
-            className="flex-row overflow-hidden"
-            style={styles.clipTrack}
-          >
-            {[0, 1, 2, 3].map((key) => (
-              <View key={key} className="w-[138px] sm:w-[164px]">
-                <VideoPreviewSkeleton clip />
-              </View>
+        <View
+          className="min-w-0 gap-4 pb-8 pt-3"
+          onLayout={({
+            nativeEvent: {
+              layout: { width },
+            },
+          }) => {
+            const available = width - WATCH_INSET * 2;
+            setColumns(available >= 1120 ? 4 : available >= 720 ? 3 : available >= 460 ? 2 : 1);
+          }}
+        >
+          <ChipRow contentInset={WATCH_INSET} accessibilityLabel={t('search.filters.label')}>
+            {(Object.keys(FILTER_KEYS) as WatchFilter[]).map((option) => (
+              <Chip
+                key={option}
+                variant="subtle"
+                selected={filter === option}
+                onPress={() => setFilter(option)}
+              >
+                {t(FILTER_KEYS[option])}
+              </Chip>
             ))}
-          </Skeleton.Region>
-        ) : filter === 'clips' ? (
-          <View className="items-start gap-3" style={styles.inset}>
-            <Text className="text-muted-foreground">
-              {t(clips.isError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
-            </Text>
-            <Button
-              size="sm"
-              appearance="outline"
-              onPress={clips.isError ? () => void clips.refetch() : openClips}
-            >
-              {t(clips.isError ? 'common.retry' : 'videos.openClips')}
-            </Button>
-          </View>
-        ) : null}
-        {filter !== 'clips' && (
-          <View className="gap-6" style={styles.gridInset}>
-            {cards.length ? (
-              <VideoPreviewGrid cards={cards.slice(featuredCount)} columns={columns} />
-            ) : videos.isPending ? (
-              <Skeleton.Region testID="watch-catalog-skeleton">
-                <VideoPreviewGrid
-                  columns={columns}
-                  cards={Array.from({ length: columns * 2 }, (_, key) => (
-                    <VideoPreviewSkeleton key={key} />
-                  ))}
-                />
-              </Skeleton.Region>
-            ) : (
-              <Text className="py-2 text-muted-foreground">
-                {t(videos.isError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
-              </Text>
-            )}
-            {videos.hasNextPage || videos.isError ? (
-              <View className="items-center">
-                <Button
-                  size="sm"
-                  appearance="outline"
-                  loading={videos.isFetchingNextPage}
-                  disabled={videos.isFetching && !videos.isFetchingNextPage}
-                  onPress={() =>
-                    void (videos.hasNextPage ? videos.fetchNextPage() : videos.refetch())
-                  }
-                >
-                  {t(videos.isError ? 'common.retry' : 'common.loadMore')}
+          </ChipRow>
+          {featuredCount > 0 && (
+            <View style={styles.gridInset}>
+              <VideoPreviewGrid cards={cards.slice(0, featuredCount)} columns={columns} />
+            </View>
+          )}
+          {hasShelf ? (
+            <View className="gap-2" testID="watch-clips">
+              <View className="flex-row items-center justify-between gap-3" style={styles.inset}>
+                <View className="flex-row items-center gap-2">
+                  <RiPlayFill size="lg" className="text-primary" />
+                  <Text accessibilityRole="header" className="text-lg font-bold text-foreground">
+                    {t('videos.clips')}
+                  </Text>
+                </View>
+                <Button size="sm" appearance="subtle" onPress={openClips}>
+                  {t('videos.openClips')}
                 </Button>
               </View>
-            ) : null}
-          </View>
-        )}
-      </View>
+              <ScrollView
+                testID="watch-clips-track"
+                horizontal
+                accessibilityLabel={t('videos.clips')}
+                className="w-full min-w-0"
+                contentContainerStyle={styles.clipTrack}
+              >
+                {clipPreviews.map((video) => (
+                  <View key={video.post.id} className="w-[138px] sm:w-[164px]">
+                    <VideoPreviewCard video={video} clip locale={locale} t={t} />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : filter === 'clips' && clips.isPending ? (
+            <Skeleton.Region
+              testID="watch-clips-skeleton"
+              className="flex-row overflow-hidden"
+              style={styles.clipTrack}
+            >
+              {[0, 1, 2, 3].map((key) => (
+                <View key={key} className="w-[138px] sm:w-[164px]">
+                  <VideoPreviewSkeleton clip />
+                </View>
+              ))}
+            </Skeleton.Region>
+          ) : filter === 'clips' ? (
+            <View className="items-start gap-3" style={styles.inset}>
+              <Text className="text-muted-foreground">
+                {t(clips.isError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
+              </Text>
+              <Button
+                size="sm"
+                appearance="outline"
+                onPress={clips.isError ? () => void clips.refetch() : openClips}
+              >
+                {t(clips.isError ? 'common.retry' : 'videos.openClips')}
+              </Button>
+            </View>
+          ) : null}
+          {filter !== 'clips' && (
+            <View className="gap-4" style={styles.gridInset}>
+              {cards.length > featuredCount && (
+                <VideoPreviewGrid cards={cards.slice(featuredCount)} columns={columns} />
+              )}
+              {loadingVideos ? (
+                <Skeleton.Region testID="watch-catalog-skeleton">
+                  <VideoPreviewGrid
+                    columns={columns}
+                    cards={Array.from(
+                      { length: columns * (videos.isFetchingNextPage ? 1 : 2) },
+                      (_, key) => <VideoPreviewSkeleton key={key} />,
+                    )}
+                  />
+                </Skeleton.Region>
+              ) : (
+                cards.length === 0 && (
+                  <Text className="py-2 text-muted-foreground">
+                    {t(videos.isError ? 'videos.load_failed' : 'videos.no_video_posts_yet')}
+                  </Text>
+                )
+              )}
+              {videos.isError && (
+                <View className="items-center">
+                  <Button
+                    size="sm"
+                    appearance="outline"
+                    disabled={videos.isFetching}
+                    onPress={videos.isFetchNextPageError ? loadMore : () => void videos.refetch()}
+                  >
+                    {t('common.retry')}
+                  </Button>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </ScreenScrollView>
     </Screen>
   );
 }
@@ -216,5 +227,5 @@ export default function WatchHomeRoute() {
 const styles = StyleSheet.create({
   inset: { paddingHorizontal: WATCH_INSET },
   gridInset: { paddingHorizontal: WATCH_INSET - 4 },
-  clipTrack: { gap: 6, paddingHorizontal: WATCH_INSET - 3 },
+  clipTrack: { gap: 4, paddingHorizontal: WATCH_INSET - 3 },
 });

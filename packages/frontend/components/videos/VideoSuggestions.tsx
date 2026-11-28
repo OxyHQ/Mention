@@ -154,13 +154,13 @@ export function VideoRecommendations({
           {t('videos.noSuggestions', { defaultValue: 'No horizontal videos to suggest yet.' })}
         </Text>
       ) : null}
-      <View className={columns ? 'gap-1.5' : 'gap-2'}>
+      <View className="gap-1">
         {columns
           ? Array.from({ length: Math.ceil(cards.length / columns) }, (_, rowIndex) => {
               const start = rowIndex * columns;
               const row = cards.slice(start, start + columns);
               return (
-                <View key={row[0].key} className="flex-row gap-1.5">
+                <View key={row[0].key} className="flex-row gap-0.5">
                   {row}
                   {Array.from({ length: columns - row.length }, (_, index) => (
                     <View key={index} className="flex-1" />

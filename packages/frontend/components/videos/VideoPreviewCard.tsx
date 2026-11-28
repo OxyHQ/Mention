@@ -37,7 +37,7 @@ export function VideoPreviewCard({
   const href: Href = clip
     ? { pathname: '/videos', params: { postId: post.id, mediaIndex: String(mediaIndex) } }
     : { pathname: '/watch/[id]', params: { id: post.id, mediaIndex: String(mediaIndex) } };
-  const cardInset = clip ? 'px-[3px] py-1.5' : 'px-1 py-1.5';
+  const cardInset = clip ? 'px-[3px] py-1' : 'px-1 py-1';
   const thumbnailSize = clip ? 'aspect-[9/16]' : 'aspect-video';
 
   return (
@@ -99,12 +99,12 @@ export function VideoPreviewCard({
 
 export function VideoPreviewGrid({ cards, columns }: { cards: ReactElement[]; columns: number }) {
   return (
-    <View className="gap-3">
+    <View className="gap-1">
       {Array.from({ length: Math.ceil(cards.length / columns) }, (_, rowIndex) => {
         const start = rowIndex * columns;
         const row = cards.slice(start, start + columns);
         return (
-          <View key={row[0].key} className="flex-row gap-2">
+          <View key={row[0].key} className="flex-row gap-0.5">
             {row.map((card) => (
               <View key={card.key} className="min-w-0 flex-1">
                 {card}
@@ -122,7 +122,7 @@ export function VideoPreviewGrid({ cards, columns }: { cards: ReactElement[]; co
 
 export function VideoPreviewSkeleton({ clip = false }: { clip?: boolean }) {
   return (
-    <View className={clip ? 'gap-2 px-[3px] py-1.5' : 'gap-2 px-1 py-1.5'}>
+    <View className={clip ? 'gap-2 px-[3px] py-1' : 'gap-2 px-1 py-1'}>
       <Skeleton.Box
         width="100%"
         style={{ aspectRatio: clip ? 9 / 16 : 16 / 9 }}
