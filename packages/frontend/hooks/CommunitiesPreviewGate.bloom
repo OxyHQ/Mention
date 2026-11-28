@@ -1,0 +1,12 @@
+import { default as NotFoundScreen } from "@/components/NotFoundScreen"
+import { useCommunitiesPreview } from "@/hooks/useCommunitiesPreview"
+
+/// A communities page: the page that does not exist for everyone outside the preview. Applied to
+/// a screen, the not-found page is drawn as a surface of its own, without the screen or its chrome, as the TS gate drew it.
+public struct CommunitiesPreviewGate: ViewModifier {
+  let allowed = useCommunitiesPreview()
+
+  func body(content: Content) -> some View {
+    if allowed { content } else { NotFoundScreen().ownScreen() }
+  }
+}

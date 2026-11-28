@@ -1,6 +1,6 @@
 // Printed by bloom migrate from app/(app)/feeds.tsx (needs review); relative imports as @/ paths. DEV ONLY.
 import { SEO } from "@/components/SEO"
-import { SupervisedFeatureGate } from "@/components/SupervisedFeatureGate"
+import { SupervisedFeatureGate } from "@/components/SupervisedFeatureGate.bloom"
 import { ListSkeleton } from "@/components/loading/ContentSkeleton"
 import { type BloomIcon } from "@/components/settings/RowIcon"
 import { requestSettings } from "@/components/settings/settingsRoutes"
@@ -194,10 +194,13 @@ private func FeedRow(
 ) -> View {
   let { item, pinned, canEdit, onOpen, onTogglePin } = arg
   let memberCount = (item.memberOxyUserIds ?? []).count
-  // bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
   feedRow(
     HStack {
-      Avatar(item.avatar, { variant: MEDIA_VARIANT_AVATAR }).size(.lg)
+      Avatar(
+        ((item.avatar != none && !item.avatar.isEmpty) ? item.avatar : none),
+        { variant: MEDIA_VARIANT_AVATAR },
+      )
+      .size(.lg)
       VStack {
         RawText(item.title || "Untitled Feed")
         .font(.md)
@@ -237,7 +240,7 @@ private func FeedRow(
   )
 }
 
-private struct FeedsScreen: View {
+public struct FeedsScreen: Screen {
   let router = useRouter()
   let { t } = useTranslation()
   let theme = useTheme()
@@ -312,7 +315,7 @@ private struct FeedsScreen: View {
   let fetchTrends = useTrendsStore { state in state.fetchTrends }
   let hasFetchedTrends = useTrendsStore { state in state.hasFetched }
 
-  let trendFeeds = trends
+  let trendFeeds: [Foreign] = trends
     .filter { trend in !hiddenTrendIds.includes(trend.id) }
     .slice(0, TREND_FEED_LIMIT)
 
@@ -401,7 +404,7 @@ private struct FeedsScreen: View {
       )
       .id(preset.id)
     }
-    if trendFeeds.length > 0 {
+    if trendFeeds.count > 0 {
       Group {
         RawText(
           // Live trends — under the curated shelf, never above it.
@@ -533,6 +536,7 @@ private struct FeedsScreen: View {
         )
       }
     }
+    .modifier(SupervisedFeatureGate())
     .task(id: (fetchTrends, hasFetchedTrends)) {
       if !hasFetchedTrends { task { await fetchTrends() } }
     }
@@ -540,9 +544,3 @@ private struct FeedsScreen: View {
 }
 
 private let styles = StyleSheet.create(scrollContent: { paddingHorizontal: 16 })
-
-public struct AvailableFeedsScreen: Screen {
-  var body: some View {
-    SupervisedFeatureGate() { FeedsScreen() }
-  }
-}

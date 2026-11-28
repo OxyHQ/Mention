@@ -169,9 +169,6 @@ jest.mock('@/hooks/useInfiniteCatalogSearch', () => ({
   useInfiniteCatalogSearch: () => mockWorld.search,
   ResultsFooter: mockStub('ResultsFooter'),
 }));
-jest.mock('@/components/SupervisedFeatureGate', () => ({
-  SupervisedFeatureGate: ({ children }: { children: ReactNode }) => children,
-}));
 jest.mock('@/components/SEO', () => ({ SEO: mockStub('SEO') }));
 jest.mock('@/hooks/useFeedPreferences', () => ({
   useFeedPreferences: () => mockWorld.feedPreferences,
@@ -291,8 +288,18 @@ jest.mock('@/stores/postsStore', () => {
     usePostSelector: () => mockWorld.detail.cached,
   };
 });
+// Both forms run their real gate (the TS `SupervisedFeatureGate`, the `.bloom` ViewModifier)
+// over this state: ready and not supervised unless a state sets `supervision`.
 jest.mock('@/hooks/useSupervisionState', () => ({
-  useSupervisionState: () => ({ isSupervised: false, restrictions: {} }),
+  useSupervisionState: () => ({
+    isSupervised: false,
+    restrictions: {},
+    ready: true,
+    supervised: false,
+    isError: false,
+    refetch: async () => undefined,
+    ...mockWorld.supervision,
+  }),
 }));
 
 const mockOpenPostEngagement = () => undefined;
@@ -308,6 +315,8 @@ const longAgo = new Date(Date.now() - 3 * DAY).toISOString();
 
 /** The world the stand-ins read; each state sets the part it needs before drawing. */
 const mockWorld = {
+  /** What `useSupervisionState()` answers beyond ready and not supervised. */
+  supervision: {} as Record<string, unknown>,
   params: {} as Record<string, string>,
   auth: {} as Record<string, unknown>,
   mediaFeed: {} as Record<string, unknown>,
@@ -534,24 +543,15 @@ interface Case {
  */
 const BROKEN: Record<string, string> = {
   ...Object.fromEntries(
-    ['accessFailed', 'gated', 'notFound'].map((state) => [
-      `components/Post/PostDetailScreen.tsx/${state}`,
-      'the reply footer TS draws in every state is drawn only in the loaded one (lang-mention-16, not reduced)',
-    ]),
-  ),
-  ...Object.fromEntries(
     ['fetched', 'reply'].map((state) => [
       `components/Post/PostDetailScreen.tsx/${state}`,
-      "`.testID(\"post-screen\")` on the screen's chrome node is not on its host view (lang-mention-16, not reduced)",
+      "branch-chrome-modifiers: `.testID(\"post-screen\")` on the root Group's drawn branch is not the screen's (lang-mention-16)",
     ]),
   ),
+  'app/(app)/feeds.tsx/supervised':
+    "component-prop-wrapped-as-element: the gate's EmptyState `icon` (a component) is handed `toElement(RiLockLine)`",
   'components/Compose/SourcesSheet.tsx/empty':
     "component-prop-wrapped-as-element: EmptyState's `icon` (a component) is handed `toElement(RiLinkM)`",
-  'app/(app)/feeds.tsx/signedOut': 'the codemod: a screen() inside the route wrapper (refused now)',
-  'app/(app)/feeds.tsx/populated':
-    'the codemod: a screen() inside the route wrapper; foreign-enumerated',
-  'app/(app)/feeds.tsx/protectedMinor':
-    'the codemod: a screen() inside the route wrapper (refused now)',
 };
 
 const noop = () => undefined;
@@ -812,7 +812,7 @@ const CASES: Case[] = [
   {
     file: 'app/(app)/feeds.tsx',
     name: 'default',
-    bloomExport: 'AvailableFeedsScreen',
+    bloomExport: 'FeedsScreen',
     bloomComponent: true,
     ts: () => require('@/app/(app)/feeds'),
     bloom: () => require('./bloom/Feeds.bloom'),
@@ -860,6 +860,29 @@ const CASES: Case[] = [
           mockWorld.trendsState = trends([]);
           mockWorld.myFeeds = [];
           mockWorld.publicFeeds = [customFeed('f1')];
+        },
+      },
+      // The gate holds the screen back: its state is drawn without the screen's chrome.
+      supervised: {
+        props: {},
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.supervision = { supervised: true };
+          mockWorld.feedPreferences = feedPrefs(false);
+          mockWorld.trendsState = trends([]);
+          mockWorld.myFeeds = [];
+          mockWorld.publicFeeds = [];
+        },
+      },
+      checking: {
+        props: {},
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.supervision = { ready: false };
+          mockWorld.feedPreferences = feedPrefs(false);
+          mockWorld.trendsState = trends([]);
+          mockWorld.myFeeds = [];
+          mockWorld.publicFeeds = [];
         },
       },
     },
@@ -1208,12 +1231,14 @@ describe.each(ROWS)('%s', (key, c, s) => {
   (BROKEN[key] && !process.env.PROOF_BROKEN ? it.failing : it)(
     'draws the same host tree as the TypeScript',
     async () => {
+      mockWorld.supervision = {};
       s.before();
       mockPushes.length = 0;
       const { drawn: ts, effects: tsEffects } = await draw(
         () => element('ts', c, s.props),
         s.interact,
       );
+      mockWorld.supervision = {};
       s.before();
       const { drawn: bloom, effects: bloomEffects } = await draw(
         () => element('bloom', c, s.props),
