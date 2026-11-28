@@ -267,6 +267,24 @@ function PrivacySettingsScreen() {
             />
             <GroupedSectionItem
               wrapControl
+              title={t('settings.privacy.mutedAccounts.title')}
+              description={t('settings.privacy.mutedAccounts.entry')}
+              rightElement={
+                <>
+                  <Button
+                    size="sm"
+                    appearance="subtle"
+                    tone="neutral"
+                    onPress={() => router.push('/settings/privacy/muted-accounts')}
+                    accessibilityLabel={t('settings.privacy.mutedAccounts.title')}
+                  >
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </>
+              }
+            />
+            <GroupedSectionItem
+              wrapControl
               title={t('settings.privacy.blockedProfiles')}
               description={t('settings.privacy.blockedProfilesDesc', {
                 defaultValue: 'People you have blocked',

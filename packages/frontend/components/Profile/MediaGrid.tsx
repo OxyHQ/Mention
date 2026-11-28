@@ -14,6 +14,7 @@ import LiveVideoPosterCell from './LiveVideoPosterCell';
 import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 interface MediaGridProps {
   userId?: string;
@@ -80,6 +81,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
   listStickyHeaderComponent,
   contentContainerStyle,
 }) => {
+  const imageFade = useImageTransition(150);
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -197,7 +199,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
               className="bg-muted"
               style={{ width: '100%', height: '100%' }}
               contentFit="cover"
-              transition={150}
+              transition={imageFade}
               cachePolicy="memory-disk"
             />
           )}

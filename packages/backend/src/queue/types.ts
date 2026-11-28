@@ -75,3 +75,9 @@ export interface MediaMetadataEnrichJobData {
 export interface AccountErasureJobData {
   eventId: string;
 }
+
+/** Notify the subscribers of `authorId` that `postId` was published. */
+export interface SubscriberNotificationJobData {
+  postId: string;
+  authorId: string;
+}

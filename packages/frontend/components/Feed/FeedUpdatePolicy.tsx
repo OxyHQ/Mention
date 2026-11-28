@@ -19,6 +19,11 @@ export function FeedUpdatePolicyProvider({
   );
 }
 
+/** Whether a screen above decides how this feed updates (a Deck column). */
+export function useHasFeedUpdatePolicy(): boolean {
+  return useContext(FeedUpdatePolicyContext) !== null;
+}
+
 export function useFeedLiveUpdates(
   type: FeedType,
   refresh: () => Promise<void>,

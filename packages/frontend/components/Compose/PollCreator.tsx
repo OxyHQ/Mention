@@ -15,6 +15,12 @@ import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from 'react-i18next';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import { DEFAULT_POLL_DURATION_DAYS, POLL_DURATION_CHOICES_DAYS } from '@/utils/composeContent';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
@@ -23,6 +29,9 @@ interface PollCreatorProps {
   pollTitle: string;
   pollOptions: string[];
   onTitleChange: (title: string) => void;
+  /** Absent means the default length. */
+  durationDays?: number;
+  onDurationChange: (days: number) => void;
   onOptionChange: (index: number, value: string) => void;
   onAddOption: () => void;
   onRemoveOption: (index: number) => void;
@@ -35,6 +44,8 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
   pollTitle,
   pollOptions,
   onTitleChange,
+  durationDays = DEFAULT_POLL_DURATION_DAYS,
+  onDurationChange,
   onOptionChange,
   onAddOption,
   onRemoveOption,
@@ -45,6 +56,10 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
   const theme = useTheme();
   const { t } = useTranslation();
   const pollTitleInputRef = useRef<TextInputInstance | null>(null);
+  // A length that came from a compose link stays selectable beside the offered ones.
+  const durations = POLL_DURATION_CHOICES_DAYS.includes(durationDays)
+    ? POLL_DURATION_CHOICES_DAYS
+    : [...POLL_DURATION_CHOICES_DAYS, durationDays].sort((a, b) => a - b);
 
   React.useEffect(() => {
     if (autoFocus) {
@@ -123,6 +138,27 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
           <Text className="text-sm font-semibold text-primary">{t('compose.poll.addOption')}</Text>
         </TouchableOpacity>
       )}
+
+      <View className="my-2 gap-1.5">
+        <Text className="text-xs font-semibold text-muted-foreground">
+          {t('compose.poll.duration')}
+        </Text>
+        <SegmentedControl
+          label={t('compose.poll.duration')}
+          type="radio"
+          size="sm"
+          value={String(durationDays)}
+          onValueChange={(value) => onDurationChange(Number(value))}
+        >
+          {durations.map((days) => (
+            <SegmentedControlItem key={days} value={String(days)}>
+              <SegmentedControlItemText>
+                {t('compose.poll.days', { count: days })}
+              </SegmentedControlItemText>
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
+      </View>
 
       <Text style={{ fontSize: 11, marginTop: 2, marginLeft: 2, color: theme.colors.textTertiary }}>
         {pollOptions.length === 2 ? t('compose.poll.addMoreOptions') : t('compose.poll.minOptions')}

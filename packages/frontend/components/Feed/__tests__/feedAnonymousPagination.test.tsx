@@ -153,6 +153,7 @@ jest.mock('../feedRows', () => ({
 
 jest.mock('../FeedHeader', () => ({ FeedHeader: () => null }));
 jest.mock('../FeedFooter', () => ({ FeedFooter: () => null }));
+jest.mock('../NewPostsPill', () => ({ NewPostsPill: () => null }));
 jest.mock('../FeedEmptyState', () => ({ FeedEmptyState: () => null }));
 
 // Every mock above must be installed first.

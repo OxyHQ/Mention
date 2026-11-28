@@ -308,6 +308,13 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "اقتراحات الوسوم",
+    "hashtagPosts_zero": "لا منشورات",
+    "hashtagPosts_one": "منشور واحد",
+    "hashtagPosts_two": "منشوران",
+    "hashtagPosts_few": "{{count}} منشورات",
+    "hashtagPosts_many": "{{count}} منشورًا",
+    "hashtagPosts_other": "{{count}} منشور",
     "deleteDraftChanged": "تغيرت هذه المسودة. راجعها وحاول حذفها مرة أخرى.",
     "draftMissing": "لم تعد هذه المسودة متاحة.",
     "draftConflict": "تغيرت هذه المسودة في مكان آخر. احفظ عملك كنسخة.",
@@ -613,6 +620,13 @@
     "replyPublished": "تم نشر ردّك!",
     "emptyHint": "أضف نصًا أو صورة أو استطلاعًا أو مقالًا",
     "poll": {
+      "duration": "مدة الاستطلاع",
+      "days_zero": "{{count}} يوم",
+      "days_one": "يوم واحد",
+      "days_two": "يومان",
+      "days_few": "{{count}} أيام",
+      "days_many": "{{count}} يومًا",
+      "days_other": "{{count}} يوم",
       "addOption": "إضافة خيار",
       "addMoreOptions": "يمكنك إضافة خيارين آخرين كحد أقصى",
       "create": "إنشاء استطلاع",
@@ -678,6 +692,7 @@
     "expand": "فتح المحرر الكامل"
   },
   "post": {
+    "restrictedNotice": "قيّد الإشراف هذا المنشور. لا يمكن للآخرين رؤيته.",
     "threadPosition": "المنشور {{index}} من {{total}} في السلسلة",
     "viewConversation": "عرض المحادثة",
     "threadContinuation": "متابعة السلسلة ({{count}})",
@@ -1227,6 +1242,18 @@
       "inviteTitle": "انضم إلى Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "الحسابات المكتومة",
+        "entry": "أشخاص أخفيت منشوراتهم",
+        "description": "لا تظهر منشورات الحسابات المكتومة في خلاصاتك. لا يتم إبلاغهم وتستمر في متابعتهم.",
+        "empty": "لا توجد حسابات مكتومة",
+        "loadFailed": "تعذر تحميل الحسابات المكتومة",
+        "unmute": "إلغاء الكتم",
+        "unmuted": "تم إلغاء كتم الحساب",
+        "unmuteFailed": "تعذر إلغاء كتم الحساب",
+        "signInRequired": "سجّل الدخول لإدارة الحسابات المكتومة",
+        "unknown": "حساب غير متاح"
+      },
       "title": "الخصوصية",
       "privateProfile": "ملف شخصي خاص",
       "public": "عام",
@@ -1388,6 +1415,11 @@
       "title": "المظهر"
     },
     "account": {
+      "exportData": "تصدير بياناتك",
+      "exportDescription": "ملف يضم منشوراتك وإشاراتك المرجعية وإعجاباتك وإعداداتك على Mention.",
+      "exportAction": "تصدير",
+      "exportSaved": "تم حفظ بياناتك",
+      "exportFailed": "تعذر تصدير بياناتك",
       "manageAccount": "إدارة الحساب",
       "manageYourAccount": "إدارة حسابك",
       "signedOutSubtitle": "سجّل الدخول للوصول إلى إعدادات الخصوصية والإشعارات والخلاصة والتخصيص.",
@@ -2146,6 +2178,13 @@
   },
   "feed": {
     "caughtUp": "لقد شاهدت كل شيء.",
+    "newPosts_zero": "لا منشورات جديدة",
+    "newPosts_one": "منشور جديد واحد",
+    "newPosts_two": "منشوران جديدان",
+    "newPosts_few": "{{count}} منشورات جديدة",
+    "newPosts_many": "{{count}} منشورًا جديدًا",
+    "newPosts_other": "{{count}} منشور جديد",
+    "newPostsOverflow": "أكثر من {{count}} منشورًا جديدًا",
     "empty": {
       "title": "تعذّر تحميل المنشورات",
       "message": "حدث خطأ أثناء تحميل خلاصتك. اسحب للأسفل للتحديث أو اضغط الزر أدناه لإعادة المحاولة."
@@ -2986,6 +3025,12 @@
     "dayCount_many": "{{count}} يومًا"
   },
   "search": {
+    "filters": {
+      "label": "تصفية المنشورات",
+      "media": "تحتوي على وسائط",
+      "pastWeek": "الأسبوع الماضي",
+      "popular": "الرائجة"
+    },
     "title": "بحث",
     "placeholder": "بحث...",
     "posts": "منشورات",
@@ -3589,6 +3634,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "إنشاء حساب",
+      "valueProp": "تابِع الأشخاص على Mention وعبر الفيديفيرس كله بحساب واحد.",
       "subtitle": "اطّلع على ما يحدث في العالم الآن.",
       "title": "تسجيل الدخول إلى Mention",
       "withOxy": "تسجيل الدخول عبر Oxy"

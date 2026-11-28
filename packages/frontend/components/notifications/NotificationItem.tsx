@@ -46,6 +46,7 @@ import { readerKeys, useReaderFlag } from '@/stores/readerStateStore';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@oxy.so/core/logger';
 import { useStorePost } from '@/hooks/useStorePost';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 const logger = createLogger('NotificationItem');
 
@@ -335,6 +336,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   isCurrentIntent,
   ownNotificationSurface,
 }) => {
+  const imageFade = useImageTransition(150);
   const router = useRouter();
   const { t } = useTranslation();
   const locale = useBloomLocale();
@@ -953,7 +955,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
               className="bg-muted self-center ml-3 rounded-lg"
               style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
               contentFit="cover"
-              transition={150}
+              transition={imageFade}
               cachePolicy="memory-disk"
               accessibilityElementsHidden
               importantForAccessibility="no"

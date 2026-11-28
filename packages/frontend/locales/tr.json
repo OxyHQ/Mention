@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Etiket önerileri",
+    "hashtagPosts_one": "{{count}} gönderi",
+    "hashtagPosts_other": "{{count}} gönderi",
     "deleteDraftChanged": "Bu taslak değişti. Kontrol edip silmeyi yeniden deneyin.",
     "draftMissing": "Bu taslak artık kullanılamıyor.",
     "draftConflict": "Bu taslak başka bir yerde değişti. Çalışmanızı kopya olarak kaydedin.",
@@ -613,6 +616,9 @@
     "replyPublished": "Yanıtın paylaşıldı!",
     "emptyHint": "Metin, görsel, anket veya makale ekle",
     "poll": {
+      "duration": "Anket süresi",
+      "days_one": "{{count}} gün",
+      "days_other": "{{count}} gün",
       "addOption": "Seçenek ekle",
       "addMoreOptions": "En fazla 2 seçenek daha ekleyebilirsin",
       "create": "Anket oluştur",
@@ -658,6 +664,7 @@
     "expand": "Tam düzenleyiciyi aç"
   },
   "post": {
+    "restrictedNotice": "Bu gönderi moderasyon tarafından kısıtlandı. Diğer kişiler göremez.",
     "threadPosition": "Dizideki {{total}} gönderiden {{index}}. gönderi",
     "viewConversation": "Sohbeti görüntüle",
     "threadContinuation": "Dizinin devamı ({{count}})",
@@ -1155,6 +1162,18 @@
       "inviteTitle": "Mention'a katıl"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Sessize alınan hesaplar",
+        "entry": "Gönderilerini gizlediğiniz kişiler",
+        "description": "Sessize alınan hesapların gönderileri akışlarınızda görünmez. Onlara bildirilmez ve takip etmeye devam edersiniz.",
+        "empty": "Sessize alınan hesap yok",
+        "loadFailed": "Sessize alınan hesaplar yüklenemedi",
+        "unmute": "Sesi aç",
+        "unmuted": "Hesabın sesi açıldı",
+        "unmuteFailed": "Hesabın sesi açılamadı",
+        "signInRequired": "Sessize alınan hesapları yönetmek için giriş yapın",
+        "unknown": "Kullanılamayan hesap"
+      },
       "title": "Gizlilik",
       "privateProfile": "Gizli profil",
       "public": "Herkese açık",
@@ -1316,6 +1335,11 @@
       "title": "Görünüm"
     },
     "account": {
+      "exportData": "Verilerini dışa aktar",
+      "exportDescription": "Mention gönderilerini, yer imlerini, beğenilerini ve ayarlarını içeren bir dosya.",
+      "exportAction": "Dışa aktar",
+      "exportSaved": "Verilerin kaydedildi",
+      "exportFailed": "Verilerin dışa aktarılamadı",
       "manageAccount": "Hesabı yönet",
       "manageYourAccount": "Hesabını yönet",
       "signedOutSubtitle": "Gizlilik, bildirim, akış ve kişiselleştirme ayarlarına erişmek için giriş yap.",
@@ -2066,6 +2090,9 @@
   },
   "feed": {
     "caughtUp": "Hepsini gördün.",
+    "newPosts_one": "{{count}} yeni gönderi",
+    "newPosts_other": "{{count}} yeni gönderi",
+    "newPostsOverflow": "{{count}}+ yeni gönderi",
     "empty": {
       "title": "Gönderiler yüklenemedi",
       "message": "Akışın yüklenirken bir şeyler ters gitti. Yenilemek için aşağı çek veya tekrar denemek için aşağıdaki düğmeye dokun."
@@ -2890,6 +2917,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "Gönderileri filtrele",
+      "media": "Medya içeren",
+      "pastWeek": "Son hafta",
+      "popular": "Popüler"
+    },
     "title": "Ara",
     "placeholder": "Ara...",
     "posts": "gönderi",
@@ -3470,6 +3503,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Hesap oluştur",
+      "valueProp": "Tek hesapla Mention'daki ve tüm fediverse'teki kişileri takip edin.",
       "subtitle": "Dünyada şu anda neler olduğunu gör.",
       "title": "Mention'a giriş yap",
       "withOxy": "Oxy ile giriş yap"

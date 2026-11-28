@@ -124,6 +124,12 @@ export async function subscribeToPushOpens(
   return Notifications ? watchPushOpens(Notifications, onOpen) : () => undefined;
 }
 
+/** The number on the app's icon; nothing on web, and nothing where the launcher draws none. */
+export async function setAppIconBadge(count: number): Promise<void> {
+  const Notifications = await getNotifications();
+  await Notifications?.setBadgeCountAsync(count);
+}
+
 export type DevicePushToken = { token: string; type: 'fcm' | 'apns' | 'unknown' } | null;
 
 export async function getDevicePushToken(): Promise<DevicePushToken> {

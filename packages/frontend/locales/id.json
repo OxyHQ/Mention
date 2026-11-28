@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Saran tagar",
+    "hashtagPosts_one": "{{count}} postingan",
+    "hashtagPosts_other": "{{count}} postingan",
     "deleteDraftChanged": "Draf ini berubah. Tinjau dan coba hapus lagi.",
     "draftMissing": "Draf ini tidak lagi tersedia.",
     "draftConflict": "Draf ini berubah di tempat lain. Simpan pekerjaan Anda sebagai salinan.",
@@ -613,6 +616,9 @@
     "replyPublished": "Balasanmu sudah diposting!",
     "emptyHint": "Tambahkan teks, gambar, polling, atau artikel",
     "poll": {
+      "duration": "Durasi jajak pendapat",
+      "days_one": "{{count}} hari",
+      "days_other": "{{count}} hari",
       "addOption": "Tambah opsi",
       "addMoreOptions": "Tambahkan hingga 2 opsi lagi",
       "create": "Buat polling",
@@ -658,6 +664,7 @@
     "expand": "Buka editor lengkap"
   },
   "post": {
+    "restrictedNotice": "Postingan ini dibatasi oleh moderasi. Orang lain tidak dapat melihatnya.",
     "threadPosition": "Postingan {{index}} dari {{total}} dalam utas",
     "viewConversation": "Lihat percakapan",
     "threadContinuation": "Lanjutan utas ({{count}})",
@@ -1155,6 +1162,18 @@
       "inviteTitle": "Gabung ke Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Akun yang dibisukan",
+        "entry": "Orang yang postingannya Anda sembunyikan",
+        "description": "Postingan dari akun yang dibisukan tidak muncul di feed Anda. Mereka tidak diberi tahu, dan Anda tetap mengikuti mereka.",
+        "empty": "Tidak ada akun yang dibisukan",
+        "loadFailed": "Gagal memuat akun yang dibisukan",
+        "unmute": "Batal bisukan",
+        "unmuted": "Akun tidak lagi dibisukan",
+        "unmuteFailed": "Gagal membatalkan bisukan akun",
+        "signInRequired": "Masuk untuk mengelola akun yang dibisukan",
+        "unknown": "Akun tidak tersedia"
+      },
       "title": "Privasi",
       "privateProfile": "Profil privat",
       "public": "Publik",
@@ -1316,6 +1335,11 @@
       "title": "Tampilan"
     },
     "account": {
+      "exportData": "Ekspor data Anda",
+      "exportDescription": "Berkas berisi postingan, markah, suka, dan pengaturan Mention Anda.",
+      "exportAction": "Ekspor",
+      "exportSaved": "Data Anda telah disimpan",
+      "exportFailed": "Gagal mengekspor data Anda",
       "manageAccount": "Kelola akun",
       "manageYourAccount": "Kelola akun Anda",
       "signedOutSubtitle": "Masuk untuk mengakses pengaturan privasi, notifikasi, feed, dan personalisasimu.",
@@ -2066,6 +2090,9 @@
   },
   "feed": {
     "caughtUp": "Kamu sudah melihat semuanya.",
+    "newPosts_one": "{{count}} postingan baru",
+    "newPosts_other": "{{count}} postingan baru",
+    "newPostsOverflow": "{{count}}+ postingan baru",
     "empty": {
       "title": "Tidak bisa memuat postingan",
       "message": "Terjadi kesalahan saat memuat feed-mu. Tarik ke bawah untuk menyegarkan atau ketuk tombol di bawah untuk mencoba lagi."
@@ -2890,6 +2917,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "Saring postingan",
+      "media": "Dengan media",
+      "pastWeek": "Seminggu terakhir",
+      "popular": "Populer"
+    },
     "title": "Cari",
     "placeholder": "Cari...",
     "posts": "postingan",
@@ -3470,6 +3503,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Buat akun",
+      "valueProp": "Ikuti orang di Mention dan di seluruh fediverse dengan satu akun.",
       "subtitle": "Lihat apa yang sedang terjadi di dunia sekarang.",
       "title": "Masuk ke Mention",
       "withOxy": "Masuk dengan Oxy"

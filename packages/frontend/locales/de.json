@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Hashtag-Vorschläge",
+    "hashtagPosts_one": "{{count}} Beitrag",
+    "hashtagPosts_other": "{{count}} Beiträge",
     "deleteDraftChanged": "Dieser Entwurf wurde geändert. Prüfe ihn und versuche erneut, ihn zu löschen.",
     "draftMissing": "Dieser Entwurf ist nicht mehr verfügbar.",
     "draftConflict": "Dieser Entwurf wurde an anderer Stelle geändert. Speichere deine Arbeit als Kopie.",
@@ -613,6 +616,9 @@
     "replyPublished": "Deine Antwort wurde veröffentlicht!",
     "emptyHint": "Füge Text, ein Bild, eine Umfrage oder einen Artikel hinzu",
     "poll": {
+      "duration": "Laufzeit der Umfrage",
+      "days_one": "{{count}} Tag",
+      "days_other": "{{count}} Tage",
       "addOption": "Option hinzufügen",
       "addMoreOptions": "Füge bis zu 2 weitere Optionen hinzu",
       "create": "Umfrage erstellen",
@@ -658,6 +664,7 @@
     "expand": "Vollständigen Editor öffnen"
   },
   "post": {
+    "restrictedNotice": "Die Moderation hat diesen Beitrag eingeschränkt. Andere können ihn nicht sehen.",
     "threadPosition": "Beitrag {{index}} von {{total}} im Thread",
     "viewConversation": "Unterhaltung ansehen",
     "threadContinuation": "Fortsetzung des Threads ({{count}})",
@@ -1155,6 +1162,18 @@
       "inviteTitle": "Mach mit bei Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Stummgeschaltete Konten",
+        "entry": "Personen, deren Beiträge du ausgeblendet hast",
+        "description": "Beiträge stummgeschalteter Konten erscheinen nicht in deinen Feeds. Sie erfahren es nicht, und du folgst ihnen weiterhin.",
+        "empty": "Keine stummgeschalteten Konten",
+        "loadFailed": "Stummgeschaltete Konten konnten nicht geladen werden",
+        "unmute": "Stummschaltung aufheben",
+        "unmuted": "Stummschaltung aufgehoben",
+        "unmuteFailed": "Stummschaltung konnte nicht aufgehoben werden",
+        "signInRequired": "Melde dich an, um stummgeschaltete Konten zu verwalten",
+        "unknown": "Nicht verfügbares Konto"
+      },
       "title": "Privatsphäre",
       "privateProfile": "Privates Profil",
       "public": "Öffentlich",
@@ -1316,6 +1335,11 @@
       "title": "Darstellung"
     },
     "account": {
+      "exportData": "Daten exportieren",
+      "exportDescription": "Eine Datei mit deinen Mention-Beiträgen, Lesezeichen, Likes und Einstellungen.",
+      "exportAction": "Exportieren",
+      "exportSaved": "Deine Daten wurden gespeichert",
+      "exportFailed": "Deine Daten konnten nicht exportiert werden",
       "manageAccount": "Konto verwalten",
       "manageYourAccount": "Dein Konto verwalten",
       "signedOutSubtitle": "Melde dich an, um zu deinen Einstellungen für Privatsphäre, Benachrichtigungen, Feed und Personalisierung zu gelangen.",
@@ -2066,6 +2090,9 @@
   },
   "feed": {
     "caughtUp": "Du bist auf dem neuesten Stand.",
+    "newPosts_one": "{{count}} neuer Beitrag",
+    "newPosts_other": "{{count}} neue Beiträge",
+    "newPostsOverflow": "{{count}}+ neue Beiträge",
     "empty": {
       "title": "Beiträge konnten nicht geladen werden",
       "message": "Beim Laden deines Feeds ist etwas schiefgelaufen. Zieh nach unten, um zu aktualisieren, oder tippe unten auf die Schaltfläche, um es erneut zu versuchen."
@@ -2890,6 +2917,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "Beiträge filtern",
+      "media": "Mit Medien",
+      "pastWeek": "Letzte Woche",
+      "popular": "Beliebt"
+    },
     "title": "Suche",
     "placeholder": "Suchen …",
     "posts": "Beiträge",
@@ -3470,6 +3503,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Konto erstellen",
+      "valueProp": "Folge mit einem einzigen Konto Menschen auf Mention und im gesamten Fediverse.",
       "subtitle": "Sieh, was gerade in der Welt passiert.",
       "title": "Bei Mention anmelden",
       "withOxy": "Mit Oxy anmelden"

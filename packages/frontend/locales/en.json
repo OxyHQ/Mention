@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Hashtag suggestions",
+    "hashtagPosts_one": "{{count}} post",
+    "hashtagPosts_other": "{{count}} posts",
     "deleteDraftChanged": "This draft changed. Review it and try deleting again.",
     "draftMissing": "This draft is no longer available.",
     "draftConflict": "This draft changed elsewhere. Save your work as a copy.",
@@ -613,6 +616,9 @@
     "replyPublished": "Your reply has been posted!",
     "emptyHint": "Add text, an image, a poll, or an article",
     "poll": {
+      "duration": "Poll length",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
       "addOption": "Add option",
       "addMoreOptions": "Add up to 2 more options",
       "create": "Create a poll",
@@ -658,6 +664,7 @@
     "expand": "Open full composer"
   },
   "post": {
+    "restrictedNotice": "This post was restricted by moderation. Other people can’t see it.",
     "threadPosition": "Post {{index}} of {{total}} in thread",
     "viewConversation": "View conversation",
     "threadContinuation": "Thread continuation ({{count}})",
@@ -1155,6 +1162,18 @@
       "inviteTitle": "Join Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Muted accounts",
+        "entry": "People whose posts you have hidden",
+        "description": "Posts from muted accounts stay out of your feeds. They are not told, and you keep following them.",
+        "empty": "No muted accounts",
+        "loadFailed": "Failed to load muted accounts",
+        "unmute": "Unmute",
+        "unmuted": "Account unmuted",
+        "unmuteFailed": "Failed to unmute account",
+        "signInRequired": "Sign in to manage muted accounts",
+        "unknown": "Unavailable account"
+      },
       "title": "Privacy",
       "privateProfile": "Private profile",
       "public": "Public",
@@ -1316,6 +1335,11 @@
       "title": "Appearance"
     },
     "account": {
+      "exportData": "Export your data",
+      "exportDescription": "A file with your Mention posts, bookmarks, likes and settings.",
+      "exportAction": "Export",
+      "exportSaved": "Your data was saved",
+      "exportFailed": "Could not export your data",
       "manageAccount": "Manage account",
       "manageYourAccount": "Manage your account",
       "signedOutSubtitle": "Sign in to access your privacy, notifications, feed, and personalization settings.",
@@ -2066,6 +2090,9 @@
   },
   "feed": {
     "caughtUp": "You're all caught up.",
+    "newPosts_one": "{{count}} new post",
+    "newPosts_other": "{{count}} new posts",
+    "newPostsOverflow": "{{count}}+ new posts",
     "empty": {
       "title": "Couldn't load posts",
       "message": "Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again."
@@ -2890,6 +2917,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "Filter posts",
+      "media": "With media",
+      "pastWeek": "Past week",
+      "popular": "Popular"
+    },
     "title": "Search",
     "placeholder": "Search...",
     "posts": "posts",
@@ -3470,6 +3503,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Create account",
+      "valueProp": "Follow people on Mention and across the fediverse, from one account.",
       "subtitle": "See what’s happening in the world right now.",
       "title": "Log into Mention",
       "withOxy": "Sign In with Oxy"

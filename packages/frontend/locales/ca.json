@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Suggeriments d'etiquetes",
+    "hashtagPosts_one": "{{count}} publicació",
+    "hashtagPosts_many": "{{count}} de publicacions",
+    "hashtagPosts_other": "{{count}} publicacions",
     "deleteDraftChanged": "Aquest esborrany ha canviat. Revisa'l i torna a provar d'eliminar-lo.",
     "draftMissing": "Aquest esborrany ja no està disponible.",
     "draftConflict": "Aquest esborrany ha canviat en un altre lloc. Desa la teva feina com a còpia.",
@@ -613,6 +617,10 @@
     "replyPublished": "S'ha publicat la teva resposta!",
     "emptyHint": "Afegeix text, una imatge, una enquesta o un article",
     "poll": {
+      "duration": "Durada de l'enquesta",
+      "days_one": "{{count}} dia",
+      "days_many": "{{count}} de dies",
+      "days_other": "{{count}} dies",
       "addOption": "Afegeix una opció",
       "addMoreOptions": "Pots afegir fins a 2 opcions més",
       "create": "Crea una enquesta",
@@ -663,6 +671,7 @@
     "expand": "Obre l’editor complet"
   },
   "post": {
+    "restrictedNotice": "La moderació ha restringit aquesta publicació. Les altres persones no la poden veure.",
     "threadPosition": "Publicació {{index}} de {{total}} del fil",
     "viewConversation": "Mostra la conversa",
     "threadContinuation": "Continuació del fil ({{count}})",
@@ -1173,6 +1182,18 @@
       "inviteTitle": "Uneix-te a Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Comptes silenciats",
+        "entry": "Persones de qui has amagat les publicacions",
+        "description": "Les publicacions dels comptes silenciats no apareixen als teus feeds. No se'ls avisa i els continues seguint.",
+        "empty": "No hi ha comptes silenciats",
+        "loadFailed": "No s'han pogut carregar els comptes silenciats",
+        "unmute": "Deixa de silenciar",
+        "unmuted": "Compte ja no silenciat",
+        "unmuteFailed": "No s'ha pogut deixar de silenciar el compte",
+        "signInRequired": "Inicia la sessió per gestionar els comptes silenciats",
+        "unknown": "Compte no disponible"
+      },
       "title": "Privadesa",
       "privateProfile": "Perfil privat",
       "public": "Públic",
@@ -1334,6 +1355,11 @@
       "title": "Aparença"
     },
     "account": {
+      "exportData": "Exporta les teves dades",
+      "exportDescription": "Un fitxer amb les teves publicacions, desats, m'agrada i configuració de Mention.",
+      "exportAction": "Exporta",
+      "exportSaved": "S'han desat les teves dades",
+      "exportFailed": "No s'han pogut exportar les teves dades",
       "manageAccount": "Gestiona el compte",
       "manageYourAccount": "Gestiona el teu compte",
       "signedOutSubtitle": "Inicia la sessió per accedir a la configuració de privadesa, notificacions, flux i personalització.",
@@ -2086,6 +2112,10 @@
   },
   "feed": {
     "caughtUp": "Ja estàs al dia.",
+    "newPosts_one": "{{count}} publicació nova",
+    "newPosts_many": "{{count}} de publicacions noves",
+    "newPosts_other": "{{count}} publicacions noves",
+    "newPostsOverflow": "{{count}}+ publicacions noves",
     "empty": {
       "title": "No s'han pogut carregar les publicacions",
       "message": "Hi ha hagut un problema en carregar el teu flux. Estira cap avall per actualitzar-lo o toca el botó de sota per tornar-ho a provar."
@@ -2914,6 +2944,12 @@
     "dayCount_many": "{{count}} dies"
   },
   "search": {
+    "filters": {
+      "label": "Filtra publicacions",
+      "media": "Amb multimèdia",
+      "pastWeek": "Darrera setmana",
+      "popular": "Populars"
+    },
     "title": "Cerca",
     "placeholder": "Cerca...",
     "posts": "publicacions",
@@ -3500,6 +3536,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Crea un compte",
+      "valueProp": "Segueix gent a Mention i a tot el fedivers amb un sol compte.",
       "subtitle": "Mira què està passant al món ara mateix.",
       "title": "Inicia la sessió a Mention",
       "withOxy": "Inicia la sessió amb Oxy"

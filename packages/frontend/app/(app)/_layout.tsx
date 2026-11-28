@@ -27,6 +27,7 @@ import { stackSceneLayout } from '@oxy.so/bloom/panel-routing/expo-router';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
 import RegisterPush from '@/components/RegisterPushToken';
 import { PushNotificationOpener } from '@/components/PushNotificationOpener';
+import { AppIconBadge } from '@/components/AppIconBadge';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
 import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
@@ -363,6 +364,7 @@ export default function AppLayout() {
       </PostReplyNavigationContext.Provider>
       <RegisterPush />
       <PushNotificationOpener />
+      <AppIconBadge />
       <BootMilestone name="route-mounted" />
       <WelcomeRedirectGate />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}

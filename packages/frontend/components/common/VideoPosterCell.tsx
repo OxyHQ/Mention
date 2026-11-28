@@ -5,6 +5,7 @@ import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDuration } from '@/utils/formatDuration';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 interface VideoPosterCellProps {
   /**
@@ -85,6 +86,7 @@ const META_TEXT_SHADOW: Pick<
  */
 const VideoPosterCell = React.memo<VideoPosterCellProps>(
   ({ posterUri, size, placeholderColor, views, durationSec, scrim }) => {
+    const imageFade = useImageTransition(150);
     const containerStyle = useMemo(
       () => ({ width: size, height: size, overflow: 'hidden' as const }),
       [size],
@@ -119,7 +121,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
             source={{ uri: posterUri }}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
-            transition={150}
+            transition={imageFade}
             cachePolicy="memory-disk"
             onError={handlePosterError}
           />

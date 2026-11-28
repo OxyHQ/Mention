@@ -308,6 +308,11 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Подсказки хештегов",
+    "hashtagPosts_one": "{{count}} пост",
+    "hashtagPosts_few": "{{count}} поста",
+    "hashtagPosts_many": "{{count}} постов",
+    "hashtagPosts_other": "{{count}} поста",
     "deleteDraftChanged": "Черновик изменился. Проверьте его и повторите удаление.",
     "draftMissing": "Этот черновик больше недоступен.",
     "draftConflict": "Этот черновик изменился в другом месте. Сохраните свою работу как копию.",
@@ -613,6 +618,11 @@
     "replyPublished": "Ваш ответ опубликован!",
     "emptyHint": "Добавьте текст, изображение, опрос или статью",
     "poll": {
+      "duration": "Длительность опроса",
+      "days_one": "{{count}} день",
+      "days_few": "{{count}} дня",
+      "days_many": "{{count}} дней",
+      "days_other": "{{count}} дня",
       "addOption": "Добавить вариант",
       "addMoreOptions": "Можно добавить ещё до 2 вариантов",
       "create": "Создать опрос",
@@ -668,6 +678,7 @@
     "expand": "Открыть полный редактор"
   },
   "post": {
+    "restrictedNotice": "Модерация ограничила этот пост. Другие люди его не видят.",
     "threadPosition": "Публикация {{index}} из {{total}} в ветке",
     "viewConversation": "Посмотреть обсуждение",
     "threadContinuation": "Продолжение ветки ({{count}})",
@@ -1191,6 +1202,18 @@
       "inviteTitle": "Присоединяйтесь к Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Скрытые аккаунты",
+        "entry": "Люди, чьи посты вы скрыли",
+        "description": "Посты скрытых аккаунтов не показываются в ваших лентах. Они не получают уведомления, а вы остаётесь подписаны.",
+        "empty": "Нет скрытых аккаунтов",
+        "loadFailed": "Не удалось загрузить скрытые аккаунты",
+        "unmute": "Показывать снова",
+        "unmuted": "Аккаунт снова показывается",
+        "unmuteFailed": "Не удалось отменить скрытие аккаунта",
+        "signInRequired": "Войдите, чтобы управлять скрытыми аккаунтами",
+        "unknown": "Аккаунт недоступен"
+      },
       "title": "Конфиденциальность",
       "privateProfile": "Закрытый профиль",
       "public": "Открытый",
@@ -1352,6 +1375,11 @@
       "title": "Внешний вид"
     },
     "account": {
+      "exportData": "Экспорт данных",
+      "exportDescription": "Файл с вашими постами, закладками, отметками «нравится» и настройками Mention.",
+      "exportAction": "Экспортировать",
+      "exportSaved": "Ваши данные сохранены",
+      "exportFailed": "Не удалось экспортировать данные",
       "manageAccount": "Управление аккаунтом",
       "manageYourAccount": "Управление аккаунтом",
       "signedOutSubtitle": "Войдите, чтобы открыть настройки конфиденциальности, уведомлений, ленты и персонализации.",
@@ -2106,6 +2134,11 @@
   },
   "feed": {
     "caughtUp": "Вы всё посмотрели.",
+    "newPosts_one": "{{count}} новый пост",
+    "newPosts_few": "{{count}} новых поста",
+    "newPosts_many": "{{count}} новых постов",
+    "newPosts_other": "{{count}} новых поста",
+    "newPostsOverflow": "Новых постов: {{count}}+",
     "empty": {
       "title": "Не удалось загрузить посты",
       "message": "При загрузке ленты что-то пошло не так. Потяните вниз, чтобы обновить, или нажмите кнопку ниже, чтобы попробовать снова."
@@ -2938,6 +2971,12 @@
     "dayCount_many": "{{count}} дней"
   },
   "search": {
+    "filters": {
+      "label": "Фильтр постов",
+      "media": "С медиа",
+      "pastWeek": "За неделю",
+      "popular": "Популярные"
+    },
     "title": "Поиск",
     "placeholder": "Поиск...",
     "posts": "постов",
@@ -3530,6 +3569,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Создать аккаунт",
+      "valueProp": "Подписывайтесь на людей в Mention и по всему федиверсу с одного аккаунта.",
       "subtitle": "Узнайте, что происходит в мире прямо сейчас.",
       "title": "Войти в Mention",
       "withOxy": "Войти через Oxy"

@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personaliza Mention con el tema Mono."
   },
   "compose": {
+    "hashtagSuggestions": "Sugerencias de hashtags",
+    "hashtagPosts_one": "{{count}} publicación",
+    "hashtagPosts_many": "{{count}} de publicaciones",
+    "hashtagPosts_other": "{{count}} publicaciones",
     "deleteDraftChanged": "Este borrador ha cambiado. Revísalo y vuelve a intentar eliminarlo.",
     "draftMissing": "Este borrador ya no está disponible.",
     "draftConflict": "Este borrador ha cambiado en otra sesión. Guarda tu trabajo como una copia.",
@@ -613,6 +617,10 @@
     "replyPublished": "¡Tu respuesta se ha publicado!",
     "emptyHint": "Añade texto, una imagen, una encuesta o un artículo",
     "poll": {
+      "duration": "Duración de la encuesta",
+      "days_one": "{{count}} día",
+      "days_many": "{{count}} de días",
+      "days_other": "{{count}} días",
       "addOption": "Añadir opción",
       "addMoreOptions": "Puedes añadir hasta 2 opciones más",
       "create": "Crear una encuesta",
@@ -663,6 +671,7 @@
     "expand": "Abrir el editor completo"
   },
   "post": {
+    "restrictedNotice": "La moderación ha restringido esta publicación. Otras personas no pueden verla.",
     "threadPosition": "Publicación {{index}} de {{total}} del hilo",
     "viewConversation": "Ver conversación",
     "threadContinuation": "Continuación del hilo ({{count}})",
@@ -1173,6 +1182,18 @@
       "inviteTitle": "Únete a Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Cuentas silenciadas",
+        "entry": "Personas cuyas publicaciones has ocultado",
+        "description": "Las publicaciones de las cuentas silenciadas no aparecen en tus feeds. No se les avisa y sigues siguiéndolas.",
+        "empty": "No hay cuentas silenciadas",
+        "loadFailed": "No se pudieron cargar las cuentas silenciadas",
+        "unmute": "Dejar de silenciar",
+        "unmuted": "Cuenta dejada de silenciar",
+        "unmuteFailed": "No se pudo dejar de silenciar la cuenta",
+        "signInRequired": "Inicia sesión para gestionar las cuentas silenciadas",
+        "unknown": "Cuenta no disponible"
+      },
       "title": "Privacidad",
       "privateProfile": "Perfil privado",
       "public": "Público",
@@ -1334,6 +1355,11 @@
       "title": "Apariencia"
     },
     "account": {
+      "exportData": "Exportar tus datos",
+      "exportDescription": "Un archivo con tus publicaciones, guardados, me gusta y ajustes de Mention.",
+      "exportAction": "Exportar",
+      "exportSaved": "Tus datos se han guardado",
+      "exportFailed": "No se pudieron exportar tus datos",
       "manageAccount": "Administrar cuenta",
       "manageYourAccount": "Gestiona tu cuenta",
       "signedOutSubtitle": "Inicia sesión para acceder a tus ajustes de privacidad, notificaciones, feed y personalización.",
@@ -2086,6 +2112,10 @@
   },
   "feed": {
     "caughtUp": "Ya estás al día.",
+    "newPosts_one": "{{count}} post nuevo",
+    "newPosts_many": "{{count}} posts nuevos",
+    "newPosts_other": "{{count}} posts nuevos",
+    "newPostsOverflow": "{{count}}+ posts nuevos",
     "empty": {
       "title": "No se pudieron cargar las publicaciones",
       "message": "Algo salió mal al cargar tu feed. Desliza hacia abajo para actualizar o toca el botón de abajo para intentar de nuevo."
@@ -2914,6 +2944,12 @@
     "dayCount_many": "{{count}} días"
   },
   "search": {
+    "filters": {
+      "label": "Filtrar publicaciones",
+      "media": "Con multimedia",
+      "pastWeek": "Última semana",
+      "popular": "Populares"
+    },
     "title": "Buscar",
     "placeholder": "Buscar...",
     "posts": "publicaciones",
@@ -3500,6 +3536,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Crear cuenta",
+      "valueProp": "Sigue a personas en Mention y en todo el fediverso con una sola cuenta.",
       "subtitle": "Descubre lo que está pasando en el mundo ahora mismo.",
       "title": "Inicia sesión en Mention",
       "withOxy": "Iniciar sesión con Oxy"

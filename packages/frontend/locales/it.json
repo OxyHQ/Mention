@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Hashtag suggeriti",
+    "hashtagPosts_one": "{{count}} post",
+    "hashtagPosts_many": "{{count}} di post",
+    "hashtagPosts_other": "{{count}} post",
     "deleteDraftChanged": "Questa bozza è cambiata. Controllala e riprova a eliminarla.",
     "draftMissing": "Questa bozza non è più disponibile.",
     "draftConflict": "Questa bozza è stata modificata altrove. Salva il tuo lavoro come copia.",
@@ -613,6 +617,10 @@
     "replyPublished": "La tua risposta è stata pubblicata!",
     "emptyHint": "Aggiungi testo, un'immagine, un sondaggio o un articolo",
     "poll": {
+      "duration": "Durata del sondaggio",
+      "days_one": "{{count}} giorno",
+      "days_many": "{{count}} di giorni",
+      "days_other": "{{count}} giorni",
       "addOption": "Aggiungi opzione",
       "addMoreOptions": "Puoi aggiungere altre 2 opzioni",
       "create": "Crea un sondaggio",
@@ -663,6 +671,7 @@
     "expand": "Apri l’editor completo"
   },
   "post": {
+    "restrictedNotice": "La moderazione ha limitato questo post. Le altre persone non possono vederlo.",
     "threadPosition": "Post {{index}} di {{total}} del thread",
     "viewConversation": "Mostra conversazione",
     "threadContinuation": "Continuazione del thread ({{count}})",
@@ -1173,6 +1182,18 @@
       "inviteTitle": "Unisciti a Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Account silenziati",
+        "entry": "Persone di cui hai nascosto i post",
+        "description": "I post degli account silenziati non compaiono nei tuoi feed. Non vengono avvisati e continui a seguirli.",
+        "empty": "Nessun account silenziato",
+        "loadFailed": "Impossibile caricare gli account silenziati",
+        "unmute": "Riattiva",
+        "unmuted": "Account riattivato",
+        "unmuteFailed": "Impossibile riattivare l'account",
+        "signInRequired": "Accedi per gestire gli account silenziati",
+        "unknown": "Account non disponibile"
+      },
       "title": "Privacy",
       "privateProfile": "Profilo privato",
       "public": "Pubblico",
@@ -1334,6 +1355,11 @@
       "title": "Aspetto"
     },
     "account": {
+      "exportData": "Esporta i tuoi dati",
+      "exportDescription": "Un file con i tuoi post, segnalibri, Mi piace e impostazioni di Mention.",
+      "exportAction": "Esporta",
+      "exportSaved": "I tuoi dati sono stati salvati",
+      "exportFailed": "Impossibile esportare i tuoi dati",
       "manageAccount": "Gestisci account",
       "manageYourAccount": "Gestisci il tuo account",
       "signedOutSubtitle": "Accedi per gestire le impostazioni di privacy, notifiche, feed e personalizzazione.",
@@ -2086,6 +2112,10 @@
   },
   "feed": {
     "caughtUp": "Hai visto tutto.",
+    "newPosts_one": "{{count}} nuovo post",
+    "newPosts_many": "{{count}} di nuovi post",
+    "newPosts_other": "{{count}} nuovi post",
+    "newPostsOverflow": "{{count}}+ nuovi post",
     "empty": {
       "title": "Impossibile caricare i post",
       "message": "Qualcosa è andato storto durante il caricamento del feed. Scorri verso il basso per aggiornare o tocca il pulsante qui sotto per riprovare."
@@ -2914,6 +2944,12 @@
     "dayCount_many": "{{count}} giorni"
   },
   "search": {
+    "filters": {
+      "label": "Filtra i post",
+      "media": "Con contenuti multimediali",
+      "pastWeek": "Ultima settimana",
+      "popular": "Popolari"
+    },
     "title": "Cerca",
     "placeholder": "Cerca...",
     "posts": "post",
@@ -3500,6 +3536,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Crea account",
+      "valueProp": "Segui persone su Mention e in tutto il fediverso con un solo account.",
       "subtitle": "Guarda cosa sta succedendo nel mondo in questo momento.",
       "title": "Accedi a Mention",
       "withOxy": "Accedi con Oxy"

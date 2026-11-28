@@ -23,6 +23,9 @@ import {
 } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import MentionPicker, { type MentionUser } from './MentionPicker';
+import { HashtagPicker } from './HashtagPicker';
+import { useHashtagSuggestions } from '@/hooks/useHashtagSuggestions';
+import { activeHashtag } from '@/utils/activeHashtag';
 import { asTextStyle } from '@/types/webStyles';
 import {
   displayTextToStorageText,
@@ -84,6 +87,18 @@ const MentionTextInput = memo(
         pickerQuery,
         searchCache,
       );
+      // A `#word` being typed offers the hashtags already in use. `hashtagOpen`
+      // is set by typing and cleared by choosing or dismissing, so moving the
+      // cursor through old text opens nothing.
+      const [hashtagOpen, setHashtagOpen] = useState(false);
+      const typedHashtag = hashtagOpen
+        ? activeHashtag(storageTextToDisplayText(value, mentions), cursorPosition)
+        : null;
+      const hashtags = useHashtagSuggestions(typedHashtag?.query ?? null);
+      const [activeHashtagIndex, setActiveHashtagIndex] = useState(0);
+      useEffect(() => {
+        setActiveHashtagIndex(0);
+      }, [hashtags]);
       // The highlighted row. The field owns it, not the list: its arrow keys move
       // it, and a pointer over a row reports it back through the list.
       const [activeIndex, setActiveIndex] = useState(0);
@@ -178,6 +193,8 @@ const MentionTextInput = memo(
           const storageText = displayTextToStorageText(text, mentions);
           onValueChange(resolveCompletedHandles({ text: storageText, mentions: [...mentions] }));
 
+          setHashtagOpen(true);
+
           // Check if user is typing a mention
           const cursorPos = cursorPosition;
           const textBeforeCursor = text.substring(0, cursorPos);
@@ -265,52 +282,73 @@ const MentionTextInput = memo(
         [value, cursorPosition, mentions, onValueChange],
       );
 
+      const handleHashtagSelect = (tag: string) => {
+        if (!typedHashtag) return;
+        const current = storageTextToDisplayText(value, mentions);
+        const after = current.substring(cursorPosition);
+        const completed = `#${tag}${after.startsWith(' ') ? '' : ' '}`;
+        const next = current.substring(0, typedHashtag.start) + completed + after;
+        onValueChange({
+          text: displayTextToStorageText(next, mentions),
+          mentions: [...mentions],
+        });
+        const nextCursor = typedHashtag.start + tag.length + 2;
+        setCursorPosition(nextCursor);
+        setTimeout(() => {
+          textInputRef.current?.setNativeProps?.({
+            selection: { start: nextCursor, end: nextCursor },
+          });
+        }, 10);
+        setHashtagOpen(false);
+      };
+
       const handleClosePicker = useCallback(() => {
         setShowMentionPicker(false);
         setMentionQuery('');
       }, []);
 
-      // The picker's keyboard, on web: ↑/↓ move the highlight (wrapping), Enter or
+      // The pickers' keyboard, on web: ↑/↓ move the highlight (wrapping), Enter or
       // Tab takes it instead of breaking a line, Escape dismisses the list. With no
       // list open every key is the field's own. Web only: a phone's return key also
       // arrives as "Enter" and cannot be prevented there, so it would both take a
       // row AND break the line — on native the rows are tapped.
-      const handleKeyPress = useCallback(
-        (event: TextInputKeyPressEvent) => {
-          const pickerOpen = Platform.OS === 'web' && showMentionPicker && mentionQuery.length > 0;
-          const count = pickerUsers.length;
-          const key = event.nativeEvent.key;
-          let handled = false;
-          if (pickerOpen && key === 'Escape') {
-            handleClosePicker();
-            handled = true;
-          } else if (pickerOpen && count > 0 && key === 'ArrowDown') {
-            setActiveIndex((index) => (index + 1) % count);
-            handled = true;
-          } else if (pickerOpen && count > 0 && key === 'ArrowUp') {
-            setActiveIndex((index) => (index - 1 + count) % count);
-            handled = true;
-          } else if (pickerOpen && count > 0 && (key === 'Enter' || key === 'Tab')) {
+      const handleKeyPress = (event: TextInputKeyPressEvent) => {
+        const web = Platform.OS === 'web';
+        const mentionOpen = web && showMentionPicker && mentionQuery.length > 0;
+        const hashtagsOpen = web && !mentionOpen && hashtags.length > 0;
+        const count = mentionOpen ? pickerUsers.length : hashtags.length;
+        const move = mentionOpen ? setActiveIndex : setActiveHashtagIndex;
+        const key = event.nativeEvent.key;
+        let handled = false;
+        if ((mentionOpen || hashtagsOpen) && key === 'Escape') {
+          handleClosePicker();
+          setHashtagOpen(false);
+          handled = true;
+        } else if ((mentionOpen || hashtagsOpen) && count > 0 && key === 'ArrowDown') {
+          move((index) => (index + 1) % count);
+          handled = true;
+        } else if ((mentionOpen || hashtagsOpen) && count > 0 && key === 'ArrowUp') {
+          move((index) => (index - 1 + count) % count);
+          handled = true;
+        } else if (
+          (mentionOpen || hashtagsOpen) &&
+          count > 0 &&
+          (key === 'Enter' || key === 'Tab')
+        ) {
+          if (mentionOpen) {
             const user = pickerUsers[Math.min(activeIndex, count - 1)];
             if (user) handleMentionSelect(user);
-            handled = true;
+          } else {
+            handleHashtagSelect(hashtags[Math.min(activeHashtagIndex, count - 1)].tag);
           }
-          if (handled) {
-            event.preventDefault();
-            return;
-          }
-          onKeyPress?.(event);
-        },
-        [
-          showMentionPicker,
-          mentionQuery,
-          pickerUsers,
-          activeIndex,
-          handleClosePicker,
-          handleMentionSelect,
-          onKeyPress,
-        ],
-      );
+          handled = true;
+        }
+        if (handled) {
+          event.preventDefault();
+          return;
+        }
+        onKeyPress?.(event);
+      };
 
       // Expose imperative methods via ref
       useImperativeHandle(
@@ -379,6 +417,17 @@ const MentionTextInput = memo(
             style={inputStyle}
             {...textInputProps}
           />
+
+          {hashtags.length > 0 && (
+            <View style={styles.pickerContainer}>
+              <HashtagPicker
+                hashtags={hashtags}
+                activeIndex={activeHashtagIndex}
+                onActiveIndexChange={setActiveHashtagIndex}
+                onSelect={handleHashtagSelect}
+              />
+            </View>
+          )}
 
           {showMentionPicker && mentionQuery.length > 0 && (
             <View style={styles.pickerContainer}>

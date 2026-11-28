@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "话题标签建议",
+    "hashtagPosts_one": "{{count}} 条帖子",
+    "hashtagPosts_other": "{{count}} 条帖子",
     "deleteDraftChanged": "此草稿已更改。请检查后重试删除。",
     "draftMissing": "此草稿已不可用。",
     "draftConflict": "此草稿已在其他位置更改。请将您的工作保存为副本。",
@@ -613,6 +616,9 @@
     "replyPublished": "你的回复已发布！",
     "emptyHint": "添加文字、图片、投票或文章",
     "poll": {
+      "duration": "投票时长",
+      "days_one": "{{count}} 天",
+      "days_other": "{{count}} 天",
       "addOption": "添加选项",
       "addMoreOptions": "最多还可添加 2 个选项",
       "create": "创建投票",
@@ -658,6 +664,7 @@
     "expand": "打开完整编辑器"
   },
   "post": {
+    "restrictedNotice": "此帖子已被审核限制，其他人无法看到。",
     "threadPosition": "帖子串中的第 {{index}} / {{total}} 条帖子",
     "viewConversation": "查看对话",
     "threadContinuation": "帖子串后续（{{count}}）",
@@ -1155,6 +1162,18 @@
       "inviteTitle": "加入 Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "已静音的账号",
+        "entry": "你已隐藏其帖子的用户",
+        "description": "已静音账号的帖子不会出现在你的信息流中。对方不会收到通知，你仍然关注他们。",
+        "empty": "没有已静音的账号",
+        "loadFailed": "无法加载已静音的账号",
+        "unmute": "取消静音",
+        "unmuted": "已取消静音",
+        "unmuteFailed": "无法取消静音",
+        "signInRequired": "登录以管理已静音的账号",
+        "unknown": "账号不可用"
+      },
       "title": "隐私",
       "privateProfile": "私密主页",
       "public": "公开",
@@ -1316,6 +1335,11 @@
       "title": "外观"
     },
     "account": {
+      "exportData": "导出你的数据",
+      "exportDescription": "包含你在 Mention 上的帖子、书签、点赞和设置的文件。",
+      "exportAction": "导出",
+      "exportSaved": "你的数据已保存",
+      "exportFailed": "无法导出你的数据",
       "manageAccount": "管理账号",
       "manageYourAccount": "管理你的账户",
       "signedOutSubtitle": "登录后即可使用隐私、通知、信息流和个性化设置。",
@@ -2066,6 +2090,9 @@
   },
   "feed": {
     "caughtUp": "你已看完全部内容。",
+    "newPosts_one": "{{count}} 条新帖子",
+    "newPosts_other": "{{count}} 条新帖子",
+    "newPostsOverflow": "{{count}}+ 条新帖子",
     "empty": {
       "title": "无法加载帖子",
       "message": "加载信息流时出了点问题。下拉刷新，或点按下方按钮重试。"
@@ -2890,6 +2917,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "筛选帖子",
+      "media": "含媒体",
+      "pastWeek": "过去一周",
+      "popular": "热门"
+    },
     "title": "搜索",
     "placeholder": "搜索…",
     "posts": "帖子",
@@ -3470,6 +3503,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "创建账号",
+      "valueProp": "用一个账号关注 Mention 和整个联邦宇宙中的人。",
       "subtitle": "看看此刻世界正在发生什么。",
       "title": "登录 Mention",
       "withOxy": "使用 Oxy 登录"

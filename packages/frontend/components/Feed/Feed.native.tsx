@@ -39,6 +39,7 @@ import {
   feedRowStyles,
 } from './feedRows';
 import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } from './useFeedCore';
+import { NewPostsPill } from './NewPostsPill';
 
 // FlashList v2 auto-measures every row, so no estimate is needed. `drawDistance`
 // is the one render-ahead lever that still applies, and it is measured in
@@ -73,6 +74,9 @@ const FEED_DRAW_DISTANCE = 1000;
  * the JS thread free to build rows.
  */
 const JS_SCROLL_REPORT_PX = 120;
+
+/** Air between the header and the "new posts" pill. */
+const NEW_POSTS_PILL_GAP = 8;
 
 /**
  * The list, as a reanimated component, so `onScroll` can be a worklet.
@@ -272,6 +276,7 @@ const Feed = (props: FeedProps) => {
     handleLoadMore,
     handleRefresh,
     refreshing,
+    newPosts,
     feedDescriptor,
     impressionTracker,
     receivesOwnNewPost,
@@ -355,6 +360,12 @@ const Feed = (props: FeedProps) => {
     enabled: scrollEnabled !== false && isVisible && listRows.length > 0 && receivesOwnNewPost,
     scrollToTop: revealOwnNewPost,
   });
+
+  const showNewPosts = useCallback(() => {
+    newPosts.dismiss();
+    revealOwnNewPost();
+    void handleRefresh();
+  }, [newPosts, revealOwnNewPost, handleRefresh]);
 
   // Memoize renderPostItem to prevent recreating on every render
   const renderPostItem = useCallback(
@@ -667,6 +678,19 @@ const Feed = (props: FeedProps) => {
             maxItemsInRecyclePool={20}
           />
         </VideoViewabilityProvider>
+        {newPosts.count > 0 ? (
+          <View
+            pointerEvents="box-none"
+            className="absolute left-0 right-0"
+            style={{ top: screenScroll.contentInsets.top + NEW_POSTS_PILL_GAP }}
+          >
+            <NewPostsPill
+              count={newPosts.count}
+              overflow={newPosts.overflow}
+              onPress={showNewPosts}
+            />
+          </View>
+        ) : null}
       </View>
     </FeedErrorBoundary>
   );

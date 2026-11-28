@@ -173,6 +173,9 @@ jest.mock('@oxy.so/bloom/search', () => {
   };
 });
 jest.mock('@/components/SEO', () => ({ SEO: () => null }));
+jest.mock('@/components/search/PostSearchFilterChips', () => ({
+  PostSearchFilterChips: () => null,
+}));
 jest.mock('@/components/Error', () => ({ Error: mockStub('error') }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: mockStub('empty') }));
 jest.mock('@/components/trending/TrendItemRow', () => ({ TrendItemRow: mockStub('trend') }));

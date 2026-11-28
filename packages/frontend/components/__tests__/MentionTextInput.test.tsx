@@ -41,6 +41,24 @@ jest.mock('../MentionPicker', () => ({
   },
 }));
 
+const mockHashtags: { query: string | null; tags: { tag: string; count: number }[] } = {
+  query: null,
+  tags: [],
+};
+jest.mock('@/hooks/useHashtagSuggestions', () => ({
+  useHashtagSuggestions: (query: string | null) => {
+    mockHashtags.query = query;
+    return query ? mockHashtags.tags : [];
+  },
+}));
+let mockHashtagPick: ((tag: string) => void) | null = null;
+jest.mock('../HashtagPicker', () => ({
+  HashtagPicker: ({ onSelect }: { onSelect: (tag: string) => void }) => {
+    mockHashtagPick = onSelect;
+    return null;
+  },
+}));
+
 const alice = {
   userId: 'alice-id',
   username: 'alice',
@@ -359,5 +377,90 @@ describe('MentionTextInput typed handles', () => {
     await flush();
     expect(onValueChange).toHaveBeenCalledTimes(1);
     warn.mockRestore();
+  });
+});
+
+describe('MentionTextInput hashtags', () => {
+  const select = (renderer: TestRenderer.ReactTestRenderer, cursor: number) => {
+    act(() => {
+      renderer.root
+        .findByType(TextInput)
+        .props.onSelectionChange({ nativeEvent: { selection: { start: cursor, end: cursor } } });
+    });
+  };
+
+  beforeEach(() => {
+    mockHashtags.tags = [{ tag: 'barcelona', count: 4 }];
+    mockHashtags.query = null;
+    mockHashtagPick = null;
+  });
+  afterEach(() => {
+    mockHashtags.tags = [];
+  });
+
+  it('completes the hashtag being typed and keeps the mentions', () => {
+    const renderer = renderInSession(
+      createMentionSearchCache(async () => []),
+      {
+        text: 'Hello [mention:alice-id] ',
+        mentions: [alice],
+      },
+    );
+    type(renderer, 'Hello @alice #bar');
+    select(renderer, 'Hello @alice #bar'.length);
+    expect(mockHashtags.query).toBe('bar');
+
+    act(() => mockHashtagPick!('barcelona'));
+    expect(latestState).toEqual({
+      text: 'Hello [mention:alice-id] #barcelona ',
+      mentions: [alice],
+    });
+    expect(mockHashtags.query).toBeNull();
+    act(() => renderer.unmount());
+  });
+
+  it('offers nothing for text the author only moves the cursor through', () => {
+    const renderer = renderInSession(
+      createMentionSearchCache(async () => []),
+      {
+        text: '#old news',
+        mentions: [],
+      },
+    );
+    select(renderer, 4);
+    expect(mockHashtags.query).toBeNull();
+    act(() => renderer.unmount());
+  });
+
+  it('takes the highlighted tag with Enter on web, and closes with Escape', () => {
+    const platform = Platform.OS;
+    Platform.OS = 'web';
+    // The web field grows itself against the DOM, which this runtime has none of.
+    const element = globalThis.HTMLElement;
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: class {} });
+    mockHashtags.tags = [
+      { tag: 'barcelona', count: 4 },
+      { tag: 'barri', count: 1 },
+    ];
+    const renderer = renderInSession(createMentionSearchCache(async () => []));
+    const press = (key: string) =>
+      act(() => {
+        renderer.root
+          .findByType(TextInput)
+          .props.onKeyPress({ nativeEvent: { key }, preventDefault: () => {} });
+      });
+    type(renderer, '#bar');
+    select(renderer, 4);
+    press('ArrowDown');
+    press('Enter');
+    expect(latestState.text).toBe('#barri ');
+
+    type(renderer, '#barri #ba');
+    select(renderer, 10);
+    press('Escape');
+    expect(mockHashtags.query).toBeNull();
+    Platform.OS = platform;
+    act(() => renderer.unmount());
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: element });
   });
 });
