@@ -62,7 +62,7 @@ import {
   federatedMediaIdsOfPost,
   findGoneFederatedMedia,
 } from '../federation/mediaDeletionRepository';
-import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn, PgTable, PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
   MediaItem,
@@ -280,125 +280,237 @@ function groupBy<Row, Value>(
   return grouped;
 }
 
+/** A child table's column map, as `getTableColumns` (or a projection of it) returns it. */
+type ChildColumns = Record<string, AnyPgColumn>;
+
+/** One decoded row of a {@link ChildColumns} projection: what `db.select(columns)` returns. */
+type ChildRow<TColumns extends ChildColumns> = {
+  [Key in keyof TColumns]: TColumns[Key]['_']['notNull'] extends true
+    ? TColumns[Key]['_']['data']
+    : TColumns[Key]['_']['data'] | null;
+};
+
 /**
- * Read every child table for a set of post ids — one query per table, never one
- * per post.
+ * One child table's rows for the batch, as ONE scalar subquery yielding a JSON
+ * array in the order the table's own read ordered them.
  *
- * Each is ordered by its own `position` (or, for the position-less tables, by a
- * stable key) so `variants[0]` really is the primary rendition and the media
- * gallery renders in the order the author arranged it.
+ * The rows are selected through drizzle's builder, so every column renders
+ * qualified against its own `FROM` (trap 1 in the module doc cannot happen) and
+ * under the shared casing, and each is aliased to its PROPERTY name — the key
+ * {@link decodeChildRows} reads back. The order is stated INSIDE the aggregate:
+ * an ordered subquery feeding `json_agg` only "usually" keeps its order, and the
+ * order is part of the contract (`variants[0]` is the primary rendition).
  */
+function childRowsJson(
+  db: DatabaseOrTransaction,
+  table: PgTable,
+  columns: ChildColumns,
+  where: SQL,
+  orderBy: SQL,
+): SQL {
+  const aliased = Object.fromEntries(
+    Object.entries(columns).map(([key, column]) => [key, sql`${column}`.as(key)]),
+  );
+  const rows = db.select(aliased).from(table).where(where);
+  return sql`(select coalesce(json_agg(child order by ${orderBy}), '[]'::json) from (${rows}) child)`;
+}
+
+/** `child."<property>"` — a column of {@link childRowsJson}'s aliased row, for its `ORDER BY`. */
+function childColumn(property: string): SQL {
+  return sql`child.${sql.identifier(property)}`;
+}
+
+/**
+ * Decode {@link childRowsJson}'s array into the rows `db.select(columns)` would
+ * have returned: each value through its own column's `mapFromDriverValue`,
+ * exactly as drizzle's result mapping does (`null` stays `null`), so a
+ * `timestamptz` is a `Date`, an `integer` a number, and so on. Every child
+ * column is text, integer, double precision, boolean or timestamptz, and JSON
+ * renders each of those losslessly (`float8` with the same shortest-exact digits
+ * as its text form).
+ */
+function decodeChildRows<TColumns extends ChildColumns>(
+  columns: TColumns,
+  raw: unknown,
+): ChildRow<TColumns>[] {
+  const rows = (typeof raw === 'string' ? JSON.parse(raw) : (raw ?? [])) as Record<
+    string,
+    unknown
+  >[];
+  const entries = Object.entries(columns);
+  return rows.map(
+    (row) =>
+      Object.fromEntries(
+        entries.map(([key, column]) => {
+          const value = row[key];
+          return [
+            key,
+            value === null || value === undefined ? null : column.mapFromDriverValue(value),
+          ];
+        }),
+      ) as ChildRow<TColumns>,
+  );
+}
+
+const authorshipColumns = getTableColumns(postAuthorships);
+const mediaRowColumns = getTableColumns(postMedia);
+const attachmentColumns = getTableColumns(postAttachments);
+const sourceColumns = getTableColumns(postSources);
+const mentionColumns = getTableColumns(postMentions);
+const recipientColumns = getTableColumns(postRecipients);
+const topicRefColumns = getTableColumns(postClassificationTopicRefs);
+const variantMediaColumns = getTableColumns(postVariantMedia);
+const variantAltColumns = getTableColumns(postVariantAltTexts);
+
+/**
+ * Every child table's rows for a set of post ids, in ONE statement — never one
+ * per post, and no longer one per table.
+ *
+ * It used to be ten statements issued together, which made every assembly — a
+ * post page, each page of a feed, each reply list — ten round trips and up to
+ * ten pooled connections at once, and ten statements' worth of parse, bind,
+ * executor start-up and lock work on the database for what are, for most posts,
+ * empty index probes. One statement does the same index probes in one backend:
+ * measured on production (2026-11-28, 300 sampled posts, warm), 146 ms of
+ * executor time as ten statements per post and 70 ms as one — before counting
+ * the nine protocol round trips the wire no longer carries.
+ *
+ * Each table is ordered exactly as its own read was: by `position`, or, for the
+ * position-less tables, by the stable key noted beside it, so `variants[0]` is
+ * the primary rendition and the media gallery renders in the order the author
+ * arranged it. The variant-owned tables key on the VARIANT, not the post, and
+ * are reached through a subquery over the post ids, in the same statement.
+ *
+ * Exported for the equivalence suite (`postChildRowsSingleStatement.test.ts`),
+ * which compares it, table by table, with the per-table reads it replaced.
+ */
+export async function readPostChildTables(db: DatabaseOrTransaction, postIds: readonly string[]) {
+  const ids = [...postIds];
+  // The ids bind as ONE array per filter. As an `IN` list, ten filters over one
+  // statement would pass Postgres' 65,535-parameter ceiling at about 6,500
+  // posts, which a long drafts or scheduled queue reaches.
+  const ofPosts = (column: AnyPgColumn): SQL => sql`${column} = any(${sql.param(ids)}::text[])`;
+  const variantIdsOfPosts = db
+    .select({ id: postContentVariants.id })
+    .from(postContentVariants)
+    .where(ofPosts(postContentVariants.postId));
+  const [row] = await db.execute<Record<string, unknown>>(sql`select
+    ${childRowsJson(
+      db,
+      postAuthorships,
+      authorshipColumns,
+      ofPosts(postAuthorships.postId),
+      // Owner FIRST — the byline order `getHeaderAuthorshipEntries` renders and
+      // the order `getOwner` finds. That half is guaranteed by the explicit rank,
+      // not by the id: alphabetically 'collaborator' sorts BEFORE 'owner'.
+      //
+      // COLLABORATORS AMONG THEMSELVES ARE ARBITRARY, NOT IN INVITE ORDER:
+      // `uuidv7()` (`@oxy.so/db`) is a millisecond timestamp plus randomness with
+      // no monotonic counter, and every authorship row of a post is written by ONE
+      // multi-row insert, so their ids share a millisecond. It is STABLE per post
+      // (an id never changes); if true insertion order ever matters, it needs a
+      // `position` column and a migration, not a different sort.
+      sql`case ${childColumn('role')} when 'owner' then 0 else 1 end, ${childColumn('id')} asc`,
+    )} as authorships,
+    ${childRowsJson(
+      db,
+      postContentVariants,
+      variantReadColumns,
+      ofPosts(postContentVariants.postId),
+      sql`${childColumn('position')} asc`,
+    )} as variants,
+    ${childRowsJson(
+      db,
+      postMedia,
+      mediaRowColumns,
+      ofPosts(postMedia.postId),
+      sql`${childColumn('position')} asc`,
+    )} as media,
+    ${childRowsJson(
+      db,
+      postAttachments,
+      attachmentColumns,
+      ofPosts(postAttachments.postId),
+      sql`${childColumn('position')} asc`,
+    )} as attachments,
+    ${childRowsJson(
+      db,
+      postSources,
+      sourceColumns,
+      ofPosts(postSources.postId),
+      sql`${childColumn('position')} asc`,
+    )} as sources,
+    ${childRowsJson(
+      db,
+      postMentions,
+      mentionColumns,
+      ofPosts(postMentions.postId),
+      sql`${childColumn('id')} asc`,
+    )} as mentions,
+    ${childRowsJson(
+      db,
+      postRecipients,
+      recipientColumns,
+      ofPosts(postRecipients.postId),
+      sql`${childColumn('oxyUserId')} asc`,
+    )} as recipients,
+    ${childRowsJson(
+      db,
+      postClassificationTopicRefs,
+      topicRefColumns,
+      ofPosts(postClassificationTopicRefs.postId),
+      // The table has no `position` column for the order the classifier
+      // emitted. `relevance DESC` recovers the MEANING of that order wherever the
+      // classifier supplied one, with `name` as a deterministic tie-break so a
+      // page never reshuffles between reads. If true insertion order ever
+      // matters, it needs a `position` column and a migration.
+      sql`${childColumn('relevance')} desc nulls last, ${childColumn('name')} asc`,
+    )} as topic_refs,
+    ${childRowsJson(
+      db,
+      postVariantMedia,
+      variantMediaColumns,
+      inArray(postVariantMedia.variantId, variantIdsOfPosts),
+      sql`${childColumn('position')} asc`,
+    )} as variant_media,
+    ${childRowsJson(
+      db,
+      postVariantAltTexts,
+      variantAltColumns,
+      inArray(postVariantAltTexts.variantId, variantIdsOfPosts),
+      sql`${childColumn('mediaId')} asc`,
+    )} as variant_alt_texts`);
+  return {
+    authorships: decodeChildRows(authorshipColumns, row?.authorships),
+    variants: decodeChildRows(variantReadColumns, row?.variants),
+    media: decodeChildRows(mediaRowColumns, row?.media),
+    attachments: decodeChildRows(attachmentColumns, row?.attachments),
+    sources: decodeChildRows(sourceColumns, row?.sources),
+    mentions: decodeChildRows(mentionColumns, row?.mentions),
+    recipients: decodeChildRows(recipientColumns, row?.recipients),
+    topicRefs: decodeChildRows(topicRefColumns, row?.topic_refs),
+    variantMedia: decodeChildRows(variantMediaColumns, row?.variant_media),
+    variantAltTexts: decodeChildRows(variantAltColumns, row?.variant_alt_texts),
+  };
+}
+
+/** Read every child table for a set of post ids and group each by its owner. */
 async function loadChildRows(
   db: DatabaseOrTransaction,
   postIds: readonly string[],
 ): Promise<PostChildRows> {
-  // The variant-owned tables key on the VARIANT, not the post. They are read in
-  // the SAME wave as everything else, through a subquery over the post ids,
-  // rather than after the variant rows come back: a second wave cost every
-  // assembly — every post page, every feed page — one more serial round trip.
-  const variantIdsOfPosts = db
-    .select({ id: postContentVariants.id })
-    .from(postContentVariants)
-    .where(inArray(postContentVariants.postId, [...postIds]));
-  const [
-    authorshipRows,
-    variantRows,
-    mediaRows,
-    attachmentRows,
-    sourceRows,
-    mentionRows,
-    recipientRows,
-    topicRefRows,
-    variantMediaRows,
-    variantAltRows,
-  ] = await Promise.all([
-    db
-      .select()
-      .from(postAuthorships)
-      .where(inArray(postAuthorships.postId, [...postIds]))
-      // Owner FIRST — the byline order `getHeaderAuthorshipEntries` renders and
-      // the order `getOwner` finds. That half is guaranteed by the explicit rank
-      // below, not by the id.
-      //
-      // Spelled as an explicit rank rather than `asc(role)`: alphabetically
-      // 'collaborator' sorts BEFORE 'owner', so the natural ordering puts the
-      // byline in the wrong order, and `desc(role)` would only be right by an
-      // accident of spelling that a future role name would silently break.
-      //
-      // COLLABORATORS AMONG THEMSELVES ARE ARBITRARY, NOT IN INVITE ORDER, and
-      // this comment used to claim otherwise. `asc(id)` cannot deliver insertion
-      // order here: `uuidv7()` (`@oxy.so/db`) is a millisecond
-      // timestamp plus pure randomness with NO monotonic counter, and every
-      // authorship row for a post is written by ONE multi-row insert — so the
-      // ids share a millisecond and their relative order is random. It is STABLE
-      // per post (an id never changes), so a byline does not reshuffle between
-      // reads; it simply is not the order the collaborators were invited in.
-      //
-      // Same rule the sibling load below writes down for topic refs: if true
-      // insertion order ever matters, it needs a `position` column and a
-      // migration, not a different sort. `postContentVariants` and `postSources`
-      // already have one.
-      .orderBy(
-        sql`case ${postAuthorships.role} when 'owner' then 0 else 1 end`,
-        asc(postAuthorships.id),
-      ),
-    db
-      .select(variantReadColumns)
-      .from(postContentVariants)
-      .where(inArray(postContentVariants.postId, [...postIds]))
-      .orderBy(asc(postContentVariants.position)),
-    db
-      .select()
-      .from(postMedia)
-      .where(inArray(postMedia.postId, [...postIds]))
-      .orderBy(asc(postMedia.position)),
-    db
-      .select()
-      .from(postAttachments)
-      .where(inArray(postAttachments.postId, [...postIds]))
-      .orderBy(asc(postAttachments.position)),
-    db
-      .select()
-      .from(postSources)
-      .where(inArray(postSources.postId, [...postIds]))
-      .orderBy(asc(postSources.position)),
-    db
-      .select()
-      .from(postMentions)
-      .where(inArray(postMentions.postId, [...postIds]))
-      .orderBy(asc(postMentions.id)),
-    db
-      .select()
-      .from(postRecipients)
-      .where(inArray(postRecipients.postId, [...postIds]))
-      .orderBy(asc(postRecipients.oxyUserId)),
-    db
-      .select()
-      .from(postClassificationTopicRefs)
-      .where(inArray(postClassificationTopicRefs.postId, [...postIds]))
-      // The table has no `position` column for the order the classifier
-      // emitted. `relevance DESC` recovers the MEANING of that order wherever the classifier supplied one, with `name`
-      // as a deterministic tie-break so a page never reshuffles between reads;
-      // plain alphabetical (what this was) discards the ranking entirely. Every
-      // reader today is set-like — membership, grouping — so this is about not
-      // throwing information away rather than about a consumer that indexes
-      // `[0]`. If true insertion order ever matters, it needs a `position`
-      // column and a migration, not a different sort.
-      .orderBy(
-        sql`${postClassificationTopicRefs.relevance} desc nulls last`,
-        asc(postClassificationTopicRefs.name),
-      ),
-    db
-      .select()
-      .from(postVariantMedia)
-      .where(inArray(postVariantMedia.variantId, variantIdsOfPosts))
-      .orderBy(asc(postVariantMedia.position)),
-    db
-      .select()
-      .from(postVariantAltTexts)
-      .where(inArray(postVariantAltTexts.variantId, variantIdsOfPosts))
-      .orderBy(asc(postVariantAltTexts.mediaId)),
-  ]);
+  const {
+    authorships: authorshipRows,
+    variants: variantRows,
+    media: mediaRows,
+    attachments: attachmentRows,
+    sources: sourceRows,
+    mentions: mentionRows,
+    recipients: recipientRows,
+    topicRefs: topicRefRows,
+    variantMedia: variantMediaRows,
+    variantAltTexts: variantAltRows,
+  } = await readPostChildTables(db, postIds);
 
   return {
     authorships: groupBy(
