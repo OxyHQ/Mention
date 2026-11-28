@@ -5,8 +5,9 @@ mention.earth. Afterwards mention.earth redirects to mention.org forever, and no
 This document is the inventory, the plan and the record of what was done. Every step is measured
 and reversible, and its rollback is next to it.
 
-Status:
+Status (2026-11-28, 20:00 UTC):
 - **Phase 0 (inventory):** done.
+- **Phase 2:** live. mention.org is canonical, and the mention.earth 301 has been live since 19:27 UTC.
 - **Phase 1 (dual-host):** live on 2026-11-28 through a temporary bridge, with the final routing in
   progress (below).
 - **Phase 2 (canonical switch):** waits for the owner's approval of this plan.
@@ -598,3 +599,12 @@ Hazlos cuando puedas. Los que dicen "ya" se pueden hacer ahora mismo.
 | 17:55 | #2111 merged (alias hosts, CORS, CSP, WebFinger `acct:@mention.org`, per-origin sign-in redirect, client canonical pinned) | revert |
 | 17:56 | `api.mention.org` proxied CNAME to `oxy-edge`: `/health/live` 200, `/metrics` 404 | delete the record |
 | 18:00 | Purge token rotated: `72eb1d6f…` (Cache Purge on mention.earth **and** mention.org, expires 2027-11-28), written to SSM `/oxy/mention/CLOUDFLARE_PURGE_TOKEN` (version 2) without printing. Old `474f798c…` revoked once the new one is verified in production | write the old value back (USB vault) |
+| 18:11 | mention.org `mention_hosting_asn_html_scrapers` (copy of mention.earth's, host changed; rule `15668aa1…`) | disable or delete the rule |
+| 18:18–18:25 | Bridge retired: `mention.org` becomes a proxied CNAME to `oxy-edge`; the Worker routes and script are deleted; `www` becomes a Redirect Rule `www_to_apex`; mention.earth's `mention_org_cors_bridge` is deleted (the backend answers CORS for mention.org itself). QA sign-in passes on the direct path | recreate the Worker from the scratch source; restore the AAAA |
+| 18:45 | Web Analytics site for mention.org (auto-install); mention.earth's rule narrowed from host `*` to `mention.earth`, so the internal shell is no longer injected | delete the site; rule host back to `*` |
+| 19:03 | #2113 and #2116 merged; 19:16 backend `oxy-mention:1011` live: canonical, OG, sitemaps and robots on mention.org; purges go to the mention.org zone. The OTA carries `api.mention.org` and `mention.org` links to native apps | revert #2116 and dispatch `deploy-backend-config.yml` |
+| 19:20 | `/p/*` cache rule on mention.org (`c5410b57…`); mention.earth's disabled. **mention.earth is now on the Free plan** (changed outside this plan), which refuses `matches`, so its disabled rule was rewritten with `wildcard` | re-enable on earth; delete on org |
+| 19:21 | `mention_earth_to_org` (`00dfa030…`): 302 on `/explore`, then 302 for every human page view at 19:21:44, exemptions verified (table in the report) | `enabled: false` |
+| **19:27** | **301 live.** Robots, `sitemap.xml` and `/sitemaps/` purged in both zones; `https://mention.org/sitemap.xml` lists the new catalog | `enabled: false` (or `status_code: 302`) |
+| 19:35–19:50 | Purge-by-URL found not to empty `/p/<id>` on mention.org (QA post stayed HIT 90 s after delete; a manual URL purge too); a prefix purge empties it. #2124 switches the backend to prefixes. While testing purge variants, one host-wide purge of mention.org was sent, and Smart Tiered Cache was briefly off (back on) | — |
+| 19:44 | Frontend deploys fail the browser gate (it mocks `api.mention.earth`; the build calls `api.mention.org`). Production keeps the previous bundle, which works; the e2e suite is being retargeted | — |
