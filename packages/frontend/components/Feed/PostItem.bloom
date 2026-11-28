@@ -89,7 +89,7 @@ import { Text as BloomText } from "@oxy.so/bloom/typography"
 import { getNormalizedUserHandle } from "@oxy.so/core"
 import { type TFunction } from "i18next"
 import { Boolean, RegExp, location } from "js"
-import { Suspense, lazy, useCallback, useMemo, useState } from "react"
+import { Suspense, lazy, useCallback, useMemo, useState as useStateOfTS } from "react"
 import { useTranslation } from "react-i18next"
 import {
   View,
@@ -397,9 +397,7 @@ private func usePostRowModel(
   // boolean: FlashList reuses this component instance for a different post
   // when a cell is recycled, and a modal open for one post must not show up
   // open on whichever post took over the cell.
-  let (articleModalFor, setArticleModalFor): (String?, Foreign<"import('react').Dispatch<import('react').SetStateAction<string | undefined>>">) = useState(
-    none,
-  )
+  @State var articleModalFor: String? = none
   let isArticleModalVisible = articleModalFor != none && articleModalFor == postId
 
   // The reader's answer to this post's content warning belongs to the POST, not
@@ -617,7 +615,7 @@ private func usePostRowModel(
 
   // A post can appear in more than one pane. Ownership must be per instance so
   // a late hover-out or unmount cannot clear another pane's active gesture.
-  let (hoverOwner, _): (Foreign, Foreign) = useState({ ({}) })
+  let (hoverOwner, _): (Foreign, Foreign) = useStateOfTS({ ({}) })
 
   // Where opening this row goes: thread posts open the whole thread at its
   // subject (`threadOpenId`); standalone posts open their own detail. The tap and the time label's
@@ -803,11 +801,11 @@ private func usePostRowModel(
   )
 
   let openArticleSheet = useCallback(
-    { if hasArticle { setArticleModalFor(postId) } },
+    { if hasArticle { articleModalFor = postId } },
     [hasArticle, postId],
   )
 
-  let closeArticleSheet = useCallback({ setArticleModalFor(none) }, [])
+  let closeArticleSheet = useCallback({ articleModalFor = none }, [])
 
   // Each shell host opens its supporting panel; standalone posts use the shared sheet.
   let handleInsightsPress = useCallback(
