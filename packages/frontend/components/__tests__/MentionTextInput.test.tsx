@@ -435,6 +435,9 @@ describe('MentionTextInput hashtags', () => {
   it('takes the highlighted tag with Enter on web, and closes with Escape', () => {
     const platform = Platform.OS;
     Platform.OS = 'web';
+    // The web field grows itself against the DOM, which this runtime has none of.
+    const element = globalThis.HTMLElement;
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: class {} });
     mockHashtags.tags = [
       { tag: 'barcelona', count: 4 },
       { tag: 'barri', count: 1 },
@@ -458,5 +461,6 @@ describe('MentionTextInput hashtags', () => {
     expect(mockHashtags.query).toBeNull();
     Platform.OS = platform;
     act(() => renderer.unmount());
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: element });
   });
 });
