@@ -1328,6 +1328,11 @@
       "title": "Tampilan"
     },
     "account": {
+      "exportData": "Ekspor data Anda",
+      "exportDescription": "Berkas berisi postingan, markah, suka, dan pengaturan Mention Anda.",
+      "exportAction": "Ekspor",
+      "exportSaved": "Data Anda telah disimpan",
+      "exportFailed": "Gagal mengekspor data Anda",
       "manageAccount": "Kelola akun",
       "manageYourAccount": "Kelola akun Anda",
       "signedOutSubtitle": "Masuk untuk mengakses pengaturan privasi, notifikasi, feed, dan personalisasimu.",

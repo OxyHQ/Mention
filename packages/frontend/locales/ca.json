@@ -1346,6 +1346,11 @@
       "title": "Aparença"
     },
     "account": {
+      "exportData": "Exporta les teves dades",
+      "exportDescription": "Un fitxer amb les teves publicacions, desats, m'agrada i configuració de Mention.",
+      "exportAction": "Exporta",
+      "exportSaved": "S'han desat les teves dades",
+      "exportFailed": "No s'han pogut exportar les teves dades",
       "manageAccount": "Gestiona el compte",
       "manageYourAccount": "Gestiona el teu compte",
       "signedOutSubtitle": "Inicia la sessió per accedir a la configuració de privadesa, notificacions, flux i personalització.",

@@ -1328,6 +1328,11 @@
       "title": "Darstellung"
     },
     "account": {
+      "exportData": "Daten exportieren",
+      "exportDescription": "Eine Datei mit deinen Mention-Beiträgen, Lesezeichen, Likes und Einstellungen.",
+      "exportAction": "Exportieren",
+      "exportSaved": "Deine Daten wurden gespeichert",
+      "exportFailed": "Deine Daten konnten nicht exportiert werden",
       "manageAccount": "Konto verwalten",
       "manageYourAccount": "Dein Konto verwalten",
       "signedOutSubtitle": "Melde dich an, um zu deinen Einstellungen für Privatsphäre, Benachrichtigungen, Feed und Personalisierung zu gelangen.",

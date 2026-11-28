@@ -1346,6 +1346,11 @@
       "title": "Apariencia"
     },
     "account": {
+      "exportData": "Exportar tus datos",
+      "exportDescription": "Un archivo con tus publicaciones, guardados, me gusta y ajustes de Mention.",
+      "exportAction": "Exportar",
+      "exportSaved": "Tus datos se han guardado",
+      "exportFailed": "No se pudieron exportar tus datos",
       "manageAccount": "Administrar cuenta",
       "manageYourAccount": "Gestiona tu cuenta",
       "signedOutSubtitle": "Inicia sesión para acceder a tus ajustes de privacidad, notificaciones, feed y personalización.",

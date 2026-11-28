@@ -1328,6 +1328,11 @@
       "title": "Appearance"
     },
     "account": {
+      "exportData": "Export your data",
+      "exportDescription": "A file with your Mention posts, bookmarks, likes and settings.",
+      "exportAction": "Export",
+      "exportSaved": "Your data was saved",
+      "exportFailed": "Could not export your data",
       "manageAccount": "Manage account",
       "manageYourAccount": "Manage your account",
       "signedOutSubtitle": "Sign in to access your privacy, notifications, feed, and personalization settings.",

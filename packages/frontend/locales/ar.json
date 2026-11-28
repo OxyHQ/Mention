@@ -1400,6 +1400,11 @@
       "title": "المظهر"
     },
     "account": {
+      "exportData": "تصدير بياناتك",
+      "exportDescription": "ملف يضم منشوراتك وإشاراتك المرجعية وإعجاباتك وإعداداتك على Mention.",
+      "exportAction": "تصدير",
+      "exportSaved": "تم حفظ بياناتك",
+      "exportFailed": "تعذر تصدير بياناتك",
       "manageAccount": "إدارة الحساب",
       "manageYourAccount": "إدارة حسابك",
       "signedOutSubtitle": "سجّل الدخول للوصول إلى إعدادات الخصوصية والإشعارات والخلاصة والتخصيص.",
