@@ -1,5 +1,10 @@
 import type { TFunction } from 'i18next';
+import { toReaderText } from '@mention/shared-types/textEntities';
 import { dateDiff } from '@/utils/dateUtils';
+
+export function videoTitleText(value?: string): string {
+  return toReaderText(value ?? '').trim();
+}
 
 export function videoPublicationDate(createdAt: string, locale: string) {
   const date = new Date(createdAt);

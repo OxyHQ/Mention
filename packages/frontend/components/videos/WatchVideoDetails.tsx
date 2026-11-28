@@ -18,7 +18,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Link, useRouter } from '@/lib/navigation/router';
 import { usePostSelector } from '@/stores/postsStore';
-import { videoPublicationDate, videoViewCount } from './videoMetadata';
+import { videoPublicationDate, videoTitleText, videoViewCount } from './videoMetadata';
 import { postAcceptsReplies } from '@/utils/postReplies';
 
 const useWatchDetails = create<{ post?: HydratedPost }>(() => ({}));
@@ -53,12 +53,12 @@ export function WatchVideoDetails({ post }: { post: HydratedPost }) {
   const [showReplies, setShowReplies] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const description = post.content.text?.trim();
-  const caption = description?.split('\n')[0];
+  const caption = videoTitleText(description?.split('\n')[0]);
+  const writtenTitle = videoTitleText(post.content.title);
   const canExpand = Boolean(
     description && (description.length > 110 || description.split('\n').length > 3),
   );
-  const title =
-    post.content.title?.trim() || caption || t('videos.reel', { defaultValue: 'Video' });
+  const title = writtenTitle || caption || t('videos.reel', { defaultValue: 'Video' });
   const handle = getNormalizedUserHandle(post.user);
   const author = post.user.name?.displayName || (handle ? `@${handle}` : '');
   const profile = profileHrefForUser(post.user);
@@ -85,7 +85,7 @@ export function WatchVideoDetails({ post }: { post: HydratedPost }) {
     <View className="gap-3" testID="watch-video-details">
       <Text
         accessibilityRole="header"
-        numberOfLines={post.content.title ? undefined : 3}
+        numberOfLines={writtenTitle ? undefined : 3}
         className="text-[22px] font-bold leading-7 text-foreground"
       >
         {title}
@@ -95,7 +95,7 @@ export function WatchVideoDetails({ post }: { post: HydratedPost }) {
           {metadata}
         </Text>
       ) : null}
-      {description && (description !== title || !post.content.title) ? (
+      {description && (!writtenTitle || videoTitleText(description) !== writtenTitle) ? (
         <View className="gap-1" testID="watch-video-description">
           <LinkifiedText
             text={description}

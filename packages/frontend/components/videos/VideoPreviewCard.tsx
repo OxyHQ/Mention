@@ -9,7 +9,7 @@ import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Link, type Href } from '@/lib/navigation/router';
 import { formatDuration } from '@/utils/formatDuration';
-import { videoPublicationDate, videoViewCount } from './videoMetadata';
+import { videoPublicationDate, videoTitleText, videoViewCount } from './videoMetadata';
 import type { VideoPreview } from './watchVideo';
 
 export function VideoPreviewCard({
@@ -27,7 +27,10 @@ export function VideoPreviewCard({
   const handle = getNormalizedUserHandle(post.user);
   const author = post.user.name?.displayName || (handle ? `@${handle}` : '');
   const title =
-    post.content.title?.trim() || post.content.text?.trim() || author || t('videos.reel');
+    videoTitleText(post.content.title) ||
+    videoTitleText(post.content.text) ||
+    author ||
+    t('videos.reel');
   const views = videoViewCount(t, locale, post.engagement.views, true);
   const metadata = clip
     ? views

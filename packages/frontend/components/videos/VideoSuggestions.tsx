@@ -13,7 +13,7 @@ import { Link } from '@/lib/navigation/router';
 import { feedService } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { watchVideo, type WatchPost } from './watchVideo';
-import { videoPublicationDate, videoViewCount } from './videoMetadata';
+import { videoPublicationDate, videoTitleText, videoViewCount } from './videoMetadata';
 
 const useActiveVideo = create<{ post?: WatchPost }>(() => ({}));
 
@@ -74,8 +74,8 @@ export function VideoRecommendations({
     const handle = getNormalizedUserHandle(post.user);
     const author = post.user.name?.displayName || (handle ? `@${handle}` : '');
     const title =
-      post.content.title?.trim() ||
-      post.content.text?.trim() ||
+      videoTitleText(post.content.title) ||
+      videoTitleText(post.content.text) ||
       author ||
       t('videos.reel', { defaultValue: 'Video' });
     const metadata = columns
