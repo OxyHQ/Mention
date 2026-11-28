@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "हैशटैग सुझाव",
+    "hashtagPosts_one": "{{count}} पोस्ट",
+    "hashtagPosts_other": "{{count}} पोस्ट",
     "deleteDraftChanged": "यह ड्राफ़्ट बदल गया है। इसकी समीक्षा करें और फिर से हटाने का प्रयास करें।",
     "draftMissing": "यह ड्राफ़्ट अब उपलब्ध नहीं है।",
     "draftConflict": "यह ड्राफ़्ट कहीं और बदल गया है। अपना काम एक प्रति के रूप में सहेजें।",

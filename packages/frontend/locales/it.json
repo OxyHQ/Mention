@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Hashtag suggeriti",
+    "hashtagPosts_one": "{{count}} post",
+    "hashtagPosts_many": "{{count}} di post",
+    "hashtagPosts_other": "{{count}} post",
     "deleteDraftChanged": "Questa bozza è cambiata. Controllala e riprova a eliminarla.",
     "draftMissing": "Questa bozza non è più disponibile.",
     "draftConflict": "Questa bozza è stata modificata altrove. Salva il tuo lavoro come copia.",

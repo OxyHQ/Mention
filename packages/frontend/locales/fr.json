@@ -308,6 +308,10 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Suggestions de hashtags",
+    "hashtagPosts_one": "{{count}} post",
+    "hashtagPosts_many": "{{count}} de posts",
+    "hashtagPosts_other": "{{count}} posts",
     "deleteDraftChanged": "Ce brouillon a changé. Vérifiez-le et réessayez de le supprimer.",
     "draftMissing": "Ce brouillon n’est plus disponible.",
     "draftConflict": "Ce brouillon a été modifié ailleurs. Enregistrez votre travail sous forme de copie.",

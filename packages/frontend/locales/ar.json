@@ -308,6 +308,13 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "اقتراحات الوسوم",
+    "hashtagPosts_zero": "لا منشورات",
+    "hashtagPosts_one": "منشور واحد",
+    "hashtagPosts_two": "منشوران",
+    "hashtagPosts_few": "{{count}} منشورات",
+    "hashtagPosts_many": "{{count}} منشورًا",
+    "hashtagPosts_other": "{{count}} منشور",
     "deleteDraftChanged": "تغيرت هذه المسودة. راجعها وحاول حذفها مرة أخرى.",
     "draftMissing": "لم تعد هذه المسودة متاحة.",
     "draftConflict": "تغيرت هذه المسودة في مكان آخر. احفظ عملك كنسخة.",

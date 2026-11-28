@@ -308,6 +308,9 @@
     "benefitMonoDescription": "Personalize Mention with the Mono theme."
   },
   "compose": {
+    "hashtagSuggestions": "Etiket önerileri",
+    "hashtagPosts_one": "{{count}} gönderi",
+    "hashtagPosts_other": "{{count}} gönderi",
     "deleteDraftChanged": "Bu taslak değişti. Kontrol edip silmeyi yeniden deneyin.",
     "draftMissing": "Bu taslak artık kullanılamıyor.",
     "draftConflict": "Bu taslak başka bir yerde değişti. Çalışmanızı kopya olarak kaydedin.",
