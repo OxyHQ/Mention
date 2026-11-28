@@ -5,11 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
-import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { SEO } from '@/components/SEO';
+import { ClipsIcon } from '@/components/videos/ClipsIcon';
 import {
   VideoPreviewCard,
   VideoPreviewGrid,
@@ -133,7 +133,7 @@ export default function WatchHomeRoute() {
             <View className="gap-2" testID="watch-clips">
               <View className="flex-row items-center justify-between gap-3" style={styles.inset}>
                 <View className="flex-row items-center gap-2">
-                  <RiPlayFill size="lg" className="text-primary" />
+                  <ClipsIcon size="lg" className="text-primary" />
                   <Text accessibilityRole="header" className="text-lg font-bold text-foreground">
                     {t('videos.clips')}
                   </Text>

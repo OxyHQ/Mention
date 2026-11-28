@@ -21,8 +21,7 @@ import { RiSearchFill } from '@oxy.so/bloom/icons/RiSearchFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiSettings3Fill } from '@oxy.so/bloom/icons/RiSettings3Fill';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
-import { RiVideoFill } from '@oxy.so/bloom/icons/RiVideoFill';
-import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
+import { ClipsIcon } from '@/components/videos/ClipsIcon';
 import type { AppDestination } from '@oxy.so/bloom/tab-pager';
 import { TabPagerProvider } from '@oxy.so/bloom/tab-pager/expo-router';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
@@ -95,8 +94,7 @@ export function useMentionDestinations(): AppDestination[] {
         bar: true,
         preload: true,
         label: t('videos.clips'),
-        icon: RiVideoLine,
-        activeIcon: RiVideoFill,
+        icon: ClipsIcon,
       },
       { name: 'watch', href: '/watch', label: t('sidebar.watch'), icon: RiFilmLine },
       {
