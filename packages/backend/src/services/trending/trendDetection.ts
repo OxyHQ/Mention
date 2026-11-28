@@ -49,9 +49,22 @@ import { resolveTrendConcept } from './conceptRegistry';
  * serves a stale batch. Each scan gets its own transaction rather than one for
  * the batch, so a scan that fails still fails alone and the fail-soft ones
  * (`loadTermPairs`, the corpus count) keep their meaning.
+ *
+ * Each scan also raises `work_mem` for its own transaction only
+ * (`set_config(…, true)`, i.e. `SET LOCAL`): the `expanded` measurements sort
+ * and hash two days of terms and spilled 62–91 MB to temp files per pass at the
+ * role's 28 MB (PlanetScale, 2026-11-28). The batch runs one scan at a time,
+ * cluster-wide (the scheduled run is leader-gated), so this is one session's
+ * memory, not every serving connection's — which is why it is not raised for
+ * the role.
  */
+const TREND_SCAN_WORK_MEM = '128MB';
+
 const scan = <T>(work: (db: Transaction) => Promise<T>): Promise<T> =>
-  withStatementTimeout(config.postgres.backgroundStatementTimeoutMs, work);
+  withStatementTimeout(config.postgres.backgroundStatementTimeoutMs, async (tx) => {
+    await tx.execute(sql`select set_config('work_mem', ${TREND_SCAN_WORK_MEM}, true)`);
+    return work(tx);
+  });
 
 /**
  * One term as the aggregation measured it: the numbers the scorer needs, plus
