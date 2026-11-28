@@ -610,16 +610,6 @@ const BROKEN: Record<string, string> = {
       'branch-chrome-modifiers: `.testID("post-screen")` on the root Group\'s drawn branch is not the screen\'s (lang-mention-16)',
     ]),
   ),
-  ...Object.fromEntries(
-    [
-      'components/Profile/MediaGrid.tsx/emptyOwnsScroll',
-      'components/Profile/MediaGrid.tsx/cells',
-      'components/Profile/VideosGrid.tsx/cells',
-    ].map((key) => [
-      key,
-      'optional-view-prop-crosses-as-null: ProfileGridList gets `listHeaderComponent: null` (and its two kin) where the TS passed nothing (lang-mention-17)',
-    ]),
-  ),
 };
 
 const noop = () => undefined;
