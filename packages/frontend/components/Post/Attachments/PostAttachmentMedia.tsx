@@ -37,7 +37,6 @@ import {
   type VideoPlayerKey,
 } from '@/stores/videoPlayerRegistry';
 import type { VideoPlayer as ExpoVideoPlayer } from 'expo-video';
-import { useImageTransition } from '@/hooks/useImageTransition';
 
 /**
  * Registers (or clears, on unmount) the measurable host node of an image
@@ -378,7 +377,6 @@ const PostAttachmentImage: React.FC<{
   tallRow = false,
   overlay,
 }) => {
-  const imageFade = useImageTransition(120);
   const theme = useTheme();
   const wrapperRef = useRef<ViewInstance | null>(null);
   // The ratio is DERIVED while it is knowable synchronously — from the record,
@@ -474,7 +472,7 @@ const PostAttachmentImage: React.FC<{
         // clamp (the 4:5 floor, MIN_WIDTH, the row width) overrides it.
         contentFit="cover"
         cachePolicy="memory-disk"
-        transition={imageFade}
+        transition={120}
         accessibilityLabel={hasAlt ? alt : undefined}
         accessibilityRole="image"
         onLoad={handleImageLoad}
