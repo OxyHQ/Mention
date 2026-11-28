@@ -17,11 +17,16 @@ const mocks = vi.hoisted(() => ({
   purgePostPages: vi.fn(),
   scheduleAuthorPostPagePurge: vi.fn(),
   authorSeoPolicy: vi.fn(),
+  invalidatePostDetail: vi.fn(),
 }));
 
 vi.mock('../../services/webshell/postPageEdgePurge', () => ({
   purgePostPages: mocks.purgePostPages,
   scheduleAuthorPostPagePurge: mocks.scheduleAuthorPostPagePurge,
+}));
+vi.mock('../../services/posts/postDetailCache', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/posts/postDetailCache')>()),
+  invalidate: mocks.invalidatePostDetail,
 }));
 vi.mock('../../services/webshell/postPageAuthorPolicy', () => ({
   authorSeoPolicy: mocks.authorSeoPolicy,
@@ -59,6 +64,7 @@ afterAll(() => closePostgres());
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.purgePostPages.mockResolvedValue(undefined);
+  mocks.invalidatePostDetail.mockResolvedValue(undefined);
   mocks.authorSeoPolicy.mockResolvedValue({ visible: false, indexable: false });
 });
 afterEach(async () => {
@@ -130,6 +136,24 @@ describe('a moderation decision', () => {
 
     expect(outcomes).toEqual([{ action: 'restrict', result: 'applied' }]);
     expect((await readPost(post.id))?.status).toBe('restricted');
+    expect(purgedFor('moderation')).toEqual([post.id]);
+  });
+
+  it('still purges the page when the record cache cannot be evicted', async () => {
+    mocks.invalidatePostDetail.mockRejectedValue(new Error('Redis gone'));
+    const post = await seedPost(scope);
+    const decision = { ...decisionFixture({ outcome: 'violation' }), id: `dec_${randomUUID()}` };
+    usedDecisionIds.push(decision.id);
+
+    const outcomes = await applyDecisionEnforcement({
+      decision,
+      caseId: decision.caseId,
+      subject: { type: 'post', id: post.id },
+      mode: 'automatic',
+    });
+
+    expect(outcomes).toEqual([{ action: 'restrict', result: 'applied' }]);
+    expect(mocks.invalidatePostDetail).toHaveBeenCalledWith(post.id);
     expect(purgedFor('moderation')).toEqual([post.id]);
   });
 
