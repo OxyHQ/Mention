@@ -23,6 +23,10 @@ jest.mock('@oxy.so/bloom/screen', () => ({
 }));
 jest.mock('@oxy.so/bloom/app-shell', () => ({ useAppShellPanel: () => ({ active: true }) }));
 const mockPush = jest.fn();
+let mockPanelRouter: object | null = null;
+jest.mock('@oxy.so/bloom/panel-routing', () => ({
+  useOptionalPanelRouter: () => mockPanelRouter,
+}));
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('../WatchPlaybackVideo', () => ({
   WatchPlaybackVideo: ({ onPlaybackStart }: { onPlaybackStart?: () => void }) => (
@@ -50,6 +54,7 @@ let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
   mockPush.mockClear();
+  mockPanelRouter = null;
   observe.mockClear();
   disconnect.mockClear();
   globalThis.IntersectionObserver = jest.fn((callback: IntersectionObserverCallback) => {
@@ -209,4 +214,26 @@ it('dismisses the dock for another playing video but keeps it through silent ani
   other.loop = false;
   act(() => other.dispatchEvent(new Event('playing')));
   expect(player.isConnected).toBe(false);
+});
+
+it('draws its own player in a Deck column, whose history the shared host cannot see', () => {
+  mockPanelRouter = { key: 'column' };
+  const column = (focused: boolean) => (
+    <WatchPlaybackProvider pathname="/">
+      <WatchPlayerSurface
+        video={video}
+        dockable={false}
+        focused={focused}
+        concealed={false}
+        canContinue
+      >
+        {null}
+      </WatchPlayerSurface>
+    </WatchPlaybackProvider>
+  );
+  act(() => root.render(column(true)));
+  expect(container.querySelector('[data-testid="watch-player-inline"] video')).not.toBeNull();
+
+  act(() => root.render(column(false)));
+  expect(container.querySelector('video')).toBeNull();
 });

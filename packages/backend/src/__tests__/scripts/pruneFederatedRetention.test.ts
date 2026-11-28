@@ -21,6 +21,7 @@ import { bookmarks, likes } from '../../db/schema/engagement';
 import {
   federatedActors,
   federatedFollows,
+  federatedMediaDeletions,
   federationDeliveryQueue,
   remoteActorRefs,
   remoteFollowEdges,
@@ -125,7 +126,7 @@ beforeEach(async () => {
   await getDb().execute(sql`
     truncate posts, likes, bookmarks, notifications, reports, federated_follows,
       federated_actors, federation_delivery_queue, admin_script_cursors,
-      remote_follow_edges, remote_actor_refs cascade
+      remote_follow_edges, remote_actor_refs, federated_media_deletions cascade
   `);
 });
 
@@ -149,6 +150,25 @@ describe('which posts go', () => {
       .from(postContentVariants)
       .where(eq(postContentVariants.postId, old.id));
     expect(variants).toEqual([]);
+  });
+
+  it('queues the re-hosted media of what it deletes, and nothing of what it keeps', async () => {
+    const withMedia = (id: string) => ({
+      content: {
+        variants: [{ source: 'author' as const, text: 'with media', tag: 'en' }],
+        media: [{ id, type: 'image' as const, cachedFromFederation: true }],
+      },
+    });
+    await federated('a', withMedia('file-of-a-pruned-post'));
+    const kept = await federated('a', withMedia('file-of-a-kept-post'));
+    await getDb().insert(bookmarks).values({ userId: 'local-u', postId: kept.id });
+
+    await run();
+
+    const queued = await getDb()
+      .select({ id: federatedMediaDeletions.oxyFileId })
+      .from(federatedMediaDeletions);
+    expect(queued).toEqual([{ id: 'file-of-a-pruned-post' }]);
   });
 
   it('deletes a post only remote accounts liked, and its likes with it', async () => {

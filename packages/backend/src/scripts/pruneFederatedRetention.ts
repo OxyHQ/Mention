@@ -54,6 +54,10 @@
  *   surviving parent are not adjusted: the remote reply still exists, only our
  *   cached copy is gone (the same call `purgeBlockedDomainContent` makes).
  *
+ *   The re-hosted federated media of a deleted post is queued for deletion in
+ *   the same transaction, as any post deletion does; the drain keeps a file
+ *   something else still uses.
+ *
  * PHASE `follow-edges` — drains the unknown-end expiry of
  *   `remote_follow_edges` (`expireUnknownRemoteFollowEdges`, the same statement
  *   the 30-minute sweep runs, 100k edges a run at most) off-peak, with a TTL the
@@ -108,6 +112,7 @@
 
 import { sql, type SQL } from 'drizzle-orm';
 import { connectPostgres, getDb } from '../db/postgres';
+import { enqueueFederatedMediaDeletionsForPosts } from '../db/federation/mediaDeletionRepository';
 import { expireUnknownRemoteFollowEdges } from '../db/federation/remoteGraphRepository';
 import { unknownEdgeExpiryCutoff } from '../connectors/remoteGraphMirror';
 import { BRIDGY_BSKY_ACTOR_PREFIX } from '../connectors/shared/bridgyActor';
@@ -584,10 +589,9 @@ async function deletePosts(ids: readonly string[], remote: ReadonlySet<string>):
     await tx.execute(sql`
       select id from posts where id = any(${textArray(ids)}) order by id for update
     `);
-    const rows = await tx.execute<{ id: string }>(sql`
-    delete from posts p
-    where p.id = any(${textArray(ids)})
-      and p.visibility = 'public' and p.status = 'published'
+    // Every rule again, against the fresh snapshot.
+    const mayGo = sql`
+      p.visibility = 'public' and p.status = 'published'
       and not (${ANY_SQL_RULE})
       and not exists (select 1 from engagement_outbox eo where eo.payload_post_id = p.id)
       and not exists (select 1 from post_promotions pp where pp.post_id = p.id)
@@ -596,8 +600,18 @@ async function deletePosts(ids: readonly string[], remote: ReadonlySet<string>):
       and not exists (select 1 from post_mentions pm where pm.post_id = p.id and ${outside(sql`pm.oxy_user_id`)})
       and (p.oxy_user_id is null or p.oxy_user_id = any(${remoteArray}))
       and (p.community_oxy_user_id is null or p.community_oxy_user_id = any(${remoteArray}))
-    returning p.id
-  `);
+    `;
+    const eligible = await tx.execute<{ id: string }>(sql`
+      select p.id from posts p where p.id = any(${textArray(ids)}) and ${mayGo}
+    `);
+    if (eligible.length === 0) return [];
+    const doomed = eligible.map((row) => row.id);
+    // Before the rows cascade away: afterwards nothing names the re-hosted files.
+    await enqueueFederatedMediaDeletionsForPosts(doomed, tx);
+    const rows = await tx.execute<{ id: string }>(sql`
+      delete from posts p where p.id = any(${textArray(doomed)}) and ${mayGo}
+      returning p.id
+    `);
     return rows.map((row) => row.id);
   });
 }
