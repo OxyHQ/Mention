@@ -50,10 +50,9 @@ test('Watch keeps its decoder in the right column while browsing the app', async
   await dock.hover();
   await expect(dock.getByRole('slider', { name: 'Playback position' })).toBeVisible();
   await dock.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
   const pausedAt = await original.evaluate((element: HTMLVideoElement) => element.currentTime);
-  await page.goBack();
-  await expect(page).toHaveURL(/\/explore$/);
-  await page.goBack();
+  await dock.click({ position: { x: 25, y: 38 } });
   await expect(page).toHaveURL(new RegExp(`/watch/${POST_ID}\\?mediaIndex=0$`));
   await expect(
     page.getByTestId('watch-player-inline').locator('video[data-playback-subject]'),

@@ -6,9 +6,11 @@ export type WatchPlaybackSource = Pick<VideoPreview, 'source' | 'fallbackSource'
 export function WatchPlaybackVideo({
   video,
   onPlaybackStart,
+  onSurfacePress,
 }: {
   video: WatchPlaybackSource;
   onPlaybackStart?: () => void;
+  onSurfacePress?: () => boolean;
 }) {
   return (
     <VideoPlayer
@@ -18,6 +20,7 @@ export function WatchPlaybackVideo({
       contentFit="contain"
       controlsLayout="watch"
       onPlaybackStart={onPlaybackStart}
+      onSurfacePress={onSurfacePress}
       autoPlay
       style={{ width: '100%', height: '100%' }}
     />

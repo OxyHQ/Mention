@@ -11,6 +11,7 @@ import { View } from 'react-native';
 import { createStore, useStore, type StoreApi } from 'zustand';
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
 import { Screen } from '@oxy.so/bloom/screen';
+import { useRouter } from '@/lib/navigation/router';
 import { WatchPlaybackVideo, type WatchPlaybackSource } from './WatchPlaybackVideo';
 import type {
   WatchPlaybackProviderProps,
@@ -154,6 +155,7 @@ function WatchPlaybackMount({
   playback: StoreApi<WatchPlaybackState>;
 }) {
   const { surface } = session;
+  const router = useRouter();
   useLayoutEffect(() => () => surface.remove(), [surface]);
 
   useLayoutEffect(() => {
@@ -208,6 +210,18 @@ function WatchPlaybackMount({
   return createPortal(
     <WatchPlaybackVideo
       video={session}
+      onSurfacePress={() => {
+        if (!rail || surface.parentElement !== rail) return false;
+        if (browsing) {
+          router.push({
+            pathname: '/watch/[id]',
+            params: { id: session.postId, mediaIndex: String(session.mediaIndex) },
+          });
+        } else {
+          inline?.node.scrollIntoView({ block: 'center', inline: 'nearest' });
+        }
+        return true;
+      }}
       onPlaybackStart={
         session.canContinue
           ? () => {

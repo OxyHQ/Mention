@@ -22,9 +22,17 @@ jest.mock('@oxy.so/bloom/screen', () => ({
   ),
 }));
 jest.mock('@oxy.so/bloom/app-shell', () => ({ useAppShellPanel: () => ({ active: true }) }));
+const mockPush = jest.fn();
+jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('../WatchPlaybackVideo', () => ({
-  WatchPlaybackVideo: ({ onPlaybackStart }: { onPlaybackStart?: () => void }) => (
-    <video onPlaying={onPlaybackStart}>
+  WatchPlaybackVideo: ({
+    onPlaybackStart,
+    onSurfacePress,
+  }: {
+    onPlaybackStart?: () => void;
+    onSurfacePress?: () => boolean;
+  }) => (
+    <video onPlaying={onPlaybackStart} onClick={onSurfacePress}>
       <track kind="captions" />
     </video>
   ),
@@ -44,6 +52,7 @@ let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
+  mockPush.mockClear();
   observe.mockClear();
   disconnect.mockClear();
   globalThis.IntersectionObserver = jest.fn((callback: IntersectionObserverCallback) => {
@@ -109,6 +118,12 @@ it('moves the original playing surface into the matching rail and back as the pa
   act(() => scroll(40));
   expect(at('dock', true)).toBe(player);
   expect(at('inline', true)).toBeNull();
+  const scrollBack = jest.fn();
+  if (!inline || !(player instanceof HTMLVideoElement)) throw new Error('Missing Watch player');
+  Object.defineProperty(inline, 'scrollIntoView', { value: scrollBack });
+  act(() => player.click());
+  expect(scrollBack).toHaveBeenCalledWith({ block: 'center', inline: 'nearest' });
+  expect(mockPush).not.toHaveBeenCalled();
 
   act(() => scroll(210));
   expect(at('inline', true)).toBe(player);
@@ -134,6 +149,11 @@ it('keeps the same player across navigation and restores it to Watch', () => {
       '[data-testid="right-column"] [data-testid="watch-browse-player-dock"] video',
     ),
   ).toBe(player);
+  act(() => player.click());
+  expect(mockPush).toHaveBeenCalledWith({
+    pathname: '/watch/[id]',
+    params: { id: 'one', mediaIndex: '0' },
+  });
 
   render();
   expect(at('inline', true)).toBe(player);
