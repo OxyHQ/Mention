@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 /**
  * The posts lane of search (`GET /search`): the text predicate, and the page
  * query run under the planner settings and time windows that keep it fast.

@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Copyright (c) 2024-present The Oxy Collective, Inc.
+# SPDX-License-Identifier: LicenseRef-Breathe-1.0
+# Licensed under the Breathe License 1.0. Commercial use requires a paid
+# license. Source publication and attribution are required of everyone.
+# https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 # Release-build feed scroll measurement on a real Android device (issue #1103).
 #
 # Usage: android-feed-scroll.sh <label> [runs=3] [swipes=40]

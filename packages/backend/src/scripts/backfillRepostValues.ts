@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 /**
  * One-shot corpus backfill for the stored value rename `'boost'` -> `'repost'`
  * (docs/repost-rename.md, release 2 of 3): rewrite the rows written before the writers

@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 /**
  * The feed layer: `custom_feeds` (+ its composable definition and the three
  * legacy filter arrays), `feed_generators`, `feed_likes`, `feed_reviews`,

@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 /**
  * `threadBoost` signal — a small lift for thread ROOT posts that sparked replies
  * (they render as grouped slices and are more valuable feed items). Neutral

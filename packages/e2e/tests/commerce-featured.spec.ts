@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 /** Real profile/grid/query observers; the commerce API boundary is a seller-curation fixture. */
 import { APP_ORIGIN, PROFILE_HANDLE } from '../environment';
 import { expect, contractTest as test } from '../fixtures';

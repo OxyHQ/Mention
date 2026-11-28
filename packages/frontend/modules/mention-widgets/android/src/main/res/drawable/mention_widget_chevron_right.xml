@@ -1,4 +1,12 @@
 <!--
+  Copyright (c) 2024-present The Oxy Collective, Inc.
+  SPDX-License-Identifier: LicenseRef-Breathe-1.0
+  Licensed under the Breathe License 1.0. Commercial use requires a paid
+  license. Source publication and attribution are required of everyone.
+  https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+-->
+
+<!--
   Chevron for the title-bar button that opens the full Trending screen.
 
   The path is Remix Icon's `arrow-right-s-line`, the glyph the app draws for the

@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 import type { NextFunction, Request, Response } from 'express';
 import { canUseCommunities } from '@mention/shared-types/community';
 import { getRequiredOxyUserId } from '@oxy.so/core/server';

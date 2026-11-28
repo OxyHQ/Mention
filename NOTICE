@@ -1,25 +1,105 @@
-============================================================================
+=============================================================================
  NOTICE
  OxyHQ/Mention
  Copyright (c) 2024-present The Oxy Collective, Inc.
-============================================================================
+=============================================================================
 
 This product is licensed under the Breathe License 1.0, license identifier
-LicenseRef-Breathe-1.0. See the LICENSE file. Commercial terms are available
-at https://github.com/OxyHQ/.github/blob/main/LICENSE-COMMERCIAL.md
+LicenseRef-Breathe-1.0. See the LICENSE file.
+Commercial terms are available at the URL named in the LICENSE Parameters:
+https://github.com/OxyHQ/.github/blob/main/LICENSE-COMMERCIAL.md
 
 Attribution under Section 3.1 of the Breathe License is required of
 everyone, including paying commercial licensees, and cannot be waived.
+The line that section requires is:
 
-----------------------------------------------------------------------------
+    Built on OxyHQ/Mention by The Oxy Collective, Inc., https://oxy.so.
+    Licensed under the Breathe License 1.0.
+
+-----------------------------------------------------------------------------
  THIRD PARTY COMPONENTS
-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 
-This repository contains no vendored third party source. Its dependencies
-are resolved and installed by the package manager and remain governed by
-their own licenses.
+The Breathe License and the Commercial Terms cover only the parts of this work
+that The Oxy Collective, Inc. owns. The components listed below are authored by
+third parties and remain governed by their own licenses. Nothing in the Oxy
+terms overrides those licenses or reduces the rights they grant you.
 
-This work must not take on a GPL or AGPL dependency that is linked in
-process: the Breathe License is not compatible with either, in either
-direction. If you are adding one, stop and read
+This repository contains no bundled or vendored third-party source, no
+separately shipped binary, and no vendored font, icon, or image. Dependencies
+are installed by the package manager and stay under their own licenses,
+including any NOTICE file those packages ship. The patch files under patches/
+are applied to installed packages; they do not copy upstream source into this
+tree. Icon fonts and the Inter face used on the web are loaded from
+dependencies (@expo/vector-icons, expo-font, and Bloom), not from files in
+this repository.
+
+Curated from direct dependency license fields and bun.lock on 2026-11-28.
+No direct production dependency declares GPL-2.0, GPL-3.0, or AGPL.
+
+--- Dual licensed components: the election Oxy has made ----------------------
+
+  Where a component is offered under more than one license, this is the one
+  Oxy has chosen to receive it under.
+
+  Component:  node-forge
+  Version:    1.4.2
+  Offered as: BSD-3-Clause OR GPL-2.0
+  Elected:    BSD-3-Clause
+  Reason:     permissive option, compatible with this work's license
+  How it arrives: transitive, through @expo/code-signing-certificates
+                  (@expo/cli tooling). Not a direct dependency.
+
+--- Dynamically linked libraries under the LGPL ------------------------------
+
+  Component:   libvips, via @img/sharp-libvips-*
+  Version:     1.3.4
+  License:     LGPL-3.0-or-later
+  How used:    Loaded as a native shared library by the sharp Node addon
+               (sharp 0.35.5, Apache-2.0, a devDependency of
+               @mention/frontend). Used to process images at build time.
+               Not statically linked into the shipped application.
+  Obligation:  You may modify this component and relink it. Object files or
+               the means to relink are available on request at
+               licensing@oxy.so.
+
+--- File-level copyleft that is not the GPL or the AGPL ----------------------
+
+  Component:   lightningcss
+  Version:     1.30.1 (the version the root overrides resolve)
+  License:     MPL-2.0
+  How used:    Direct dependency of @mention/frontend, also pinned by the
+               root overrides. MPL-2.0 applies to lightningcss's own files.
+               It does not license the rest of this work. Modifications to
+               those files stay under MPL-2.0.
+
+-----------------------------------------------------------------------------
+ WHAT THIS FILE DOES NOT DO
+-----------------------------------------------------------------------------
+
+This file records components that sit alongside Oxy's own code. It cannot, and
+does not attempt to, separate Oxy's code from a work that is a derivative of
+copyleft licensed code. If GPL or AGPL code were combined into this work such
+that the combination is a derivative of it, that copyleft license would govern
+the whole combination, and no notice file would change that.
+
+That is why this repository must not take on a GPL or AGPL dependency that is
+linked in process. If you are adding one, stop and read
 https://github.com/OxyHQ/.github/blob/main/licensing/README.md
+
+-----------------------------------------------------------------------------
+ HOW TO REGENERATE
+-----------------------------------------------------------------------------
+
+Produce the raw inventory with:
+
+  bunx license-checker-rseidelsohn --production --summary
+  bunx license-checker-rseidelsohn --production --json > /tmp/licenses.json
+
+Then curate by hand. Do not commit the raw tool output as the NOTICE file: it
+lists hundreds of transitive dependencies, most of which need no notice, and it
+does not record dual license elections or the obligations above, which are the
+parts that actually matter.
+
+Review this file whenever a direct dependency is added or a major version is
+released.

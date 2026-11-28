@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 // @ts-check
 /**
  * Codegen for the hashtag character-class ranges (via regexpu-core).
@@ -122,6 +128,14 @@ function toStringLiteral(body) {
   return `'${body.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
+const licenseHeader = `// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
+`;
+
 const header = `/**
  * GENERATED FILE — DO NOT EDIT BY HAND.
  *
@@ -151,7 +165,7 @@ const header = `/**
  */
 `;
 
-const contents = `${header}
+const contents = `${licenseHeader}${header}
 export const UNICODE_LETTER_RANGES =
   ${toStringLiteral(letters)};
 

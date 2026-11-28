@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
+  Copyright (c) 2024-present The Oxy Collective, Inc.
+  SPDX-License-Identifier: LicenseRef-Breathe-1.0
+  Licensed under the Breathe License 1.0. Commercial use requires a paid
+  license. Source publication and attribution are required of everyone.
+  https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+-->
+
+<!--
   Default placements on API 31+, expressed directly in launcher cells rather than
   through the `70 × cells − 30` dp conversion the older attributes need. Each pair
   matches that variant's `_min_width` / `_min_height` in dimens.xml.

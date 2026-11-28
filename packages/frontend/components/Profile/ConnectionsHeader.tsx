@@ -1,3 +1,9 @@
+// Copyright (c) 2024-present The Oxy Collective, Inc.
+// SPDX-License-Identifier: LicenseRef-Breathe-1.0
+// Licensed under the Breathe License 1.0. Commercial use requires a paid
+// license. Source publication and attribution are required of everyone.
+// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
+
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { getNormalizedUserHandle } from '@oxy.so/core';
