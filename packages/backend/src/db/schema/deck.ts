@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 import type { DeckWorkspaceState } from '@mention/shared-types/deck';
 import { sql } from 'drizzle-orm';
 import { check, integer, jsonb, pgTable, text } from 'drizzle-orm/pg-core';

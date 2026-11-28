@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 /**
  * Oxy's file events (ADR 0043 D9/D10), against REAL rows: the signed route and
  * what an event does to the posts, GIFs and banners that use the file.

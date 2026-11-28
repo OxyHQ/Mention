@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 // The Peable local harness's wire (ADR 0014: snake_case, base-unit strings),
 // parsed into what Mention's checkout shows. No transport: tests and the
 // configuration warmup load this without the payer SDK.

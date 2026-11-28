@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 /**
  * Counting what a promotion delivered, and what happens when it has delivered
  * it: against a real database, because every property here is a property of the

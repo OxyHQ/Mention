@@ -1,12 +1,4 @@
 <!--
-  Copyright (c) 2024-present The Oxy Collective, Inc.
-  SPDX-License-Identifier: LicenseRef-Breathe-1.0
-  Licensed under the Breathe License 1.0. Commercial use requires a paid
-  license. Source publication and attribution are required of everyone.
-  https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
--->
-
-<!--
   Skip-to-next transport glyph for the Picture-in-Picture action bar. Drawn as a
   vector so it stays crisp at whatever size SystemUI renders the window's action
   row at, and shipped white because SystemUI tints it against its own scrim.

@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 import type { PanelNavigationState } from '@oxy.so/bloom/app-shell';
 import { DECK_LIMITS, type DeckPanelState, type DeckRouteParam } from '@mention/shared-types/deck';
 import type { DeckSnapshot, DeckPanelSettings } from './deckSettings';

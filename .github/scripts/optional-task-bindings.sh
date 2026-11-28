@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2024-present The Oxy Collective, Inc.
-# SPDX-License-Identifier: LicenseRef-Breathe-1.0
-# Licensed under the Breathe License 1.0. Commercial use requires a paid
-# license. Source publication and attribution are required of everyone.
-# https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
 
 # Adds the OPTIONAL task-definition bindings to the fixed ones the deploy step
 # declares, and prints the merged set as one JSON object on stdout:

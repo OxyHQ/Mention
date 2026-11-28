@@ -1,9 +1,3 @@
-# Copyright (c) 2024-present The Oxy Collective, Inc.
-# SPDX-License-Identifier: LicenseRef-Breathe-1.0
-# Licensed under the Breathe License 1.0. Commercial use requires a paid
-# license. Source publication and attribution are required of everyone.
-# https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 """Tallest band of pure background in the feed area of 1080x2400 gray frames.
 
 Used by android-feed-scroll.sh. Rows 380..2120 skip the header/tab strip and

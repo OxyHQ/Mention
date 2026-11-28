@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2024-present The Oxy Collective, Inc.
-# SPDX-License-Identifier: LicenseRef-Breathe-1.0
-# Licensed under the Breathe License 1.0. Commercial use requires a paid
-# license. Source publication and attribution are required of everyone.
-# https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 #
 # Verifies that the committed bun.lock is exactly what bun produces from the
 # base revision's lockfile and this revision's package.json manifests.

@@ -93,21 +93,20 @@ Parameters
 
 Fill these in for each work. Capitalized terms are defined in Section 15.
 
-Licensor:                     The Oxy Collective, Inc., incorporated in
-                              <JURISDICTION OF INCORPORATION: NOT YET
-                              SUPPLIED> under registration number
-                              <REGISTRATION NUMBER: NOT YET SUPPLIED>
+Licensor:                     Oxy Platforms, Inc., incorporated in
+                              Delaware, United States, under registration
+                              number <REGISTRATION NUMBER: PENDING>
 The Software:                 OxyHQ/Mention, and each version of it the
                               Licensor makes available under these terms
-Copyright notice:             Copyright (c) 2024-present The Oxy Collective,
-                              Inc.
+Copyright notice:             Copyright (c) 2024-present Oxy Platforms, Inc.
 License identifier:           LicenseRef-Breathe-1.0
 Commercial Terms:
     https://github.com/OxyHQ/.github/blob/main/LICENSE-COMMERCIAL.md
 Exemption Policy:
     https://github.com/OxyHQ/.github/blob/main/licensing/EXEMPTIONS.md
 Commercial licensing contact: licensing@oxy.so
-Governing Law:                <GOVERNING LAW: NOT YET SUPPLIED>
+Governing Law:                the laws of the State of Delaware,
+                              United States
 
 ----------------------------------------------------------------------------
 
@@ -227,7 +226,7 @@ Attribution means preserving the copyright notice and a copy of these terms
 in the source you Convey, and presenting the following line in at least one
 place your users can reach:
 
-    Built on OxyHQ/Mention by The Oxy Collective, Inc., https://oxy.so.
+    Built on OxyHQ/Mention by Oxy Platforms, Inc., https://oxy.so.
     Licensed under the Breathe License 1.0.
 
 A reachable "About", "Credits", "Licenses", or "Open source" screen

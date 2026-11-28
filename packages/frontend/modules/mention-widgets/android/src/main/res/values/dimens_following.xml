@@ -1,13 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Copyright (c) 2024-present The Oxy Collective, Inc.
-  SPDX-License-Identifier: LicenseRef-Breathe-1.0
-  Licensed under the Breathe License 1.0. Commercial use requires a paid
-  license. Source publication and attribution are required of everyone.
-  https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
--->
-
-<!--
   Home-screen sizes for the FOLLOWING widget, in the launcher's own grid units.
 
   Identical to the trending-posts widget's, and that is the point rather than a copy-paste: both

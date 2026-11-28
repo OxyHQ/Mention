@@ -1,12 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Copyright (c) 2024-present The Oxy Collective, Inc.
-  SPDX-License-Identifier: LicenseRef-Breathe-1.0
-  Licensed under the Breathe License 1.0. Commercial use requires a paid
-  license. Source publication and attribution are required of everyone.
-  https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
--->
-
 <resources>
   <string name="mention_posts_widget_label">Publicaciones en tendencia</string>
   <string name="mention_posts_widget_description">Una publicación en tendencia a la vez, del feed Explorar de Mention.</string>

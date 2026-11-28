@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2024-present The Oxy Collective, Inc.
-# SPDX-License-Identifier: LicenseRef-Breathe-1.0
-# Licensed under the Breathe License 1.0. Commercial use requires a paid
-# license. Source publication and attribution are required of everyone.
-# https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 """Read-only, exact-main CI gate for coordinated manual frontend releases."""
 import json
 import os

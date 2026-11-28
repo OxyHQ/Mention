@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2024-present The Oxy Collective, Inc.
-# SPDX-License-Identifier: LicenseRef-Breathe-1.0
-# Licensed under the Breathe License 1.0. Commercial use requires a paid
-# license. Source publication and attribution are required of everyone.
-# https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 # Wait for an ECS one-shot task to stop: `wait-one-shot-task.sh <cluster> <task-arn>`.
 # Exits 0 once the task is STOPPED (the caller reads its exit code), 1 when it
 # did not stop in time.

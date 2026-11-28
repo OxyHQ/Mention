@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 /** Resolving authors to their cached Oxy identity, within a shared deadline and a bounded failure memory. */
 import type { PostUser } from '@mention/shared-types';
 import type { PostRecordFederation } from '../../../db/posts/postRecord';

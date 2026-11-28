@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 /** Batched lookups keyed by post: polls, crossposts, imports, lanes, language variants, link cards and quote counts. */
 import type { ClarityDocument } from '@mention/shared-types';
 import type { LaneDisplayMode, LaneSummary } from '@mention/shared-types';

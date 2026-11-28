@@ -1,9 +1,3 @@
-// Copyright (c) 2024-present The Oxy Collective, Inc.
-// SPDX-License-Identifier: LicenseRef-Breathe-1.0
-// Licensed under the Breathe License 1.0. Commercial use requires a paid
-// license. Source publication and attribution are required of everyone.
-// https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 /** Private UI state only: references, navigation and geometry, never fetched content. */
 export const DECK_SOURCES = ['explore', 'trending', 'following', 'saved'] as const;
 export type DeckSource = (typeof DECK_SOURCES)[number];

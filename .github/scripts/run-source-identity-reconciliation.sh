@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2024-present The Oxy Collective, Inc.
-# SPDX-License-Identifier: LicenseRef-Breathe-1.0
-# Licensed under the Breathe License 1.0. Commercial use requires a paid
-# license. Source publication and attribution are required of everyone.
-# https://github.com/OxyHQ/.github/blob/main/LICENSE-BREATHE.md
-
 set -euo pipefail
 : "${DEPLOY_SHA:?}" "${EXPECTED_IMAGE_DIGEST:?}" "${DRY_RUN:?}" "${CLUSTER:?}" "${SERVICE:?}"
 [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ && "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
