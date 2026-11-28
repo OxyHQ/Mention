@@ -354,7 +354,10 @@ jobs:
     name: Test ${{ matrix.package }}
     needs: provenance
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: *seldon-lane
+    # The seldon-lane condition, with the class per entry: shared-types and mcp
+    # peaked at 1.4 GB on Seldon (2026-11-28) and takes a light 2 GiB VM; the
+    # frontend suite (4.3 GB) takes a heavy one.
+    runs-on: ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (matrix.light && 'seldon-ci-light' || 'seldon-ci') || 'ubuntu-latest' }}
     outputs: *lane-outputs
     permissions: *heavy-permissions
     timeout-minutes: 35
@@ -421,6 +424,7 @@ jobs:
           - package: shared-types and mcp
             scopes: shared-types mcp
             coverage: false
+            light: true
     steps: &tests-steps
       - *lane-step
       # fetch-depth: 0 because the scope diff below needs both ends of the
