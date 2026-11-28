@@ -51,6 +51,9 @@ jest.mock('@/lib/navigation/router', () => ({
   useLocalSearchParams: () => ({ id: 'video-1' }),
   useRouter: () => ({}),
 }));
+jest.mock('@oxy.so/bloom/panel-routing', () => ({ useOptionalPanelRouter: () => null }));
+jest.mock('@/components/deck/useDeckAvailable', () => ({ useDeckAvailable: () => false }));
+jest.mock('@/components/deck/deckSettings', () => ({ useDeckSettings: () => false }));
 jest.mock('@/hooks/usePostReadAccess', () => ({
   usePostReadAccess: () => ({ allowed: !mockAccessFailed, failed: mockAccessFailed }),
 }));

@@ -15,6 +15,11 @@ interface PostPanelActions {
   open: OpenPostPanel;
   publishReplies: (postId: string) => ReplyDraft | undefined;
   closeReplies: (owner: ReplyDraft) => void;
+  /**
+   * Move this host's open replies to the video now playing, or close them when
+   * there is none. Does nothing when replies are not open.
+   */
+  followReplies: (postId: string | undefined) => void;
 }
 
 /** One action per host; dispatch adds no per-row panel-state or authentication subscription. */

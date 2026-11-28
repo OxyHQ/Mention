@@ -10,6 +10,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Link, type Href } from '@/lib/navigation/router';
 import { formatDuration } from '@/utils/formatDuration';
 import { videoPublicationDate, videoTitleText, videoViewCount } from './videoMetadata';
+import { isVideoWarned, videoContentWarning } from './videoWarning';
 import type { VideoPreview } from './watchVideo';
 
 export function VideoPreviewCard({
@@ -27,6 +28,7 @@ export function VideoPreviewCard({
   const handle = getNormalizedUserHandle(post.user);
   const author = post.user.name?.displayName || (handle ? `@${handle}` : '');
   const title =
+    videoContentWarning(post) ||
     videoTitleText(post.content.title) ||
     videoTitleText(post.content.text) ||
     author ||
@@ -53,7 +55,7 @@ export function VideoPreviewCard({
         <View
           className={`${thumbnailSize} w-full items-center justify-center overflow-hidden rounded-xl bg-muted`}
         >
-          {poster && !post.metadata.isSensitive ? (
+          {poster && !isVideoWarned(post) ? (
             <Image source={poster} contentFit="cover" style={{ width: '100%', height: '100%' }} />
           ) : (
             <RiVideoLine size="md" color="currentColor" />

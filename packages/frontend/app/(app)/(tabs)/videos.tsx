@@ -65,7 +65,10 @@ import {
   type MediaPixelSize,
 } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
-import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
+import {
+  useOpenPostEngagement,
+  useVideoRepliesPanel,
+} from '@/components/Post/postEngagementContext';
 import { VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
@@ -1100,6 +1103,7 @@ export default function VideosScreen() {
   const getPostById = usePostsStore((s) => s.getPostById);
   const cachePosts = usePostsStore((s) => s.cachePosts);
   const openPostPanel = useOpenPostEngagement();
+  const repliesPanel = useVideoRepliesPanel();
   const flatListRef = useRef<FlatList<VideoPost>>(null);
   const globalMuted = useVideoMuteStore((state) => state.isMuted);
   const loadMutedState = useVideoMuteStore((state) => state.loadMutedState);
@@ -1635,6 +1639,12 @@ export default function VideosScreen() {
 
   const activeVideoPost = posts[currentVisibleIndex];
   usePublishVideoSuggestions(activeVideoPost, Platform.OS === 'web' && isFocused && !inDeck);
+  // Replies a viewer opened stay with the video that is playing.
+  const followReplies = repliesPanel?.followReplies;
+  const activeVideoPostId = activeVideoPost?.id;
+  useEffect(() => {
+    if (isFocused) followReplies?.(activeVideoPostId);
+  }, [followReplies, activeVideoPostId, isFocused]);
 
   // ── OS transport controls ───────────────────────────────────────
   // Media keys, the lock screen, and — the reason this is wired at all — the

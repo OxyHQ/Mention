@@ -14,6 +14,7 @@ import { feedService } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { watchVideo, type WatchPost } from './watchVideo';
 import { videoPublicationDate, videoTitleText, videoViewCount } from './videoMetadata';
+import { isVideoWarned, videoContentWarning } from './videoWarning';
 
 const useActiveVideo = create<{ post?: WatchPost }>(() => ({}));
 
@@ -74,6 +75,7 @@ export function VideoRecommendations({
     const handle = getNormalizedUserHandle(post.user);
     const author = post.user.name?.displayName || (handle ? `@${handle}` : '');
     const title =
+      videoContentWarning(post) ||
       videoTitleText(post.content.title) ||
       videoTitleText(post.content.text) ||
       author ||
@@ -107,7 +109,7 @@ export function VideoRecommendations({
           <View
             className={`aspect-video ${columns ? 'w-full' : 'w-[124px]'} items-center justify-center overflow-hidden rounded-lg bg-muted`}
           >
-            {poster && !post.metadata.isSensitive ? (
+            {poster && !isVideoWarned(post) ? (
               <Image source={poster} contentFit="cover" style={{ width: '100%', height: '100%' }} />
             ) : (
               <RiVideoLine size="md" color="currentColor" />

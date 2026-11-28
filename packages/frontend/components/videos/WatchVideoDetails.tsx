@@ -20,6 +20,7 @@ import { Link, useRouter } from '@/lib/navigation/router';
 import { usePostSelector } from '@/stores/postsStore';
 import { WatchVideoRailFrame } from './WatchPlayerSurface';
 import { videoPublicationDate, videoTitleText, videoViewCount } from './videoMetadata';
+import { useRevealedVideos, videoContentWarning } from './videoWarning';
 import { postAcceptsReplies } from '@/utils/postReplies';
 
 const useWatchDetails = create<{ post?: HydratedPost }>(() => ({}));
@@ -53,9 +54,12 @@ export function WatchVideoDetails({ post }: { post: HydratedPost }) {
   const { engagement, viewerState } = current;
   const [showReplies, setShowReplies] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const description = post.content.text?.trim();
+  const revealed = useRevealedVideos((state) => state.ids.has(post.id));
+  // Until the reader opens it, the warning stands in for the author's words.
+  const warning = revealed ? '' : videoContentWarning(post);
+  const description = warning ? undefined : post.content.text?.trim();
   const caption = videoTitleText(description?.split('\n')[0]);
-  const writtenTitle = videoTitleText(post.content.title);
+  const writtenTitle = warning || videoTitleText(post.content.title);
   const canExpand = Boolean(
     description && (description.length > 110 || description.split('\n').length > 3),
   );

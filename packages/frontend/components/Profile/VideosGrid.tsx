@@ -13,6 +13,7 @@ import { useViewCountSelector } from '@/stores/postsStore';
 import { isLandscapeVideo, isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { videoPosterUrl } from '@/utils/mediaUrls';
 import { videoPublicationDate, videoViewCount } from '@/components/videos/videoMetadata';
+import { isVideoWarned, videoContentWarning } from '@/components/videos/videoWarning';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
 import type { ProfileGridLayout } from './ProfileGridList.types';
@@ -126,8 +127,9 @@ export default function VideosGrid({
           {
             postId: post.id,
             mediaIndex,
-            title: post.content.title?.trim() || post.content.text?.trim(),
-            posterUri: post.metadata.isSensitive
+            title:
+              videoContentWarning(post) || post.content.title?.trim() || post.content.text?.trim(),
+            posterUri: isVideoWarned(post)
               ? undefined
               : ref.thumbUrl || ref.posterUrl || videoPosterUrl(key, oxyServices),
             views: post.engagement.views,
