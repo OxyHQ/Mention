@@ -2913,6 +2913,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "Gönderileri filtrele",
+      "media": "Medya içeren",
+      "pastWeek": "Son hafta",
+      "popular": "Popüler"
+    },
     "title": "Ara",
     "placeholder": "Ara...",
     "posts": "gönderi",

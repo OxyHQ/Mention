@@ -301,8 +301,15 @@ export const viewerQueryKeys = {
       filters: filters ? (filters as FeedFilters) : undefined,
     };
   },
-  search: (viewerId: ViewerId, tab: string, query: string, canUsePrivateApi: boolean) =>
-    [...viewerQueryKeys.all(viewerId), 'search', tab, query, canUsePrivateApi] as const,
+  search: (
+    viewerId: ViewerId,
+    tab: string,
+    query: string,
+    canUsePrivateApi: boolean,
+    /** What narrows the answer (the Posts filters), so part of its identity. */
+    narrowing: Readonly<Record<string, boolean>> | null = null,
+  ) =>
+    [...viewerQueryKeys.all(viewerId), 'search', tab, query, canUsePrivateApi, narrowing] as const,
   /**
    * One source of the "All" search tab (`searchAllSources`), cached on its own
    * so each section renders the moment its source answers. Under the `search`

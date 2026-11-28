@@ -2939,6 +2939,12 @@
     "dayCount_many": "{{count}} días"
   },
   "search": {
+    "filters": {
+      "label": "Filtrar publicaciones",
+      "media": "Con multimedia",
+      "pastWeek": "Última semana",
+      "popular": "Populares"
+    },
     "title": "Buscar",
     "placeholder": "Buscar...",
     "posts": "publicaciones",

@@ -48,6 +48,8 @@ import {
   type ActiveOperatorToken,
 } from '@/utils/searchSuggestions';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { PostSearchFilterChips } from '@/components/search/PostSearchFilterChips';
+import { NO_POST_SEARCH_FILTERS, type PostSearchFilters } from '@/utils/postSearchFilters';
 import PostItem from '@/components/Feed/PostItem';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
@@ -235,6 +237,7 @@ async function fetchSearchPage(
   pageParam: SearchPageParam,
   canUsePrivateApi: boolean,
   signal?: AbortSignal,
+  postFilters?: PostSearchFilters,
 ): Promise<SearchResultsPage> {
   switch (tab) {
     case 'posts': {
@@ -247,6 +250,7 @@ async function fetchSearchPage(
         query,
         cursor,
         signal,
+        postFilters,
       );
       return {
         results: { ...EMPTY_RESULTS, posts },
@@ -478,6 +482,7 @@ function SearchIndex() {
   // explicit submit / tab press / recent tap commits it instantly.
   const [debouncedQuery, setDebouncedQuery] = useState(urlQuery);
   const [activeTab, setActiveTab] = useState<SearchTab>('all');
+  const [postFilters, setPostFilters] = useState(NO_POST_SEARCH_FILTERS);
   // Caret offset, so an operator completion targets the token the viewer is
   // actually editing rather than always the last one. Every write below keeps it
   // at the end of the text it just set; `onSelectionChange` then reports the
@@ -611,12 +616,25 @@ function SearchIndex() {
     isError: tabSearchFailed,
     refetch: refetchSearch,
   } = useInfiniteQuery({
-    queryKey: viewerQueryKeys.search(viewerId, activeTab, trimmedDebounced, canUsePrivateApi),
+    queryKey: viewerQueryKeys.search(
+      viewerId,
+      activeTab,
+      trimmedDebounced,
+      canUsePrivateApi,
+      activeTab === 'posts' ? { ...postFilters } : null,
+    ),
     // `skipToken` on the "All" tab, whose sources are the hook's above.
     queryFn:
       activeTab !== 'all' && trimmedDebounced.length > 0
         ? ({ pageParam, signal }) =>
-            fetchSearchPage(activeTab, trimmedDebounced, pageParam, canUsePrivateApi, signal)
+            fetchSearchPage(
+              activeTab,
+              trimmedDebounced,
+              pageParam,
+              canUsePrivateApi,
+              signal,
+              postFilters,
+            )
         : skipToken,
     initialPageParam: null as SearchPageParam,
     // Each tab reports its own "next page" token; `undefined` stops paging, so
@@ -1483,6 +1501,10 @@ function SearchIndex() {
                 <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />
               ))}
             </Tabs>
+
+            {activeTab === 'posts' ? (
+              <PostSearchFilterChips filters={postFilters} onChange={setPostFilters} />
+            ) : null}
 
             {/* Refining a query keeps the previous rows on screen, so the
                     only signal that newer ones are coming is this hairline.

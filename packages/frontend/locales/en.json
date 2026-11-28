@@ -2913,6 +2913,12 @@
     }
   },
   "search": {
+    "filters": {
+      "label": "Filter posts",
+      "media": "With media",
+      "pastWeek": "Past week",
+      "popular": "Popular"
+    },
     "title": "Search",
     "placeholder": "Search...",
     "posts": "posts",
