@@ -241,3 +241,19 @@ test('an unready route writes no descriptors', () => {
   });
   expect(head()).toEqual({});
 });
+
+test("a federated copy's canonical names its origin while og:url stays on Mention", () => {
+  act(() => {
+    tree = TestRenderer.create(
+      <SEO
+        url="https://social.example/p/1"
+        canonical="https://origin.example/@someone/1"
+        robots="noindex,follow"
+      />,
+    );
+  });
+  expect(tree.root.findByType('link').props.href).toBe('https://origin.example/@someone/1');
+  expect(
+    tree.root.findAllByType('meta').find((node) => node.props.property === 'og:url')?.props.content,
+  ).toBe('https://social.example/p/1');
+});

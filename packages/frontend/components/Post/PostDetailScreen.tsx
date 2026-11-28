@@ -45,7 +45,7 @@ import { feedService } from '@/services/feedService';
 import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
 import { WEB_BASE_URL } from '@/config';
-import { readServerSEO } from '@/lib/seoHandoff';
+import { readServerSEO, serverDocumentPathIs } from '@/lib/seoHandoff';
 import { isPrivateMention, postAcceptsReplies } from '@/utils/postReplies';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { RestrictedPostNotice } from '@/components/Post/RestrictedPostNotice';
@@ -443,8 +443,13 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
         post.metadata?.isSensitive ||
         post.metadata?.spoilerText),
   );
-  const authoritativeSEO =
-    initialSEO?.url === postUrl && !locallyRestricted ? initialSEO : undefined;
+  // The server's document describes this post when its canonical is this post,
+  // or — for a federated copy, whose canonical is its origin's page — when the
+  // document was served for this post's own path.
+  const describesThisPost =
+    initialSEO !== undefined &&
+    (initialSEO.url === postUrl || serverDocumentPathIs(initialSEO, `/p/${String(id)}`));
+  const authoritativeSEO = describesThisPost && !locallyRestricted ? initialSEO : undefined;
   const postAuthor = post?.user?.name?.displayName || t('common.someone');
   const postTitle =
     authoritativeSEO?.title ||
@@ -667,6 +672,9 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
         type="article"
         ready={Boolean(post)}
         robots={authoritativeSEO?.robots || 'noindex,nofollow'}
+        canonical={
+          authoritativeSEO && authoritativeSEO.url !== postUrl ? authoritativeSEO.url : undefined
+        }
         jsonLd={authoritativeSEO?.jsonLd}
         author={postAuthor}
         publishedTime={post && 'metadata' in post ? post.metadata?.createdAt : undefined}

@@ -34,6 +34,12 @@ export interface OgData {
   imageType?: string;
   imageAlt?: string;
   url: string;
+  /**
+   * The `rel=canonical` target when it is not {@link url}: a federated post's
+   * page on its origin server, the page this one copies. `og:url` stays
+   * {@link url}, because a shared link must still open on Mention.
+   */
+  canonical?: string;
   /** OpenGraph object type (`profile` | `article`). */
   type: string;
   /**
@@ -141,6 +147,22 @@ export function canonicalProfilePath(
 }
 
 /**
+ * Whether a profile is a copy of an account on another server (a fediverse,
+ * Bluesky or bridged account Mention minted when it resolved the actor). Its
+ * page repeats the origin's, so search engines are told not to index it.
+ */
+export function isFederatedProfile(
+  profile: Pick<OxyProfileData, 'username' | 'isFederated' | 'type'>,
+): boolean {
+  return (
+    Boolean(profile.isFederated) ||
+    profile.type === 'federated' ||
+    // A remote account's handle carries its origin's domain (`user@host`).
+    Boolean(profile.username?.includes('@'))
+  );
+}
+
+/**
  * The schema.org type of an account, from the AS2 type `@oxy.so/federation`
  * announces for its kind — one table for what the fediverse and search engines
  * are told an account is.
@@ -216,7 +238,7 @@ export function buildOgMetaHtml(og: OgData): string {
     `<meta name="twitter:description" content="${description}">` +
     `<meta name="description" content="${description}">` +
     `<meta name="robots" content="${robots}">` +
-    `<link rel="canonical" href="${url}">`;
+    `<link rel="canonical" href="${og.canonical ? escapeHtml(og.canonical) : url}">`;
 
   if (og.image) {
     const image = escapeHtml(og.image);
