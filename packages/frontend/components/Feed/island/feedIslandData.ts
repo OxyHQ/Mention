@@ -9,7 +9,12 @@ import type { HydratedPost, HydratedPostSummary, MediaItem, PostUser } from '@me
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { oxyServices } from '@/lib/oxyServices';
 import { formatTimeAgo } from '@/utils/dateUtils';
-import { feedImageSrc, feedVideoPoster, FALLBACK_MEDIA_ASPECT_RATIO } from '@/utils/feedImages';
+import {
+  feedImageSrc,
+  feedMediaSrc,
+  feedVideoPoster,
+  FALLBACK_MEDIA_ASPECT_RATIO,
+} from '@/utils/feedImages';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { toOpenableUrl, trimUrlTrailingPunctuation } from '@mention/shared-types/textEntities';
@@ -59,6 +64,8 @@ export interface FeedIslandMedia {
   kind: 'image' | 'gif' | 'video';
   url: string;
   aspect: number;
+  /** A video's stream: the adaptive one when the server has it, else the original. */
+  video?: string;
 }
 
 export interface FeedIslandQuote {
@@ -248,7 +255,10 @@ function media(post: HydratedPostSummary): FeedIslandMedia[] {
     const aspect = readMediaAspectRatio(item) || FALLBACK_MEDIA_ASPECT_RATIO;
     if (item.type === 'video') {
       const poster = feedVideoPoster(item);
-      if (poster) out.push({ kind: 'video', url: poster, aspect });
+      // The adaptive stream first, as the row's player prefers it.
+      const stream = (item as { hlsUrl?: string }).hlsUrl || feedMediaSrc(item, 'playable');
+      if (poster)
+        out.push({ kind: 'video', url: poster, aspect, ...(stream ? { video: stream } : {}) });
     } else {
       const url = feedImageSrc(item);
       if (url) out.push({ kind: item.type === 'gif' ? 'gif' : 'image', url, aspect });

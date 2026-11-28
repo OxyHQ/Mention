@@ -48,6 +48,8 @@ public struct FeedMedia: Codable, Equatable {
   public let url: String
   /// Width over height; the feed's own fallback (280 / 180) when the media has none.
   public var aspect: Double = 1.5556
+  /// A video's stream (HLS when the server has one), played muted in the row.
+  public var video: String? = none
 }
 
 /// The post a post quotes: drawn as a card under the quoting post's text.
