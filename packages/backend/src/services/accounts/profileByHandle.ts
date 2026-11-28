@@ -1,10 +1,7 @@
 import { getErrorStatus, normalizeUserIdentityOrNull, type User as OxyUser } from '@oxy.so/core';
-import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { normalizeFederatedAcct } from '@mention/shared-types/federation';
 import { stripHandlePrefix } from '@mention/shared-types/handle';
-import { isBlockedDomain } from '../../connectors/activitypub/constants';
-import { domainFromAcct } from '../../connectors/activitypub/helpers';
-import { isAbsoluteHttpUrl } from '../../connectors/shared/url';
+import { isRefusedFederatedProfile } from '../../connectors/profileSourcePolicy';
 import { createCache } from '../../utils/cache';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
@@ -84,38 +81,6 @@ export function profileHandleKey(raw: unknown): string | undefined {
   if (acct) return ACCT_RE.test(acct) ? acct : undefined;
   const local = stripHandlePrefix(trimmed);
   return LOCAL_USERNAME_RE.test(local) ? local.toLowerCase() : undefined;
-}
-
-function hostOf(uri: unknown): string | undefined {
-  if (typeof uri !== 'string' || !isAbsoluteHttpUrl(uri)) return undefined;
-  return new URL(uri).hostname.toLowerCase();
-}
-
-/**
- * Whether Mention's instance policy refuses this federated profile: its actor,
- * its origin domain, or any source identity Oxy lists for it (actor host and
- * transport acct host, as `/federation/resolve` judges a source) is on an
- * instance Mention does not federate with. A local Oxy account is never refused
- * here: it has no remote instance.
- */
-export function isRefusedFederatedProfile(profile: OxyUser): boolean {
-  if (!(profile.isFederated || profile.type === 'federated')) return false;
-  const hosts = new Set<string>();
-  const add = (host: string | undefined) => {
-    if (host) hosts.add(host.toLowerCase());
-  };
-  add(hostOf(profile.federation?.actorUri));
-  add(typeof profile.federation?.domain === 'string' ? profile.federation.domain : undefined);
-  add(hostOf(profile.actorUri));
-  const identities = externalIdentityReferenceSchema.array().safeParse(profile.externalIdentities);
-  if (identities.success) {
-    for (const identity of identities.data) {
-      add(hostOf(identity.actorUri));
-      add(domainFromAcct(identity.transportAcct));
-    }
-  }
-  for (const host of hosts) if (isBlockedDomain(host)) return true;
-  return false;
 }
 
 /**
