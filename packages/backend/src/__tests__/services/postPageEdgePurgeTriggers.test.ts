@@ -140,10 +140,11 @@ describe('a moderation decision', () => {
   });
 
   it('still purges the page when the record cache cannot be evicted', async () => {
-    mocks.invalidatePostDetail.mockRejectedValue(new Error('Redis gone'));
     const post = await seedPost(scope);
     const decision = { ...decisionFixture({ outcome: 'violation' }), id: `dec_${randomUUID()}` };
     usedDecisionIds.push(decision.id);
+    // The enforcement's eviction only: teardown evicts through this module too.
+    mocks.invalidatePostDetail.mockRejectedValueOnce(new Error('Redis gone'));
 
     const outcomes = await applyDecisionEnforcement({
       decision,
