@@ -7,6 +7,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import VideoPlayer from '@/components/common/VideoPlayer';
+import { WatchVideoSkeleton } from '@/components/loading/ContentSkeleton';
 import { VideoRecommendations } from '@/components/videos/VideoSuggestions';
 import { WatchVideoDetails, usePublishWatchDetails } from '@/components/videos/WatchVideoDetails';
 import { watchVideo } from '@/components/videos/watchVideo';
@@ -34,6 +35,7 @@ export default function WatchRoute() {
   const video = post ? watchVideo(post, oxyServices, requestedIndex) : null;
   usePublishWatchDetails(video ? post : undefined, hasSidebar);
   const [revealed, setRevealed] = useState<string>();
+  const pending = Boolean(id) && !access.failed && (!access.allowed || postRead.isPending);
   const videoKey = `${id}:${mediaIndex ?? ''}`;
 
   return (
@@ -72,12 +74,10 @@ export default function WatchRoute() {
           {hasSidebar ? null : <WatchVideoDetails key={post.id} post={post} />}
           <VideoRecommendations current={post} columns={width >= 600 ? 3 : 2} />
         </View>
+      ) : pending ? (
+        <WatchVideoSkeleton showDetails={!hasSidebar} />
       ) : (
-        <Text className="p-5 text-muted-foreground">
-          {!access.failed && (!access.allowed || postRead.isPending)
-            ? t('common.loading')
-            : t('videos.unavailable')}
-        </Text>
+        <Text className="p-5 text-muted-foreground">{t('videos.unavailable')}</Text>
       )}
     </Screen>
   );

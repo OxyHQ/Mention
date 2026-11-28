@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import type { TFunction } from 'i18next';
 import { Pressable, Text, View } from 'react-native';
 import { getNormalizedUserHandle } from '@oxy.so/core';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -36,6 +37,7 @@ export function VideoPreviewCard({
   const href: Href = clip
     ? { pathname: '/videos', params: { postId: post.id, mediaIndex: String(mediaIndex) } }
     : { pathname: '/watch/[id]', params: { id: post.id, mediaIndex: String(mediaIndex) } };
+  const cardInset = clip ? 'px-[3px] py-1.5' : 'px-1 py-1.5';
   const thumbnailSize = clip ? 'aspect-[9/16]' : 'aspect-video';
 
   return (
@@ -43,7 +45,7 @@ export function VideoPreviewCard({
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={author && author !== title ? `${title}, ${author}` : title}
-        className="min-w-0 w-full gap-2.5 rounded-2xl pb-2 hover:bg-muted focus-visible:bg-muted"
+        className={`min-w-0 w-full gap-2.5 rounded-2xl hover:bg-muted focus-visible:bg-muted ${cardInset}`}
       >
         <View
           className={`${thumbnailSize} w-full items-center justify-center overflow-hidden rounded-xl bg-muted`}
@@ -97,12 +99,12 @@ export function VideoPreviewCard({
 
 export function VideoPreviewGrid({ cards, columns }: { cards: ReactElement[]; columns: number }) {
   return (
-    <View className="gap-6">
+    <View className="gap-3">
       {Array.from({ length: Math.ceil(cards.length / columns) }, (_, rowIndex) => {
         const start = rowIndex * columns;
         const row = cards.slice(start, start + columns);
         return (
-          <View key={row[0].key} className="flex-row gap-4">
+          <View key={row[0].key} className="flex-row gap-2">
             {row.map((card) => (
               <View key={card.key} className="min-w-0 flex-1">
                 {card}
@@ -114,6 +116,20 @@ export function VideoPreviewGrid({ cards, columns }: { cards: ReactElement[]; co
           </View>
         );
       })}
+    </View>
+  );
+}
+
+export function VideoPreviewSkeleton({ clip = false }: { clip?: boolean }) {
+  return (
+    <View className={clip ? 'gap-2 px-[3px] py-1.5' : 'gap-2 px-1 py-1.5'}>
+      <Skeleton.Box
+        width="100%"
+        style={{ aspectRatio: clip ? 9 / 16 : 16 / 9 }}
+        borderRadius={12}
+      />
+      <Skeleton.Box width="88%" height={16} borderRadius={6} />
+      <Skeleton.Box width="55%" height={12} borderRadius={5} />
     </View>
   );
 }

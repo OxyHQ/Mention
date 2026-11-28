@@ -100,7 +100,7 @@ export function VideoRecommendations({
           accessibilityLabel={author && author !== title ? `${title}, ${author}` : title}
           className={
             columns
-              ? 'min-w-0 flex-1 gap-2 rounded-xl pb-2 hover:bg-muted focus-visible:bg-muted'
+              ? 'min-w-0 flex-1 gap-2 rounded-xl p-[3px] hover:bg-muted focus-visible:bg-muted'
               : 'flex-row items-start gap-3 rounded-xl p-2 hover:bg-muted focus-visible:bg-muted'
           }
         >
@@ -154,13 +154,13 @@ export function VideoRecommendations({
           {t('videos.noSuggestions', { defaultValue: 'No horizontal videos to suggest yet.' })}
         </Text>
       ) : null}
-      <View className={columns ? 'gap-3' : 'gap-2'}>
+      <View className={columns ? 'gap-1.5' : 'gap-2'}>
         {columns
           ? Array.from({ length: Math.ceil(cards.length / columns) }, (_, rowIndex) => {
               const start = rowIndex * columns;
               const row = cards.slice(start, start + columns);
               return (
-                <View key={row[0].key} className="flex-row gap-3">
+                <View key={row[0].key} className="flex-row gap-1.5">
                   {row}
                   {Array.from({ length: columns - row.length }, (_, index) => (
                     <View key={index} className="flex-1" />
