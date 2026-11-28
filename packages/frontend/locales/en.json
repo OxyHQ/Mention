@@ -3510,9 +3510,13 @@
       "withOxy": "Sign In with Oxy"
     },
     "banner": {
-      "signIn": "Sign In",
+      "createAccount": "Create account",
+      "signIn": "Sign in",
       "title": "Don’t miss what’s happening",
       "subtitle": "People on Mention are the first to know."
+    },
+    "gate": {
+      "title": "Create a free account to see more"
     }
   },
   "welcome": {

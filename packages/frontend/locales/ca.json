@@ -3543,9 +3543,13 @@
       "withOxy": "Inicia la sessió amb Oxy"
     },
     "banner": {
+      "createAccount": "Crea un compte",
       "signIn": "Inicia la sessió",
       "title": "No et perdis el que està passant",
       "subtitle": "La gent de Mention és la primera a assabentar-se'n."
+    },
+    "gate": {
+      "title": "Crea un compte gratuït per veure'n més"
     }
   },
   "welcome": {

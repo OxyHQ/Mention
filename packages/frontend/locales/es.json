@@ -3543,9 +3543,13 @@
       "withOxy": "Iniciar sesión con Oxy"
     },
     "banner": {
+      "createAccount": "Crear cuenta",
       "signIn": "Iniciar sesión",
       "title": "No te pierdas lo que está pasando",
       "subtitle": "Quienes están en Mention se enteran antes."
+    },
+    "gate": {
+      "title": "Crea una cuenta gratis para ver más"
     }
   },
   "welcome": {
