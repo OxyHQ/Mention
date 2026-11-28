@@ -1,5 +1,11 @@
 import { lookupManyOf } from '../helpers/oxyLookup';
 import { adultSafetyFixture } from '../helpers/adultSafety';
+// Hydration reads the shown community notes for every post it renders. That is
+// CrowdSource behind the real workload transport, whose first act is a POST to
+// Oxy's workload challenge — a network round trip this budget is not about.
+vi.mock('../../services/moderation/crowdSourceClient', () => ({
+  getCrowdSourceClient: () => ({ communityNotes: { shown: async () => [] } }),
+}));
 /**
  * Statement budget: an engine run resolves the viewer's identity ONCE.
  *

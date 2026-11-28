@@ -1,4 +1,11 @@
 import { adultSafetyFixture } from '../helpers/adultSafety';
+import { lookupManyOf } from '../helpers/oxyLookup';
+// Hydration reads the shown community notes for every post it renders. That is
+// CrowdSource behind the real workload transport, whose first act is a POST to
+// Oxy's workload challenge — a network round trip no budget here is about.
+vi.mock('../../services/moderation/crowdSourceClient', () => ({
+  getCrowdSourceClient: () => ({ communityNotes: { shown: async () => [] } }),
+}));
 /**
  * Oxy call budget for one `GET /search` request — the RECORDED BASELINE.
  *
@@ -84,7 +91,14 @@ const oxyClient = {
   safety: adultSafetyFixture(),
   follows: { following: calls.getUserFollowing, followers: calls.getUserFollowers },
   privacy: { blocked: calls.getBlockedUsers, restricted: calls.getRestrictedUsers },
-  users: { getMany: calls.getUsersByIds, me: calls.getMe },
+  // Hydration resolves authors through `lookupMany`, answered by the SAME
+  // counter. Without it every author fell to the per-id `users.get` fallback on
+  // the REAL runtime client — an HTTP request to Oxy on every search.
+  users: {
+    getMany: calls.getUsersByIds,
+    lookupMany: lookupManyOf(calls.getUsersByIds),
+    me: calls.getMe,
+  },
   getClarityDocuments: calls.getClarityDocuments,
 };
 

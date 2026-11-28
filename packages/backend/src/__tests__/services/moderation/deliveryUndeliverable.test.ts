@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { like } from 'drizzle-orm';
+import { closedLoopbackOrigin } from '../../helpers/networkGuard';
 
 /**
  * The three ways a delivery ends without reaching CrowdSource.
@@ -200,13 +201,21 @@ describe('what is left of the CrowdSource client wrapper', () => {
    * community notes — a request and its answer, no webhook in the path — go out
    * as soon as there is a client.
    */
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     // Nothing here should look like a deployment unless a test says so.
     vi.stubEnv('OXY_SERVICE_API_KEY', '');
     vi.stubEnv('OXY_SERVICE_API_SECRET', '');
     vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', '');
+    // The client built here is the REAL one, and building it with a logger asks
+    // for its tenant binding at once — which starts a workload-token mint, a
+    // POST to Oxy's challenge. Both services point at a closed loopback port, so
+    // that attempt is refused by the kernel instead of crossing the internet,
+    // and it stays refused if it outlives the test.
+    const unreachable = await closedLoopbackOrigin();
+    vi.stubEnv('OXY_API_URL', unreachable);
+    vi.stubEnv('CROWDSOURCE_BASE_URL', unreachable);
   });
 
   afterEach(() => {

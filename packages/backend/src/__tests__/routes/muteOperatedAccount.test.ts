@@ -45,12 +45,20 @@ vi.mock('../../services/posts/PostHydrationService', () => ({ resolveUserSummari
 // second helper, and an enumerated mock would hand that one back as `undefined`
 // — a `TypeError` inside the route's own `try`, i.e. a 500 that reads like a
 // broken rule rather than a missing stub.
-vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
-    accounts: { members: { list: listAccountMembers } },
-  })),
-}));
+vi.mock('../../utils/oxyHelpers', async (importOriginal) => {
+  // A mute that is allowed resolves the target's aliases
+  // (`activeMuteIdentityIds`) with a bulk read. Oxy has none of these fixture
+  // accounts, so it answers "missing"; on the real service client that answer
+  // was an HTTP request to Oxy.
+  const lookupMany = (await import('../helpers/oxyLookup')).lookupManyOf(() => []);
+  return {
+    ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
+    ...(await import('../helpers/accountAccess')).rosterMocks(() => ({
+      accounts: { members: { list: listAccountMembers } },
+    })),
+    getServiceOxyClient: () => ({ users: { lookupMany } }),
+  };
+});
 
 vi.mock('../../utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },

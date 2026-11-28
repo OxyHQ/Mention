@@ -1,5 +1,15 @@
 import { inArray } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+// The report also asks Oxy for the application's account total. Through the
+// real runtime client that was a workload-token mint (a POST to Oxy's challenge)
+// and then the read itself — two network round trips in a database test.
+const { applicationAccountTotal } = vi.hoisted(() => ({
+  applicationAccountTotal: vi.fn(async () => ({ total: 9, exact: true, stale: false })),
+}));
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({ applicationAccountTotal }),
+}));
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { reportNodeinfoAuthors } from '../../scripts/reportNodeinfoAuthors';
@@ -36,5 +46,6 @@ describe('reportNodeinfoAuthors', () => {
     expect(report.localAuthors).toBe(2);
     expect(report.localPosts).toBe(3);
     expect(report.authorsWithOnePost).toBe(1);
+    expect(report.oxyTotal).toEqual({ total: 9, exact: true, stale: false });
   });
 });

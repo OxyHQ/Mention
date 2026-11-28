@@ -11,6 +11,7 @@ import { afterAll, beforeAll, expect, vi } from 'vitest';
 import { dropTestDatabase } from '@oxy.so/db/testing';
 import { createTestDatabase } from '../db/testDatabase';
 import { needsIsolatedDatabase } from './isolatedDatabaseFiles';
+import { installNetworkGuard } from './helpers/networkGuard';
 
 /**
  * How long the per-file teardown below may take to drop its throwaway database.
@@ -145,6 +146,20 @@ if (testPath && process.env.DATABASE_URL) {
     // naming connections is a diagnostic: it must never be the reason a run dies.
   }
 }
+
+/**
+ * No test reaches the network: loopback (Postgres, the suites' own HTTP
+ * servers) passes, anything else is refused at once and fails the test that
+ * tried. See `helpers/networkGuard.ts` for the run that made this necessary.
+ */
+installNetworkGuard();
+
+/**
+ * The AWS SDK's default credential chain ends at the EC2 instance-metadata
+ * endpoint. The guard refuses it, but a lookup there is never what a test meant,
+ * so the chain is told not to try. A test that wants credentials sets its own.
+ */
+process.env.AWS_EC2_METADATA_DISABLED ??= 'true';
 
 // --- Redis ---
 vi.mock('../utils/redis', () => ({

@@ -1,4 +1,5 @@
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { lookupManyOf } from '../helpers/oxyLookup';
 /**
  * `/mute` and `/mute-words` against real rows.
  *
@@ -50,7 +51,11 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.spyOn(getServiceOxyClient().users, 'getMany').mockResolvedValue([]);
+  // The route resolves the muted account's aliases (`activeMuteIdentityIds`)
+  // and hydration resolves its people, both through `users.lookupMany` on the
+  // real service client. Oxy has none of these generated ids, so it answers
+  // "missing"; left unstubbed, that answer was an HTTP request to Oxy.
+  vi.spyOn(getServiceOxyClient().users, 'lookupMany').mockImplementation(lookupManyOf(() => []));
 });
 
 afterEach(async () => {

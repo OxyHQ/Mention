@@ -1,4 +1,11 @@
 import { adultSafetyFixture } from '../helpers/adultSafety';
+import { lookupManyOf } from '../helpers/oxyLookup';
+// Hydration reads the shown community notes for every post it renders. That is
+// CrowdSource behind the real workload transport, whose first act is a POST to
+// Oxy's workload challenge — a network round trip no budget here is about.
+vi.mock('../../services/moderation/crowdSourceClient', () => ({
+  getCrowdSourceClient: () => ({ communityNotes: { shown: async () => [] } }),
+}));
 /**
  * `GET /posts/:id` must resolve the viewer's block/restrict list and follow
  * graph exactly ONCE per request.
@@ -43,7 +50,10 @@ vi.mock('../../utils/oxyHelpers', () => ({
   callerAccountAccess: () => undefined,
   getServiceOxyClient: () => ({
     safety: adultSafetyFixture(),
-    users: { getMany: getUsersByIds },
+    // Hydration resolves authors through `lookupMany`, answered by the same
+    // double. Without it every author fell to the per-id `users.get` fallback on
+    // the REAL runtime client: an HTTP request to Oxy per author.
+    users: { getMany: getUsersByIds, lookupMany: lookupManyOf(getUsersByIds) },
     getClarityDocuments: vi.fn(async () => ({})),
     assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
