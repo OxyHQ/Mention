@@ -41,6 +41,15 @@ import {
   feedRowStyles,
 } from './feedRows';
 import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } from './useFeedCore';
+import { FeedIslandList } from './island/FeedIslandList';
+import { benchLog } from '@/lib/bench';
+
+/**
+ * The feed drawn by the `FeedIsland` Compose island instead of the FlashList (Bloom ADR 0003, M1):
+ * a bundle built with `EXPO_PUBLIC_BLOOM_ISLAND_FEED=1` only, for the measurement against this
+ * list. Inlined at bundle time; without it the branch is dead.
+ */
+const ISLAND_FEED = process.env.EXPO_PUBLIC_BLOOM_ISLAND_FEED === '1';
 
 // FlashList v2 auto-measures every row, so no estimate is needed. `drawDistance`
 // is the one render-ahead lever that still applies, and it is measured in
@@ -319,6 +328,15 @@ const Feed = (props: FeedProps) => {
   } = core;
 
   const headerDockInset = useHeaderDockInset();
+  // Bench (EXPO_PUBLIC_BLOOM_BENCH=1): the feed's rows, each hundred reached.
+  const benchRows = useRef(0);
+  useEffect(() => {
+    const hundreds = Math.floor(feedRows.length / 100);
+    if (hundreds > benchRows.current) {
+      benchRows.current = hundreds;
+      benchLog(`rows ${hundreds * 100}`);
+    }
+  }, [feedRows.length]);
   // Several feed screens stay mounted at once (the home feed behind a pushed
   // profile, the pager's other pages). Only the one the reader sees may drive
   // its Screen's chrome and answer a reselect; Bloom marks covered stack scenes
@@ -679,6 +697,23 @@ const Feed = (props: FeedProps) => {
   const renderedEmptyComponent = hasAuxiliaryRows ? null : core.emptyState;
   const renderedFooterComponent =
     feedRows.length === 0 && hasAuxiliaryRows ? core.emptyState : core.footer;
+
+  if (ISLAND_FEED && scrollEnabled !== false) {
+    return (
+      <FeedErrorBoundary>
+        <View style={[FEED_CONTAINER_BASE_STYLE, FEED_CONTAINER_FILL_STYLE, containerStyle]}>
+          <FeedIslandList
+            rows={feedRows}
+            router={router}
+            feedDescriptor={feedDescriptor}
+            onLoadMore={handleLoadMore}
+            topInset={ownsScroll ? screenScroll.contentInsets.top : 0}
+            bottomInset={ownsScroll ? screenScroll.contentInsets.bottom : 0}
+          />
+        </View>
+      </FeedErrorBoundary>
+    );
+  }
 
   return (
     <FeedErrorBoundary>

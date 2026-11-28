@@ -1,0 +1,188 @@
+// A row of the feed, drawn as Mention's PostItem draws it (components/Feed/PostItem.tsx): the
+// repost line, the avatar, the name line, the text, the media, the quoted post and the action
+// bar. Its geometry is PostItem's: 12 around, a 36 avatar, the text at 60, and the blocks under
+// the text (media, quote, actions) at 64, PostItem's `AVATAR_OFFSET` gutter.
+
+/// The gutter the blocks under the text start at (`AVATAR_OFFSET`: 12 + 40 + 12).
+let GUTTER = 64.0
+/// The repost line's height, and how far its glyph hangs into the avatar's column.
+let CONTEXT_LINE = 18.0
+let CONTEXT_HANG = -16.0
+/// How far the avatar moves down for each context line (its height and the 4 under it).
+let CONTEXT_DROP = 22.0
+/// PostItem's media box: at most 420 tall, at least 100 wide; a strip's cells 200 tall.
+let MEDIA_MAX = 420.0
+let MEDIA_MIN = 100.0
+let STRIP_HEIGHT = 200.0
+
+/// "1.5K": Mention's `formatCompactNumber`, cut to a tenth and never rounded up.
+public func compactCount(_ n: Int) -> String {
+  if n < 1000 { return "\(n)" }
+  if n < 1000000 { return tenths(n, 1000, "K") }
+  if n < 1000000000 { return tenths(n, 1000000, "M") }
+  return tenths(n, 1000000000, "B")
+}
+
+func tenths(_ n: Int, _ unit: Int, _ suffix: String) -> String {
+  let whole = n / unit
+  let tenth = (n % unit) * 10 / unit
+  if tenth == 0 { return "\(whole)\(suffix)" }
+  return "\(whole).\(tenth)\(suffix)"
+}
+
+/// The name line: the name, the badge, the handle and the time.
+struct NameLine: View, Equatable {
+  let author: FeedAuthor
+  let time: String
+
+  var body: some View {
+    HStack(alignment: .bottom, spacing: .none) {
+      Text(author.name).font(.md).weight(.bold).lineLimit(1)
+      if author.isVerified {
+        Icon(.verifiedBadgeFill).size("15").foregroundStyle(.info).padding(.leading, .xs)
+      }
+      Text(" @\(author.handle)").font(.md).foregroundStyle(.muted).lineLimit(1).shrink(.first)
+      Text("· \(time)").font(.md).foregroundStyle(.muted).lineLimit(1).padding(.leading, .sm)
+    }
+  }
+}
+
+/// A picture, or a video's poster, at the column's width (PostItem's single media box).
+struct MediaBox: View, Equatable {
+  let media: FeedMedia
+
+  var body: some View {
+    let aspect = media.aspect > 0.0 ? media.aspect : 1.5556
+    ZStack {
+      Image(media.url).contentFit(.cover).frame(width: .full).aspectRatio(aspect)
+    }
+    .frame(maxWidth: max(MEDIA_MAX * aspect, MEDIA_MIN))
+    .background(.surface)
+    .corner("15")
+  }
+}
+
+/// Two or more: PostItem's carousel, each 200 tall at its own aspect.
+struct MediaStrip: View, Equatable {
+  let media: [FeedMedia]
+  let onTap: (Int) -> Void
+
+  var body: some View {
+    ScrollArea {
+      HStack(spacing: .md) {
+        for (i, m) in media.enumerated() {
+          Image(m.url)
+            .contentFit(.cover)
+            .frame(width: max(STRIP_HEIGHT * m.aspect, MEDIA_MIN), height: STRIP_HEIGHT)
+            .background(.surface)
+            .corner("15")
+            .onPress { onTap(i) }
+        }
+      }
+      .padding(.trailing, .md)
+    }
+    .axis(.horizontal)
+  }
+}
+
+/// The post a post quotes, as a card (PostItem `isNested`).
+struct QuoteCard: View, Equatable {
+  let quote: FeedQuote
+  let onOpen: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: .xs) {
+      HStack(spacing: .sm) {
+        Avatar(quote.author.avatar ?? "").size(.xs)
+        NameLine(author: quote.author, time: quote.time).shrink(.normal)
+      }
+      .padding(.horizontal, .md)
+      if !quote.text.isEmpty {
+        Text(quote.text).font(.md).padding(.horizontal, .md)
+      }
+      if let first = quote.media.first {
+        MediaBox(media: first).padding(.horizontal, .md).padding(.top, .sm)
+      }
+    }
+    .padding(.vertical, .md)
+    .border(.border, .hairline)
+    .corner(.lg)
+    .onPress { onOpen() }
+  }
+}
+
+/// One row: what PostItem draws for a post, a repost or a quote.
+public struct FeedRow: View, Equatable {
+  let post: FeedPost
+  let onIntent: (FeedIntent) -> Void
+
+  func send(_ kind: String) {
+    onIntent(FeedIntent(kind: kind, postId: post.id))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: .none) {
+      HStack(alignment: .top, spacing: .none) {
+        VStack(spacing: .none) {
+          Avatar(post.author.avatar ?? "").size(.lg).onPress { send("profile") }
+        }
+        .padding(.top, post.repostedBy == none ? 0.0 : CONTEXT_DROP)
+        VStack(alignment: .leading, spacing: .xs) {
+          if let by = post.repostedBy {
+            HStack(spacing: "3") {
+              Icon(.repeat2).size("13").foregroundStyle(.muted)
+              Text("Reposted by \(by)").font(.sm).weight(.semibold).foregroundStyle(.muted).lineLimit(1)
+            }
+            .frame(height: CONTEXT_LINE)
+            .offset(x: CONTEXT_HANG)
+            .onPress { send("reposter") }
+          }
+          NameLine(author: post.author, time: post.time)
+          if !post.text.isEmpty {
+            Text(post.text).font(.md)
+          }
+        }
+        .padding(.leading, .md)
+        .shrink(.normal)
+        .grow()
+        Icon(.moreFill).size("18").foregroundStyle(.muted).padding(.horizontal, .sm).onPress { send("menu") }
+      }
+      .padding(.horizontal, .md)
+      .onPress { send("open") }
+      VStack(alignment: .leading, spacing: .md) {
+        if post.media.count == 1 {
+          MediaBox(media: post.media[0]).onPress { onIntent(FeedIntent(kind: "media", postId: post.id, index: 0)) }
+        } else if post.media.count > 1 {
+          MediaStrip(media: post.media, onTap: { i in onIntent(FeedIntent(kind: "media", postId: post.id, index: i)) })
+        }
+        if let quote = post.quote {
+          QuoteCard(quote: quote, onOpen: { send("quote") })
+        }
+        ActionBar {
+          Action(.like, "Like").count(post.likes).active(post.isLiked).tint(.error).onPress { send("like") }
+          if post.canReply {
+            Action(.reply, "Reply").count(post.replies).onPress { send("reply") }
+          }
+          Action(.repost, "Repost").count(post.reposts).active(post.isReposted).tint(.success).onPress { send("repost") }
+          Action(.sendPlane, "Send in Allo").onPress { send("send") }
+          Action(.share, "Share").onPress { send("share") }
+        }
+        .trailing {
+          Action(.bookmark, "Save").count(post.saves).active(post.isSaved).onPress { send("save") }
+        }
+        .countFormat(compactCount)
+      }
+      .padding(.leading, GUTTER)
+      .padding(.trailing, .md)
+      .padding(.top, post.text.isEmpty ? 4.0 : 12.0)
+    }
+    .padding(.vertical, .md)
+    .border(.border, .hairline, .bottom)
+    .onChange(of: post.isLiked) { _, now in
+      // Bench: a like drawn (the composition that draws it).
+      print("BLOOM_BENCH like-drawn \(post.id) \(now)")
+    }
+  }
+
+  static func == (a: Self, b: Self) -> Bool { a.post == b.post }
+}

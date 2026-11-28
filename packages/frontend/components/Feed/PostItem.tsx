@@ -1,8 +1,8 @@
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
-import React, { useCallback, useEffect, useMemo, useState, lazy, Suspense } from 'react';
-import { benchMark } from '@/lib/bench';
+import React, { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { benchLog, benchMark } from '@/lib/bench';
 import { View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 import { createTokenStyles } from '@oxy.so/bloom/theme';
 import { Link, useRouter, type Href } from '@/lib/navigation/router';
@@ -507,6 +507,14 @@ function usePostRowModel({
 
   const isOwner = viewerState.isOwner ?? false;
   const isLiked = viewerState.isLiked ?? false;
+  // Bench (EXPO_PUBLIC_BLOOM_BENCH=1): a like drawn, after the commit that drew it.
+  const likedOnce = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (likedOnce.current !== null && likedOnce.current !== isLiked) {
+      benchLog(`like-drawn ${viewPost?.id} ${isLiked}`);
+    }
+    likedOnce.current = isLiked;
+  }, [isLiked, viewPost?.id]);
   const isDownvoted = viewerState.isDownvoted ?? false;
   const isBoosted = viewerState.isBoosted ?? false;
   const isSaved = viewerState.isSaved ?? false;
@@ -697,6 +705,7 @@ function usePostRowModel({
   // Undefined outside a feed (post detail / nested) → normal, unattributed write.
   const handleLike = useCallback(() => {
     if (!viewPost || !interactions.requireSession()) return false;
+    benchLog(`like-tap ${viewPost.id}`);
     void interactions.toggleLike(viewPost, feedDescriptor);
     return true;
   }, [interactions, viewPost, feedDescriptor]);

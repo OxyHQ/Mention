@@ -11,3 +11,9 @@ export function benchMark(name: string): void {
   seen.add(name);
   console.log(`BLOOM_BENCH ${name}`);
 }
+
+/** Every time (not once): `BLOOM_BENCH <name>`, for marks that repeat (a like's tap and draw). */
+export function benchLog(name: string): void {
+  if (process.env.EXPO_PUBLIC_BLOOM_BENCH !== '1') return;
+  console.log(`BLOOM_BENCH ${name}`);
+}

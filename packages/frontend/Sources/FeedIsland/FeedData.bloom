@@ -1,0 +1,73 @@
+// What crosses from the React Native feed into the island, as JSON (`Codable`): the rows'
+// posts as the feed store holds them, flattened to what a row draws, and the intents the
+// island sends back. `components/Feed/island/feedIslandData.ts` writes the same shapes.
+
+/// A post's author, as the row's header draws it.
+public struct FeedAuthor: Codable, Equatable {
+  public let id: String
+  /// The display name, or the handle when there is none.
+  public let name: String
+  /// The handle without its `@`.
+  public let handle: String
+  /// The avatar's URL at the row's variant, none for the placeholder.
+  public var avatar: String? = none
+  public var isVerified: Bool = false
+}
+
+/// A picture or a video's poster below the text.
+public struct FeedMedia: Codable, Equatable {
+  /// `image`, `gif` or `video`.
+  public let kind: String
+  /// The image, or the video's poster, at the column's variant.
+  public let url: String
+  /// Width over height; the feed's own fallback (280 / 180) when the media has none.
+  public var aspect: Double = 1.5556
+}
+
+/// The post a post quotes: drawn as a card under the quoting post's text.
+public struct FeedQuote: Codable, Equatable {
+  public let id: String
+  public let author: FeedAuthor
+  public let text: String
+  /// The relative time, as Mention's clock formats it ("5m").
+  public let time: String
+  public var media: [FeedMedia] = []
+}
+
+/// One row of the feed.
+public struct FeedPost: Codable, Identifiable, Equatable {
+  public let id: String
+  public let author: FeedAuthor
+  public let text: String
+  /// The relative time, as Mention's clock formats it ("5m").
+  public let time: String
+  public var media: [FeedMedia] = []
+  public var quote: FeedQuote? = none
+  /// The reposter's name, when the row is a repost.
+  public var repostedBy: String? = none
+  public var replies: Int = 0
+  public var reposts: Int = 0
+  public var likes: Int = 0
+  public var saves: Int = 0
+  public var isLiked: Bool = false
+  public var isReposted: Bool = false
+  public var isSaved: Bool = false
+  public var canReply: Bool = true
+}
+
+/// What the island is drawn from.
+public struct FeedIslandProps: Codable, Equatable {
+  public let posts: [FeedPost]
+  /// The room the screen's chrome takes over the list: its header and its bottom bar.
+  public var topInset: Double = 0.0
+  public var bottomInset: Double = 0.0
+}
+
+/// What a reader did in the island, for React Native to carry out: `like`, `repost`, `reply`,
+/// `save`, `share`, `open` (the post), `profile` (the author), `media` (with its index),
+/// `quote` (the quoted post), `reposter`, `menu` and `more` (the end is near).
+public struct FeedIntent: Codable, Equatable {
+  public let kind: String
+  public let postId: String
+  public var index: Int = 0
+}

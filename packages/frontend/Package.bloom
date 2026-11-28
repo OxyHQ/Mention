@@ -57,5 +57,9 @@ let package = Package(
     .expo("mention-widgets", until: "its Bloom native module (`.native`)"),
     .expo("pip-transport", until: "its Bloom native module (`.native`)"),
   ],
-  targets: []
+  // `FeedIsland`: the feed drawn as a Compose island (Bloom ADR 0003), compiled to Kotlin by the
+  // native backend into the build's `:bloom-islands` library. Its sources are pure Bloom.
+  targets: [
+    .module("FeedIsland", native: .island),
+  ]
 )

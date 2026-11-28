@@ -1,0 +1,76 @@
+// Mention's feed as a Compose island (Bloom ADR 0003, M1): the React Native feed hands it the
+// rows' posts as JSON and carries out what the reader does, sent back as `onIntent`. A like is
+// drawn at once: the island keeps the reader's own likes over the posts until the feed's next
+// props agree.
+
+/// The feed, drawn natively.
+public struct FeedIsland: View {
+  let posts: [FeedPost]
+  var topInset: Double = 0.0
+  var bottomInset: Double = 0.0
+  let onIntent: (FeedIntent) -> Void
+
+  /// The reader's likes the props have not caught up with, by post.
+  @State private var liked: [String: Bool] = [:]
+
+  func shown(_ post: FeedPost) -> FeedPost {
+    guard let on = liked[post.id] else { return post }
+    if on == post.isLiked { return post }
+    var p = post
+    p.isLiked = on
+    p.likes = post.likes + (on ? 1 : -1)
+    return p
+  }
+
+  func handle(_ intent: FeedIntent) {
+    if intent.kind == "like" {
+      if let post = posts.first(where: { $0.id == intent.postId }) {
+        let now = !(liked[post.id] ?? post.isLiked)
+        liked = liked.setting(post.id, now)
+        print("BLOOM_BENCH like-tap \(post.id)")
+      }
+    }
+    onIntent(intent)
+  }
+
+  var body: some View {
+    VirtualList(posts, { row in
+      FeedCell(
+        post: shown(row.item),
+        index: row.index,
+        count: posts.count,
+        top: row.index == 0 ? topInset : 0.0,
+        bottom: row.index + 1 == posts.count ? bottomInset : 0.0,
+        onIntent: { intent in handle(intent) },
+      )
+    })
+    .onChange(of: posts) { _, _ in
+      // The feed's props carry the reader's likes once React Native has them.
+      liked = [:]
+    }
+  }
+}
+
+/// A row in the list: the row, the chrome's room before the first and after the last, and
+/// the list's marks (the first row drawn, the end near).
+struct FeedCell: View {
+  let post: FeedPost
+  let index: Int
+  let count: Int
+  let top: Double
+  let bottom: Double
+  let onIntent: (FeedIntent) -> Void
+
+  var body: some View {
+    VStack(spacing: .none) {
+      // The screen chrome's room (a fixed box: a `Spacer` would take the room left).
+      if top > 0.0 { VStack(spacing: .none) {}.frame(height: top) }
+      FeedRow(post: post, onIntent: onIntent)
+      if bottom > 0.0 { VStack(spacing: .none) {}.frame(height: bottom) }
+    }
+    .onAppear {
+      if index == 0 { print("BLOOM_BENCH island-first-row") }
+      if index + 8 == count { onIntent(FeedIntent(kind: "more", postId: post.id)) }
+    }
+  }
+}
