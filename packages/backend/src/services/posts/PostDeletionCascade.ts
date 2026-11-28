@@ -80,6 +80,7 @@ import {
   type PostReferenceProbeName,
 } from '../../scripts/lib/adminDeletionPreflight';
 import { typeIsRepost } from '../../utils/repostType';
+import { purgePostPages } from '../webshell/postPageEdgePurge';
 
 /**
  * Best-effort work after a COMMITTED deletion that did not complete.
@@ -595,6 +596,11 @@ export async function deletePostSubtree(
   if (equivalenceClusterIds.length > 0) {
     await reevaluateClusters(equivalenceClusterIds);
   }
+  // Every page this removed — the post, its replies, the boosts of it — leaves
+  // Cloudflare's edge now rather than when `s-maxage` runs out. After the
+  // commit, so the origin answers the purged URL with the 404. Never throws.
+  const deleted = result as DeletedPostSubtree | null;
+  if (deleted) await purgePostPages([...deleted.removedIds], 'delete');
   return result;
 }
 

@@ -13,6 +13,9 @@ import {
   SUBSCRIBER_NOTIFICATION_REMOVE_ON_COMPLETE_COUNT,
   SUBSCRIBER_NOTIFICATION_REMOVE_ON_FAIL_COUNT,
   ACCOUNT_ERASURE_QUEUE,
+  POST_PAGE_EDGE_PURGE_QUEUE,
+  POST_PAGE_EDGE_PURGE_REMOVE_ON_COMPLETE_COUNT,
+  POST_PAGE_EDGE_PURGE_REMOVE_ON_FAIL_COUNT,
   ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT,
   ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT,
   INBOX_REMOVE_ON_COMPLETE_COUNT,
@@ -35,6 +38,7 @@ import type {
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
   SubscriberNotificationJobData,
+  PostPageEdgePurgeJobData,
 } from './types';
 
 /**
@@ -63,6 +67,7 @@ let mediaMetadataEnrichQueue: Queue<MediaMetadataEnrichJobData> | null = null;
 let accountErasureQueue: Queue<AccountErasureJobData> | null = null;
 let subscriberNotificationQueue: Queue<SubscriberNotificationJobData> | null = null;
 let instagramGraphSyncQueue: Queue<InstagramGraphSyncJobData> | null = null;
+let postPageEdgePurgeQueue: Queue<PostPageEdgePurgeJobData> | null = null;
 
 /**
  * Get the inbound-activity queue, or null when Redis is not configured (callers
@@ -189,6 +194,20 @@ export function getInstagramGraphSyncQueue(): Queue<InstagramGraphSyncJobData> |
 }
 
 /** Close all open producer queues. Internal — used by {@link shutdownQueues}. */
+export function getPostPageEdgePurgeQueue(): Queue<PostPageEdgePurgeJobData> | null {
+  if (!isQueueEnabled()) return null;
+  if (!postPageEdgePurgeQueue) {
+    postPageEdgePurgeQueue = new Queue<PostPageEdgePurgeJobData>(
+      POST_PAGE_EDGE_PURGE_QUEUE,
+      baseQueueOptions(
+        POST_PAGE_EDGE_PURGE_REMOVE_ON_COMPLETE_COUNT,
+        POST_PAGE_EDGE_PURGE_REMOVE_ON_FAIL_COUNT,
+      ),
+    );
+  }
+  return postPageEdgePurgeQueue;
+}
+
 export async function closeQueues(): Promise<void> {
   const open: Array<
     | Queue<InboxJobData>
@@ -198,6 +217,7 @@ export async function closeQueues(): Promise<void> {
     | Queue<MediaMetadataEnrichJobData>
     | Queue<AccountErasureJobData>
     | Queue<InstagramGraphSyncJobData>
+    | Queue<PostPageEdgePurgeJobData>
   > = [];
   if (inboxQueue) open.push(inboxQueue);
   if (deliveryQueue) open.push(deliveryQueue);
@@ -207,6 +227,7 @@ export async function closeQueues(): Promise<void> {
   if (subscriberNotificationQueue) open.push(subscriberNotificationQueue);
   if (accountErasureQueue) open.push(accountErasureQueue);
   if (instagramGraphSyncQueue) open.push(instagramGraphSyncQueue);
+  if (postPageEdgePurgeQueue) open.push(postPageEdgePurgeQueue);
 
   await Promise.allSettled(open.map((q) => q.close()));
 
@@ -218,4 +239,5 @@ export async function closeQueues(): Promise<void> {
   subscriberNotificationQueue = null;
   accountErasureQueue = null;
   instagramGraphSyncQueue = null;
+  postPageEdgePurgeQueue = null;
 }

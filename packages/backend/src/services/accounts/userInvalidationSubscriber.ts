@@ -24,6 +24,10 @@
  *  - the Redis author-visibility entry (`oxyAuthorVisibilityCache`) — whether
  *    Oxy serves the account's public profile, which gates every crawled page
  *    of theirs, so an archived or restricted account leaves them at once;
+ *  - the account's post pages on Cloudflare's edge, IF Mention no longer
+ *    shows the account (suspended, archived, restricted): one job per event
+ *    across every task, which re-asks the page's own question before sweeping
+ *    (`services/webshell/authorPostPagePurge.ts`);
  *  - the GET response cache of BOTH process-level Oxy clients (service and
  *    runtime). Those are per-PROCESS in-memory caches inside `@oxy.so/core`, so
  *    the Redis eviction alone would leave each task serving its own stale copy
@@ -55,6 +59,7 @@ import { invalidateViewerLanguages } from '../../utils/viewerLanguage';
 import { invalidate as invalidateUserSummaries } from './userSummaryCache';
 import { invalidateOxyAuthorVisibility } from './oxyAuthorVisibilityCache';
 import { publishAliasChange } from '../federation/aliasPublication';
+import { scheduleAuthorPostPagePurge } from '../webshell/postPageEdgePurge';
 
 /** Handle for shutting the subscriber down. */
 export interface UserInvalidationSubscriber {
@@ -106,7 +111,12 @@ export async function startUserInvalidationSubscriber(): Promise<UserInvalidatio
             invalidateUserSummaries([event.userId]),
             invalidateViewerLanguages([event.userId]),
             invalidateOxyAuthorVisibility([event.userId]),
-          ]).then(() => undefined);
+          ]).then(() =>
+            // After the visibility eviction, so the job asks Oxy afresh. Keyed
+            // by the event, so the copy every task receives is one job. Never
+            // throws.
+            scheduleAuthorPostPagePurge(event.userId, `oxy|${event.at}`),
+          );
         },
         onError: (error, raw) => {
           logger.warn('[UserInvalidation] dropped an invalidation message', {

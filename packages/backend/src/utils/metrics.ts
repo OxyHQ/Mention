@@ -154,6 +154,16 @@ const DEFINITIONS = {
     help: 'Oxy account-event webhook deliveries, by outcome',
     labelNames: ['outcome'],
   },
+  post_page_edge_purge_failed_total: {
+    kind: 'counter',
+    help: 'Cloudflare edge purges of post pages that were given up, by reason and stage',
+    labelNames: ['reason', 'stage'],
+  },
+  post_page_edge_purged_total: {
+    kind: 'counter',
+    help: 'Posts whose public page Cloudflare confirmed purged from the edge, by reason',
+    labelNames: ['reason'],
+  },
   post_deletion_side_effect_failed_total: {
     kind: 'counter',
     help: 'Best-effort work after a committed post deletion that did not complete, by step',

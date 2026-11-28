@@ -20,6 +20,7 @@ import { eq } from 'drizzle-orm';
 import { POST_CLASSIFICATION_PENDING } from '../../db/posts/postRecord';
 import { authorVariants } from '../../services/posts/postVariants';
 import { logger } from '../../utils/logger';
+import { purgePostPages } from '../../services/webshell/postPageEdgePurge';
 
 /**
  * ONE UPSTREAM POST, SEVERAL COPIES — MERGED, NOT PICKED.
@@ -290,6 +291,12 @@ export async function absorbTransportCopy(
     });
   }
   await updateMergedProvenance(postId, patch);
+  // An EDIT of a public post reaches its cached page now (body, warning,
+  // sensitivity), not after `s-maxage`. A copy merged at ingest is not an
+  // edit. Never throws.
+  if (options.edited && record.visibility === 'public' && record.status === 'published') {
+    await purgePostPages([postId], 'edit');
+  }
   // The reply link, with its parent's counter and audience, as any late link.
   if (record.parentPostId === null && merged.replyTo) {
     await linkReplyToParent(eq(posts.id, postId), merged.replyTo);

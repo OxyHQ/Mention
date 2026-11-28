@@ -76,3 +76,21 @@ export async function getShellCached<T>(
     return null;
   }
 }
+
+/**
+ * The cache key of a post's OG card, shared by the page that fills it and the
+ * edge purge that evicts it. Bump the version when the card's shape changes.
+ */
+export function postOgCacheKey(postId: string): string {
+  return `post:semantic-v2:${postId}`;
+}
+
+/**
+ * Forget these posts' cards. An edit changes what the card says, and the card
+ * outlives the edge entry (5 minutes fresh, an hour stale), so purging the edge
+ * alone would refill it from the OLD card.
+ */
+export async function invalidatePostOgCards(postIds: readonly string[]): Promise<void> {
+  if (postIds.length === 0) return;
+  await cache.delete(postIds.map((postId) => OG_CACHE_PREFIX + postOgCacheKey(postId)));
+}

@@ -10,6 +10,7 @@ import {
 import { activityPubConnector } from '../../connectors/activitypub/ActivityPubConnector';
 import { resolveUserSummaries } from '../posts/PostHydrationService';
 import { invalidate as invalidatePostDetail } from '../posts/postDetailCache';
+import { purgePostPages } from '../webshell/postPageEdgePurge';
 import { degradedActorSummary } from '../../utils/degradedActorSummary';
 import { logger } from '../../utils/logger';
 import type { AccountMember } from '@oxy.so/core';
@@ -90,6 +91,8 @@ export async function removePostFromCommunity(
     .returning({ id: posts.id });
   if (!removed) throw new CommunityPostError(404, 'That post is not in this community');
   await invalidatePostDetail(params.postId);
+  // Its cached page no longer shows it in the community. Never throws.
+  await purgePostPages([params.postId], 'moderation');
 
   logger.info('[Communities] a moderator removed a post', {
     communityOxyUserId: params.communityOxyUserId,

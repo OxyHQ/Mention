@@ -426,6 +426,26 @@ const environmentSchema = z
     ),
 
     /**
+     * Purge a post's public page (`/p/<id>`) from Cloudflare's edge cache when
+     * it stops being public or changes (`services/webshell/postPageEdgePurge.ts`).
+     * ON by default in production, OFF elsewhere, and INERT without the token:
+     * the edge then keeps a page for the origin's `s-maxage` (5 minutes), the
+     * behaviour before this existed. The token is scoped to Zone > Cache Purge on
+     * mention.earth only (oxy-infra runbook 73).
+     */
+    EDGE_CACHE_PURGE_ENABLED: booleanFromEnv(process.env.NODE_ENV === 'production'),
+    CLOUDFLARE_PURGE_TOKEN: trimmedOptionalString,
+    /** The mention.earth zone (oxy-infra runbook 72). An id, not a secret. */
+    CLOUDFLARE_ZONE_ID: z.preprocess(
+      emptyAsUndefined,
+      z
+        .string()
+        .trim()
+        .regex(/^[0-9a-f]{32}$/, 'CLOUDFLARE_ZONE_ID must be a 32-character hex zone id')
+        .default('6c2a616f72102ee543329c87fa3b5e08'),
+    ),
+
+    /**
      * Instagram posts through Meta's Graph API (Business Discovery). OFF by
      * default and INERT unless the token and the business account id are both
      * configured too: the connector reads, never writes, and every call spends a
@@ -751,6 +771,15 @@ export function getMetaGraphAccessToken(): string | undefined {
   return environment.META_GRAPH_ACCESS_TOKEN;
 }
 
+/**
+ * The Cloudflare token that may purge mention.earth's cache and nothing else.
+ * A function, not a `config` field, so the secret is never part of an object
+ * someone might log or serialize.
+ */
+export function getCloudflarePurgeToken(): string | undefined {
+  return environment.CLOUDFLARE_PURGE_TOKEN;
+}
+
 export function getKlipyAppKey(): string {
   return environment.KLIPY_APP_KEY ?? '';
 }
@@ -875,6 +904,14 @@ export const config = {
   },
   federatedMediaDeletion: {
     enabled: environment.FEDERATED_MEDIA_DELETE_ENABLED,
+  },
+  edgePurge: {
+    /**
+     * The EFFECTIVE gate: the flag AND the token. The token itself is read
+     * through {@link getCloudflarePurgeToken}, never placed on this object.
+     */
+    enabled: environment.EDGE_CACHE_PURGE_ENABLED && Boolean(environment.CLOUDFLARE_PURGE_TOKEN),
+    zoneId: environment.CLOUDFLARE_ZONE_ID,
   },
   instagramGraph: {
     /**

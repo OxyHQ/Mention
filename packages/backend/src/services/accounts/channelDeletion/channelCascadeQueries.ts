@@ -12,6 +12,7 @@ import type { PgTable } from 'drizzle-orm/pg-core';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import type { PostBatch } from './channelDeletionTargets';
+import { purgePostPages } from '../../webshell/postPageEdgePurge';
 
 /** How many rows match, without touching them. */
 export async function countRows(table: PgTable, where: SQL): Promise<number> {
@@ -45,5 +46,11 @@ export async function deleteBatchPosts(batch: PostBatch, dryRun: boolean): Promi
     .delete(posts)
     .where(inArray(posts.id, ids))
     .returning({ id: posts.id });
+  // The deleted channel's pages leave Cloudflare's edge. Never throws.
+  await purgePostPages(
+    removed.map((row) => row.id),
+    'author_erased',
+    { priority: 'sweep' },
+  );
   return removed.length;
 }

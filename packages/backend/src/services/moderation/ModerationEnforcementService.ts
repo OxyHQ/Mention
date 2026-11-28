@@ -10,6 +10,21 @@ import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { referSubjectForChildSafety } from './ContentReferralWorker';
 import { planEnforcement, type PlannedEnforcementAction } from './enforcementPlan';
+import { invalidate as invalidatePostDetailCache } from '../posts/postDetailCache';
+import { purgePostPages } from '../webshell/postPageEdgePurge';
+
+/**
+ * After a moderation write to a post: the record cache every read starts from
+ * (`postDetailCache`) forgets it, and its public page leaves Cloudflare's edge,
+ * so a restricted post is not served from either for another five minutes.
+ * Both are best-effort: the write is the enforcement, and it has happened.
+ */
+async function afterPostModerated(postId: string): Promise<void> {
+  await invalidatePostDetailCache(postId).catch((error: unknown) =>
+    logger.warn('[Moderation] post cache eviction failed after enforcement', { error }),
+  );
+  await purgePostPages([postId], 'moderation');
+}
 
 /**
  * Carrying out a decision, exactly once.
@@ -145,6 +160,7 @@ async function applyEffect(
         return { changed: false, reason: 'The post was already restricted' };
       }
       await getDb().update(posts).set({ status: 'restricted' }).where(eq(posts.id, subject.id));
+      await afterPostModerated(subject.id);
       return { changed: true, previousState: { previousStatePostStatus: current.status } };
     }
 
@@ -165,6 +181,7 @@ async function applyEffect(
         .limit(1);
       const restoreTo = asPostStatus(restriction?.postStatus);
       await getDb().update(posts).set({ status: restoreTo }).where(eq(posts.id, subject.id));
+      await afterPostModerated(subject.id);
       return { changed: true, previousState: { previousStatePostStatus: 'restricted' } };
     }
 
@@ -176,6 +193,7 @@ async function applyEffect(
         .update(posts)
         .set({ metadataIsSensitive: true })
         .where(eq(posts.id, subject.id));
+      await afterPostModerated(subject.id);
       return { changed: true, previousState: { previousStateMetadataIsSensitive: false } };
     }
 
@@ -205,6 +223,7 @@ async function applyEffect(
         .update(posts)
         .set({ metadataIsSensitive: false })
         .where(eq(posts.id, subject.id));
+      await afterPostModerated(subject.id);
       return { changed: true, previousState: { previousStateMetadataIsSensitive: true } };
     }
   }

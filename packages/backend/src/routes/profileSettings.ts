@@ -44,6 +44,7 @@ import { syraClient } from '../utils/syraPodcast';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import { operatedAccountSettingsRateLimiter } from '../middleware/security';
 import { logger } from '../utils/logger';
+import { scheduleAuthorPostPagePurge } from '../services/webshell/postPageEdgePurge';
 
 const router = Router();
 
@@ -712,6 +713,14 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // Oxy-owned actor fields (displayName / avatar / bio) have NO Mention-side write
     // to hook here — propagating those needs a separate Oxy→Mention signal or a
     // periodic actor re-broadcast (documented follow-up).
+    // A profile made private or followers-only hides every post page of this
+    // account; the edge must stop serving them now, not after `s-maxage`.
+    // The job re-reads the account before sweeping. Never throws.
+    const profileVisibility = update['privacy.profileVisibility'];
+    if (typeof profileVisibility === 'string' && profileVisibility !== 'public') {
+      await scheduleAuthorPostPagePurge(oxyUserId);
+    }
+
     if (bannerChanged) {
       federateAsResolvedActor(oxyUserId, 'actor update', (username) => ({
         kind: 'actor.update',

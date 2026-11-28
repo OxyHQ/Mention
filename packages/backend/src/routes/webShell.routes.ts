@@ -40,8 +40,6 @@ import { getOrLoadPostRecord } from '../services/posts/postDetailCache';
 import { loadNewestEligibleReplies } from '../services/posts/PostRecentReplierService';
 import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/posts/PostHydrationService';
-import { mget as mgetUserSummaries } from '../services/accounts/userSummaryCache';
-import { cachedOxyAuthorVisibility } from '../services/accounts/oxyAuthorVisibilityCache';
 import { logger } from '../utils/logger';
 import {
   type OgData,
@@ -59,12 +57,11 @@ import {
   buildShellBootstrapHtml,
   type ShellBootstrap,
 } from '../services/webshell/webShellRenderer';
-import { getShellCached } from '../services/webshell/webShellOgCache';
+import { getShellCached, postOgCacheKey } from '../services/webshell/webShellOgCache';
 import { normalizeHashtag } from '../utils/textProcessing';
 import { loadPublicProfileFacts } from '../services/accounts/publicProfileFacts';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { lookupOxyUsers } from '../utils/oxyUserLookup';
+import { authorSeoPolicy, fetchProfile } from '../services/webshell/postPageAuthorPolicy';
 import { webShellRateLimiter } from '../middleware/security';
 import { namedRoutePattern } from '../middleware/requestObservability';
 import { isApexHost } from '../middleware/apexFrontendProxy';
@@ -77,9 +74,6 @@ import {
   sitemapIndex,
   sitemapShard,
 } from '../services/webshell/seoSitemap';
-
-/** Wall-clock budget for the per-request profile read (sent once, never retried). */
-const OG_FETCH_TIMEOUT_MS = 2500;
 
 /** Backend origin that serves the canonical ActivityPub actor. */
 const API_ORIGIN = config.web.apiOrigin;
@@ -123,40 +117,6 @@ function wantsActivityPub(accept: string | undefined): boolean {
   return value.includes('activity+json') || value.includes('ld+json');
 }
 
-/**
- * A profile from Oxy, or null when Oxy says no such handle exists. Any other
- * failure throws.
- *
- * The RAW payload rather than the mapped OG, because two callers read it: the OG
- * card, and the channel redirect below — which a BROWSER needs too, so it cannot
- * ride on the crawler-only OG path. One fetch, one cache entry, both answers.
- *
- * As Mention, not anonymously: the process `OxyServer` sends a session-less read
- * with its service token (`serviceIdentity: 'when-anonymous'`). Every web page
- * for a post or profile reads this, and anonymous calls share Oxy's per-IP
- * general limit (1000 per 15 minutes) across every Mention task behind the same
- * egress address: ~9,800 shell 503s a day ("Oxy profile lookup failed (429)",
- * production 2026-10-11/12). A first-party service token is limited per
- * application. Uncached in the SDK: `getShellCached` is this read's cache.
- */
-async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
-  try {
-    return await getServiceOxyClient()
-      .withCallOptions({ deadline: OG_FETCH_TIMEOUT_MS, retry: false })
-      .users.byUsername(handle, { cache: false });
-  } catch (error) {
-    // A 400 is Oxy refusing the handle itself — shorter or longer than any
-    // username can be (`usernameParams`, `MIN/MAX_USERNAME_LENGTH`). It names no
-    // profile and never will, so it is a 404 page like any other unknown handle,
-    // cached negatively like one. Treating it as an outage made it a 503 that
-    // invited the crawler back: 19 of the 74 web-shell 503s on 2026-10-14.
-    const status = (error as { status?: unknown } | null)?.status;
-    if (status === 404 || status === 400) return null;
-    logger.debug('[webShell] Profile fetch failed', error);
-    throw error;
-  }
-}
-
 /** The cached profile for a handle, SWR-backed. Null when unknown or unreachable. */
 async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
   const profile = await getShellCached(`profile:${handle}`, () => fetchProfile(handle), {
@@ -188,59 +148,6 @@ async function profileSeoFacts(oxyUserId: string | undefined): Promise<ProfileSe
     return { postsCount: counts.postsCount, ...(remote ? { remote } : {}) };
   });
   return facts ?? {};
-}
-
-/**
- * Whether Oxy serves this author's public profile. Read through
- * {@link cachedOxyAuthorVisibility}: a public answer for a minute, a hidden one
- * for five, a failure never, and evicted the moment Oxy broadcasts a change to
- * the account — so a crawler's page views are not each an Oxy round trip.
- */
-function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
-  return cachedOxyAuthorVisibility(oxyUserId, () => askOxyIfAuthorPublic(oxyUserId));
-}
-
-/**
- * Ask Oxy whether it serves this author's public profile: the profile read is
- * the availability answer.
- *
- * Only the author's HANDLE may come from a cache — the user summary hydration
- * keeps, which this page's card hydration reads for the same author a moment
- * later — and it is trusted only when the profile Oxy returns for it is this
- * very account. A handle that names no one or someone else now (a rename, a
- * merged account) falls back to asking Oxy who the account is, as every
- * request used to. A cached handle saves the serial `users/by-ids` round trip
- * on every crawled post page by an author seen in the last few minutes.
- */
-async function askOxyIfAuthorPublic(oxyUserId: string): Promise<boolean> {
-  const cachedHandle = (await mgetUserSummaries([oxyUserId])).get(oxyUserId)?.user?.username;
-  let asked: { handle: string; found: boolean } | undefined;
-  if (cachedHandle) {
-    const profile = await fetchProfile(cachedHandle);
-    if (profile?.id === oxyUserId) return true;
-    asked = { handle: cachedHandle, found: Boolean(profile) };
-  }
-  const [user] = (await lookupOxyUsers([oxyUserId], 'web_shell.profile')).found;
-  if (!user?.username) return false;
-  // That handle was already asked about in this request; its answer stands.
-  if (asked?.handle === user.username) return asked.found;
-  return Boolean(await fetchProfile(user.username));
-}
-
-/**
- * Whether a post's author may be shown to anyone — public on Mention AND on Oxy
- * — and whether search engines may index them. The Mention half is read fresh;
- * the Oxy half is {@link isOxyAuthorPublic}'s short, invalidated cache.
- * The two reads are independent, so they run together rather than one
- * round-trip after the other.
- */
-async function authorSeoPolicy(oxyUserId: string): Promise<MentionProfileSeoPolicy> {
-  if (!oxyUserId) return { visible: false, indexable: false };
-  const [onMention, onOxy] = await Promise.all([
-    mentionProfileSeoPolicy(oxyUserId),
-    isOxyAuthorPublic(oxyUserId),
-  ]);
-  return { visible: onMention.visible && onOxy, indexable: onMention.indexable && onOxy };
 }
 
 /** Reads an author's {@link authorSeoPolicy}. */
@@ -906,7 +813,7 @@ router.get(
       // A gated post is re-rendered from the current row on every request.
       const og = safety.requiresWarning
         ? await fetchPostOg(post, safety)
-        : await getShellCached(`post:semantic-v2:${id}`, () => fetchPostOg(post, safety), {
+        : await getShellCached(postOgCacheKey(id), () => fetchPostOg(post, safety), {
             rethrow: true,
           });
       if (!og) {
