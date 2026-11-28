@@ -131,9 +131,17 @@ async function alreadyProjected(
     .limit(1);
   if (!actor || actor.oxyUserId !== input.oxyUserId) return undefined;
   if (input.networkAcct !== undefined && actor.networkAcct !== input.networkAcct) return undefined;
-  const drift = await db.execute(
-    sql`select 1 from posts p where ${unprojectedPosts(input)} limit 1`,
-  );
+  // `oxy_user_id is distinct from $id` cannot be an index condition, so
+  // `… where ${unprojectedPosts(input)} limit 1` walked EVERY index entry of the
+  // source before answering "none" — the common answer — plus a heap page per
+  // entry wherever the visibility map was not set: 45 ms mean on RDS, 0.7 a
+  // second (2026-11-28). The same question as three index seeks (`<`, `>`,
+  // `is null`; text collations here are deterministic, so `<>` is exactly
+  // `<` or `>`) costs a dozen buffers whatever the source's size.
+  const drift = await db.execute(sql`select 1 where
+    exists (select 1 from posts p where p.federation_actor_uri = ${input.actorUri} and p.oxy_user_id < ${input.oxyUserId})
+    or exists (select 1 from posts p where p.federation_actor_uri = ${input.actorUri} and p.oxy_user_id > ${input.oxyUserId})
+    or exists (select 1 from posts p where p.federation_actor_uri = ${input.actorUri} and p.oxy_user_id is null)`);
   if (drift.length) return undefined;
   return {
     actorChanged: false,
