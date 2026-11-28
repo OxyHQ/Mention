@@ -22,7 +22,7 @@ the separate harness continues to verify the SDK's advertised minimum.
 This branch changes no backend producer, receiver, task or database code.
 
 Release packages through Actions after CI on this commit. Then pin SDK/contracts
-0.2.0 in Move and Schedio, deploy Mention's matching runtime receiver, and only
+0.2.0 in Move, deploy Mention's matching runtime receiver, and only
 then enable own caller traffic. The runtime branch also needs Oxy core 7.1 for
 replayable file streaming and its published product SDK dependencies. This
 package publication alone does not complete the Mention runtime migration or

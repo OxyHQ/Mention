@@ -79,7 +79,6 @@ reuse the own path or infer an account from a header.
 | Mention backend → Kaana                     | Published SDK 3.3 own factory and immutable attribution                                                                                                                                                | Producer receiver live; verify one-dispatch ledger and app-paid accounting                                              |
 | Mention frontend → Syra                     | Linked-session factory, lazy client-only entry                                                                                                                                                         | Published SDK 0.23 pinned and artifact verified; account-switch runtime canary remains                                  |
 | Mention frontend → Alia                     | Existing product SDK client; no backend Alia proxy found                                                                                                                                               | Coordinate SDK update with Alia owner; do not infer adoption from the foundation version                                |
-| Schedio → Mention                           | Own publishing adapter, SDK 0.3 (`actingFor`)                                                                                                                                                          | Schedio needs its registry entry (`actsForPeople`: Mention write) before launch; external Mastodon OAuth retained       |
 
 No local allowlist, token decoding fallback or `internal`-tier promotion is added
 to Mention. Any temporary legacy workload bridge is centralized in Oxy and
@@ -118,11 +117,11 @@ catalog is created. External `MentionPublishingClient` remains unchanged.
 The existing receipt table uses a distinct `oxy-service:<appId>` namespace for
 own publishers and the verified effective account. Duplicate/conflicting keys
 return 409 without executing again; the SDK reports an unknown outcome and
-never invents a post URL after a lost/invalid response. Schedio must retain the
+never invents a post URL after a lost/invalid response. A caller must retain the
 same key and body for each scheduled revision. Account switch, revocation and
 external branded credentials cannot select another person's publication.
 
-The publishing SDK/contracts 0.2.0 are public. Schedio PR 71 pins those artifacts; its own receiver rollout and production canaries remain pending. Source and package publication do not demonstrate deployed authority.
+The publishing SDK/contracts 0.2.0 are public. No first-party caller publishes through them yet; a caller's rollout and production canaries remain pending. Source and package publication do not demonstrate deployed authority.
 
 Kaana calls now use `kaanaForOxyService`. Calls attributed to a person create an
 isolated SDK client with immutable inference attribution and dispose it afterward;
@@ -176,7 +175,7 @@ registry versions; no local override is committed.
 
 This completes the source composition prerequisite. Full runtime CI, deployment
 and live cross-product/account-revocation canaries remain separate acceptance
-steps. Deploy this receiver before enabling Move PR47 and Schedio PR71.
+steps. Deploy this receiver before enabling Move PR47.
 
 
 CI follow-up verifies the CrowdSource factory with Mention's shared infrastructure
