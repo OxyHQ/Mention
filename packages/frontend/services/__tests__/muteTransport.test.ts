@@ -36,7 +36,7 @@ it('returns canonical mute records without retaining a previous viewer response'
     expect(String(url)).toBe('https://mention.fixture.invalid/mute');
 });
 
-it('returns an empty canonical list and preserves the existing error fallback', async () => {
+it('returns an empty canonical list and rejects a failed read', async () => {
   const fetch = jest.spyOn(globalThis, 'fetch');
   fetch.mockResolvedValueOnce(
     new Response(JSON.stringify({ mutes: [], count: 0 }), {
@@ -51,7 +51,8 @@ it('returns an empty canonical list and preserves the existing error fallback', 
       headers: { 'Content-Type': 'application/json' },
     }),
   );
-  await expect(muteService.getMutedUsers()).resolves.toEqual([]);
+  // The muted-accounts screen must not read a failure as "nobody is muted".
+  await expect(muteService.getMutedUsers()).rejects.toMatchObject({ status: 401 });
   fetch.mockRejectedValueOnce(new Error('offline'));
-  await expect(muteService.getMutedUsers()).resolves.toEqual([]);
+  await expect(muteService.getMutedUsers()).rejects.toBeDefined();
 });

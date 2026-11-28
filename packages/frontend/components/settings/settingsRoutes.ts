@@ -33,6 +33,7 @@ export const SETTINGS_PAGE_IDS = [
   'privacy/blocked',
   'privacy/hidden-words',
   'privacy/hide-counts',
+  'privacy/muted-accounts',
   'privacy/muted-lanes',
   'privacy/online-status',
   'privacy/profile-visibility',

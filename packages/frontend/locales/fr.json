@@ -1173,6 +1173,18 @@
       "inviteTitle": "Rejoins Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Comptes masqués",
+        "entry": "Personnes dont vous avez masqué les posts",
+        "description": "Les posts des comptes masqués n'apparaissent pas dans vos fils. Ils n'en sont pas informés et vous continuez à les suivre.",
+        "empty": "Aucun compte masqué",
+        "loadFailed": "Impossible de charger les comptes masqués",
+        "unmute": "Ne plus masquer",
+        "unmuted": "Compte à nouveau affiché",
+        "unmuteFailed": "Impossible de ne plus masquer le compte",
+        "signInRequired": "Connectez-vous pour gérer les comptes masqués",
+        "unknown": "Compte indisponible"
+      },
       "title": "Confidentialité",
       "privateProfile": "Profil privé",
       "public": "Public",

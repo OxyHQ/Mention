@@ -1173,6 +1173,18 @@
       "inviteTitle": "Unisciti a Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Account silenziati",
+        "entry": "Persone di cui hai nascosto i post",
+        "description": "I post degli account silenziati non compaiono nei tuoi feed. Non vengono avvisati e continui a seguirli.",
+        "empty": "Nessun account silenziato",
+        "loadFailed": "Impossibile caricare gli account silenziati",
+        "unmute": "Riattiva",
+        "unmuted": "Account riattivato",
+        "unmuteFailed": "Impossibile riattivare l'account",
+        "signInRequired": "Accedi per gestire gli account silenziati",
+        "unknown": "Account non disponibile"
+      },
       "title": "Privacy",
       "privateProfile": "Profilo privato",
       "public": "Pubblico",

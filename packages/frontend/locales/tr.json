@@ -1155,6 +1155,18 @@
       "inviteTitle": "Mention'a katıl"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Sessize alınan hesaplar",
+        "entry": "Gönderilerini gizlediğiniz kişiler",
+        "description": "Sessize alınan hesapların gönderileri akışlarınızda görünmez. Onlara bildirilmez ve takip etmeye devam edersiniz.",
+        "empty": "Sessize alınan hesap yok",
+        "loadFailed": "Sessize alınan hesaplar yüklenemedi",
+        "unmute": "Sesi aç",
+        "unmuted": "Hesabın sesi açıldı",
+        "unmuteFailed": "Hesabın sesi açılamadı",
+        "signInRequired": "Sessize alınan hesapları yönetmek için giriş yapın",
+        "unknown": "Kullanılamayan hesap"
+      },
       "title": "Gizlilik",
       "privateProfile": "Gizli profil",
       "public": "Herkese açık",

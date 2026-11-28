@@ -1173,6 +1173,18 @@
       "inviteTitle": "Únete a Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Cuentas silenciadas",
+        "entry": "Personas cuyas publicaciones has ocultado",
+        "description": "Las publicaciones de las cuentas silenciadas no aparecen en tus feeds. No se les avisa y sigues siguiéndolas.",
+        "empty": "No hay cuentas silenciadas",
+        "loadFailed": "No se pudieron cargar las cuentas silenciadas",
+        "unmute": "Dejar de silenciar",
+        "unmuted": "Cuenta dejada de silenciar",
+        "unmuteFailed": "No se pudo dejar de silenciar la cuenta",
+        "signInRequired": "Inicia sesión para gestionar las cuentas silenciadas",
+        "unknown": "Cuenta no disponible"
+      },
       "title": "Privacidad",
       "privateProfile": "Perfil privado",
       "public": "Público",

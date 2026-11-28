@@ -1155,6 +1155,18 @@
       "inviteTitle": "Gabung ke Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Akun yang dibisukan",
+        "entry": "Orang yang postingannya Anda sembunyikan",
+        "description": "Postingan dari akun yang dibisukan tidak muncul di feed Anda. Mereka tidak diberi tahu, dan Anda tetap mengikuti mereka.",
+        "empty": "Tidak ada akun yang dibisukan",
+        "loadFailed": "Gagal memuat akun yang dibisukan",
+        "unmute": "Batal bisukan",
+        "unmuted": "Akun tidak lagi dibisukan",
+        "unmuteFailed": "Gagal membatalkan bisukan akun",
+        "signInRequired": "Masuk untuk mengelola akun yang dibisukan",
+        "unknown": "Akun tidak tersedia"
+      },
       "title": "Privasi",
       "privateProfile": "Profil privat",
       "public": "Publik",

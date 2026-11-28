@@ -1173,6 +1173,18 @@
       "inviteTitle": "Uneix-te a Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Comptes silenciats",
+        "entry": "Persones de qui has amagat les publicacions",
+        "description": "Les publicacions dels comptes silenciats no apareixen als teus feeds. No se'ls avisa i els continues seguint.",
+        "empty": "No hi ha comptes silenciats",
+        "loadFailed": "No s'han pogut carregar els comptes silenciats",
+        "unmute": "Deixa de silenciar",
+        "unmuted": "Compte ja no silenciat",
+        "unmuteFailed": "No s'ha pogut deixar de silenciar el compte",
+        "signInRequired": "Inicia la sessió per gestionar els comptes silenciats",
+        "unknown": "Compte no disponible"
+      },
       "title": "Privadesa",
       "privateProfile": "Perfil privat",
       "public": "Públic",
