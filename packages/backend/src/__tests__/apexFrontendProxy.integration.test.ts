@@ -177,10 +177,34 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
 
     const res = await request(makeApp()).get('/feed').set('X-Forwarded-Host', APEX);
 
-    expect(res.status).toBe(200);
+    // No app route is `/feed`: the shell's not-found screen, with a real 404.
+    expect(res.status).toBe(404);
     expect(res.text).toContain('id="root"');
     expect(res.body.who).toBeUndefined(); // NOT { who: 'api-feed' }
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://shell.mention.earth/feed');
+  });
+
+  it('answers a path no app route starts with as a real 404, still with the app', async () => {
+    stubCdn();
+
+    const res = await request(makeApp()).get('/random-garbage-xyz').set('X-Forwarded-Host', APEX);
+
+    expect(res.status).toBe(404);
+    expect(res.headers['x-robots-tag']).toBe('noindex');
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.text).toContain('id="root"');
+  });
+
+  it('marks a signed-in tool noindex and leaves a content route to the app', async () => {
+    stubCdn();
+    const settings = await request(makeApp()).get('/settings').set('X-Forwarded-Host', APEX);
+    expect(settings.status).toBe(200);
+    expect(settings.headers['x-robots-tag']).toBe('noindex');
+
+    stubCdn();
+    const explore = await request(makeApp()).get('/explore').set('X-Forwarded-Host', APEX);
+    expect(explore.status).toBe(200);
+    expect(explore.headers['x-robots-tag']).toBeUndefined();
   });
 
   it('forces immutable caching for content-hashed Expo assets', async () => {
@@ -356,14 +380,14 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     const fetchMock = stubCdn();
 
     for (const header of ['X-Forwarded-Host', 'Host']) {
-      const res = await request(makeApp()).get('/feed?tab=latest').set(header, ALIAS_APEX);
+      const res = await request(makeApp()).get('/explore?tab=latest').set(header, ALIAS_APEX);
       expect(res.status).toBe(200);
       expect(res.text).toContain('id="root"');
       expect(res.body.who).toBeUndefined();
     }
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const call of fetchMock.mock.calls) {
-      expect(String(call[0])).toBe('https://shell.mention.earth/feed?tab=latest');
+      expect(String(call[0])).toBe('https://shell.mention.earth/explore?tab=latest');
     }
   });
 

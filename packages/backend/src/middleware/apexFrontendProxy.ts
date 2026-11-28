@@ -36,6 +36,7 @@ import {
   SHELL_ACCESS_HEADER,
   invalidateShellDocument,
 } from '../services/webshell/webShellDocument';
+import { appRoutePolicy } from '../services/webshell/appRoutePolicy';
 
 /**
  * The frontend apex hosts: `mention.earth`, derived from the SAME `MENTION_WEB_ORIGIN`
@@ -300,7 +301,16 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const status = upstream.statusCode ?? 502;
+  let status = upstream.statusCode ?? 502;
+  // The shell answers every path with `index.html`; say what the path is to a
+  // search engine: a real 404 for a path no route answers, `noindex` for a
+  // signed-in tool (`appRoutePolicy`). The body is the shell either way, so a
+  // person still gets the app.
+  if (status === 200 && isHtmlContentType(contentType)) {
+    const policy = appRoutePolicy(req.path);
+    status = policy.status;
+    if (policy.noindex) res.setHeader('X-Robots-Tag', 'noindex');
+  }
   res.status(status);
   if (contentType) res.setHeader('Content-Type', contentType);
 

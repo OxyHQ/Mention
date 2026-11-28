@@ -81,6 +81,18 @@ both emit it. A deployment's `branding.logoUrl` replaces the default logo.
 store it (`normalizeHashtag`), so every spelling has one canonical URL; it is
 indexed only while a listable post carries the tag.
 
+## Breadcrumbs and search
+
+Every indexed page's JSON-LD carries its `BreadcrumbList` — the site, then the
+author for a post, then the page — on the page's own entity
+(`ProfilePage.breadcrumb`, `CollectionPage.breadcrumb`, a post's
+`mainEntityOfPage.breadcrumb`), so the one document the app adopts after it
+loads keeps it. The homepage's `WebSite` names the search page as a
+`SearchAction` (`/search?q=`). Google retired the sitelinks search box in
+November 2024, so that draws nothing in its results; it is schema.org's own
+statement of how the site is searched. `structuredDataRules.test.ts` checks
+every document against Google's required properties, offline.
+
 ## Interstitials
 
 Mention shows no interstitial over public pages. Anonymous visitors get the
@@ -170,6 +182,24 @@ and that a profile renders one `<h1>` and anchors to its posts
   `noindex,nofollow` and never expose their body or image in the initial HTML.
 - Missing public entities return `404`; dependency outages return `503` with
   `Retry-After`, preventing soft-404 indexing.
+
+## App routes, soft 404s and crawl budget
+
+Every apex path the web shell does not render itself is answered with the
+app's `index.html`. `appRoutePolicy` (in the apex proxy) says what it is: a path
+whose first segment no app route starts with is a real `404` (the body is still
+the app, which shows its not-found screen), and a signed-in tool or form
+(settings, compose, notifications, search, `…/edit`, `…/create`, a post's
+reposts or quotes) carries `X-Robots-Tag: noindex`. Every other route is left
+to its in-app `<SEO>`. The route list is checked against
+`packages/frontend/app` by `appRoutePolicy.test.ts`: a new top-level route must
+be added there, or its page answers 404.
+
+`robots.txt` disallows the unbounded URL spaces: search results, a post's
+reposts, quotes, boosts and corrections, a profile's followers, following and
+suggestion lists, and the signed-in tools. A page request with click-tracking
+parameters (`utm_*`, `fbclid`, `gclid`, …) is sent with one `301` to the same
+URL without them, other parameters kept.
 
 ## Discovery and operations
 
