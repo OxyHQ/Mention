@@ -61,7 +61,17 @@ import {
 } from '../services/webshell/webShellRenderer';
 import { getShellCached, postOgCacheKey } from '../services/webshell/webShellOgCache';
 import {
+  type ProfileFrameSource,
+  type ProfilePalettes,
+  prerenderProfile,
+  profileFrameCss,
+  renderPrerenderProfile,
+} from '../services/webshell/prerenderProfile';
+import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
+import { extractPublicProfileData } from '../utils/userSettings';
+import {
   firstPaintFontUrl,
+  deprioritizeAppBoot,
   injectPrerender,
   postPath,
   prerenderPost,
@@ -78,6 +88,7 @@ import { namedRoutePattern } from '../middleware/requestObservability';
 import { isApexHost } from '../middleware/apexFrontendProxy';
 import {
   authorizeInlineScripts,
+  getProfilePalettes,
   getShell,
   inlineScriptHashes,
 } from '../services/webshell/webShellDocument';
@@ -158,11 +169,92 @@ async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
  */
 async function profileSeoFacts(oxyUserId: string | undefined): Promise<ProfileSeoFacts> {
   if (!oxyUserId) return {};
-  const facts = await getShellCached<ProfileSeoFacts>(`profile-facts:v1:${oxyUserId}`, async () => {
+  const facts = await getShellCached<ProfileSeoFacts>(`profile-facts:v2:${oxyUserId}`, async () => {
     const { counts, remote } = await loadPublicProfileFacts(oxyUserId);
-    return { postsCount: counts.postsCount, ...(remote ? { remote } : {}) };
+    return {
+      postsCount: counts.postsCount,
+      repostsCount: counts.boostsCount,
+      repliesCount: counts.repliesCount,
+      ...(remote ? { remote } : {}),
+    };
   });
   return facts ?? {};
+}
+
+/**
+ * Where the Oxy CDN sends an image URL: `cloud.oxy.so/<id>?variant=…` answers
+ * a 302 to its content-addressed rendition. The frame's cover is a profile's
+ * LCP, and that hop cost ~0.75 s on Lighthouse's mobile profile (a fresh
+ * connection before the first byte of the image). Asked once and held with the
+ * card cache; anything but a same-host https redirect keeps the URL as given.
+ */
+async function finalImageUrl(url: string): Promise<string> {
+  const resolved = await getShellCached(`image-final:v1:${url}`, async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: controller.signal,
+      });
+      const location = response.headers?.get?.('location');
+      if (response.status < 300 || response.status >= 400 || !location) return { url };
+      const next = new URL(location, url);
+      return next.protocol === 'https:' && next.host === new URL(url).host
+        ? { url: next.toString() }
+        : { url };
+    } catch {
+      return { url };
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+  return resolved?.url ?? url;
+}
+
+/**
+ * A LOCAL public profile's first frame (`prerenderProfile.ts`), in its owner's
+ * colour, with its banner — or nothing when the frame could not match the app
+ * (a free colour seed, palettes unavailable) or the profile is a copy of
+ * another server's. Reached only for a profile the route already decided to
+ * publish (`policy.visible`). FAIL-OPEN to no frame: the frame is a first paint,
+ * never the page.
+ */
+async function profileFrame(
+  profile: OxyProfileData,
+  facts: ProfileSeoFacts,
+): Promise<FirstFrame | null> {
+  try {
+    if (!profile.id || profile.isFederated || profile.type === 'federated') return null;
+    if (profile.username?.includes('@')) return null;
+    const [settings, palettes] = await Promise.all([
+      loadUserSettings(profile.id),
+      getProfilePalettes(),
+    ]);
+    const design = extractPublicProfileData(settings, profile.id);
+    const page = prerenderProfile(
+      profile as ProfileFrameSource,
+      {
+        banner: design.profileHeaderImage,
+        posts: facts.postsCount,
+        reposts: facts.repostsCount,
+        replies: facts.repliesCount,
+      },
+      palettes as ProfilePalettes | undefined,
+    );
+    if (!page) return null;
+    if (page.banner) page.banner = await finalImageUrl(page.banner);
+    const palette = page.preset ? (palettes as ProfilePalettes)[page.preset] : undefined;
+    return {
+      html: renderPrerenderProfile(page, canonicalProfilePath(profile)),
+      css: profileFrameCss(palette),
+      imageFirst: Boolean(page.banner),
+    };
+  } catch (error) {
+    logger.warn('[webShell] Profile first frame failed', describeShellFailure(error));
+    return null;
+  }
 }
 
 /** Reads an author's {@link authorSeoPolicy}. */
@@ -384,6 +476,14 @@ const ENTITY_PREVIEW_CACHE = 'public, max-age=60, s-maxage=300, stale-while-reva
  */
 const HOMEPAGE_CACHE = 'no-cache';
 
+/** A first-frame layer (`prerender.ts`) and its own style, beyond the shared one. */
+interface FirstFrame {
+  html: string;
+  css?: string;
+  /** Let the frame's image go before the app's boot downloads (`deprioritizeAppBoot`). */
+  imageFirst?: boolean;
+}
+
 /** Serve the shell with head hints + optional OG injected, overriding the API no-store default. */
 async function serveShell(
   res: Response,
@@ -391,23 +491,27 @@ async function serveShell(
   status = 200,
   bootstrap?: ShellBootstrap,
   cacheControl: string = ENTITY_PREVIEW_CACHE,
-  layer = '',
+  layer: FirstFrame | null = null,
 ): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
   // The first frame goes only on a page served as a success, in a release
   // that removes it.
-  const frame = status === 200 && shellRemovesFirstFrame(shell) ? layer : '';
+  const frame = status === 200 && shellRemovesFirstFrame(shell) ? layer : null;
   res.status(status);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', status === 200 ? cacheControl : 'no-store');
   const head =
     HEAD_HINTS +
     lcpPreloadHtml(og) +
-    (frame ? prerenderStyle(firstPaintFontUrl(shell)) : '') +
+    (frame ? prerenderStyle(firstPaintFontUrl(shell), frame.css) : '') +
     (bootstrap ? buildShellBootstrapHtml(bootstrap) : '');
   // The theme prepaint is an inline script; authorize exactly its bytes.
   authorizeInlineScripts(res, inlineScriptHashes(shell));
-  res.send(injectPrerender(renderShellWithOg(injectHeadHtml(shell, head), og), frame));
+  const html = injectPrerender(
+    renderShellWithOg(injectHeadHtml(shell, head), og),
+    frame?.html ?? '',
+  );
+  res.send(frame?.imageFirst ? deprioritizeAppBoot(html) : html);
 }
 
 function noindexPage(url: string, title: string, description: string): OgData {
@@ -720,7 +824,8 @@ router.get(
       return;
     }
 
-    const mapped = mapProfileOg(profile, await profileSeoFacts(profile.id));
+    const facts = await profileSeoFacts(profile.id);
+    const mapped = mapProfileOg(profile, facts);
     // A sub-tab repeats the profile, so only the root is indexed. A federated
     // profile repeats its origin's page, so it is not indexed either: listing
     // copies of other servers' accounts spent the crawl on them, not on Mention.
@@ -731,11 +836,14 @@ router.get(
     // The page's first request is this very lookup; hand the app the public
     // answer so its feed and design reads start with the route, not ~one
     // round-trip later. Only reached for a profile Mention publishes.
-    // No first frame for a profile yet: the app paints a profile in its
-    // owner's colour and banner, which the frame cannot match before the app
-    // runs, and a frame that changes colour under the reader is the flash it
-    // exists to avoid.
-    await serveShell(res, og, 200, { profile: { handle, data: profile } });
+    await serveShell(
+      res,
+      og,
+      200,
+      { profile: { handle, data: profile } },
+      ENTITY_PREVIEW_CACHE,
+      isProfileRoot ? await profileFrame(profile, facts) : null,
+    );
   },
 );
 
@@ -964,8 +1072,8 @@ router.get(
       // server's when it carries an activity id or an actor URI (a local
       // post's own content warning also lives on the federation columns).
       const frame = og.prerender
-        ? renderPrerenderPost(og.prerender, postPath(String(post.id)))
-        : '';
+        ? { html: renderPrerenderPost(og.prerender, postPath(String(post.id))) }
+        : null;
       if (post.federation?.activityId || post.federation?.actorUri) {
         await serveShell(
           res,

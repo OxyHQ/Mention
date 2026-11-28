@@ -64,6 +64,13 @@ try {
   check('selects dark by the OS preference', written.includes('prefers-color-scheme:dark'));
   check('reads the saved theme', written.includes('"persist":"mention.bloom.theme"'));
   check('passes --check', run(dir, '--check'));
+  const palettes = JSON.parse(readFileSync(join(dir, 'profile-palettes.json'), 'utf8'));
+  check(
+    "writes every preset's profile palette, light and dark",
+    Object.keys(palettes).length > 30 &&
+      /^rgb\(/.test(palettes['garnet-acid']?.light?.['--background'] ?? '') &&
+      /^rgb\(/.test(palettes['garnet-acid']?.dark?.['--foreground'] ?? ''),
+  );
   check('is idempotent', run(dir) && readFileSync(file, 'utf8') === written);
 
   writeFileSync(file, written.replace('prefers-color-scheme:dark', 'prefers-color-scheme:stale'));

@@ -198,3 +198,58 @@ export function shellInlineScriptHashes(): string[] {
   }
   return inlineScriptHashes(shellCache.html);
 }
+
+/**
+ * The release's profile palettes (`profile-palettes.json`, written beside
+ * `index.html` by the frontend build): each Bloom preset's tokens in light and
+ * dark, which a profile's first frame is painted with. Held for ten minutes —
+ * they change only with Bloom — and fetched like the shell, behind its key.
+ * Unreachable or malformed, they are `undefined`, and a coloured profile gets
+ * no frame rather than the wrong colour.
+ */
+const PALETTES_TTL_MS = 10 * 60 * 1000;
+let palettesCache: { value: Record<string, unknown> | undefined; fetchedAt: number } | null = null;
+let palettesInFlight: Promise<Record<string, unknown> | undefined> | null = null;
+
+async function fetchPalettes(): Promise<Record<string, unknown> | undefined> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SHELL_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${SHELL_ORIGIN}profile-palettes.json`, {
+      headers: { Accept: 'application/json', [SHELL_ACCESS_HEADER]: SHELL_ACCESS_KEY },
+      signal: controller.signal,
+    });
+    if (!response.ok) return palettesCache?.value;
+    const body = (await response.json()) as unknown;
+    return body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return palettesCache?.value;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function getProfilePalettes(): Promise<Record<string, unknown> | undefined> {
+  if (palettesCache && Date.now() - palettesCache.fetchedAt < PALETTES_TTL_MS) {
+    return palettesCache.value;
+  }
+  if (!palettesInFlight) {
+    palettesInFlight = fetchPalettes()
+      .then((value) => {
+        palettesCache = { value, fetchedAt: Date.now() };
+        return value;
+      })
+      .finally(() => {
+        palettesInFlight = null;
+      });
+  }
+  // A held copy answers at once while a refresh runs.
+  return palettesCache ? palettesCache.value : palettesInFlight;
+}
+
+export function resetProfilePalettesForTests(): void {
+  palettesCache = null;
+  palettesInFlight = null;
+}

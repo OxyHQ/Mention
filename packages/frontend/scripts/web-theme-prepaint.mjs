@@ -59,12 +59,57 @@ export async function resolve(specifier, context, next) {
   }
 }`;
 
-/** The `<style>` + `<script>` to put at the top of the document head. */
-export async function themePrepaintHtml() {
-  register(`data:text/javascript,${encodeURIComponent(LOADER)}`);
+let registered = false;
+
+/** Bloom's prepaint modules, loadable under Node. */
+async function bloomTheme(file) {
+  if (!registered) {
+    register(`data:text/javascript,${encodeURIComponent(LOADER)}`);
+    registered = true;
+  }
   const require = createRequire(import.meta.url);
   const bloomRoot = require.resolve('@oxy.so/bloom/package.json').replace(/package\.json$/, '');
-  const { getThemeBootstrap } = await import(`${bloomRoot}lib/module/theme/prepaint.js`);
+  return import(`${bloomRoot}lib/module/theme/${file}`);
+}
+
+/**
+ * The tokens a profile's first frame paints with (`backend/.../prerenderProfile.ts`),
+ * per Bloom preset and mode: the web shell paints a profile in its owner's
+ * colour from these, before the app runs.
+ */
+export const PROFILE_PALETTE_TOKENS = [
+  '--background',
+  '--foreground',
+  '--card',
+  '--muted',
+  '--muted-foreground',
+  '--border',
+  '--primary-text',
+  '--surface',
+];
+
+/** `{ preset: { light: tokens, dark: tokens } }` for every Bloom preset. */
+export async function profilePalettes() {
+  const { getPrepaintPalette } = await bloomTheme('prepaint-palettes.js');
+  const { APP_COLOR_NAMES } = await bloomTheme('color-presets.js');
+  const pick = (vars) =>
+    Object.fromEntries(
+      PROFILE_PALETTE_TOKENS.map((name) => [name, vars[name]]).filter(([, v]) => v),
+    );
+  return Object.fromEntries(
+    APP_COLOR_NAMES.map((name) => [
+      name,
+      {
+        light: pick(getPrepaintPalette(name, 'light').vars),
+        dark: pick(getPrepaintPalette(name, 'dark').vars),
+      },
+    ]),
+  );
+}
+
+/** The `<style>` + `<script>` to put at the top of the document head. */
+export async function themePrepaintHtml() {
+  const { getThemeBootstrap } = await bloomTheme('prepaint.js');
   // The CSS for the default preset only; the script still reads the saved mode.
   const { css } = getThemeBootstrap({ ...THEME_PREPAINT, persistKey: undefined });
   const { script } = getThemeBootstrap(THEME_PREPAINT);
@@ -101,6 +146,9 @@ async function main() {
   }
   await writeFile(file, next);
   console.log(`${file}: theme prepaint written (${next.length - html.length} bytes added)`);
+  const palettes = resolve(dir, 'profile-palettes.json');
+  await writeFile(palettes, JSON.stringify(await profilePalettes()));
+  console.log(`${palettes}: written`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

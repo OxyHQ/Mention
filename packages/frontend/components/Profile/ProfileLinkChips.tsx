@@ -73,6 +73,9 @@ function LinkIcon({ link }: { link: ProfileLink }) {
   return (
     <Image
       source={{ uri: link.faviconUrl }}
+      // Decorative: the chip's own text names the site. An empty label is an
+      // empty `alt` on web, which screen readers skip.
+      accessibilityLabel=""
       className="size-4 rounded"
       contentFit="cover"
       onError={() => setFailed(true)}

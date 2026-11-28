@@ -73,6 +73,10 @@ function scannedFiles(): string[] {
  */
 const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
   [
+    'profile-palettes.json',
+    'Generated into the web export by packages/frontend/scripts/web-theme-prepaint.mjs, never a tracked source file',
+  ],
+  [
     'reconciliation-request.json',
     'Generated read-only ECS request inspection artifact, never a tracked source file',
   ],

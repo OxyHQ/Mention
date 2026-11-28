@@ -20,7 +20,7 @@ const FADE_MS = 200;
  * profile's name) with the content; a virtualized list can draw it a frame or
  * more after the commit that made the route ready.
  */
-const CONTENT_WAIT_MS = 1500;
+const CONTENT_WAIT_MS = 3000;
 /** After the app mounts, the longest the layer may stay. */
 export const PRERENDER_MAX_HOLD_MS = 8000;
 
@@ -34,6 +34,17 @@ function layer(): HTMLElement | null {
 /** Whether the document carries a first frame the app has not released yet. */
 export function hasPrerender(): boolean {
   return !released && layer() !== null;
+}
+
+/** Whether every image of the app's that is on screen has loaded (or failed). */
+function visibleImagesLoaded(): boolean {
+  const height = window.innerHeight || 0;
+  for (const image of document.querySelectorAll<HTMLImageElement>('#root img')) {
+    const rect = image.getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= height || rect.width === 0) continue;
+    if (!image.complete) return false;
+  }
+  return true;
 }
 
 /** Fade the first frame out and remove it, once. */
@@ -55,9 +66,14 @@ export function releasePrerender(): void {
     setTimeout(remove, FADE_MS);
   };
   const startedAt = Date.now();
-  // Wait for the route's own heading, then two frames so it has been painted.
+  // Wait for the route's own heading and the images on screen (a profile's
+  // banner is a larger rendition than the frame's), then two frames so they
+  // have been painted.
   const whenPainted = () => {
-    if (document.querySelector('#root h1') || Date.now() - startedAt > CONTENT_WAIT_MS) {
+    if (
+      (document.querySelector('#root h1') && visibleImagesLoaded()) ||
+      Date.now() - startedAt > CONTENT_WAIT_MS
+    ) {
       raf(() => raf(fade));
       return;
     }
