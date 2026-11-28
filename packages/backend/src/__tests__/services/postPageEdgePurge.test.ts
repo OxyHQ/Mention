@@ -44,8 +44,16 @@ vi.mock('../../config', async (importOriginal) => {
     ...actual,
     config: {
       ...actual.config,
-      web: { ...actual.config.web, origin: 'https://mention.earth' },
-      edgePurge: { enabled: true, zoneId: '6c2a616f72102ee543329c87fa3b5e08' },
+      web: {
+        ...actual.config.web,
+        origin: 'https://mention.earth',
+        aliasOrigins: ['https://mention.org'],
+      },
+      // Today's default: the canonical host's zone only.
+      edgePurge: {
+        enabled: true,
+        zones: [{ host: 'mention.earth', zoneId: '6c2a616f72102ee543329c87fa3b5e08' }],
+      },
     },
     getCloudflarePurgeToken: () => mocks.token,
   };
@@ -81,6 +89,17 @@ function cloudflareAnswers(status: number, body: unknown): void {
       status,
       headers: { 'Content-Type': 'application/json' },
     }),
+  );
+}
+
+/** A fresh success for every call: a Response body can be read only once. */
+function cloudflareAlwaysSucceeds(): void {
+  fetchMock.mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ success: true, errors: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
   );
 }
 
@@ -294,6 +313,69 @@ describe('runPostPagePurge (the worker half)', () => {
         'https://mention.earth/p/b/',
       ],
     });
+  });
+
+  it('skips a web host without a zone and logs it once per process', async () => {
+    // mention.org has no zone by default: purging is unchanged from before it existed.
+    cloudflareAlwaysSucceeds();
+    await runPostPagePurge(['a'], 'delete');
+    await runPostPagePurge(['b'], 'edit');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [url, init] of fetchMock.mock.calls) {
+      expect(url).toContain('/zones/6c2a616f72102ee543329c87fa3b5e08/');
+      expect(JSON.stringify(JSON.parse(init.body))).not.toContain('mention.org');
+    }
+    // Logged at most once in this process (an earlier test may already have).
+    expect(
+      mocks.warn.mock.calls.filter(([, detail]) => detail?.host === 'mention.org').length,
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it('purges every web host in its own zone once each has one', async () => {
+    const zones = config.edgePurge as { zones: Array<{ host: string; zoneId: string }> };
+    const before = zones.zones;
+    zones.zones = [
+      { host: 'mention.earth', zoneId: 'e'.repeat(32) },
+      { host: 'mention.org', zoneId: 'f'.repeat(32) },
+    ];
+    cloudflareAlwaysSucceeds();
+    try {
+      await runPostPagePurge(['a'], 'delete');
+    } finally {
+      zones.zones = before;
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const calls = fetchMock.mock.calls.map(([url, init]) => [url, JSON.parse(init.body).files]);
+    expect(calls).toEqual([
+      [
+        `https://api.cloudflare.com/client/v4/zones/${'e'.repeat(32)}/purge_cache`,
+        ['https://mention.earth/p/a', 'https://mention.earth/p/a/'],
+      ],
+      [
+        `https://api.cloudflare.com/client/v4/zones/${'f'.repeat(32)}/purge_cache`,
+        ['https://mention.org/p/a', 'https://mention.org/p/a/'],
+      ],
+    ]);
+  });
+
+  it('still tries every host when one fails, then fails the job for a retry', async () => {
+    const zones = config.edgePurge as { zones: Array<{ host: string; zoneId: string }> };
+    const before = zones.zones;
+    zones.zones = [
+      { host: 'mention.earth', zoneId: 'e'.repeat(32) },
+      { host: 'mention.org', zoneId: 'f'.repeat(32) },
+    ];
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: false }), { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    try {
+      await expect(runPostPagePurge(['a'], 'delete')).rejects.toBeInstanceOf(
+        CloudflarePurgeRetryableError,
+      );
+    } finally {
+      zones.zones = before;
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('drops a job queued before purging was switched off', async () => {

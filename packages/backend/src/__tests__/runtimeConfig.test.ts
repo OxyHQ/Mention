@@ -147,3 +147,37 @@ describe('runtime configuration', () => {
     expect(getIpHashSalt({ MENTION_MCP_JWT_SECRET: 'm'.repeat(32) })).toBe('m'.repeat(32));
   });
 });
+
+describe('CLOUDFLARE_PURGE_ZONES', () => {
+  const earth = 'e'.repeat(32);
+  const org = 'f'.repeat(32);
+
+  it('is unset by default, which keeps the single CLOUDFLARE_ZONE_ID zone', () => {
+    expect(parseRuntimeEnvironment({}).CLOUDFLARE_PURGE_ZONES).toBeUndefined();
+    expect(parseRuntimeEnvironment({ CLOUDFLARE_PURGE_ZONES: '  ' }).CLOUDFLARE_PURGE_ZONES).toBe(
+      undefined,
+    );
+  });
+
+  it('reads host=zoneId pairs', () => {
+    expect(
+      parseRuntimeEnvironment({
+        CLOUDFLARE_PURGE_ZONES: ` Mention.Earth=${earth} , mention.org=${org},`,
+      }).CLOUDFLARE_PURGE_ZONES,
+    ).toEqual([
+      { host: 'mention.earth', zoneId: earth },
+      { host: 'mention.org', zoneId: org },
+    ]);
+  });
+
+  it.each([
+    'mention.earth',
+    `mention.earth=${'x'.repeat(32)}`,
+    `https://mention.earth=${earth}`,
+    `mention.earth=${earth},mention.earth=${org}`,
+  ])('rejects %p', (value) => {
+    expect(() => parseRuntimeEnvironment({ CLOUDFLARE_PURGE_ZONES: value })).toThrow(
+      'CLOUDFLARE_PURGE_ZONES',
+    );
+  });
+});

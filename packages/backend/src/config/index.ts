@@ -106,6 +106,38 @@ const domain = z
 
 const optionalDomain = z.preprocess(emptyAsUndefined, domain.optional());
 
+/** A Cloudflare zone id: 32 lowercase hex characters. An id, not a secret. */
+const cloudflareZoneId = z
+  .string()
+  .trim()
+  .regex(/^[0-9a-f]{32}$/, 'must be a 32-character hex Cloudflare zone id');
+
+/** `host=zoneId` pairs, comma-separated; absent or blank is `undefined` (the default applies). */
+const purgeZones = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null) return undefined;
+    const text = String(value).trim();
+    if (text.length === 0) return undefined;
+    return text
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => {
+        const separator = entry.indexOf('=');
+        return separator === -1
+          ? { host: entry, zoneId: '' }
+          : { host: entry.slice(0, separator), zoneId: entry.slice(separator + 1) };
+      });
+  },
+  z
+    .array(z.strictObject({ host: domain, zoneId: cloudflareZoneId }))
+    .refine(
+      (zones) => new Set(zones.map((zone) => zone.host)).size === zones.length,
+      'names a host twice',
+    )
+    .optional(),
+);
+
 const host = z
   .string()
   .trim()
@@ -475,6 +507,15 @@ const environmentSchema = z
         .regex(/^[0-9a-f]{32}$/, 'CLOUDFLARE_ZONE_ID must be a 32-character hex zone id')
         .default('6c2a616f72102ee543329c87fa3b5e08'),
     ),
+    /**
+     * One Cloudflare zone per web host for the post-page purge, as comma-separated
+     * `host=zoneId` pairs (`mention.earth=<id>,mention.org=<id>`). Every web host
+     * (`MENTION_WEB_ORIGIN` and `MENTION_WEB_ALIAS_ORIGINS`) is purged in its own
+     * zone; a host without one is skipped and logged once. Absent or blank, it is
+     * today's single zone: the canonical web host in `CLOUDFLARE_ZONE_ID`.
+     * docs/mention-org-domain-move.md
+     */
+    CLOUDFLARE_PURGE_ZONES: purgeZones,
 
     /**
      * Instagram posts through Meta's Graph API (Business Discovery). OFF by
@@ -1006,7 +1047,14 @@ export const config = {
      * through {@link getCloudflarePurgeToken}, never placed on this object.
      */
     enabled: environment.EDGE_CACHE_PURGE_ENABLED && Boolean(environment.CLOUDFLARE_PURGE_TOKEN),
-    zoneId: environment.CLOUDFLARE_ZONE_ID,
+    /**
+     * The zone each web host is purged in (`CLOUDFLARE_PURGE_ZONES`). Default:
+     * the canonical web host in `CLOUDFLARE_ZONE_ID`, the single zone purged
+     * before there were alias hosts.
+     */
+    zones: (environment.CLOUDFLARE_PURGE_ZONES ?? [
+      { host: originHost(environment.MENTION_WEB_ORIGIN), zoneId: environment.CLOUDFLARE_ZONE_ID },
+    ]) as ReadonlyArray<{ host: string; zoneId: string }>,
   },
   instagramGraph: {
     /**

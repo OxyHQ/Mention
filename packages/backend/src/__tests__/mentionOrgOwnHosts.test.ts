@@ -50,6 +50,14 @@ describe('the web hosts', () => {
   });
 });
 
+describe('the post-page purge zones', () => {
+  it('default to the single zone purged today: the canonical host in CLOUDFLARE_ZONE_ID', () => {
+    expect(config.edgePurge.zones).toEqual([
+      { host: 'mention.earth', zoneId: '6c2a616f72102ee543329c87fa3b5e08' },
+    ]);
+  });
+});
+
 describe('OWN_DOMAINS', () => {
   it('names both web hosts, once each, and leaves the federation domain alone', () => {
     expect(config.federation.domain).toBe('mention.earth');
