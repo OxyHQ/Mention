@@ -1,4 +1,5 @@
 import { Button } from '@oxy.so/bloom/button';
+import { useDialogContext } from '@oxy.so/bloom/dialog';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageFooter } from '@oxy.so/bloom/page-footer';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -34,6 +35,7 @@ export function VideoReplies({
 }: VideoRepliesProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { isWithinDialog } = useDialogContext();
   const post = usePostSelector(postId);
 
   return (
@@ -47,7 +49,7 @@ export function VideoReplies({
           onBack={null}
           safeArea={false}
           actions={
-            onClose ? (
+            onClose && !isWithinDialog ? (
               <Button
                 appearance="subtle"
                 tone="neutral"

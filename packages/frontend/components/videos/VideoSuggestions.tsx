@@ -52,7 +52,7 @@ export function VideoRecommendations({
   const { oxyServices, user, isAuthResolved } = useAuth();
   const feed = useQuery({
     queryKey: viewerQueryKeys.videoSuggestions(user?.id, i18n.resolvedLanguage),
-    enabled: isAuthResolved,
+    enabled: isAuthResolved && Boolean(current),
     queryFn: ({ signal }) =>
       feedService.getMtnFeed('videos', { limit: 16, orientation: 'landscape', signal }),
     staleTime: 60_000,
