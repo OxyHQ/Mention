@@ -91,6 +91,25 @@ test('default social card advertises the real image with its dimensions and acce
   expect(head()['twitter:image:alt']).toBe(head()['og:image:alt']);
 });
 
+test('a page without its own url is canonical on the configured web origin, not the page origin', () => {
+  // jsdom serves this page from http://localhost, standing in for an alias host
+  // (mention.org): the canonical must not follow it.
+  expect(window.location.origin).not.toBe('https://social.example');
+  act(() => {
+    tree = TestRenderer.create(<SEO />);
+  });
+  const meta = (key: string) =>
+    tree.root
+      .findAllByType('meta')
+      .find((node) => node.props.property === key || node.props.name === key)?.props.content;
+  expect(tree.root.findByType('link').props).toMatchObject({
+    rel: 'canonical',
+    href: 'https://social.example/',
+  });
+  expect(meta('og:url')).toBe('https://social.example/');
+  expect(meta('twitter:url')).toBe('https://social.example/');
+});
+
 test('personalized entity images do not inherit homepage image dimensions or description', () => {
   act(() => {
     tree = TestRenderer.create(

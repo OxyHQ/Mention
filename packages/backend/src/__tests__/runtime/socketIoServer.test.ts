@@ -71,6 +71,10 @@ describe('createSocketIoServer', () => {
     // A request with no Origin header (same-origin, curl, native app) is allowed.
     await expect(decide(undefined)).resolves.toBe(true);
     await expect(decide('https://attacker.example')).resolves.toBe(false);
+    // The web app on either host opens the same realtime socket.
+    await expect(decide('https://mention.earth')).resolves.toBe(true);
+    await expect(decide('https://mention.org')).resolves.toBe(true);
+    await expect(decide('https://mention.org.attacker.example')).resolves.toBe(false);
   });
 });
 

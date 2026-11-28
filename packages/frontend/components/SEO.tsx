@@ -146,12 +146,11 @@ export const SEO: React.FC<SEOProps> = ({
   const pathname = usePathname();
   const { t } = useTranslation();
 
-  // Generate full URL
-  const fullUrl =
-    url ||
-    (Platform.OS === 'web' && typeof window !== 'undefined'
-      ? `${window.location.origin}${pathname}`
-      : `https://mention.earth${pathname}`);
+  // The canonical, og:url and twitter:url are on the configured canonical web
+  // origin, never the page's own: the same app is also served on alias hosts
+  // (mention.org), and a canonical rewritten to the alias after hydration would
+  // move the search index there. The server-rendered canonical agrees.
+  const fullUrl = url || `${WEB_BASE_URL.replace(/\/$/, '')}${pathname}`;
 
   // Use provided siteName or translated default
   const finalSiteName = siteName || t('seo.siteName', { defaultValue: defaultSEO.siteName });

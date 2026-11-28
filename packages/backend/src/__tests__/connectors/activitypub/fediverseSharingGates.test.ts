@@ -255,6 +255,25 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
       expect(res.body).toEqual(NOT_FOUND_BODY);
     });
 
+    // The production router answers the mention.org alias (`MENTION_WEB_ALIAS_ORIGINS`
+    // default) with the canonical account, behind the very same consent gate.
+    it('resolves acct:alice@mention.org to the canonical mention.earth JRD, gate included', async () => {
+      mocks.getFediverseSharingStateByUsername.mockResolvedValue('enabled');
+      const canonical = await request(wellKnownApp).get(`/.well-known/webfinger${qs}`).expect(200);
+      const alias = await request(wellKnownApp)
+        .get('/.well-known/webfinger?resource=acct:alice@mention.org')
+        .set('X-Forwarded-Host', 'mention.org')
+        .expect(200);
+      expect(alias.body).toEqual(canonical.body);
+      expect(alias.body.subject).toBe('acct:alice@mention.earth');
+
+      mocks.getFediverseSharingStateByUsername.mockResolvedValue('disabled');
+      const refused = await request(wellKnownApp)
+        .get('/.well-known/webfinger?resource=acct:alice@mention.org')
+        .expect(404);
+      expect(refused.body).toEqual(NOT_FOUND_BODY);
+    });
+
     it("404s with the unknown-user body when getFediverseSharingStateByUsername says 'unknown-user'", async () => {
       mocks.getFediverseSharingStateByUsername.mockResolvedValue('unknown-user');
       const res = await request(wellKnownApp).get(`/.well-known/webfinger${qs}`).expect(404);

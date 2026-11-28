@@ -37,6 +37,9 @@ set -Eeuo pipefail
 
 API_ORIGIN="${API_ORIGIN:-https://api.mention.earth}"
 WEB_ORIGIN="${WEB_ORIGIN:-https://mention.earth}"
+# Optional second web origin (an alias of WEB_ORIGIN served by the same service,
+# e.g. https://mention.org). Unset — the default — adds no check at all.
+WEB_ALIAS_ORIGIN="${WEB_ALIAS_ORIGIN:-}"
 smoke_dir="$(mktemp -d)"
 temporary_root="$(realpath "${TMPDIR:-/tmp}")"
 smoke_dir="$(realpath "$smoke_dir")"
@@ -285,6 +288,20 @@ request dependent inbox \
   "$WEB_ORIGIN/ap/users/__smoke_missing__/inbox"
 expect_status inbox "$http_status" 404
 expect_json_response inbox
+
+# --- dependent, optional: the alias web origin -------------------------------
+
+# The alias is the same backend behind another Cloudflare-proxied hostname, so the
+# same assertion as the apex webfinger check: the backend itself answered, as JSON,
+# for an acct: on the alias domain — not the SPA, not a redirect.
+if [[ -n "$WEB_ALIAS_ORIGIN" ]]; then
+  alias_host="${WEB_ALIAS_ORIGIN#*://}"
+  alias_host="${alias_host%%/*}"
+  request dependent webfinger-alias \
+    "$WEB_ALIAS_ORIGIN/.well-known/webfinger?resource=acct:__smoke_missing__@$alias_host"
+  expect_status webfinger-alias "$http_status" 404
+  expect_json_response webfinger-alias
+fi
 
 # --- verdict -----------------------------------------------------------------
 

@@ -632,6 +632,51 @@ describe('createApp', () => {
     }
   });
 
+  it('lets a page reach the alias API origin and its socket beside the API origin', async () => {
+    const { createApp } = await import('../app');
+    const connectSources = async (deps: CreateAppDependencies) => {
+      const response = await request(createApp(deps))
+        .get('/plus')
+        .set('Host', 'mention.earth')
+        .expect(200);
+      return String(response.headers['content-security-policy'])
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith('connect-src '))
+        ?.split(/\s+/)
+        .slice(1);
+    };
+
+    // One policy for every host: the header is not chosen by the request's Host.
+    const deps = createDependencies();
+    deps.apiAliasOrigins = ['https://api.mention.org'];
+    const withAlias = await connectSources(deps);
+    for (const origin of [
+      'https://api.mention.earth',
+      'wss://api.mention.earth',
+      'https://api.mention.org',
+      'wss://api.mention.org',
+    ]) {
+      expect(withAlias).toContain(origin);
+    }
+
+    // No aliases: exactly the API origin and its socket, as before.
+    const without = await connectSources(createDependencies());
+    expect(without).toContain('https://api.mention.earth');
+    expect(without).toContain('wss://api.mention.earth');
+    expect(without?.some((source) => source.includes('mention.org'))).toBe(false);
+  });
+
+  it('serves the production config with the mention.org API alias', async () => {
+    const { config } = await import('../config');
+    expect(config.web.apiAliasOrigins).toEqual(['https://api.mention.org']);
+    expect(config.web.aliasOrigins).toEqual(['https://mention.org']);
+    expect(config.federation.webfingerAliasDomains).toEqual(['mention.org']);
+    // The canonical identity is untouched.
+    expect(config.web.origin).toBe('https://mention.earth');
+    expect(config.federation.domain).toBe('mention.earth');
+  });
+
   it('allows the embedded Alia client to reach only its exact API origin', async () => {
     const { createApp } = await import('../app');
     const deps = createDependencies();

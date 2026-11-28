@@ -13,9 +13,14 @@ const isProduction = config.runtime.isProduction;
 const FRONTEND_URL = config.frontendUrl ?? 'https://mention.earth';
 
 /**
- * Production origins that are always allowed regardless of environment.
+ * Production origins that are always allowed regardless of environment: the
+ * frontend, and every alias origin this same web app is served on
+ * (`MENTION_WEB_ALIAS_ORIGINS`, `https://mention.org`). The fallback
+ * `Access-Control-Allow-Origin` for anything else stays FRONTEND_URL (`app.ts`).
  */
-const PRODUCTION_ORIGINS: readonly string[] = [FRONTEND_URL];
+const PRODUCTION_ORIGINS: readonly string[] = [
+  ...new Set([FRONTEND_URL, ...config.web.aliasOrigins]),
+];
 
 /**
  * Returns the static list of allowed CORS origins for the current environment.

@@ -22,7 +22,8 @@ import { BootMilestone } from '@/components/BootMilestone';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { SurfaceHost } from '@oxy.so/bloom/surfaces';
-import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
+import { OXY_CLIENT_ID } from '@/config';
+import { resolveOxyAuthRedirectUri } from '@/utils/oxyAuthRedirectUri';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import { ChannelInfoDialogProvider } from '@/components/Channels/ChannelInfoDialog';
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
@@ -37,6 +38,10 @@ import { configureLottieWeb } from '@/lib/lottieWeb';
 
 // Before any sticker renders: the web Lottie renderer loads from this origin.
 configureLottieWeb();
+
+// The page's own Mention origin on web (mention.earth or mention.org), so sign-in
+// returns to the host it started on; the build-time constant everywhere else.
+const OXY_AUTH_REDIRECT_URI = resolveOxyAuthRedirectUri();
 
 interface AppProvidersProps {
   children: React.ReactNode;

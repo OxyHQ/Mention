@@ -48,6 +48,42 @@ describe('runtime configuration', () => {
     expect(() => parseRuntimeEnvironment(source)).toThrow(expectedField);
   });
 
+  it('serves mention.org as an alias of the public web app and API by default', () => {
+    const defaults = parseRuntimeEnvironment({});
+    expect(defaults.MENTION_WEB_ORIGIN).toBe('https://mention.earth');
+    expect(defaults.MENTION_WEB_ALIAS_ORIGINS).toEqual(['https://mention.org']);
+    expect(defaults.MENTION_API_ALIAS_ORIGINS).toEqual(['https://api.mention.org']);
+    // Blank is "unset", exactly like every other origin here.
+    expect(
+      parseRuntimeEnvironment({ MENTION_WEB_ALIAS_ORIGINS: ' ' }).MENTION_WEB_ALIAS_ORIGINS,
+    ).toEqual(['https://mention.org']);
+
+    const listed = parseRuntimeEnvironment({
+      MENTION_WEB_ALIAS_ORIGINS: 'https://mention.org/, https://social.example.test',
+      MENTION_API_ALIAS_ORIGINS: 'NONE',
+    });
+    expect(listed.MENTION_WEB_ALIAS_ORIGINS).toEqual([
+      'https://mention.org',
+      'https://social.example.test',
+    ]);
+    expect(listed.MENTION_API_ALIAS_ORIGINS).toEqual([]);
+    expect(
+      parseRuntimeEnvironment({ MENTION_WEB_ALIAS_ORIGINS: 'none' }).MENTION_WEB_ALIAS_ORIGINS,
+    ).toEqual([]);
+
+    for (const value of [
+      'https://mention.org/app',
+      'wss://mention.org',
+      'https://mention.org,https://user@social.example.test',
+    ]) {
+      expect(() => parseRuntimeEnvironment({ MENTION_WEB_ALIAS_ORIGINS: value })).toThrow(
+        'MENTION_WEB_ALIAS_ORIGINS',
+      );
+    }
+    // Not a URL at all: refused too (by the shared origin schema's URL parse).
+    expect(() => parseRuntimeEnvironment({ MENTION_WEB_ALIAS_ORIGINS: 'mention.org' })).toThrow();
+  });
+
   it('leaves the Mercaria origins to the SDK unless an override is supplied', () => {
     const unset = parseRuntimeEnvironment({ MERCARIA_API_URL: '', MERCARIA_WEB_URL: '  ' });
     expect(unset.MERCARIA_API_URL).toBeUndefined();

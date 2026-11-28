@@ -117,6 +117,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
 
   const app = createApp({
     deployment: config.deployment ? publicDeploymentInfo(config.deployment) : undefined,
+    apiAliasOrigins: config.web.apiAliasOrigins,
     frontendUrl: config.frontendUrl,
     federationDomain: config.federationDomain,
     isAllowedOrigin,

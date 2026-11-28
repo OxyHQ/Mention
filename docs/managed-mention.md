@@ -92,6 +92,8 @@ The manifest resolves the existing environment inputs:
 Explicit environment values that disagree with the manifest fail startup. Remove
 public-instance defaults from a copied `.env.example`; do not silently reuse them.
 With the manifest unset, the normal public Mention defaults remain unchanged.
+A managed deployment does not inherit the public instance's `mention.org` aliases:
+`MENTION_WEB_ALIAS_ORIGINS` and `MENTION_API_ALIAS_ORIGINS` default to `none` there.
 
 ## Secret and storage requirements
 
