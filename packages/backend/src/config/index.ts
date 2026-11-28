@@ -708,6 +708,7 @@ const dynamicFeedFlagsSchema = z.object({
   FOR_YOU_DISCOVERY_GATE: feedModuleSelection(discoveryGateModuleIds),
   FOR_YOU_PHASE2B_SIGNALS: feedModuleSelection(phase2bSignalIds),
   FOR_YOU_DISCOVERY_LANGUAGE: feedToggle,
+  FEED_ENGAGEMENT_RANKS: feedToggle,
 });
 
 function parseDynamicFeedFlags(source: EnvironmentSource = process.env) {
@@ -737,6 +738,19 @@ export function getPhase2bSignalSelection(): string | undefined {
  */
 export function isDiscoveryLanguageFilterEnabled(): boolean | undefined {
   return parseDynamicFeedFlags().FOR_YOU_DISCOVERY_LANGUAGE;
+}
+
+/**
+ * Whether the popular scans read `post_engagement_ranks` (the banded read in
+ * `db/posts/engagementRankScan.ts`) instead of ordering `posts` through
+ * `posts_engagement_rank_idx`. Off until `scripts/backfillPostEngagementRanks.ts`
+ * has copied and verified the table; read at call time, so
+ * `FEED_ENGAGEMENT_RANKS=off` goes back to the expression index without a
+ * redeploy for as long as that index exists. Both modes return the same rows in
+ * the same order (`popularEngagementBands.test.ts`).
+ */
+export function isEngagementRankTableReadEnabled(): boolean {
+  return parseDynamicFeedFlags().FEED_ENGAGEMENT_RANKS ?? false;
 }
 
 export function getGifMediaProxySecret(): string | undefined {

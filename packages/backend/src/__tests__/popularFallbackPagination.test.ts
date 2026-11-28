@@ -104,9 +104,9 @@ const PORTRAIT_VIDEO: MediaItem = {
 
 /**
  * The three popular sources and the CONTENT each needs to qualify for it. Driving
- * one table over all three is the point: they share `popularKeysetSql` and
- * `popularOrder`, and a fix applied to one of them only is exactly the shape of
- * bug this file exists to catch.
+ * one table over all three is the point: they share one keyset and one order
+ * (`selectPostsByEngagementRank`), and a fix applied to one of them only is
+ * exactly the shape of bug this file exists to catch.
  */
 const SOURCES: ReadonlyArray<{
   name: string;
@@ -284,195 +284,232 @@ describe('the ScoreCursor keyset payload', () => {
   });
 });
 
-describe.each(SOURCES)('$name pagination', ({ source, content }) => {
-  it('serves the pool in engagement, then createdAt, then id order', async () => {
-    const expected = await pool(content());
-    const candidates = await source.gather({} as FeedEngineContext, {}, 500);
-    const mine = candidates.map((candidate) => candidate.id).filter((id) => expected.includes(id));
-    expect(mine).toEqual(expected);
+/**
+ * Everything below runs twice: through the single query over
+ * `posts_engagement_rank_idx` and through the banded read over
+ * `post_engagement_ranks` (`db/posts/engagementRankScan.ts`). Both must walk the
+ * same pool in the same order; `db/popularEngagementBands.test.ts` compares the
+ * two modes row for row.
+ */
+describe.each(['off', 'on'] as const)('FEED_ENGAGEMENT_RANKS=%s', (mode) => {
+  let previous: string | undefined;
+  beforeAll(() => {
+    previous = process.env.FEED_ENGAGEMENT_RANKS;
+    process.env.FEED_ENGAGEMENT_RANKS = mode;
+  });
+  afterAll(() => {
+    if (previous === undefined) delete process.env.FEED_ENGAGEMENT_RANKS;
+    else process.env.FEED_ENGAGEMENT_RANKS = previous;
   });
 
-  it('walks adjacent pages that neither overlap nor gap', async () => {
-    const expected = await pool(content());
-    const { pages, exhausted } = await walk(source, expected, 2);
-
-    // The walk reached every fixture rather than running out of page budget —
-    // without this a keyset that stalls after page one would still "pass" the
-    // concatenation check on a prefix.
-    expect(exhausted).toBe(true);
-
-    // NO OVERLAP: no id is served twice, anywhere in the walk.
-    const served = pages.flat();
-    expect(new Set(served).size).toBe(served.length);
-    // NO GAP, and the order is the one the sort promises. This is the assertion a
-    // score-only keyset fails: it drops the sibling tied at the same score.
-    expect(served).toEqual(expected);
-    // Adjacent pages specifically, stated so a failure names the boundary.
-    for (let i = 1; i < pages.length; i += 1) {
-      expect(pages[i].filter((id) => pages[i - 1].includes(id))).toEqual([]);
-    }
-  });
-
-  it('refuses to keyset on a legacy cursor it cannot fully express', async () => {
-    /**
-     * A bare id cannot say which score or `created_at` the previous page stopped
-     * at. Filtering on `id` anyway is the original defect, so the correct
-     * behaviour is to lean on the cursor's bounded exclusion list for one page
-     * rather than bound an axis nothing sorts by — which shows up here as the
-     * FULL pool coming back, minus only the cursor row.
-     */
-    const expected = await pool(content());
-    const anchor = expected[2];
-
-    const candidates = await source.gather({ cursor: anchor } as FeedEngineContext, {}, 500);
-    const mine = candidates.map((candidate) => candidate.id).filter((id) => expected.includes(id));
-
-    expect(mine).toEqual(expected.filter((id) => id !== anchor));
-  });
-
-  it('refuses to keyset on a cursor the popular regime did not mint', async () => {
-    /**
-     * Provenance, at the row level. The score in a ranked cursor is a
-     * `finalScore` — a product of near-1 signals — while this source bounds an
-     * `engagementScore` that is 0 for most posts and unbounded above. Comparing
-     * them empties or no-ops the page depending on which way the mismatch falls.
-     * A cursor with a COMPLETE key but no fallback stamp must still be refused.
-     */
-    const expected = await pool(content());
-    const anchor = expected[2];
-    const rankedCursor = ScoreCursor.build(1.5, anchor, { asOf: NOW, tiebreakAt: NOW });
-
-    const candidates = await source.gather({ cursor: rankedCursor } as FeedEngineContext, {}, 500);
-    const mine = candidates.map((candidate) => candidate.id).filter((id) => expected.includes(id));
-
-    // Unfiltered but for the cursor row's own exclusion — a `finalScore` of 1.5
-    // used as an engagement bound would have cut the pool down to the two
-    // zero-ish tail posts.
-    expect(mine).toEqual(expected.filter((id) => id !== anchor));
-  });
-
-  it('excludes the ids the cursor is carrying', async () => {
-    const expected = await pool(content());
-    const [anchor, dropped] = expected;
-    const cursor = ScoreCursor.build(Number.MAX_SAFE_INTEGER, anchor, {
-      asOf: NOW,
-      tiebreakAt: NOW,
-      excludeIds: [dropped],
-      fromPopularFallback: true,
+  describe.each(SOURCES)('$name pagination', ({ source, content }) => {
+    it('serves the pool in engagement, then createdAt, then id order', async () => {
+      const expected = await pool(content());
+      const candidates = await source.gather({} as FeedEngineContext, {}, 500);
+      const mine = candidates
+        .map((candidate) => candidate.id)
+        .filter((id) => expected.includes(id));
+      expect(mine).toEqual(expected);
     });
 
-    const candidates = await source.gather({ cursor } as FeedEngineContext, {}, 500);
-    const mine = candidates.map((candidate) => candidate.id).filter((id) => expected.includes(id));
+    it('walks adjacent pages that neither overlap nor gap', async () => {
+      const expected = await pool(content());
+      const { pages, exhausted } = await walk(source, expected, 2);
 
-    expect(mine).toEqual(expected.filter((id) => id !== anchor && id !== dropped));
-  });
+      // The walk reached every fixture rather than running out of page budget —
+      // without this a keyset that stalls after page one would still "pass" the
+      // concatenation check on a prefix.
+      expect(exhausted).toBe(true);
 
-  it('excludes what the viewer has already been shown', async () => {
-    /**
-     * `popularSource` builds its match by hand rather than through a query
-     * builder and was the only fallback that never threaded the seen set — so the
-     * FIRST fallback page could re-serve exactly the posts the ranked pages had
-     * just exhausted, which is the most visible possible moment to repeat
-     * yourself. Asserted for all three so the omission cannot come back to one.
-     */
-    const expected = await pool(content());
-    const seen = [expected[0], expected[3]];
+      // NO OVERLAP: no id is served twice, anywhere in the walk.
+      const served = pages.flat();
+      expect(new Set(served).size).toBe(served.length);
+      // NO GAP, and the order is the one the sort promises. This is the assertion a
+      // score-only keyset fails: it drops the sibling tied at the same score.
+      expect(served).toEqual(expected);
+      // Adjacent pages specifically, stated so a failure names the boundary.
+      for (let i = 1; i < pages.length; i += 1) {
+        expect(pages[i].filter((id) => pages[i - 1].includes(id))).toEqual([]);
+      }
+    });
 
-    const candidates = await source.gather({ seenPostIds: seen } as FeedEngineContext, {}, 500);
-    const mine = candidates.map((candidate) => candidate.id).filter((id) => expected.includes(id));
+    it('refuses to keyset on a legacy cursor it cannot fully express', async () => {
+      /**
+       * A bare id cannot say which score or `created_at` the previous page stopped
+       * at. Filtering on `id` anyway is the original defect, so the correct
+       * behaviour is to lean on the cursor's bounded exclusion list for one page
+       * rather than bound an axis nothing sorts by — which shows up here as the
+       * FULL pool coming back, minus only the cursor row.
+       */
+      const expected = await pool(content());
+      const anchor = expected[2];
 
-    expect(mine).toEqual(expected.filter((id) => !seen.includes(id)));
-  });
+      const candidates = await source.gather({ cursor: anchor } as FeedEngineContext, {}, 500);
+      const mine = candidates
+        .map((candidate) => candidate.id)
+        .filter((id) => expected.includes(id));
 
-  it('withholds sensitive posts from the fallback, like every discovery lane', async () => {
-    // `ForYouFeed.fetchPopular` once shipped WITHOUT this filter and leaked NSFW
-    // into For You. The fallback is a discovery lane and is gated like one.
-    const safe = await create(50, RECENT, content());
-    const sensitive = await create(60, RECENT, { ...content(), metadata: { isSensitive: true } });
+      expect(mine).toEqual(expected.filter((id) => id !== anchor));
+    });
 
-    const candidates = await source.gather({} as FeedEngineContext, {}, 500);
-    const mine = candidates
-      .map((candidate) => candidate.id)
-      .filter((id) => [safe, sensitive].includes(id));
-    expect(mine).toEqual([safe]);
-  });
-});
+    it('refuses to keyset on a cursor the popular regime did not mint', async () => {
+      /**
+       * Provenance, at the row level. The score in a ranked cursor is a
+       * `finalScore` — a product of near-1 signals — while this source bounds an
+       * `engagementScore` that is 0 for most posts and unbounded above. Comparing
+       * them empties or no-ops the page depending on which way the mismatch falls.
+       * A cursor with a COMPLETE key but no fallback stamp must still be refused.
+       */
+      const expected = await pool(content());
+      const anchor = expected[2];
+      const rankedCursor = ScoreCursor.build(1.5, anchor, { asOf: NOW, tiebreakAt: NOW });
 
-/**
- * The reader-language predicate on `popularSource`.
- *
- * Scoped to this ONE source rather than driven over all three above, because
- * that is the actual scope of the predicate — and the reason is worth stating
- * rather than leaving as an omission a later reader has to guess at:
- *
- *   - `popular` IS the entire For You feed for a signed-out reader
- *     (`FeedEngine.run` serves it directly when there is no `currentUserId`), the
- *     never-blank tail for a signed-in one, AND the source behind the `trending`
- *     preset. Measured against production on 2026-09-05, the anonymous For You
- *     page came back 48% `de` from a corpus that is 6.8% `de`.
- *   - `popularVideos` / `popularMedia` are deliberately EXEMPT for now. They back
- *     surfaces whose content is not primarily text, and widening the predicate to
- *     them is a separate product call rather than part of this fix.
- */
-describe('popularSource — reader-language predicate', () => {
-  const ES = { postClassification: { languages: ['es'] } } as Partial<PostRecordInput>;
-  const DE = { postClassification: { languages: ['de'] } } as Partial<PostRecordInput>;
+      const candidates = await source.gather(
+        { cursor: rankedCursor } as FeedEngineContext,
+        {},
+        500,
+      );
+      const mine = candidates
+        .map((candidate) => candidate.id)
+        .filter((id) => expected.includes(id));
 
-  async function gatherIds(ctx: Partial<FeedEngineContext>, ids: string[]): Promise<string[]> {
-    const candidates = await popularSource.gather(ctx as FeedEngineContext, {}, 500);
-    return candidates.map((candidate) => candidate.id).filter((id) => ids.includes(id));
-  }
+      // Unfiltered but for the cursor row's own exclusion — a `finalScore` of 1.5
+      // used as an engagement bound would have cut the pool down to the two
+      // zero-ish tail posts.
+      expect(mine).toEqual(expected.filter((id) => id !== anchor));
+    });
 
-  it('drops an off-language post for a reader who declared their languages', async () => {
-    const spanish = await create(50, RECENT, ES);
-    const german = await create(60, RECENT, DE);
+    it('excludes the ids the cursor is carrying', async () => {
+      const expected = await pool(content());
+      const [anchor, dropped] = expected;
+      const cursor = ScoreCursor.build(Number.MAX_SAFE_INTEGER, anchor, {
+        asOf: NOW,
+        tiebreakAt: NOW,
+        excludeIds: [dropped],
+        fromPopularFallback: true,
+      });
 
-    // German has MORE engagement, so it sorts first and would lead the page. That
-    // is the whole failure being fixed: engagement was the only axis this source
-    // ever ordered on.
-    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, german])).toEqual([spanish]);
+      const candidates = await source.gather({ cursor } as FeedEngineContext, {}, 500);
+      const mine = candidates
+        .map((candidate) => candidate.id)
+        .filter((id) => expected.includes(id));
+
+      expect(mine).toEqual(expected.filter((id) => id !== anchor && id !== dropped));
+    });
+
+    it('excludes what the viewer has already been shown', async () => {
+      /**
+       * `popularSource` builds its match by hand rather than through a query
+       * builder and was the only fallback that never threaded the seen set — so the
+       * FIRST fallback page could re-serve exactly the posts the ranked pages had
+       * just exhausted, which is the most visible possible moment to repeat
+       * yourself. Asserted for all three so the omission cannot come back to one.
+       */
+      const expected = await pool(content());
+      const seen = [expected[0], expected[3]];
+
+      const candidates = await source.gather({ seenPostIds: seen } as FeedEngineContext, {}, 500);
+      const mine = candidates
+        .map((candidate) => candidate.id)
+        .filter((id) => expected.includes(id));
+
+      expect(mine).toEqual(expected.filter((id) => !seen.includes(id)));
+    });
+
+    it('withholds sensitive posts from the fallback, like every discovery lane', async () => {
+      // `ForYouFeed.fetchPopular` once shipped WITHOUT this filter and leaked NSFW
+      // into For You. The fallback is a discovery lane and is gated like one.
+      const safe = await create(50, RECENT, content());
+      const sensitive = await create(60, RECENT, { ...content(), metadata: { isSensitive: true } });
+
+      const candidates = await source.gather({} as FeedEngineContext, {}, 500);
+      const mine = candidates
+        .map((candidate) => candidate.id)
+        .filter((id) => [safe, sensitive].includes(id));
+      expect(mine).toEqual([safe]);
+    });
   });
 
   /**
-   * POSITIVE CONTROL for the case above.
+   * The reader-language predicate on `popularSource`.
    *
-   * Without it, "the German post is absent" proves nothing — a source that
-   * returned `[]` for any unrelated reason (a broken recency window, a bad
-   * keyset) passes that assertion just as happily. Same fixtures, same source,
-   * declaration removed: BOTH posts must come back, German first on engagement.
+   * Scoped to this ONE source rather than driven over all three above, because
+   * that is the actual scope of the predicate — and the reason is worth stating
+   * rather than leaving as an omission a later reader has to guess at:
+   *
+   *   - `popular` IS the entire For You feed for a signed-out reader
+   *     (`FeedEngine.run` serves it directly when there is no `currentUserId`), the
+   *     never-blank tail for a signed-in one, AND the source behind the `trending`
+   *     preset. Measured against production on 2026-09-05, the anonymous For You
+   *     page came back 48% `de` from a corpus that is 6.8% `de`.
+   *   - `popularVideos` / `popularMedia` are deliberately EXEMPT for now. They back
+   *     surfaces whose content is not primarily text, and widening the predicate to
+   *     them is a separate product call rather than part of this fix.
    */
-  it('filters NOTHING for a reader whose languages are unknown', async () => {
-    const spanish = await create(50, RECENT, ES);
-    const german = await create(60, RECENT, DE);
+  describe('popularSource — reader-language predicate', () => {
+    const ES = { postClassification: { languages: ['es'] } } as Partial<PostRecordInput>;
+    const DE = { postClassification: { languages: ['de'] } } as Partial<PostRecordInput>;
 
-    expect(await gatherIds({}, [spanish, german])).toEqual([german, spanish]);
-    expect(await gatherIds({ viewerBaseLanguages: [] }, [spanish, german])).toEqual([
-      german,
-      spanish,
-    ]);
-  });
+    async function gatherIds(ctx: Partial<FeedEngineContext>, ids: string[]): Promise<string[]> {
+      const candidates = await popularSource.gather(ctx as FeedEngineContext, {}, 500);
+      return candidates.map((candidate) => candidate.id).filter((id) => ids.includes(id));
+    }
 
-  it('keeps a post when ANY of its languages matches', async () => {
-    const bilingual = await create(50, RECENT, { postClassification: { languages: ['de', 'es'] } });
-    const german = await create(60, RECENT, DE);
+    it('drops an off-language post for a reader who declared their languages', async () => {
+      const spanish = await create(50, RECENT, ES);
+      const german = await create(60, RECENT, DE);
 
-    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [bilingual, german])).toEqual([
-      bilingual,
-    ]);
-  });
+      // German has MORE engagement, so it sorts first and would lead the page. That
+      // is the whole failure being fixed: engagement was the only axis this source
+      // ever ordered on.
+      expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, german])).toEqual([
+        spanish,
+      ]);
+    });
 
-  /**
-   * `allowUnclassified` defaults to false — an unverifiable language is not a
-   * match. NULL and EMPTY are distinct values in Postgres and both mean
-   * "unresolved", so both are asserted.
-   */
-  it('drops a post whose language never resolved', async () => {
-    const spanish = await create(50, RECENT, ES);
-    const empty = await create(60, RECENT, { postClassification: { languages: [] } });
-    const missing = await create(70, RECENT, {});
+    /**
+     * POSITIVE CONTROL for the case above.
+     *
+     * Without it, "the German post is absent" proves nothing — a source that
+     * returned `[]` for any unrelated reason (a broken recency window, a bad
+     * keyset) passes that assertion just as happily. Same fixtures, same source,
+     * declaration removed: BOTH posts must come back, German first on engagement.
+     */
+    it('filters NOTHING for a reader whose languages are unknown', async () => {
+      const spanish = await create(50, RECENT, ES);
+      const german = await create(60, RECENT, DE);
 
-    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, empty, missing])).toEqual([
-      spanish,
-    ]);
+      expect(await gatherIds({}, [spanish, german])).toEqual([german, spanish]);
+      expect(await gatherIds({ viewerBaseLanguages: [] }, [spanish, german])).toEqual([
+        german,
+        spanish,
+      ]);
+    });
+
+    it('keeps a post when ANY of its languages matches', async () => {
+      const bilingual = await create(50, RECENT, {
+        postClassification: { languages: ['de', 'es'] },
+      });
+      const german = await create(60, RECENT, DE);
+
+      expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [bilingual, german])).toEqual([
+        bilingual,
+      ]);
+    });
+
+    /**
+     * `allowUnclassified` defaults to false — an unverifiable language is not a
+     * match. NULL and EMPTY are distinct values in Postgres and both mean
+     * "unresolved", so both are asserted.
+     */
+    it('drops a post whose language never resolved', async () => {
+      const spanish = await create(50, RECENT, ES);
+      const empty = await create(60, RECENT, { postClassification: { languages: [] } });
+      const missing = await create(70, RECENT, {});
+
+      expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, empty, missing])).toEqual([
+        spanish,
+      ]);
+    });
   });
 });

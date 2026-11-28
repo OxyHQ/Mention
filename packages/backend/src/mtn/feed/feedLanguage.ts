@@ -75,6 +75,19 @@ import { isDiscoveryLanguageFilterEnabled } from '../../config';
  *   normalized by `loadViewerFeedContext`.
  */
 export function viewerLanguageSql(viewerLanguages: readonly string[] | undefined): SQL | undefined {
+  const languages = viewerLanguageFilter(viewerLanguages);
+  return languages ? readableInLanguagesSql(languages) : undefined;
+}
+
+/**
+ * The languages {@link viewerLanguageSql} filters by, or `undefined` when it
+ * filters nothing (an unknown reader, or the predicate switched off). For a scan
+ * that needs the list itself: `selectPostsByEngagementRank` states the same
+ * predicate over `posts` AND over `post_engagement_ranks.languages`.
+ */
+export function viewerLanguageFilter(
+  viewerLanguages: readonly string[] | undefined,
+): string[] | undefined {
   // Cheapest guard first. Both branches return `undefined`, so the order is only
   // about cost: an undeclared reader (anonymous, no `Accept-Language`) is the
   // common case on the anonymous feed, and this way they never reach the env
@@ -83,17 +96,28 @@ export function viewerLanguageSql(viewerLanguages: readonly string[] | undefined
   if (!(isDiscoveryLanguageFilterEnabled() ?? MtnConfig.feed.discoveryLanguage.enabled)) {
     return undefined;
   }
+  return [...viewerLanguages];
+}
 
-  // Readable = written in one of the reader's languages, OR translated into one
-  // (`posts.translated_languages`, kept from the post's machine renditions). A
-  // Spanish-only reader sees an English post someone already translated into
-  // Spanish, served in Spanish (`resolveViewerTag`). Both arms are GIN-indexed;
-  // ranking applies the same rule (`readableInViewerLanguages`).
-  const languages = [...viewerLanguages];
+/**
+ * The reader-language predicate over `posts` for a known, non-empty list.
+ *
+ * Readable = written in one of the reader's languages, OR translated into one
+ * (`posts.translated_languages`, kept from the post's machine renditions). A
+ * Spanish-only reader sees an English post someone already translated into
+ * Spanish, served in Spanish (`resolveViewerTag`). Both arms are GIN-indexed;
+ * ranking applies the same rule (`readableInViewerLanguages`).
+ *
+ * `post_engagement_ranks.languages` is the two arrays concatenated (NULL as
+ * empty) by its trigger, so `languages && $list` holds for exactly the rows this
+ * does; a change to this rule is a change to that trigger.
+ */
+export function readableInLanguagesSql(languages: readonly string[]): SQL {
+  const list = [...languages];
   return or(
-    arrayOverlaps(posts.classificationLanguages, languages),
-    arrayOverlaps(posts.translatedLanguages, languages),
-  );
+    arrayOverlaps(posts.classificationLanguages, list),
+    arrayOverlaps(posts.translatedLanguages, list),
+  ) as SQL;
 }
 
 /**

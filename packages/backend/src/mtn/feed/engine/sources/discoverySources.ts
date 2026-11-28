@@ -16,7 +16,6 @@ import {
   eq,
   getTableColumns,
   gte,
-  lt,
   lte,
   sql,
   type SQL,
@@ -33,11 +32,15 @@ import {
   notCollapsedCrosspostSql,
 } from '../../../../utils/feedQueryBuilder';
 import { engagementRankSql } from '../../../../db/schema/posts';
+import {
+  type EngagementRankKeyset,
+  selectPostsByEngagementRank,
+} from '../../../../db/posts/engagementRankScan';
 import { rankingWeight } from '../../../../utils/rankingWeight';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { ScoreCursor, chronoOrderBy, type ScoreCursorData } from '../../CursorBuilder';
 import { discoverySafeSql, filterDiscoverable } from '../../feedSafety';
-import { viewerLanguageSql } from '../../feedLanguage';
+import { viewerLanguageFilter, viewerLanguageSql } from '../../feedLanguage';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -63,7 +66,9 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
  * and an index and a query that spell the same composite in two places agree
  * until the first weight change and then silently stop — leaving the popular scan
  * reading the whole table again with nothing red. Keeping both sides on one
- * function is what makes that unrepresentable.
+ * function is what makes that unrepresentable. The same holds for the SQL copy
+ * that keeps `post_engagement_ranks` (`post_engagement_rank()`), which
+ * `postEngagementRanks.test.ts` holds to this one value for value.
  *
  * It is deliberately NOT the same expression as
  * `services/feed/ranking/nativeEngagement.ts` `nativeWeightedEngagement`, which scores
@@ -498,18 +503,20 @@ export const popularSource: SourceModule = {
       eq(posts.status, 'published'),
       notCollapsedCrosspostSql(),
       discoverySafeSql(),
-      eq(posts.isReply, false),
       notARepostSql(),
     ];
 
     // THIS source is where the language bug actually lived — it is the whole For
     // You feed for a signed-out reader, and it bypasses `FeedEngine.gatherPool`,
     // so it inherited no guard at all. `discoverySafeSql()` is already in
-    // `baseConditions` above; see `feedLanguage.ts` for the measurement.
-    if (ctx.paginationSession && ctx.rankingAsOf)
-      baseConditions.push(lte(posts.createdAt, new Date(ctx.rankingAsOf)));
-    const language = viewerLanguageSql(ctx.viewerBaseLanguages);
-    if (language) baseConditions.push(language);
+    // `baseConditions` above; see `feedLanguage.ts` for the measurement. The
+    // language list, roots-only and the `created_at` window go to the scan as
+    // options rather than predicates, so it can apply them inside its index.
+    const scope: PopularScope = {
+      isReply: false,
+      languages: viewerLanguageFilter(ctx.viewerBaseLanguages),
+      until: ctx.paginationSession && ctx.rankingAsOf ? new Date(ctx.rankingAsOf) : undefined,
+    };
 
     // Exclude what the viewer has already been shown. The video and media
     // fallbacks thread the seen set through their query builders; this one built
@@ -528,21 +535,14 @@ export const popularSource: SourceModule = {
     const cursorExcluded = excludeSeenSql(parsedCursor?.excludeIds ?? []);
     if (cursorExcluded) baseConditions.push(cursorExcluded);
 
-    const engagementScore = engagementScoreSql();
-    const keyset = popularKeysetSql(engagementScore, parsedCursor);
-    if (keyset) baseConditions.push(keyset);
+    const after = popularKeyset(parsedCursor);
 
     // A recency window bounds the engagement scan; the never-blank fallback
     // widens (7d → 30d → unbounded) so this source is never starved on a
     // low-traffic instance.
     const candidates = await fetchWithRecencyFallback(
       cap,
-      async (cutoff) => {
-        const conditions = cutoff
-          ? [...baseConditions, gte(posts.createdAt, cutoff)]
-          : baseConditions;
-        return runPopular(and(...conditions) as SQL, engagementScore, cap);
-      },
+      async (cutoff) => runPopular(and(...baseConditions) as SQL, scope, cutoff, after, cap),
       ctx.rankingAsOf ?? parsedCursor?.asOf ?? Date.now(),
     );
 
@@ -551,34 +551,46 @@ export const popularSource: SourceModule = {
 };
 
 /**
- * The sort every popular source orders by, and therefore the keyset it must page
- * on.
- *
- * THREE keys, where `explore` needs two: `engagementScore` carries no recency
- * term, so every zero-engagement post ties on it and `created_at` is doing real
- * ordering work rather than breaking rare ties. Ordering that bulk by id instead
- * would be meaningless — see {@link chronoOrderBy} on why `posts.id` is not a time
- * order in this schema.
+ * The conditions a popular source hands `selectPostsByEngagementRank` as options
+ * rather than inside its predicate (see `EngagementRankScan`).
  */
-function popularOrder(engagementScore: SQL<number>): SQL[] {
-  return [desc(engagementScore), desc(posts.createdAt), desc(posts.id)];
+interface PopularScope {
+  isReply?: boolean;
+  languages?: string[];
+  /** The frozen ceiling of a pagination session. */
+  until?: Date;
 }
 
-/** Run one popular scan, stamping the engagement score each candidate sorted on. */
+/**
+ * Run one popular scan, stamping the engagement score each candidate sorted on.
+ *
+ * The sort every popular source orders by, and therefore the keyset it pages
+ * on, is `(engagementScore desc, created_at desc, id desc)`: THREE keys, where
+ * `explore` needs two. `engagementScore` carries no recency term, so every
+ * zero-engagement post ties on it and `created_at` is doing real ordering work
+ * rather than breaking rare ties. Ordering that bulk by id instead would be
+ * meaningless — see {@link chronoOrderBy} on why `posts.id` is not a time order
+ * in this schema. How the rows are read is `selectPostsByEngagementRank`'s
+ * business (`db/posts/engagementRankScan.ts`).
+ */
 async function runPopular(
   where: SQL,
-  engagementScore: SQL<number>,
+  scope: PopularScope,
+  since: Date | undefined,
+  after: EngagementRankKeyset | undefined,
   cap: number,
 ): Promise<CandidatePost[]> {
-  const db = getDb();
-  const rows = await db
-    .select({ ...getTableColumns(posts), engagementScore })
-    .from(posts)
-    .where(where)
-    .orderBy(...popularOrder(engagementScore))
-    .limit(cap);
+  const rows = await selectPostsByEngagementRank({
+    where,
+    window: { since, until: scope.until },
+    isReply: scope.isReply,
+    languages: scope.languages,
+    after,
+    tiebreak: 'createdAt',
+    limit: cap,
+  });
 
-  const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
+  const candidates: CandidatePost[] = await assemblePostRecords(rows, getDb());
   return candidates.map((candidate, index) => {
     candidate.engagementScore = rows[index].engagementScore;
     return candidate;
@@ -586,7 +598,7 @@ async function runPopular(
 }
 
 /**
- * The keyset predicate continuing a popular page, matching {@link popularOrder}.
+ * The key a popular page continues after, in the order {@link runPopular} sorts by.
  *
  * Returns `undefined` unless the cursor is one THIS regime minted and it can
  * express the full key. Two independent requirements, both necessary:
@@ -604,48 +616,36 @@ async function runPopular(
  * precisely the defect this replaces: an id filter under an engagement sort both
  * repeats high-engagement posts and permanently skips newer, less-engaged ones.
  *
- * The two `created_at` comparisons go through drizzle's OPERATORS rather than
- * being written into the template as `${boundaryAt}`. A JS `Date` interpolated
- * into a `sql` template reaches postgres.js unmapped and throws
- * `TypeError: The "string" argument must be of type string … Received an
- * instance of Date` — client-side, before anything is sent, so no cast can save
- * it. `lt`/`eq` map the Date through the column that knows its type. This is a
- * page-TWO-only path, which is why a shape assertion never saw it: page one
- * builds no keyset at all.
+ * The predicate itself is `engagementRankScan.ts`'s `keysetSql`, whose
+ * `created_at` comparisons go through drizzle's operators for the reason given
+ * there: a JS `Date` interpolated into a `sql` template throws client-side.
  */
-function popularKeysetSql(engagementScore: SQL<number>, parsed?: ScoreCursorData): SQL | undefined {
+function popularKeyset(parsed?: ScoreCursorData): EngagementRankKeyset | undefined {
   if (!parsed || !parsed.fromPopularFallback) return undefined;
   if (!Number.isFinite(parsed.score) || parsed.tiebreakAt === undefined) return undefined;
   if (!parsed.id) return undefined;
-
-  const boundaryAt = new Date(parsed.tiebreakAt);
-  return sql`(
-    ${engagementScore} < ${parsed.score}
-    or (${engagementScore} = ${parsed.score} and ${lt(posts.createdAt, boundaryAt)})
-    or (
-      ${engagementScore} = ${parsed.score}
-      and ${eq(posts.createdAt, boundaryAt)}
-      and ${lt(posts.id, parsed.id)}
-    )
-  )`;
+  return { score: parsed.score, createdAt: new Date(parsed.tiebreakAt), id: parsed.id };
 }
 
 /** Shared engagement-sorted popular scan for the media/video fallbacks. */
 async function gatherPopularByQuery(
   contentPredicate: SQL,
+  ctx: FeedEngineContext,
   cap: number,
-  cursor?: string,
 ): Promise<CandidatePost[]> {
-  const parsed = ScoreCursor.parse(cursor);
-  const engagementScore = engagementScoreSql();
+  const parsed = ScoreCursor.parse(ctx.cursor);
 
-  const conditions: SQL[] = [contentPredicate];
+  // `discoveryGuardsSql` split in two: the sensitive filter stays a predicate,
+  // the language list and the session ceiling go to the scan as options.
+  const conditions: SQL[] = [contentPredicate, discoverySafeSql()];
   const cursorExcluded = excludeSeenSql(parsed?.excludeIds ?? []);
   if (cursorExcluded) conditions.push(cursorExcluded);
-  const keyset = popularKeysetSql(engagementScore, parsed);
-  if (keyset) conditions.push(keyset);
 
-  return runPopular(and(...conditions) as SQL, engagementScore, cap);
+  const scope: PopularScope = {
+    languages: viewerLanguageFilter(ctx.viewerBaseLanguages),
+    until: ctx.paginationSession && ctx.rankingAsOf ? new Date(ctx.rankingAsOf) : undefined,
+  };
+  return runPopular(and(...conditions) as SQL, scope, undefined, popularKeyset(parsed), cap);
 }
 
 /**
@@ -664,15 +664,12 @@ export const popularVideosSource: SourceModule = {
   userComposable: false,
   gather: async (ctx, _params, cap) =>
     gatherPopularByQuery(
-      and(
-        FeedQueryBuilder.buildVideosQuery(ctx.seenPostIds ?? [], {
-          orientation: ctx.videoFilters?.orientation,
-          minDurationSec: ctx.videoFilters?.minDurationSec,
-        }),
-        discoveryGuardsSql(ctx),
-      ) as SQL,
+      FeedQueryBuilder.buildVideosQuery(ctx.seenPostIds ?? [], {
+        orientation: ctx.videoFilters?.orientation,
+        minDurationSec: ctx.videoFilters?.minDurationSec,
+      }),
+      ctx,
       cap,
-      ctx.cursor,
     ),
 };
 
@@ -683,14 +680,7 @@ export const popularMediaSource: SourceModule = {
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) =>
-    gatherPopularByQuery(
-      and(
-        FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
-        discoveryGuardsSql(ctx),
-      ) as SQL,
-      cap,
-      ctx.cursor,
-    ),
+    gatherPopularByQuery(FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []), ctx, cap),
 };
 
 export const discoverySourceModules: SourceModule[] = [

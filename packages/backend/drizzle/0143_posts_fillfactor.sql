@@ -1,0 +1,19 @@
+-- oxy:deploy-phase=pre
+-- `posts` is hot, so this is alone in its file.
+--
+-- A HOT update writes the new row version on the SAME heap page, so it needs
+-- free space there as well as no changed indexed column. `posts` was at the
+-- default fillfactor of 100: inserts packed each page full, and in production
+-- 92,938 of 470,041 updates (20%) had to move the row to another page
+-- (`n_tup_newpage_upd`, 2026-11-28), which is never HOT. 90 leaves 819 bytes per
+-- page; a `posts` row averages 704 (`pg_column_size`, 0.2% sample), so a page
+-- written from now on keeps room for the next version of one of its rows, and
+-- page pruning reclaims the dead one before the next.
+--
+-- It applies to pages written from now on, which is where the engagement is:
+-- the counters that move are those of recent posts. Existing pages keep their
+-- layout; nothing is rewritten. The cost is about 11% more heap for new posts.
+--
+-- SET (fillfactor) takes SHARE UPDATE EXCLUSIVE: reads and writes continue; it
+-- waits only for a running VACUUM/ANALYZE of `posts`, under the 3 s lock_timeout.
+ALTER TABLE "posts" SET (fillfactor = 90);

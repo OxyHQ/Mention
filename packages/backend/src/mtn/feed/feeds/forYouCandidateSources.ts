@@ -54,13 +54,13 @@ import { eligibleActivitySubscriptionAuthors } from '../../../services/notificat
  */
 
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, gte, inArray, lte, or, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, eq, gte, inArray, lte, or, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../db/postgres';
 import { posts, postAuthorships, postSubscriptions } from '../../../db/schema';
 import { assembleShellRecords } from '../../../db/posts/postRepository';
 import { ContentAffinityService } from '../../../services/feed/ContentAffinityService';
 import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
-import { viewerLanguageSql } from '../feedLanguage';
+import { viewerLanguageFilter, viewerLanguageSql } from '../feedLanguage';
 import { logger } from '../../../utils/logger';
 import { followedAuthorsSql } from '../../../utils/postAuthorship';
 import {
@@ -69,7 +69,10 @@ import {
   notARepostSql,
   notCollapsedCrosspostSql,
 } from '../../../utils/feedQueryBuilder';
-import { engagementScoreSql } from '../engine/sources/discoverySources';
+import {
+  type EngagementRankWindow,
+  selectPostsByEngagementRank,
+} from '../../../db/posts/engagementRankScan';
 import { chronoOrderBy } from '../CursorBuilder';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
 import type { OxyClient } from '../../../utils/privacyHelpers';
@@ -155,18 +158,35 @@ const sharedContentAffinityService = new ContentAffinityService();
  * render the whole chain.
  */
 function buildBaseConditions(seenPostIds: string[], since: Date, asOf?: number): SQL[] {
+  const conditions = [
+    ...buildBaseConditionsOutsideScan(seenPostIds),
+    eq(posts.isReply, false),
+    gte(posts.createdAt, since),
+  ];
+  if (asOf !== undefined) conditions.push(lte(posts.createdAt, new Date(asOf)));
+  return conditions;
+}
+
+/**
+ * {@link buildBaseConditions} without roots-only and the `created_at` window,
+ * for the lane that hands those to `selectPostsByEngagementRank` as options
+ * (trending), so the scan can apply them inside its index.
+ */
+function buildBaseConditionsOutsideScan(seenPostIds: string[]): SQL[] {
   const conditions: SQL[] = [
     eq(posts.visibility, PostVisibility.PUBLIC),
     eq(posts.status, 'published'),
     notCollapsedCrosspostSql(),
-    gte(posts.createdAt, since),
-    eq(posts.isReply, false),
     notARepostSql(),
   ];
-  if (asOf !== undefined) conditions.push(lte(posts.createdAt, new Date(asOf)));
   const seen = excludeSeenSql(seenPostIds);
   if (seen) conditions.push(seen);
   return conditions;
+}
+
+/** The `created_at` window {@link buildBaseConditions} applies. */
+function baseWindow(since: Date, asOf?: number): EngagementRankWindow {
+  return { since, until: asOf === undefined ? undefined : new Date(asOf) };
 }
 
 /**
@@ -549,7 +569,7 @@ export async function gatherRegionLane(
  * the shared engagement composite so the pool surfaces resonating content; final
  * ranking still re-scores everything.
  *
- * Uses `engagementScoreSql` — the SAME composite the discovery lanes use, in
+ * Uses `engagementRankSql` — the SAME composite the discovery lanes use, in
  * which the federated boost subset is dampened, so a burst of remote Announces
  * no longer fakes a trending post.
  */
@@ -558,25 +578,27 @@ export async function gatherTrendingLane(
 ): Promise<CandidatePost[]> {
   const cfg = MtnConfig.feed.candidateSources;
   try {
-    const db = getDb();
-    const engagementScore = engagementScoreSql();
     // The roots-only rule is in `buildBaseConditions` now, so this lane no longer
     // states it — it was the only lane that ever did, which is exactly the bug.
-    const conditions = withDiscoveryGuards(
-      buildBaseConditions(
-        params.seenPostIds,
+    // `withDiscoveryGuards` split in two: the sensitive filter stays a
+    // predicate, the reader's languages go to the scan as an option.
+    const rows = await selectPostsByEngagementRank({
+      where: and(
+        ...buildBaseConditionsOutsideScan(params.seenPostIds),
+        sensitiveExcludeSql(),
+      ) as SQL,
+      window: baseWindow(
         recencyStart(params.rankingAsOf),
         params.candidateLimit === undefined ? undefined : params.rankingAsOf,
       ),
-      params,
-    );
-    const rows = await db
-      .select()
-      .from(posts)
-      .where(and(...conditions))
-      .orderBy(desc(engagementScore), desc(posts.createdAt), desc(posts.id))
-      .limit(params.candidateLimit ?? cfg.perSource.trending);
-    return toUnassembledCandidates(rows);
+      isReply: false,
+      languages: viewerLanguageFilter(params.viewerLanguages),
+      tiebreak: 'createdAt',
+      limit: params.candidateLimit ?? cfg.perSource.trending,
+    });
+    // The scan stamps the composite it sorted on; this lane's candidates never
+    // carried it, and the shell is built from the `posts` columns alone.
+    return toUnassembledCandidates(rows.map(({ engagementScore: _score, ...row }) => row));
   } catch (error) {
     if (params.candidateLimit !== undefined) throw error;
     logger.warn('[ForYouCandidates] source "trending" failed; skipping', error);
