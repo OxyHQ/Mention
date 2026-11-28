@@ -220,7 +220,7 @@ public struct FeedRow: View, Equatable {
           if let booster = post.boosterAvatar {
             AvatarPair(author: post.author.avatar ?? "", booster: booster).onPress { send("profile") }
           } else {
-            Avatar(post.author.avatar ?? "").size(.lg).onPress { send("profile") }
+            Avatar(post.author.avatar ?? "", { name: post.author.name }).size(.lg).onPress { send("profile") }
           }
         }
         .padding(.top, post.repostedBy == none ? 0.0 : CONTEXT_DROP)
@@ -321,11 +321,12 @@ struct FeedHeaderRows: View, Equatable {
             .onPress { send("tab", tab.key) }
           }
         }
+        .frame(width: .full)
         .border(.border, .hairline, .bottom)
       }
       if header.composer {
         HStack(spacing: .md) {
-          Avatar(header.avatar ?? "").size(.md)
+          Avatar(header.avatar ?? "", { name: header.name }).size(.md)
           Text(header.prompt).font(.md).foregroundStyle(.muted).lineLimit(1).grow()
           Icon(.camera).size(.md).foregroundStyle(.muted).onPress { send("camera", "") }
           Icon(.mediaAttachment).size(.md).foregroundStyle(.muted).onPress { send("compose", "") }

@@ -25,7 +25,9 @@ import {
   type TurboModule,
   type ViewProps,
 } from 'react-native';
-import { useBloomTheme, useTheme } from '@oxy.so/bloom/theme';
+import { useBloomTheme, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
+import { resolveAvatarTint, type AvatarColor } from '@oxy.so/bloom/avatar';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { benchMark } from '@/lib/bench';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -53,6 +55,8 @@ interface NativeIslandProps extends ViewProps {
   props?: string;
   themePreset?: string;
   themeScheme?: string;
+  /** The theme's resolved colours (`useColorTokens()`), as JSON: they win over the preset's. */
+  themeColors?: string;
 }
 
 const BloomIsland = requireNativeComponent<NativeIslandProps>('BloomIsland');
@@ -60,10 +64,39 @@ const BloomIsland = requireNativeComponent<NativeIslandProps>('BloomIsland');
 /** `:bloom-islands`' keyed channel: a keyed island's data, set off React's commit. */
 interface BloomIslandsModule extends TurboModule {
   setProps(key: string, json: string): void;
-  setTheme(key: string, preset: string | null, scheme: string | null): void;
+  setTheme(key: string, preset: string | null, scheme: string | null, colors: string | null): void;
 }
 
 const islands = TurboModuleRegistry.get<BloomIslandsModule>('BloomIslands');
+
+const AVATAR_TINTS: readonly AvatarColor[] = ['blue', 'lime', 'pink', 'neutral'];
+
+/** The avatar discs' tints in `theme` (`avatarBlue`, `avatarBlueForeground`, …), which the island's theme has no token for. */
+function avatarTints(theme: Parameters<typeof resolveAvatarTint>[0]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const color of AVATAR_TINTS) {
+    const tint = resolveAvatarTint(theme, color);
+    const name = `avatar${color[0]?.toUpperCase()}${color.slice(1)}`;
+    out[name] = tint.background;
+    out[`${name}Foreground`] = tint.foreground;
+  }
+  return out;
+}
+
+/** A user's name as Bloom's avatar reads it (`accountName`): the display name, else the handle. */
+function accountName(user: { name?: unknown; username?: string } | undefined): string | undefined {
+  const name = user?.name as
+    | string
+    | { displayName?: string; full?: string; first?: string; last?: string }
+    | undefined;
+  const text =
+    typeof name === 'string'
+      ? name
+      : name?.displayName?.trim() ||
+        name?.full?.trim() ||
+        [name?.first, name?.last].filter(Boolean).join(' ');
+  return text?.trim() || user?.username?.trim() || undefined;
+}
 
 /** The island of the feed `descriptor` (the home's first tab is `for_you`). */
 export function feedIslandKey(descriptor: string | undefined): string {
@@ -125,6 +158,15 @@ export function FeedIslandList({
   const interactions = usePostInteractions();
   const { colorPreset } = useBloomTheme();
   const theme = useTheme();
+  // The island draws in this screen's theme as React Native resolved it (its accents, seed or
+  // ambient colour), not only in its preset's colours.
+  const tokens = useColorTokens();
+  // `backing`: the surface this list sits on, what a lens in the island samples (the page's card).
+  const backing = useSurfaceFill();
+  const colors = useMemo(
+    () => JSON.stringify({ ...tokens, ...avatarTints(theme), backing }),
+    [tokens, theme, backing],
+  );
   const posts = useMemo(() => feedIslandPosts(rows), [rows]);
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -135,6 +177,7 @@ export function FeedIslandList({
       active: tabs?.active ?? '',
       composer: composer === true && user != null,
       avatar: feedIslandAvatar(user?.avatar),
+      name: accountName(user ?? undefined) ?? '',
       prompt: t('compose.placeholder'),
     }),
     [tabs?.tabs, tabs?.active, composer, user, t],
@@ -151,7 +194,10 @@ export function FeedIslandList({
   const key = feedIslandKey(feedDescriptor);
   const scheme = theme.isDark ? 'dark' : 'light';
   // The theme and the posts go to the island from this render, not the commit after it.
-  useMemo(() => islands?.setTheme(key, colorPreset ?? null, scheme), [key, colorPreset, scheme]);
+  useMemo(
+    () => islands?.setTheme(key, colorPreset ?? null, scheme, colors),
+    [key, colorPreset, scheme, colors],
+  );
   const json = useMemo(() => {
     const shown = firstScreen ? posts.slice(0, FIRST_SCREEN) : posts;
     const text = JSON.stringify({ posts: shown, topInset, bottomInset, header });
@@ -260,6 +306,7 @@ export function FeedIslandList({
       props={islands ? undefined : json}
       themePreset={colorPreset}
       themeScheme={scheme}
+      themeColors={colors}
       style={styles.island}
     />
   );

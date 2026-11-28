@@ -102,6 +102,8 @@ public struct FeedHeader: Codable, Equatable {
   public var active: String = ""
   public var composer: Bool = false
   public var avatar: String? = none
+  /// The reader's name: the initial and tint of the avatar's disc when it has no picture.
+  public var name: String = ""
   public var prompt: String = ""
 }
 
