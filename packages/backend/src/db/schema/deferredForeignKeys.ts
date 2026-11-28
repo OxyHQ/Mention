@@ -72,7 +72,7 @@ import {
   postVariantAltTexts,
   postVariantMedia,
 } from './postContent';
-import { posts } from './posts';
+import { postEngagementRanks, posts } from './posts';
 import { membershipMedia } from './memberships';
 import { userBehaviorTopics, userSettings, userSettingsLabelActions } from './userProfile';
 
@@ -621,6 +621,15 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: postgates,
     column: postgates.postId,
     reason: 'Same as `threadgates.post_id`.',
+  },
+  {
+    table: postEngagementRanks,
+    column: postEngagementRanks.postId,
+    reason:
+      'A projection of `posts` written by its triggers in the same transaction, ' +
+      'delete and truncate included. A constraint would take a FOR KEY SHARE lock ' +
+      'on the `posts` row for every row written here and run a cascade lookup for ' +
+      'every deleted post; the reader joins `posts` and ignores a row without one.',
   },
   {
     table: threadgateAllowRules,

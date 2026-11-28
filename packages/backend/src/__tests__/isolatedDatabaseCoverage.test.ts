@@ -172,6 +172,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'stripTrailingHashtagLines', call: /\bstripTrailingHashtagLines\s*\(/ },
   { name: 'backfillPostHasLinks', call: /\bbackfillPostHasLinks\s*\(/ },
   { name: 'backfillPostHashtags', call: /\bbackfillPostHashtags\s*\(/ },
+  { name: 'backfillPostEngagementRanks', call: /\bbackfillPostEngagementRanks\s*\(/ },
   { name: 'backfillVariantPostCreatedAt', call: /\bbackfillVariantPostCreatedAt\s*\(/ },
   { name: 'backfillUpstreamPostKeys', call: /\bbackfillUpstreamPostKeys\s*\(/ },
   { name: 'runFederatedBannerMirrors', call: /\brunFederatedBannerMirrors\s*\(/ },

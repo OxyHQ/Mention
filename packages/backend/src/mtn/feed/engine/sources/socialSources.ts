@@ -41,7 +41,7 @@ import {
 import { assemblePostRecords, assembleShellRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
-import { engagementScoreSql } from './discoverySources';
+import { selectPostIdsByEngagementRank } from '../../../../db/posts/engagementRankScan';
 import { logger } from '../../../../utils/logger';
 import {
   excludeSeenSql,
@@ -601,7 +601,7 @@ export const newVoicesSource: SourceModule = {
  * Uses the SAME composite as every discovery lane, which it did not until now.
  *
  * There were two, disagreeing on one term: this surface weighted every boost at
- * `boostWeight` (2.5), while `engagementScoreSql` splits it — native boosts at
+ * `boostWeight` (2.5), while `engagementRankSql` splits it — native boosts at
  * 2.5, inbound federated Announces at `federatedBoostWeight` (0.5) — because,
  * per that weight's own comment, "a handful of federated boosts routinely made
  * low-quality off-instance posts look trending". The divergence was carried
@@ -623,23 +623,19 @@ export const topRepliesSource: SourceModule = {
   userComposable: true,
   gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-    const engagementScore = engagementScoreSql();
 
-    const ranked = await getDb()
-      .select({ id: posts.id })
-      .from(posts)
-      .where(
-        and(
-          eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'),
-          notCollapsedCrosspostSql(),
-          gte(posts.createdAt, windowStart),
-          discoverySafeSql(),
-          eq(posts.isReply, true),
-        ),
-      )
-      .orderBy(desc(engagementScore), desc(posts.id))
-      .limit(cap);
+    const ranked = await selectPostIdsByEngagementRank({
+      where: and(
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        notCollapsedCrosspostSql(),
+        discoverySafeSql(),
+      ) as SQL,
+      window: { since: windowStart },
+      isReply: true,
+      tiebreak: 'id',
+      limit: cap,
+    });
 
     return fetchPostsByIds(ranked.map((row) => row.id));
   },

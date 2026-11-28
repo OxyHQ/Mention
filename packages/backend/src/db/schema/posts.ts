@@ -149,12 +149,17 @@ const SCORE_MAX = 1;
 /** A 0..1 probability column with its bound expressed as a CHECK, not a comment. */
 const scoreColumn = () => doublePrecision().notNull().default(0);
 
-/** The four counters {@link engagementRankSql} weighs, as an index sees them. */
-interface EngagementRankColumns {
-  statsLikesCount: AnyPgColumn;
-  statsRepostsCount: AnyPgColumn;
-  statsFederatedRepostsCount: AnyPgColumn;
-  statsCommentsCount: AnyPgColumn;
+/**
+ * The four counters {@link engagementRankSql} weighs: the `posts` columns, as an
+ * index or a query sees them, or any other SQL standing for them (the
+ * parameters of `post_engagement_rank()`, as `postEngagementRanks.test.ts`
+ * renders them to hold that function to this expression).
+ */
+export interface EngagementRankColumns {
+  statsLikesCount: AnyPgColumn | SQL;
+  statsRepostsCount: AnyPgColumn | SQL;
+  statsFederatedRepostsCount: AnyPgColumn | SQL;
+  statsCommentsCount: AnyPgColumn | SQL;
 }
 
 /**
@@ -182,6 +187,16 @@ interface EngagementRankColumns {
  * Every weight goes through {@link rankingWeight} for the reason given there,
  * and the trailing `::double precision` is what keeps the result a NUMBER rather
  * than the string postgres.js returns for `numeric`.
+ *
+ * It is spelled a THIRD time, in SQL, and that copy is the one that keeps
+ * `post_engagement_ranks` (below) in step: the database function
+ * `post_engagement_rank(likes, reposts, federated_reposts, comments)` that the
+ * `posts` triggers call (`drizzle/0141_post_engagement_ranks.sql`). A weight
+ * retuned here and not there would rank the popular scans by stale weights, so
+ * `postEngagementRanks.test.ts` evaluates both over the same counters and fails
+ * on the first value they disagree on. Retuning a weight therefore means a
+ * migration that replaces the function and recomputes the table, exactly as it
+ * meant rebuilding the expression index before.
  */
 export function engagementRankSql(t: EngagementRankColumns): SQL<number> {
   const cfg = MtnConfig.ranking.engagement;
@@ -1100,6 +1115,13 @@ export const posts = pgTable(
      * write side was measured too rather than assumed: 20,000 counter increments
      * took 737-844ms with it and 764-935ms without — no difference this bench can
      * resolve.
+     *
+     * That bench missed what production showed (2026-11-28): an index over the
+     * counters makes every counter bump a NON-HOT update, a new entry in all 34
+     * indexes of `posts` (2% of `posts` updates HOT, 23.8 kB of WAL per like).
+     * {@link postEngagementRanks} below carries the same key off the table; this
+     * index stays only until the readers have moved (`FEED_ENGAGEMENT_RANKS=on`)
+     * and is then dropped by a `post` migration.
      */
     index('posts_engagement_rank_idx')
       .on(
@@ -1147,6 +1169,83 @@ export const posts = pgTable(
     index('posts_content_geo_gist')
       .using('gist', t.contentGeo)
       .where(sql`${t.contentGeo} is not null`),
+  ],
+);
+
+/**
+ * `post_engagement_ranks` — the popular scans' ORDER BY, kept off `posts`.
+ *
+ * One row per post that a popular scan can rank above or below the zero mass:
+ * `visibility = 'public'`, `status = 'published'` and an {@link engagementRankSql}
+ * that is NOT zero. It holds that rank and the post's `created_at`, and its
+ * `post_engagement_ranks_rank_idx` is `posts_engagement_rank_idx` moved to a
+ * table of its own: the same `(rank desc, created_at desc, id desc)` key.
+ *
+ * ## Why it exists: HOT updates on `posts`
+ *
+ * A counter bump (`update posts set stats_likes_count = …`) can be a HOT update,
+ * writing one heap tuple and no index entry, only while no index on `posts`
+ * covers a column it changes. `posts_engagement_rank_idx` covers all four
+ * counters, so every like, repost and comment count change wrote a new entry
+ * into each of the 34 indexes on the table: 2% of `posts` updates were HOT in
+ * production (2026-11-28), at about 24 kB of WAL per like. Here a bump writes the
+ * `posts` tuple (HOT when its page has room, which `fillfactor = 90` reserves)
+ * and one narrow row in this table.
+ *
+ * ## Why it is exact
+ *
+ * Triggers on `posts` (`drizzle/0142_posts_engagement_rank_triggers.sql`) write
+ * it in the writing transaction, from the row the write produced, so every
+ * snapshot that sees a `posts` row sees its rank row. Rows with rank 0 (70% of
+ * production's public posts, and almost every new one) are NOT stored: the
+ * popular scans read them from `posts` by `created_at`, which is the order they
+ * already have among themselves (`db/posts/engagementRankScan.ts`). The one
+ * thing that can put a wrong row here is the unlocked backfill copying a post
+ * while it leaves the set; `scripts/backfillPostEngagementRanks.ts` `MODE=verify`
+ * finds and repairs those, and the readers switch over only once it reports none.
+ *
+ * ## No foreign key, and that is a decision
+ *
+ * A foreign key would make every insert here take a `FOR KEY SHARE` lock on its
+ * `posts` row (a heap write and WAL record per row, 4.1 million of them for the
+ * backfill) and would fire a cascade lookup for EVERY deleted post, rank 0 or
+ * not. The delete trigger removes the row only for a post that has one, and the
+ * truncate trigger empties the table with `posts`.
+ */
+export const postEngagementRanks = pgTable(
+  'post_engagement_ranks',
+  {
+    postId: text().primaryKey(),
+    /** {@link engagementRankSql} of the post, as `post_engagement_rank()` computes it. Never 0. */
+    engagementRank: doublePrecision().notNull(),
+    /** The post's `created_at`, so a recency window is an index range here. */
+    createdAt: timestamptz().notNull(),
+    /** The post's `is_reply`: the roots-only lanes skip replies inside the index. */
+    isReply: boolean().notNull(),
+    /**
+     * The post's `classification_languages` followed by its
+     * `translated_languages` (NULL read as empty): `languages && $reader` holds
+     * exactly when the reader-language predicate (`feedLanguage.ts`) does, so a
+     * reader-language lane skips unreadable posts inside the index.
+     */
+    languages: text().array().notNull(),
+  },
+  (t) => [
+    /**
+     * The order, then the two prefilter columns. `post_id` is unique, so the
+     * trailing keys never order anything; they are KEY columns rather than
+     * `INCLUDE` only because drizzle cannot declare `INCLUDE`. Either way the
+     * scan is index-only: a candidate a lane would reject for being a reply or in
+     * a language the reader cannot read costs one index tuple, where it cost a
+     * `posts` heap fetch through `posts_engagement_rank_idx`.
+     */
+    index('post_engagement_ranks_rank_idx').on(
+      t.engagementRank.desc(),
+      t.createdAt.desc(),
+      t.postId.desc(),
+      t.isReply,
+      t.languages,
+    ),
   ],
 );
 

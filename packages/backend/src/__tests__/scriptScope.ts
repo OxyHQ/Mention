@@ -145,6 +145,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'federated post, including previously collapsed rows. It takes no scope, because a reconciliation that only fixed the ' +
       "caller's rows would reconcile nothing in production.",
   },
+  backfillPostEngagementRanks: {
+    scope: 'whole-table',
+    reason:
+      'Pages every post by primary key, copies each listed one into post_engagement_ranks, and in ' +
+      'verify mode repairs every row of that table that disagrees with its post.',
+  },
   backfillPostHashtags: {
     scope: 'whole-table',
     reason:
