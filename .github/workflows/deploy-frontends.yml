@@ -420,7 +420,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 40); do
-            if WEB_ORIGIN="https://mention.earth" bash .github/scripts/smoke-frontend.sh; then
+            if WEB_ORIGIN="https://mention.org" bash .github/scripts/smoke-frontend.sh; then
               exit 0
             fi
             if [[ "$attempt" -eq 40 ]]; then
