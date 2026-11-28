@@ -963,7 +963,9 @@ router.get(
       // The same boundary as the sitemaps and nodeinfo: a row is another
       // server's when it carries an activity id or an actor URI (a local
       // post's own content warning also lives on the federation columns).
-      const frame = og.prerender ? renderPrerenderPost(og.prerender, postPath(String(post.id))) : '';
+      const frame = og.prerender
+        ? renderPrerenderPost(og.prerender, postPath(String(post.id)))
+        : '';
       if (post.federation?.activityId || post.federation?.actorUri) {
         await serveShell(
           res,
