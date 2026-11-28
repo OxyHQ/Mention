@@ -25,9 +25,11 @@ import {
   useScreen,
 } from '@oxy.so/bloom/screen';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Button } from '@oxy.so/bloom/button';
 import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
 import { VideoRepostBubble } from '@/components/videos/VideoRepostBubble';
 import { VideoFeedTabs } from '@/components/videos/VideoFeedTabs';
+import { usePublishVideoSuggestions } from '@/components/videos/VideoSuggestions';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
@@ -56,13 +58,14 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { videoSourceFor } from '@/utils/videoSource';
 import type { HydratedPost } from '@mention/shared-types';
-import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
-import { LinkifiedText } from '@/components/common/LinkifiedText';
 import {
-  useOpenPostEngagement,
-  useVideoRepliesPanel,
-} from '@/components/Post/postEngagementContext';
-import type { ReplyDraft } from '@/components/Post/replyDraft';
+  readMediaAspectRatio,
+  readMediaDurationSec,
+  readMediaPixelSize,
+  type MediaPixelSize,
+} from '@/utils/mediaTypes';
+import { LinkifiedText } from '@/components/common/LinkifiedText';
+import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { VideoViewabilityProvider } from '@oxy.so/bloom/video-playback';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
@@ -255,7 +258,10 @@ interface MediaRef {
   height?: number;
 }
 
+type ReelContentFit = 'cover' | 'contain';
+
 interface VideoPost extends HydratedPost {
+  contentFit: ReelContentFit;
   mediaIndex: number;
   videoUrl: string;
   // The raw (non-HLS) original URL, always playable. `videoUrl` prefers the
@@ -347,16 +353,21 @@ interface VideoItemProps {
  */
 const ReelPoster = memo<{
   posterUrl?: string;
+  contentFit: ReelContentFit;
   posterFailed: boolean;
   onPosterError: () => void;
   theme: ReturnType<typeof useTheme>;
-}>(({ posterUrl, posterFailed, onPosterError, theme }) => (
-  <View style={styles.posterLayer} className="bg-muted" pointerEvents="none">
+}>(({ posterUrl, contentFit, posterFailed, onPosterError, theme }) => (
+  <View
+    style={styles.posterLayer}
+    className={contentFit === 'contain' ? 'bg-black' : 'bg-muted'}
+    pointerEvents="none"
+  >
     {posterUrl && !posterFailed ? (
       <Image
         source={{ uri: posterUrl }}
         style={styles.poster}
-        contentFit="cover"
+        contentFit={contentFit}
         cachePolicy="memory-disk"
         priority="high"
         onError={onPosterError}
@@ -370,6 +381,7 @@ const ReelPoster = memo<{
 ReelPoster.displayName = 'ReelPoster';
 
 interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'restartOnActivate'> {
+  contentFit: ReelContentFit;
   // How much of the surface's bottom edge the floating BottomBar covers. The
   // scrubber is the overlay's SIBLING, so it does not inherit the overlay's
   // own bottom padding and has to lift itself clear of the bar.
@@ -433,6 +445,7 @@ const ReelSurface: React.FC<
   postId,
   videoUrl,
   fallbackVideoUrl,
+  contentFit,
   posterUrl,
   posterFailed,
   onPosterError,
@@ -584,7 +597,7 @@ const ReelSurface: React.FC<
         id={flightId ?? reelHostId(postId)}
         content={flightContent}
         style={StyleSheet.absoluteFill}
-        contentFit="cover"
+        contentFit={contentFit}
         renderVideo={renderReelVideo}
         pointerEvents="none"
       />
@@ -592,6 +605,7 @@ const ReelSurface: React.FC<
       {showPoster && (
         <ReelPoster
           posterUrl={posterUrl}
+          contentFit={contentFit}
           posterFailed={posterFailed}
           onPosterError={onPosterError}
           theme={theme}
@@ -850,6 +864,7 @@ const VideoItem = memo<VideoItemProps>(
             videoUrl={item.videoUrl}
             fallbackVideoUrl={item.fallbackVideoUrl}
             posterUrl={item.posterUrl}
+            contentFit={item.contentFit}
             posterFailed={posterFailed}
             onPosterError={handlePosterError}
             initialDurationSec={item.durationSec}
@@ -880,6 +895,7 @@ const VideoItem = memo<VideoItemProps>(
           <>
             <ReelPoster
               posterUrl={item.posterUrl}
+              contentFit={item.contentFit}
               posterFailed={posterFailed}
               onPosterError={handlePosterError}
               theme={theme}
@@ -989,7 +1005,11 @@ const VideoItem = memo<VideoItemProps>(
               isBoosted={item.viewerState.isReposted}
               isSaved={item.viewerState.isSaved}
               onLike={() => onLike(item.id, item.viewerState.isLiked)}
-              onReply={postAcceptsReplies(item) ? () => onComment(item.id) : undefined}
+              onReply={
+                postAcceptsReplies(item) || (item.engagement.replies ?? 0) > 0
+                  ? () => onComment(item.id)
+                  : undefined
+              }
               onRepost={() => onRepost(item.id, item.viewerState.isReposted)}
               onSave={() => onSave(item.id, item.viewerState.isSaved)}
               onShare={() => onShare(item)}
@@ -1080,13 +1100,6 @@ export default function VideosScreen() {
   const getPostById = usePostsStore((s) => s.getPostById);
   const cachePosts = usePostsStore((s) => s.cachePosts);
   const openPostPanel = useOpenPostEngagement();
-  const repliesPanel = useVideoRepliesPanel();
-  const publishedReplies = useRef<ReplyDraft | undefined>(undefined);
-  const closePublishedReplies = useCallback(() => {
-    if (publishedReplies.current) repliesPanel?.closeReplies(publishedReplies.current);
-    publishedReplies.current = undefined;
-  }, [repliesPanel?.closeReplies]);
-
   const flatListRef = useRef<FlatList<VideoPost>>(null);
   const globalMuted = useVideoMuteStore((state) => state.isMuted);
   const loadMutedState = useVideoMuteStore((state) => state.loadMutedState);
@@ -1161,6 +1174,15 @@ export default function VideosScreen() {
 
       const videoUrl = resolveVideoUrl(selected);
       if (!videoUrl) return null;
+      const aspectRatio = readMediaAspectRatio(selected);
+      const contentFit =
+        aspectRatio === undefined
+          ? selected.orientation === 'portrait' || selected.orientation === 'square'
+            ? 'cover'
+            : 'contain'
+          : aspectRatio > 1
+            ? 'contain'
+            : 'cover';
       const rawFallback = resolveFallbackVideoUrl(selected);
       const fallbackVideoUrl = rawFallback && rawFallback !== videoUrl ? rawFallback : undefined;
 
@@ -1169,6 +1191,7 @@ export default function VideosScreen() {
         mediaIndex: media.indexOf(selected),
         createdAt: post.metadata.createdAt,
         videoUrl,
+        contentFit,
         fallbackVideoUrl,
         posterUrl: resolvePosterUrl(selected),
         durationSec: readMediaDurationSec(selected),
@@ -1611,7 +1634,7 @@ export default function VideosScreen() {
   }, [loadMutedState]);
 
   const activeVideoPost = posts[currentVisibleIndex];
-  const activeVideoPostId = activeVideoPost?.id;
+  usePublishVideoSuggestions(activeVideoPost, Platform.OS === 'web' && isFocused && !inDeck);
 
   // ── OS transport controls ───────────────────────────────────────
   // Media keys, the lock screen, and — the reason this is wired at all — the
@@ -1705,20 +1728,6 @@ export default function VideosScreen() {
     canReportImpressions: canUsePrivateApi,
   });
 
-  // Publish only the active video, scoped to this route's shell host. Bloom decides
-  // whether its automatic inline replies fit; a floating sheet waits for a press.
-  useEffect(() => {
-    if (!isFocused) {
-      publishedReplies.current = undefined;
-      return;
-    }
-    if (!activeVideoPostId) {
-      closePublishedReplies();
-      return;
-    }
-    publishedReplies.current = repliesPanel?.publishReplies(activeVideoPostId);
-  }, [repliesPanel?.publishReplies, activeVideoPostId, isFocused, closePublishedReplies]);
-
   const renderVideoItem = useCallback(
     ({ item, index }: { item: VideoPost; index: number }) => (
       <VideoItem
@@ -1803,7 +1812,7 @@ export default function VideosScreen() {
         robots="index,follow"
       />
       {/* The reel is a dark surface: its header and controls render dark over it. */}
-      <BloomColorScope mode={posts.length > 0 ? 'dark' : undefined} asChild>
+      <BloomColorScope mode="dark" asChild>
         <Screen
           reselect={{
             isAtTop: () => currentVisibleIndex === 0,
@@ -1825,6 +1834,16 @@ export default function VideosScreen() {
               scrimFalloff="linear"
               tone="onImage"
               onBack={inDeck ? undefined : null}
+              actions={
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  iconOnly
+                  leadingIcon={RiVideoLine}
+                  accessibilityLabel={t('videos.upload', { defaultValue: 'Upload video' })}
+                  onPress={() => router.push('/video-upload')}
+                />
+              }
               title={<VideoFeedTabs value={activeFeed} onValueChange={handleSelectFeed} />}
             />
           }

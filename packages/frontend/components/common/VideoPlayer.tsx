@@ -12,6 +12,9 @@ import {
   type ViewInstance,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { RiReplay10Line } from '@oxy.so/bloom/icons/RiReplay10Line';
+import { RiForward10Line } from '@oxy.so/bloom/icons/RiForward10Line';
 import { useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import type { VideoPlayerKey } from '@/stores/videoPlayerRegistry';
@@ -33,6 +36,7 @@ import { useImageTransition } from '@/hooks/useImageTransition';
 
 interface VideoPlayerProps {
   src: string;
+  controlsLayout?: 'default' | 'watch';
   /**
    * Played once if `src` fails to load — the original upload behind an adaptive
    * stream, so a ladder that turns out to be broken degrades to the file
@@ -179,6 +183,7 @@ const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
   src,
+  controlsLayout = 'default',
   fallbackSrc,
   concealed = false,
   style,
@@ -195,6 +200,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 }) => {
   const imageFade = useImageTransition(150);
   const { t } = useTranslation();
+  const watch = controlsLayout === 'watch';
   const isPreviewMode = onPress !== undefined && !gif;
   // Only the full controls overlay draws the playhead. A feed preview or a GIF
   // has no bar, and tracking time there re-rendered the whole player (flight
@@ -221,6 +227,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const mayPlay = shouldPlay && !concealed;
 
   const [showControls, setShowControls] = useState(true);
+  const [rate, setRate] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -490,6 +497,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     [player, duration, scheduleHideControls],
   );
 
+  const skip = (seconds: number) => {
+    if (duration <= 0) return;
+    const next = Math.max(0, Math.min(duration, player.currentTime + seconds));
+    player.currentTime = next;
+    setCurrentTime(next);
+    scheduleHideControls();
+  };
+
+  const changeRate = () => {
+    const rates = [1, 1.25, 1.5, 2, 0.75];
+    const next = rates[(rates.indexOf(rate) + 1) % rates.length];
+    player.playbackRate = next;
+    setRate(next);
+    scheduleHideControls();
+  };
+
   // The slot Bloom paints the shared node through. `style` is SPREAD because a
   // `<video>` is a replaced element: without a size it paints at 300x150 inside
   // whatever box it was given. `player` goes through untouched INCLUDING `null`,
@@ -525,6 +548,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
   const MuteIcon = isMuted ? RiVolumeMuteLine : RiVolumeUpLine;
+
+  const timeline = (
+    <Pressable
+      ref={progressBarRef}
+      accessibilityRole="adjustable"
+      accessibilityLabel={t('videos.playbackPosition', { defaultValue: 'Playback position' })}
+      accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(currentTime) }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'increment') skip(10);
+        if (event.nativeEvent.actionName === 'decrement') skip(-10);
+      }}
+      style={watch ? styles.watchTimeline : styles.progressBarContainer}
+      onPress={handleProgressBarPress}
+    >
+      <View pointerEvents="none" style={styles.progressBarTrack}>
+        <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
+        <View style={[styles.progressBarThumb, { left: `${progress * 100}%` }]} />
+      </View>
+    </Pressable>
+  );
 
   return (
     <View ref={containerRef} style={[styles.container, style]}>
@@ -607,50 +651,104 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </Pressable>
           </>
         ) : (
-          /* Tap area to toggle controls */
-          <Pressable style={styles.tapArea} onPress={handleTap}>
+          <Pressable
+            style={styles.tapArea}
+            onPress={handleTap}
+            onHoverIn={
+              watch
+                ? () => {
+                    setShowControls(true);
+                    if (isPlaying) scheduleHideControls();
+                  }
+                : undefined
+            }
+          >
             {showControls && (
-              <View style={styles.controlsOverlay}>
-                {/* Play/Pause center button */}
-                <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
-
-                {/* Bottom bar: progress + time + buttons */}
-                <View style={styles.bottomBar}>
-                  {/* Time display */}
-                  <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
-
-                  {/* Progress bar */}
-                  <Pressable
-                    ref={progressBarRef}
-                    style={styles.progressBarContainer}
-                    onPress={handleProgressBarPress}
-                  >
-                    <View style={styles.progressBarTrack}>
-                      <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-                      <View style={[styles.progressBarThumb, { left: `${progress * 100}%` }]} />
+              <View
+                style={[styles.controlsOverlay, watch && styles.watchOverlay]}
+                testID={watch ? 'watch-player-controls' : undefined}
+              >
+                {watch ? (
+                  <>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['transparent', 'rgba(0, 0, 0, 0.82)']}
+                      style={styles.watchScrim}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('videos.playbackSpeed', {
+                        defaultValue: 'Playback speed: {{rate}}×',
+                        rate,
+                      })}
+                      onPress={changeRate}
+                      style={styles.watchSpeed}
+                    >
+                      <Text style={styles.timeText}>{rate}×</Text>
+                    </Pressable>
+                    <View style={styles.watchTransport}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('videos.backTenSeconds', {
+                          defaultValue: 'Back 10 seconds',
+                        })}
+                        onPress={() => skip(-10)}
+                        style={styles.watchSkip}
+                      >
+                        <RiReplay10Line size="lg" fill="white" />
+                      </Pressable>
+                      <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('videos.forwardTenSeconds', {
+                          defaultValue: 'Forward 10 seconds',
+                        })}
+                        onPress={() => skip(10)}
+                        style={styles.watchSkip}
+                      >
+                        <RiForward10Line size="lg" fill="white" />
+                      </Pressable>
                     </View>
-                  </Pressable>
-
-                  {/* Duration */}
-                  <Text style={styles.timeText}>{formatDuration(duration)}</Text>
-
-                  {/* Mute button */}
-                  <Pressable
-                    onPress={handleMuteToggle}
-                    hitSlop={tokens.hitSlop.md}
-                    style={styles.controlButton}
-                  >
-                    <MuteIcon size="md" fill="white" />
-                  </Pressable>
-
-                  {/* Fullscreen button */}
-                  <Pressable
-                    onPress={handleFullscreen}
-                    hitSlop={tokens.hitSlop.md}
-                    style={styles.controlButton}
-                  >
-                    <RiExpandDiagonalSLine size="md" fill="white" />
-                  </Pressable>
+                  </>
+                ) : (
+                  <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
+                )}
+                <View style={watch ? styles.watchBottom : styles.bottomBar}>
+                  {watch ? timeline : null}
+                  <View style={watch ? styles.watchUtilities : styles.inlineUtilities}>
+                    <Text style={styles.timeText}>{formatDuration(currentTime)}</Text>
+                    {watch ? (
+                      <Text style={styles.timeText}>/ {formatDuration(duration)}</Text>
+                    ) : (
+                      timeline
+                    )}
+                    {!watch ? (
+                      <Text style={styles.timeText}>{formatDuration(duration)}</Text>
+                    ) : null}
+                    {watch ? <View style={styles.watchSpacer} /> : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        isMuted
+                          ? t('videos.unmute', { defaultValue: 'Unmute' })
+                          : t('videos.mute', { defaultValue: 'Mute' })
+                      }
+                      onPress={handleMuteToggle}
+                      hitSlop={tokens.hitSlop.md}
+                      style={styles.controlButton}
+                    >
+                      <MuteIcon size="md" fill="white" />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('videos.fullscreen', { defaultValue: 'Full screen' })}
+                      onPress={handleFullscreen}
+                      hitSlop={tokens.hitSlop.md}
+                      style={styles.controlButton}
+                    >
+                      <RiExpandDiagonalSLine size="md" fill="white" />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             )}
@@ -713,6 +811,60 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     gap: 8,
+  },
+  inlineUtilities: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  watchOverlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+  },
+  watchScrim: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '48%',
+  },
+  watchTransport: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 17,
+  },
+  watchSkip: {
+    backgroundColor: 'rgba(15, 18, 24, 0.68)',
+    borderRadius: 24,
+    padding: 10,
+  },
+  watchSpeed: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 18, 24, 0.8)',
+    borderRadius: 16,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
+  },
+  watchBottom: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 8,
+  },
+  watchTimeline: {
+    height: 23,
+    justifyContent: 'center',
+    marginHorizontal: 7,
+  },
+  watchUtilities: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  watchSpacer: {
+    flex: 1,
   },
   timeText: {
     color: 'white',

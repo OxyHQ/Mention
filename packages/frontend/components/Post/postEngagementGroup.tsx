@@ -1,6 +1,4 @@
 import { lazy, Suspense, type ErrorInfo } from 'react';
-import { Screen } from '@oxy.so/bloom/screen';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { AppShellPanelDefinition } from '@oxy.so/bloom/app-shell';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import { PostEngagementProvider } from './PostEngagementProvider';
@@ -25,7 +23,7 @@ export function postEngagementGroup(
   const { content, navigation, bottomBar, headerActions, scroll, errorBoundary, ...group } = host;
   const destination =
     videoRoute && engagement?.destination.route !== '/videos' ? undefined : engagement?.destination;
-  const videoReplies = videoRoute || destination?.kind === 'replies';
+  const videoReplies = destination?.kind === 'replies' || (videoRoute && !!destination);
   // Authored chrome budget: the anonymous sign-in footer needs more room than a reply composer.
   const mainMinimumHeight = bottomBar ? 368 : 224;
   return {
@@ -67,7 +65,7 @@ export function postEngagementGroup(
           id: `${host.id}:engagement`,
           role: 'inspector',
           testID: `mention-shell-panels-${host.id}-engagement`,
-          visible: videoRoute || (engagement?.isOpen ?? false),
+          visible: !!destination && (engagement?.isOpen ?? false),
           onExitComplete,
           span: videoReplies ? 350 : 1,
           minWidth: videoReplies ? 280 : undefined,
@@ -80,7 +78,10 @@ export function postEngagementGroup(
             whenConstrained: true,
             open: (engagement?.isOpen ?? false) && (engagement?.floatingOpen ?? true),
             onOpenChange: (isOpen) => {
-              if (!isOpen) dismissFloating();
+              if (!isOpen) {
+                if (videoRoute) close();
+                else dismissFloating();
+              }
             },
             placement: 'bottom',
             label,
@@ -94,6 +95,7 @@ export function postEngagementGroup(
                   onNavigate={destination.navigate}
                   focusComposerNonce={engagement?.focusComposerNonce}
                   draft={engagement?.replyDraft}
+                  onClose={close}
                 />
               ) : destination.kind === 'insights' ? (
                 <PostInsightsSheet
@@ -111,12 +113,6 @@ export function postEngagementGroup(
                 />
               )}
             </Suspense>
-          ) : videoRoute ? (
-            <Screen
-              scroll="none"
-              testID="video-replies-pending"
-              header={<PageHeader title={label} onBack={null} safeArea={false} />}
-            />
           ) : null,
         },
       ],

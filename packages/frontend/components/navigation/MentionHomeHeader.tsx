@@ -11,15 +11,13 @@ import { RiMenuLine } from '@oxy.so/bloom/icons/RiMenuLine';
 
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
-import { LogoIcon } from '@/assets/logo';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { MentionNavigationLogo } from './MentionNavigationLogo';
 import { useTabPager } from '@oxy.so/bloom/tab-pager';
 
 export function MentionHomeHeader() {
   const router = useRouter();
   const shell = useAppShell();
   const { t } = useTranslation();
-  const { colors } = useTheme();
   const { selectDestination } = useTabPager();
   // A sheet, not a page. Signed out, the press opens the Oxy sign-in dialog
   // (`MentionAskProvider`).
@@ -33,7 +31,7 @@ export function MentionHomeHeader() {
           accessibilityLabel="Mention"
           hitSlop={8}
         >
-          <LogoIcon size={28} color={colors.text} />
+          <MentionNavigationLogo />
         </Pressable>
       }
       titleAlign="center"

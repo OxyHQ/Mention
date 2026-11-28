@@ -1,18 +1,21 @@
-import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
-import { useCallback, useMemo } from 'react';
-import { TouchableOpacity, type View } from 'react-native';
-import { useRouter } from '@/lib/navigation/router';
+import { useMemo } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
+import VideoPosterCell from '@/components/common/VideoPosterCell';
+import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
+import { Link, useRouter } from '@/lib/navigation/router';
+import { useViewCountSelector } from '@/stores/postsStore';
+import { isLandscapeVideo, isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { videoPosterUrl } from '@/utils/mediaUrls';
-import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
-import LiveVideoPosterCell from './LiveVideoPosterCell';
-import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
+import { videoPublicationDate, videoViewCount } from '@/components/videos/videoMetadata';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
+import type { ProfileGridLayout } from './ProfileGridList.types';
 
 interface VideosGridProps {
   userId?: string;
@@ -26,25 +29,71 @@ interface VideosGridProps {
 }
 
 interface VideoGridEntry extends ProfileGridEntry {
-  /**
-   * Static poster URL: Oxy `thumb` variant for native assets, or the backend
-   * `/media/poster` frame for federated videos. Undefined only when no sensible
-   * poster exists; the cell falls back to a video-icon placeholder on
-   * 404/load error too.
-   */
+  title?: string;
   posterUri?: string;
-  /**
-   * Play count of the post this cell's video came from, as it stood when the
-   * page was fetched. Per-POST, so two videos in one post repeat it. The cell
-   * subscribes to the post itself and prefers the live count; this is what it
-   * shows until (and unless) that post is in the shared cache.
-   */
   views?: number | null;
-  /** Duration of THIS item's video, in seconds. Per-item, so per-cell correct. */
   durationSec?: number;
+  createdAt: string;
+  landscape: boolean;
 }
 
-const VideosGrid: React.FC<VideosGridProps> = ({
+const thumbnailHeight = (width: number) => Math.round((width * 9) / 16);
+const profileVideoLayout: ProfileGridLayout = {
+  columns: 2,
+  gap: 12,
+  inset: 12,
+  cellHeight: (width) => thumbnailHeight(width) + 76,
+};
+
+function ProfileVideoCard({ video, width }: { video: VideoGridEntry; width: number }) {
+  const theme = useTheme();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage || i18n.language;
+  const liveViews = useViewCountSelector(video.postId);
+  const views = videoViewCount(t, locale, liveViews === undefined ? video.views : liveViews, true);
+  const date = videoPublicationDate(video.createdAt, locale).relative;
+  const metadata = [views, date].filter(Boolean).join(' · ');
+  const title = video.title || t('videos.reel', { defaultValue: 'Video' });
+  const index = String(video.mediaIndex);
+  const destination = video.landscape
+    ? { pathname: '/watch/[id]' as const, params: { id: video.postId, mediaIndex: index } }
+    : { pathname: '/videos' as const, params: { postId: video.postId, mediaIndex: index } };
+
+  return (
+    <Link href={destination} asChild>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={title}
+        testID="profile-video-card"
+        className="gap-2 rounded-xl pb-2 hover:bg-muted focus-visible:bg-muted"
+        style={{ width }}
+      >
+        <View className="overflow-hidden rounded-xl">
+          <VideoPosterCell
+            posterUri={video.posterUri}
+            size={width}
+            height={thumbnailHeight(width)}
+            contentFit={video.landscape ? 'cover' : 'contain'}
+            placeholderColor={theme.colors.textSecondary}
+            durationSec={video.durationSec}
+          />
+        </View>
+        <View className="min-w-0 gap-1 px-1">
+          <Text numberOfLines={2} className="text-sm font-semibold leading-5 text-foreground">
+            {title}
+          </Text>
+          {metadata ? (
+            <Text numberOfLines={1} className="text-xs leading-4 text-muted-foreground">
+              {metadata}
+            </Text>
+          ) : null}
+        </View>
+      </Pressable>
+    </Link>
+  );
+}
+
+export default function VideosGrid({
   userId,
   isPrivate,
   isOwnProfile,
@@ -53,11 +102,10 @@ const VideosGrid: React.FC<VideosGridProps> = ({
   listContentHeaderComponent,
   listStickyHeaderComponent,
   contentContainerStyle,
-}) => {
+}: VideosGridProps) {
   const { oxyServices } = useAuth();
-  const router = useRouter();
-  const theme = useTheme();
   const { t } = useTranslation();
+  const router = useRouter();
   const { primaryFeed, postsFeed, items, loadMore, restorationKey } = useProfileMediaFeed({
     userId,
     isPrivate,
@@ -65,116 +113,63 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     filter: 'videos',
   });
 
-  /**
-   * Resolve a static video still. Prefer the server-resolved `thumbUrl` — this
-   * is a grid cell, and `posterUrl` is sized for a full-width player — falling
-   * back to `posterUrl` and then to the legacy client resolver keyed on the
-   * id/url (backend `/media/poster`). Both server fields are a still image for
-   * a video of either origin, so preferring the smaller one is safe.
-   * Undefined → icon placeholder. A 404/error from the URL is handled by the
-   * cell's own image-error fallback.
-   */
-  const resolvePosterUri = useCallback(
-    (ref: MediaItem): string | undefined => {
-      const serverUrl = ref.thumbUrl || ref.posterUrl;
-      if (serverUrl) return serverUrl;
-      return videoPosterUrl(ref.id || ref.url || '', oxyServices);
-    },
-    [oxyServices],
-  );
-
-  const videoItems = useMemo<VideoGridEntry[]>(() => {
-    const out: VideoGridEntry[] = [];
-
-    const extractFrom = (post: HydratedPostSummary, targetId: string) => {
-      const media = post.content?.media;
-      if (!Array.isArray(media) || media.length === 0) return;
-
+  const videos = useMemo<VideoGridEntry[]>(() => {
+    return items.flatMap((post) => {
+      if (!post.id) return [];
       const seen = new Set<string>();
-      media.forEach((ref, idx) => {
-        const key = ref.id || ref.url;
-        if (!key) return;
-        // Still per-ITEM even though the `videos` descriptor already
-        // filtered server-side: that filter keeps POSTS, so a post mixing
-        // one photo with one video is a legitimate result whose photo this
-        // grid must drop — and the empty-primary posts fallback below is
-        // unfiltered entirely.
-        if (!isVideoMediaRef(key, { mediaType: ref.type })) return;
-        if (seen.has(key)) return;
+      const media = post.content.media ?? post.attachments.media ?? [];
+      return media.flatMap((ref, mediaIndex) => {
+        const key = ref.id || ref.url || '';
+        if (!key || seen.has(key) || !isVideoMediaRef(key, { mediaType: ref.type })) return [];
         seen.add(key);
-        out.push({
-          postId: targetId,
-          posterUri: resolvePosterUri(ref),
-          mediaIndex: idx,
-          views: post.engagement?.views,
-          durationSec: readMediaDurationSec(ref),
-        });
+        return [
+          {
+            postId: post.id,
+            mediaIndex,
+            title: post.content.title?.trim() || post.content.text?.trim(),
+            posterUri: post.metadata.isSensitive
+              ? undefined
+              : ref.thumbUrl || ref.posterUrl || videoPosterUrl(key, oxyServices),
+            views: post.engagement.views,
+            durationSec: readMediaDurationSec(ref),
+            createdAt: post.metadata.createdAt,
+            landscape: isLandscapeVideo(ref),
+          },
+        ];
       });
-    };
-
-    items.forEach((post) => {
-      if (!post.id) return;
-      extractFrom(post, String(post.id));
     });
-
-    return out;
-  }, [items, resolvePosterUri]);
+  }, [items, oxyServices]);
 
   const isLoading =
     ((!primaryFeed && !postsFeed) || primaryFeed?.isLoading || postsFeed?.isLoading) &&
-    videoItems.length === 0;
-
-  const renderCell = useCallback(
-    (item: VideoGridEntry, itemSize: number) => {
-      const handlePress = () => {
-        router.push(`/videos?postId=${item.postId}`);
-      };
-
-      return (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={{ width: itemSize, height: itemSize }}
-          onPress={handlePress}
-        >
-          {/*
-                  Every entry here is built from the post it navigates to, so the
-                  post to subscribe to and the post to open are the same one —
-                  unlike the media grid, where an embedded original splits them.
-                */}
-          <LiveVideoPosterCell
-            posterUri={item.posterUri}
-            size={itemSize}
-            placeholderColor={theme.colors.textSecondary}
-            viewsPostId={item.postId}
-            fallbackViews={item.views}
-            durationSec={item.durationSec}
-          />
-        </TouchableOpacity>
-      );
-    },
-    [router, theme.colors.textSecondary],
-  );
-
+    videos.length === 0;
   const emptyContent = isLoading ? (
     <MediaGridSkeleton />
-  ) : videoItems.length === 0 ? (
+  ) : videos.length === 0 ? (
     <EmptyState
       title={t('profile.videos.empty.title', { defaultValue: 'No videos yet' })}
       sticker="profileVideos"
       containerStyle={{ flex: 1 }}
     />
   ) : null;
-
-  if (!ownsScroll && emptyContent) {
-    return emptyContent;
-  }
+  const gridHeader = isOwnProfile ? (
+    <View className="items-end px-3 py-3">
+      <Button size="sm" appearance="outline" onPress={() => router.push('/video-upload')}>
+        {t('videos.upload', { defaultValue: 'Upload video' })}
+      </Button>
+    </View>
+  ) : videos.length > 0 ? (
+    <View className="h-3" />
+  ) : null;
 
   return (
     <ProfileGridList
       restorationKey={restorationKey}
-      data={videoItems}
-      renderCell={renderCell}
+      data={videos}
+      renderCell={(video, width) => <ProfileVideoCard video={video} width={width} />}
       containerClassName="w-full"
+      layout={profileVideoLayout}
+      leadingComponent={gridHeader}
       ownsScroll={ownsScroll}
       listHeaderComponent={listHeaderComponent}
       listContentHeaderComponent={listContentHeaderComponent}
@@ -184,6 +179,4 @@ const VideosGrid: React.FC<VideosGridProps> = ({
       onEndReached={loadMore}
     />
   );
-};
-
-export default VideosGrid;
+}

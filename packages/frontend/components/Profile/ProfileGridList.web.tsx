@@ -1,15 +1,17 @@
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions } from 'react-native';
-import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
+import {
+  defaultProfileGridLayout,
+  type ProfileGridEntry,
+  type ProfileGridListProps,
+} from './ProfileGridList.types';
 
 export type {
   ProfileGridEntry,
   ProfileGridListProps,
 } from './ProfileGridList.types';
 
-const NUM_COLUMNS = 3;
-const GAP = 1;
 const OVERSCAN_ROWS = 5;
 
 const rowKey = <T extends ProfileGridEntry>(row: readonly T[]) =>
@@ -17,7 +19,7 @@ const rowKey = <T extends ProfileGridEntry>(row: readonly T[]) =>
 
 /**
  * Web profile grids share the document scroll owner with the profile shell.
- * Bloom's `VirtualList` windows the grid by ROW (three cells each), so a large
+ * Bloom's `VirtualList` windows the grid by row, so a large
  * media history does not mount every thumbnail and no nested overflow container
  * is introduced. The profile shell pages the document itself
  * (`useProfileDocumentPaging`), so the grid asks for nothing.
@@ -27,6 +29,8 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   data,
   renderCell,
   containerClassName,
+  layout = defaultProfileGridLayout,
+  leadingComponent,
   emptyComponent,
   listHeaderComponent,
   listStickyHeaderComponent,
@@ -49,17 +53,19 @@ export function ProfileGridList<T extends ProfileGridEntry>({
     return () => resizeObserver.disconnect();
   }, [measureGrid]);
 
+  const { columns, gap, inset, cellHeight } = layout;
   const itemSize = Math.max(
     1,
-    Math.floor(Math.max(containerWidth - GAP * (NUM_COLUMNS - 1), NUM_COLUMNS) / NUM_COLUMNS),
+    Math.floor((containerWidth - gap * (columns - 1) - inset * 2) / columns),
   );
+  const itemHeight = cellHeight?.(itemSize) ?? itemSize;
   const rows = useMemo(() => {
     const next: T[][] = [];
-    for (let index = 0; index < data.length; index += NUM_COLUMNS) {
-      next.push(data.slice(index, index + NUM_COLUMNS));
+    for (let index = 0; index < data.length; index += columns) {
+      next.push(data.slice(index, index + columns));
     }
     return next;
-  }, [data]);
+  }, [data, columns]);
 
   return (
     <div ref={rootRef} className={containerClassName}>
@@ -67,12 +73,13 @@ export function ProfileGridList<T extends ProfileGridEntry>({
         restorationKey={restorationKey}
         data={rows}
         keyExtractor={rowKey}
-        estimatedItemSize={itemSize + GAP}
+        estimatedItemSize={itemHeight + gap}
         overscan={OVERSCAN_ROWS}
         ListHeaderComponent={
           <>
             {listHeaderComponent}
             {listStickyHeaderComponent}
+            {leadingComponent}
           </>
         }
         ListEmptyComponent={emptyComponent}
@@ -82,16 +89,17 @@ export function ProfileGridList<T extends ProfileGridEntry>({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${NUM_COLUMNS}, ${itemSize}px)`,
-              gridTemplateRows: `${itemSize}px`,
-              columnGap: GAP,
-              height: itemSize + GAP,
+              gridTemplateColumns: `repeat(${columns}, ${itemSize}px)`,
+              gridTemplateRows: `${itemHeight}px`,
+              columnGap: gap,
+              paddingInline: inset,
+              height: itemHeight + gap,
             }}
           >
             {row.map((item) => (
               <div
                 key={`${item.postId}:${item.mediaIndex}`}
-                style={{ width: itemSize, height: itemSize }}
+                style={{ width: itemSize, height: itemHeight }}
               >
                 {renderCell(item, itemSize)}
               </div>

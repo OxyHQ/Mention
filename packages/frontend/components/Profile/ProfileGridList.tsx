@@ -3,16 +3,16 @@ import { useCallback, useMemo } from 'react';
 import { Dimensions, FlatList, View } from 'react-native';
 import { useContainerWidth } from '@oxy.so/bloom/hooks';
 import { VirtualList } from '@oxy.so/bloom/list';
-import type { ProfileGridEntry, ProfileGridListProps } from './ProfileGridList.types';
+import {
+  defaultProfileGridLayout,
+  type ProfileGridEntry,
+  type ProfileGridListProps,
+} from './ProfileGridList.types';
 
 export type {
   ProfileGridEntry,
   ProfileGridListProps,
 } from './ProfileGridList.types';
-
-const NUM_COLUMNS = 3;
-const GAP = 1; // instagram-like tight spacing
-const H_PADDING = 0;
 
 type ProfileGridRow<T extends ProfileGridEntry> =
   | {
@@ -23,12 +23,12 @@ type ProfileGridRow<T extends ProfileGridEntry> =
     }
   | {
       kind: 'auxiliary';
-      key: 'content-header' | 'sticky-header' | 'empty';
+      key: 'content-header' | 'sticky-header' | 'leading' | 'empty';
       element: React.ReactElement;
     };
 
 /**
- * Shared 3-column square grid used by the profile Media and Videos tabs.
+ * Shared virtualized grid used by the profile Media and Videos tabs.
  *
  * Native passes `ownsScroll`: the list is then its Screen's scroller (it pads
  * itself clear of the header and the bottom bar) and owns the one viewport,
@@ -40,6 +40,8 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   data,
   renderCell,
   containerClassName,
+  layout = defaultProfileGridLayout,
+  leadingComponent,
   initialNumToRender,
   windowSize,
   ownsScroll = false,
@@ -50,14 +52,14 @@ export function ProfileGridList<T extends ProfileGridEntry>({
   contentContainerStyle,
   onEndReached,
 }: ProfileGridListProps<T>) {
-  // `renderCell` draws a square of a given side, so the grid needs its width;
-  // the window's stands in until the first layout.
   const { width, onLayout } = useContainerWidth();
   const containerWidth = width ?? Dimensions.get('window').width;
-  const itemSize = useMemo(() => {
-    const totalGap = GAP * (NUM_COLUMNS - 1) + H_PADDING * 2;
-    return Math.floor((containerWidth - totalGap) / NUM_COLUMNS);
-  }, [containerWidth]);
+  const { columns, gap, inset, cellHeight } = layout;
+  const itemSize = Math.max(
+    1,
+    Math.floor((containerWidth - gap * (columns - 1) - inset * 2) / columns),
+  );
+  const itemHeight = cellHeight?.(itemSize) ?? itemSize;
 
   const keyExtractor = useCallback(
     (it: T, index: number) => `${it.postId}:${it.mediaIndex ?? index}`,
@@ -66,10 +68,9 @@ export function ProfileGridList<T extends ProfileGridEntry>({
 
   const getItemLayout = useCallback(
     (_: ArrayLike<T> | null | undefined, index: number) => {
-      const row = Math.floor(index / NUM_COLUMNS);
-      return { length: itemSize, offset: row * (itemSize + GAP), index };
+      return { length: itemHeight, offset: index * (itemHeight + gap), index };
     },
-    [itemSize],
+    [itemHeight, gap],
   );
 
   const renderItem = useCallback(
@@ -93,6 +94,9 @@ export function ProfileGridList<T extends ProfileGridEntry>({
         element: listStickyHeaderComponent,
       });
     }
+    if (leadingComponent) {
+      next.push({ kind: 'auxiliary', key: 'leading', element: leadingComponent });
+    }
     if (data.length === 0 && emptyComponent) {
       next.push({
         kind: 'auxiliary',
@@ -105,11 +109,18 @@ export function ProfileGridList<T extends ProfileGridEntry>({
         kind: 'cell',
         key: `${value.postId}:${value.mediaIndex ?? index}`,
         value,
-        columnIndex: index % NUM_COLUMNS,
+        columnIndex: index % columns,
       });
     }
     return next;
-  }, [data, emptyComponent, listContentHeaderComponent, listStickyHeaderComponent]);
+  }, [
+    data,
+    columns,
+    emptyComponent,
+    leadingComponent,
+    listContentHeaderComponent,
+    listStickyHeaderComponent,
+  ]);
 
   const renderVirtualizedRow = useCallback(
     ({ item }: { item: ProfileGridRow<T> }) => {
@@ -120,24 +131,27 @@ export function ProfileGridList<T extends ProfileGridEntry>({
         <View
           style={{
             width: itemSize,
-            marginRight: item.columnIndex < NUM_COLUMNS - 1 ? GAP : 0,
-            marginBottom: GAP,
+            marginRight: item.columnIndex < columns - 1 ? gap : 0,
+            marginBottom: gap,
           }}
         >
           {renderCell(item.value, itemSize)}
         </View>
       );
     },
-    [itemSize, renderCell],
+    [itemSize, renderCell, columns, gap],
   );
 
   const virtualizedKeyExtractor = useCallback((item: ProfileGridRow<T>) => item.key, []);
 
   const getItemType = useCallback((item: ProfileGridRow<T>) => item.kind, []);
 
-  const overrideItemLayout = useCallback((layout: { span?: number }, item: ProfileGridRow<T>) => {
-    if (item.kind === 'auxiliary') layout.span = NUM_COLUMNS;
-  }, []);
+  const overrideItemLayout = useCallback(
+    (itemLayout: { span?: number }, item: ProfileGridRow<T>) => {
+      if (item.kind === 'auxiliary') itemLayout.span = columns;
+    },
+    [columns],
+  );
 
   if (ownsScroll) {
     return (
@@ -149,9 +163,9 @@ export function ProfileGridList<T extends ProfileGridEntry>({
           renderItem={renderVirtualizedRow}
           getItemType={getItemType}
           overrideItemLayout={overrideItemLayout}
-          numColumns={NUM_COLUMNS}
+          numColumns={columns}
           ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
-          contentContainerStyle={[{ paddingHorizontal: H_PADDING }, contentContainerStyle]}
+          contentContainerStyle={[{ paddingHorizontal: inset }, contentContainerStyle]}
           ListHeaderComponent={listHeaderComponent}
           stickyHeaderIndices={
             listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined
@@ -159,7 +173,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
           scrollbar="never"
           onEndReached={onEndReached}
           onEndReachedThreshold={0.7}
-          drawDistance={Math.max(itemSize * 2, 300)}
+          drawDistance={Math.max(itemHeight * 2, 300)}
           maxItemsInRecyclePool={24}
         />
       </View>
@@ -168,13 +182,15 @@ export function ProfileGridList<T extends ProfileGridEntry>({
 
   return (
     <View className={containerClassName} onLayout={onLayout}>
+      {leadingComponent}
       <FlatList
         data={data}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        numColumns={NUM_COLUMNS}
-        columnWrapperStyle={{ gap: GAP }}
-        contentContainerStyle={{ gap: GAP, paddingHorizontal: H_PADDING }}
+        ListEmptyComponent={emptyComponent ?? undefined}
+        numColumns={columns}
+        columnWrapperStyle={{ gap }}
+        contentContainerStyle={{ gap, paddingHorizontal: inset }}
         showsVerticalScrollIndicator={false}
         scrollEnabled={false}
         nestedScrollEnabled={false}

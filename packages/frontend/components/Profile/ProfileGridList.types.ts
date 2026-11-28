@@ -7,14 +7,29 @@ export interface ProfileGridEntry {
   mediaIndex: number;
 }
 
+export interface ProfileGridLayout {
+  columns: number;
+  gap: number;
+  inset: number;
+  cellHeight?: (width: number) => number;
+}
+
+export const defaultProfileGridLayout: ProfileGridLayout = {
+  columns: 3,
+  gap: 1,
+  inset: 0,
+};
+
 export interface ProfileGridListProps<T extends ProfileGridEntry> {
   /** Viewer, profile and media-filter identity for web measurement restoration. */
   restorationKey: string;
   data: T[];
-  /** Render a single square cell given the measured item size. */
+  /** Render a cell given its measured width. */
   renderCell: (item: T, itemSize: number) => React.ReactElement;
   /** Container className (grids differ only in background/width utilities). */
   containerClassName?: string;
+  layout?: ProfileGridLayout;
+  leadingComponent?: React.ReactElement | null;
   initialNumToRender?: number;
   windowSize?: number;
   ownsScroll?: boolean;

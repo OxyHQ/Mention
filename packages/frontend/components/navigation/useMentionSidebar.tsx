@@ -10,8 +10,7 @@ import { ProfileButton } from '@oxy.so/services/ui/client';
 import type { AccountDialogMenuItem } from '@oxy.so/services';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiHome5Line } from '@oxy.so/bloom/icons/RiHome5Line';
-import { LogoIcon } from '@/assets/logo';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { MentionNavigationLogo } from './MentionNavigationLogo';
 
 /**
  * The account control at the foot of the sidebar. It is the app's own content
@@ -77,7 +76,6 @@ export function useMentionSidebar(): SidebarProps {
   const deckAvailable = useDeckAvailable();
   const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const { selectDestination } = useTabPager();
-  const { colors } = useTheme();
 
   return {
     surface: 'plain',
@@ -86,7 +84,7 @@ export function useMentionSidebar(): SidebarProps {
     showSearch: false,
     showThemeToggle: false,
     logo: {
-      icon: <LogoIcon size={28} color={colors.text} />,
+      icon: <MentionNavigationLogo />,
       accessibilityLabel: 'Mention',
       onPress: () => selectDestination('index'),
     },

@@ -10,6 +10,7 @@ import { ExperimentalStack, Slot, usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@oxy.so/services/ui/client';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import {
   AppShell,
@@ -32,6 +33,8 @@ import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
 import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
 import { RightBar } from '@/components/RightBar';
+import { VideoSuggestions } from '@/components/videos/VideoSuggestions';
+import { WatchVideoRail } from '@/components/videos/WatchVideoDetails';
 import { useMentionSidebar } from '@/components/navigation/useMentionSidebar';
 import { SignInBanner } from '@/components/SignInBanner';
 import { WelcomeRedirectGate } from '@/components/WelcomeRedirectGate';
@@ -139,6 +142,16 @@ export default function AppLayout() {
   };
   const pathname = usePathname();
   const onVideosRoute = pathname === '/videos';
+  const onWatchRoute = pathname.startsWith('/watch/');
+  const onProfileVideosRoute = /^\/@[^/]+\/videos\/?$/.test(pathname);
+  const useVideoTheme =
+    onVideosRoute || onWatchRoute || onProfileVideosRoute || pathname === '/video-upload';
+  const mainEngagement =
+    isAuthResolved && engagementState.viewer === engagementViewer
+      ? engagementState.panels.main
+      : undefined;
+  const videoEngagementOpen =
+    onVideosRoute && mainEngagement?.destination.route === '/videos' && mainEngagement.isOpen;
   const deckAvailable = useDeckAvailable();
   const deckOpen = (pathname === '/deck' || deckEnabled) && deckAvailable;
   const firstDeckId = deckOrder[0];
@@ -176,6 +189,8 @@ export default function AppLayout() {
               now structural instead of a stack-attachment detail. */}
           <ExperimentalStack.Screen name="(tabs)" />
           <ExperimentalStack.Screen name="compose" />
+          <ExperimentalStack.Screen name="watch/[id]" />
+          <ExperimentalStack.Screen name="video-upload" />
           <ExperimentalStack.Screen name="p/[id]/reposts" />
           <ExperimentalStack.Screen name="p/[id]/boost" />
         </ExperimentalStack>
@@ -206,161 +221,170 @@ export default function AppLayout() {
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
       <PostReplyNavigationContext.Provider value={ownsMainReplyNavigation}>
-        <AppShell
-          testID="mention-shell"
-          layout={deckOpen ? 'deck' : 'feed'}
-          presentation="framed"
-          drawer="reveal"
-          sidebar={sidebar}
-          // The sidebar's compose row and the bar's FAB: the composer page.
-          primaryAction={{
-            icon: RiQuillPenLine,
-            accessibilityLabel: t('sidebar.compose'),
-            onPress: () => selectTab('write'),
-          }}
-          header={null}
-          gutter={8}
-          bottomBar={bottomContent === 'tabs' && !ownsMainReplyNavigation ? undefined : null}
-          bottomBarVisibility="compact"
-          // Native content scrolls under the floating bar (Bloom's scrollers pad
-          // their end clear of it); the web document reserves it, except under
-          // the full-bleed camera.
-          reserveBottomBarSpace={IS_WEB && pathname !== '/camera' && !ownsMainReplyNavigation}
-          panelLayout={{
-            onPanelOrderChange: deckOpen
-              ? (order) => {
-                  const current = useDeckSettings.getState();
-                  if (
-                    current.viewer === deckViewer &&
-                    current.restorationEpoch === deckRestorationEpoch
-                  )
-                    current.reorderPanels(order);
-                }
-              : undefined,
-            revealPanel: deckOpen ? deckRevealPanel : undefined,
-            trailingAction: deckOpen ? <DeckAddPanel /> : undefined,
-            widths: Object.fromEntries(
-              Object.entries(deckPanels).map(([id, panel]) => [id, panel.width]),
-            ),
-            gap: deckOpen ? undefined : 0,
-            activePanel:
-              deckOpen &&
-              activeDeckPanel &&
-              !(hasDefaultLeadingPanel && activeDeckPanel === firstDeckId)
-                ? activeDeckPanel
-                : 'main',
-            expandedPanel: !deckOpen && onInsightsRoute ? 'main' : undefined,
-            panels: [
-              withEngagement(
+        <BloomColorScope mode={useVideoTheme ? 'dark' : undefined} asChild>
+          <AppShell
+            testID="mention-shell"
+            layout={deckOpen ? 'deck' : 'feed'}
+            presentation="framed"
+            drawer="reveal"
+            sidebar={sidebar}
+            // The sidebar's compose row and the bar's FAB: the composer page.
+            primaryAction={{
+              icon: RiQuillPenLine,
+              accessibilityLabel: t('sidebar.compose'),
+              onPress: () => selectTab('write'),
+            }}
+            header={null}
+            gutter={8}
+            bottomBar={bottomContent === 'tabs' && !ownsMainReplyNavigation ? undefined : null}
+            bottomBarVisibility="compact"
+            // Native content scrolls under the floating bar (Bloom's scrollers pad
+            // their end clear of it); the web document reserves it, except under
+            // the full-bleed camera.
+            reserveBottomBarSpace={IS_WEB && pathname !== '/camera' && !ownsMainReplyNavigation}
+            panelLayout={{
+              onPanelOrderChange: deckOpen
+                ? (order) => {
+                    const current = useDeckSettings.getState();
+                    if (
+                      current.viewer === deckViewer &&
+                      current.restorationEpoch === deckRestorationEpoch
+                    )
+                      current.reorderPanels(order);
+                  }
+                : undefined,
+              revealPanel: deckOpen ? deckRevealPanel : undefined,
+              trailingAction: deckOpen ? <DeckAddPanel /> : undefined,
+              widths: Object.fromEntries(
+                Object.entries(deckPanels).map(([id, panel]) => [id, panel.width]),
+              ),
+              gap: deckOpen ? undefined : 0,
+              activePanel:
+                deckOpen &&
+                activeDeckPanel &&
+                !(hasDefaultLeadingPanel && activeDeckPanel === firstDeckId)
+                  ? activeDeckPanel
+                  : 'main',
+              expandedPanel: !deckOpen && onInsightsRoute ? 'main' : undefined,
+              panels: [
+                withEngagement(
+                  {
+                    id: 'main',
+                    role: 'main',
+                    visible: true,
+                    // A screen that throws fails inside its panel, never the whole app;
+                    // navigating to another route recovers it.
+                    errorBoundary: { resetKey: pathname, onError: reportBoundaryError },
+                    // The Expo child navigator keeps the same host across every layout mode,
+                    // including the Deck entry link that opens the home route.
+                    keepMounted: true,
+                    bottomBar: bottomContent === 'sign-in' ? <SignInBanner /> : undefined,
+                    width: deckOpen ? 390 : videoEngagementOpen ? 978 : 620,
+                    minWidth: deckOpen ? 390 : 0,
+                    maxWidth: deckOpen ? 390 : undefined,
+                    resizable: false,
+                    content: (
+                      <>
+                        <View
+                          style={StyleSheet.absoluteFill}
+                          pointerEvents="box-none"
+                          ref={registerPanelSurface}
+                        />
+                        {centerContent}
+                      </>
+                    ),
+                  },
+                  IS_WEB && !deckOpen,
+                  onVideosRoute,
+                ),
                 {
-                  id: 'main',
-                  role: 'main',
-                  visible: true,
-                  // A screen that throws fails inside its panel, never the whole app;
-                  // navigating to another route recovers it.
-                  errorBoundary: { resetKey: pathname, onError: reportBoundaryError },
-                  // The Expo child navigator keeps the same host across every layout mode,
-                  // including the Deck entry link that opens the home route.
-                  keepMounted: true,
-                  bottomBar: bottomContent === 'sign-in' ? <SignInBanner /> : undefined,
-                  width: deckOpen ? 390 : onVideosRoute ? 978 : 620,
-                  minWidth: deckOpen ? 390 : 0,
-                  maxWidth: deckOpen ? 390 : undefined,
-                  resizable: false,
-                  content: (
-                    <>
-                      <View
-                        style={StyleSheet.absoluteFill}
-                        pointerEvents="box-none"
-                        ref={registerPanelSurface}
-                      />
-                      {centerContent}
-                    </>
+                  id: 'context',
+                  role: 'context',
+                  visible: !deckOpen && !videoEngagementOpen,
+                  keepMounted: onVideosRoute,
+                  errorBoundary: { onError: reportBoundaryError },
+                  sticky: true,
+                  width: 350,
+                  hideBelow: 990,
+                  appearance: 'plain',
+                  chrome: 'none',
+                  scroll: 'content',
+                  content: onWatchRoute ? (
+                    <WatchVideoRail />
+                  ) : onVideosRoute ? (
+                    <VideoSuggestions />
+                  ) : (
+                    <RightBar />
                   ),
                 },
-                IS_WEB && !deckOpen,
-                onVideosRoute,
-              ),
-              {
-                id: 'context',
-                role: 'context',
-                visible: !deckOpen && !onVideosRoute,
-                errorBoundary: { onError: reportBoundaryError },
-                sticky: true,
-                width: 350,
-                hideBelow: 990,
-                appearance: 'plain',
-                chrome: 'none',
-                scroll: 'content',
-                content: <RightBar />,
-              },
-              ...deckOrder
-                .filter((id) => deckPanels[id])
-                .map((id) => {
-                  const panel = deckPanels[id];
-                  return withEngagement(
-                    {
-                      id,
-                      role: 'main',
-                      visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
-                      errorBoundary: { onError: reportBoundaryError },
-                      width: panel.width,
-                      appearance: panel.appearance,
-                      colorPreset: panel.colorPreset,
-                      minWidth: 300,
-                      maxWidth: 620,
-                      resizable: panel.resizable,
-                      onWidthChange: (width) => {
-                        const current = useDeckSettings.getState();
-                        if (
-                          current.viewer === deckViewer &&
-                          current.restorationEpoch === deckRestorationEpoch
-                        )
-                          updateDeckPanel(id, { width });
-                      },
-                      reorderable: true,
-                      reorderLabel: t(`deck.sources.${panel.source}`),
-                      scroll: 'content' as const,
-                      headerActions: <DeckColumnHeaderActions panelId={id} />,
-                      navigation: {
-                        initialEntries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
-                        state: panel.navigation ?? {
-                          entries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
-                          index: 0,
-                        },
-                        scrollRestoration: {
-                          scopeKey: `${deckViewer}:${deckRestorationEpoch}`,
-                          initialSnapshot: panel.scrollOffsets,
-                          onSnapshotChange: (scrollOffsets: Readonly<Record<string, number>>) => {
-                            const current = useDeckSettings.getState();
-                            if (
-                              current.viewer === deckViewer &&
-                              current.restorationEpoch === deckRestorationEpoch
-                            )
-                              updateDeckPanel(id, { scrollOffsets: { ...scrollOffsets } });
-                          },
-                        },
-                        onNavigationChange: (navigation: PanelNavigationState) => {
+                ...deckOrder
+                  .filter((id) => deckPanels[id])
+                  .map((id) => {
+                    const panel = deckPanels[id];
+                    return withEngagement(
+                      {
+                        id,
+                        role: 'main',
+                        visible: deckOpen && !(hasDefaultLeadingPanel && id === firstDeckId),
+                        errorBoundary: { onError: reportBoundaryError },
+                        width: panel.width,
+                        appearance: panel.appearance,
+                        colorPreset: panel.colorPreset,
+                        minWidth: 300,
+                        maxWidth: 620,
+                        resizable: panel.resizable,
+                        onWidthChange: (width) => {
                           const current = useDeckSettings.getState();
                           if (
                             current.viewer === deckViewer &&
                             current.restorationEpoch === deckRestorationEpoch
                           )
-                            updateDeckPanel(id, { navigation });
+                            updateDeckPanel(id, { width });
                         },
-                        render: () => <DeckColumn panelId={id} />,
+                        reorderable: true,
+                        reorderLabel: t(`deck.sources.${panel.source}`),
+                        scroll: 'content' as const,
+                        headerActions: <DeckColumnHeaderActions panelId={id} />,
+                        navigation: {
+                          initialEntries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
+                          state: panel.navigation ?? {
+                            entries: [{ key: 'root', ...deckRouteForSource(panel.source) }],
+                            index: 0,
+                          },
+                          scrollRestoration: {
+                            scopeKey: `${deckViewer}:${deckRestorationEpoch}`,
+                            initialSnapshot: panel.scrollOffsets,
+                            onSnapshotChange: (scrollOffsets: Readonly<Record<string, number>>) => {
+                              const current = useDeckSettings.getState();
+                              if (
+                                current.viewer === deckViewer &&
+                                current.restorationEpoch === deckRestorationEpoch
+                              )
+                                updateDeckPanel(id, { scrollOffsets: { ...scrollOffsets } });
+                            },
+                          },
+                          onNavigationChange: (navigation: PanelNavigationState) => {
+                            const current = useDeckSettings.getState();
+                            if (
+                              current.viewer === deckViewer &&
+                              current.restorationEpoch === deckRestorationEpoch
+                            )
+                              updateDeckPanel(id, { navigation });
+                          },
+                          render: () => <DeckColumn panelId={id} />,
+                        },
                       },
-                    },
-                    false,
-                    (
-                      panel.navigation?.entries[panel.navigation.index]?.name ??
-                      deckRouteForSource(panel.source).name
-                    ).split(/[?#]/)[0] === '/videos',
-                  );
-                }),
-            ],
-          }}
-        />
+                      false,
+                      (
+                        panel.navigation?.entries[panel.navigation.index]?.name ??
+                        deckRouteForSource(panel.source).name
+                      ).split(/[?#]/)[0] === '/videos',
+                    );
+                  }),
+              ],
+            }}
+          />
+        </BloomColorScope>
       </PostReplyNavigationContext.Provider>
       <RegisterPush />
       <PushNotificationOpener />
