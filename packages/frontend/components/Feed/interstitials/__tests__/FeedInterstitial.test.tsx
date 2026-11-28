@@ -1486,6 +1486,25 @@ describe('TrendingTopicsInterstitial', () => {
     expect(mockStartPolling).toHaveBeenCalled();
   });
 
+  it('holds its polling lease while mounted and gives it back on unmount', async () => {
+    mockTrends = trendItems(4);
+    mockStartPolling.mockClear();
+    mockStopPolling.mockClear();
+
+    const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    // The lease is taken once and kept: polling runs as long as the band is on screen.
+    expect(mockStartPolling).toHaveBeenCalledTimes(1);
+    expect(mockStopPolling).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+    renderers.splice(renderers.indexOf(renderer), 1);
+    expect(mockStopPolling).toHaveBeenCalledTimes(1);
+    expect(mockStopPolling).toHaveBeenCalledWith(1);
+  });
+
   it('paints the position in the RENDERED list, never the batch-wide rank', async () => {
     mockTrends = trendItems(4);
 
