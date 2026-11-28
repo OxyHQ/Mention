@@ -6,6 +6,7 @@ import {
   getMediaMetadataEnrichQueue,
   getAccountErasureQueue,
   getInstagramGraphSyncQueue,
+  getSubscriberNotificationQueue,
 } from './queues';
 import {
   DELIVERY_JOB_ATTEMPTS,
@@ -16,6 +17,8 @@ import {
   SHARING_CLEANUP_BACKOFF_BASE_MS,
   MEDIA_METADATA_ENRICH_JOB_ATTEMPTS,
   MEDIA_METADATA_ENRICH_BACKOFF_BASE_MS,
+  SUBSCRIBER_NOTIFICATION_JOB_ATTEMPTS,
+  SUBSCRIBER_NOTIFICATION_BACKOFF_BASE_MS,
   ACCOUNT_ERASURE_JOB_ATTEMPTS,
   ACCOUNT_ERASURE_BACKOFF_BASE_MS,
 } from './constants';
@@ -26,6 +29,7 @@ import type {
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
   InstagramGraphSyncJobData,
+  SubscriberNotificationJobData,
 } from './types';
 
 /**
@@ -198,6 +202,21 @@ export async function enqueueInstagramGraphSync(data: InstagramGraphSyncJobData)
     attempts: 1,
     removeOnComplete: true,
     removeOnFail: true,
+  });
+  return true;
+}
+
+/** Enqueue a post's subscriber notifications. Dedupes on postId. */
+export async function enqueueSubscriberNotifications(
+  data: SubscriberNotificationJobData,
+): Promise<boolean> {
+  const queue = getSubscriberNotificationQueue();
+  if (!queue) return false;
+
+  await queue.add('subscriber-notifications', data, {
+    jobId: `subnotify-${shortHash(data.postId)}`,
+    attempts: SUBSCRIBER_NOTIFICATION_JOB_ATTEMPTS,
+    backoff: { type: 'exponential', delay: SUBSCRIBER_NOTIFICATION_BACKOFF_BASE_MS },
   });
   return true;
 }
