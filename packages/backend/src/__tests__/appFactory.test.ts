@@ -2,8 +2,45 @@ import { GEMIES_SDK_CSP } from '@gemies/sdk/csp';
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as z from 'zod';
 import type { CreateAppDependencies } from '../app';
 import type { AppRoutes } from '../appRoutes';
+import { resolveMentionSoftwareVersion } from '../services/federation/mentionSoftwareVersion';
+
+/** The NodeInfo 2.0 fields this route is required to satisfy. */
+const nodeInfo20 = z
+  .object({
+    version: z.literal('2.0'),
+    software: z
+      .object({
+        name: z.string().regex(/^[a-z0-9-]+$/),
+        version: z.string().min(1),
+      })
+      .strict(),
+    protocols: z.array(z.string().min(1)).min(1),
+    services: z
+      .object({
+        inbound: z.array(z.string()),
+        outbound: z.array(z.string()),
+      })
+      .strict(),
+    usage: z
+      .object({
+        users: z
+          .object({
+            total: z.number().int().nonnegative().optional(),
+            activeMonth: z.number().int().nonnegative().optional(),
+            activeHalfyear: z.number().int().nonnegative().optional(),
+          })
+          .strict(),
+        localPosts: z.number().int().nonnegative().optional(),
+        localComments: z.number().int().nonnegative().optional(),
+      })
+      .strict(),
+    openRegistrations: z.boolean(),
+    metadata: z.record(z.string(), z.unknown()),
+  })
+  .strict();
 
 const passThrough: RequestHandler = (_req, _res, next) => next();
 const errorHandler: ErrorRequestHandler = (_error, _req, res, _next) => {
@@ -432,9 +469,14 @@ describe('createApp', () => {
       .set('Host', 'api.mention.earth')
       .expect(200)
       .expect(({ body }) => {
-        // The standard fields carry COMBINED totals: 12 local + 4 external users, 10 posts, 3 comments.
-        expect(body.usage).toEqual({ users: { total: 16 }, localPosts: 10, localComments: 3 });
-        expect(body.metadata['so.oxy.mention.statistics'].standardFields).toBe('combined');
+        expect(nodeInfo20.parse(body)).toBeTruthy();
+        // Standard usage is local only: 12 registered accounts, 7 posts, 2 comments.
+        // The 4 remote actor records and the external posts stay in the extension.
+        expect(body.usage).toEqual({ users: { total: 12 }, localPosts: 7, localComments: 2 });
+        expect(body.usage.users.activeMonth).toBeUndefined();
+        expect(body.usage.users.activeHalfyear).toBeUndefined();
+        expect(body.metadata['so.oxy.mention.statistics'].standardFields).toBe('local');
+        expect(body.metadata['so.oxy.mention.statistics'].version).toBe(4);
         expect(body.metadata['so.oxy.mention.statistics'].users.local.stale).toBe(false);
         expect(body.services).toEqual({ inbound: [], outbound: [] });
         expect(body.metadata['so.oxy.mention.statistics']).toMatchObject({
@@ -452,14 +494,40 @@ describe('createApp', () => {
       .expect(200)
       .expect('Cache-Control', 'public, max-age=60')
       .expect(({ body }) => {
-        // Unknown is not zero.
+        expect(nodeInfo20.parse(body)).toBeTruthy();
+        // Unknown is not zero. Version still comes from the running build.
         expect(body.usage).toEqual({ users: {} });
+        expect(body.software.version).toBe(
+          resolveMentionSoftwareVersion({
+            releaseVersion: process.env.MENTION_RELEASE_VERSION,
+          }),
+        );
         expect(body.metadata['so.oxy.mention.statistics']).toBeUndefined();
       });
     expect(deps.logger.debug).toHaveBeenCalledWith(
       'nodeinfo: statistics unavailable, omitting counts',
       expect.any(Error),
     );
+  });
+
+  it('reports the image release as software.version when no deployment manifest is set', async () => {
+    const previous = process.env.MENTION_RELEASE_VERSION;
+    process.env.MENTION_RELEASE_VERSION = '0123456789abcdef0123456789abcdef01234567';
+    try {
+      const { createApp } = await import('../app');
+      const response = await request(createApp(createDependencies()))
+        .get('/nodeinfo/2.0')
+        .set('Host', 'mention.earth')
+        .expect(200);
+      expect(nodeInfo20.parse(response.body)).toBeTruthy();
+      expect(response.body.software).toEqual({
+        name: 'mention',
+        version: '0123456789abcdef0123456789abcdef01234567',
+      });
+    } finally {
+      if (previous === undefined) delete process.env.MENTION_RELEASE_VERSION;
+      else process.env.MENTION_RELEASE_VERSION = previous;
+    }
   });
 
   it('serves the FediDB verification file as plain text without a redirect', async () => {
@@ -646,6 +714,7 @@ describe('managed instance discovery and branding', () => {
     const nodeinfo = await request(app).get('/nodeinfo/2.0').expect(200);
     expect(nodeinfo.body.openRegistrations).toBe(false);
     expect(nodeinfo.body.software.version).toBe(deployment.release.version);
+    expect(nodeInfo20.parse(nodeinfo.body)).toBeTruthy();
     expect(nodeinfo.body.metadata.sourceUrl).toBe(deployment.release.sourceUrl);
     const pointer = await request(app).get('/.well-known/nodeinfo').expect(200);
     expect(pointer.body.links[0].href).toBe('https://social.alpha.example/nodeinfo/2.0');
