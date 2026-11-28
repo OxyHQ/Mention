@@ -136,6 +136,14 @@ export const viewerQueryKeys = {
     ['mention', 'viewer', viewerCacheId(viewerId), 'minimal-profile', handle] as const,
   postAccess: (viewerId: ViewerId, postId: string) =>
     ['mention', 'viewer', viewerCacheId(viewerId), 'post-access', postId] as const,
+  watchVideo: (viewerId: ViewerId, postId: string, language?: string) =>
+    [...viewerQueryKeys.all(viewerId), 'watch-video', postId, language ?? null] as const,
+  watchCatalog: (viewerId: ViewerId, language: string) =>
+    [...viewerQueryKeys.all(viewerId), 'watch-catalog', language] as const,
+  watchClips: (viewerId: ViewerId, language: string) =>
+    [...viewerQueryKeys.all(viewerId), 'watch-clips', language] as const,
+  videoSuggestions: (viewerId: ViewerId, language?: string) =>
+    [...viewerQueryKeys.all(viewerId), 'video-suggestions', language ?? null] as const,
   composeMedia: (
     viewerId: ViewerId,
     privateReady: boolean,

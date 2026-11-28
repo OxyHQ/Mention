@@ -1,3 +1,4 @@
+import type { AppDestination } from '@oxy.so/bloom/tab-pager';
 import TestRenderer, { act } from 'react-test-renderer';
 
 const mockAuth = {
@@ -7,14 +8,22 @@ const mockAuth = {
 };
 const mockSession = { activeSessionId: 'session-a' };
 let mockScope: string;
+let mockDestinations: AppDestination[];
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => mockAuth,
   useOxy: () => mockSession,
 }));
 jest.mock('@oxy.so/bloom/tab-pager/expo-router', () => ({
-  TabPagerProvider: ({ navigationScopeKey }: { navigationScopeKey: string }) => {
+  TabPagerProvider: ({
+    navigationScopeKey,
+    destinations,
+  }: {
+    navigationScopeKey: string;
+    destinations: AppDestination[];
+  }) => {
     mockScope = navigationScopeKey;
+    mockDestinations = destinations;
     return null;
   },
 }));
@@ -34,6 +43,15 @@ it('invalidates navigation transactions on a new session of the same viewer', ()
   });
   const tree = mounted.tree;
   if (!tree) throw new Error('Navigation fixture did not mount');
+  expect(mockDestinations.find(({ name }) => name === 'videos')).toMatchObject({
+    href: '/videos',
+    label: 'videos.clips',
+    bar: true,
+  });
+  expect(mockDestinations.find(({ name }) => name === 'watch')).toMatchObject({
+    href: '/watch',
+    label: 'sidebar.watch',
+  });
   const firstSession = mockScope;
   mockSession.activeSessionId = 'session-b';
   act(() => {

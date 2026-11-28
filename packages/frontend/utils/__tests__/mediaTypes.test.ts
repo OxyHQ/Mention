@@ -1,4 +1,4 @@
-import { readMediaPixelSize } from '../mediaTypes';
+import { isLandscapeVideo, readMediaPixelSize } from '../mediaTypes';
 
 /**
  * The intrinsic pixel size the feed persists, which is what gives the Android
@@ -43,5 +43,19 @@ describe('readMediaPixelSize', () => {
     // window a made-up size that happens to have the right shape — fine by luck,
     // wrong as a contract.
     expect(readMediaPixelSize({ aspectRatio: 0.5625 })).toBeUndefined();
+  });
+});
+
+describe('isLandscapeVideo', () => {
+  it('uses dimensions when the orientation is missing or disagrees', () => {
+    expect(isLandscapeVideo({ width: 1920, height: 1080 })).toBe(true);
+    expect(isLandscapeVideo({ aspectRatio: 0.75, orientation: 'landscape' })).toBe(false);
+    expect(isLandscapeVideo({ width: 1080, height: 1080 })).toBe(false);
+  });
+
+  it('uses the stored orientation when there are no dimensions', () => {
+    expect(isLandscapeVideo({ orientation: 'landscape' })).toBe(true);
+    expect(isLandscapeVideo({ orientation: 'portrait' })).toBe(false);
+    expect(isLandscapeVideo({})).toBe(false);
   });
 });

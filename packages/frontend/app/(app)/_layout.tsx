@@ -32,6 +32,9 @@ import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
 import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
 import { RightBar } from '@/components/RightBar';
+import { VideoSuggestions } from '@/components/videos/VideoSuggestions';
+import { WatchVideoRail } from '@/components/videos/WatchVideoDetails';
+import { WatchBrowseRail, WatchPlaybackProvider } from '@/components/videos/WatchPlayerSurface';
 import { useMentionSidebar } from '@/components/navigation/useMentionSidebar';
 import { SignInBanner } from '@/components/SignInBanner';
 import { WelcomeRedirectGate } from '@/components/WelcomeRedirectGate';
@@ -139,6 +142,13 @@ export default function AppLayout() {
   };
   const pathname = usePathname();
   const onVideosRoute = pathname === '/videos';
+  const onWatchRoute = pathname.startsWith('/watch/');
+  const mainEngagement =
+    isAuthResolved && engagementState.viewer === engagementViewer
+      ? engagementState.panels.main
+      : undefined;
+  const videoEngagementOpen =
+    onVideosRoute && mainEngagement?.destination.route === '/videos' && mainEngagement.isOpen;
   const deckAvailable = useDeckAvailable();
   const deckOpen = (pathname === '/deck' || deckEnabled) && deckAvailable;
   const firstDeckId = deckOrder[0];
@@ -176,6 +186,8 @@ export default function AppLayout() {
               now structural instead of a stack-attachment detail. */}
           <ExperimentalStack.Screen name="(tabs)" />
           <ExperimentalStack.Screen name="compose" />
+          <ExperimentalStack.Screen name="watch/[id]" />
+          <ExperimentalStack.Screen name="video-upload" />
           <ExperimentalStack.Screen name="p/[id]/reposts" />
           <ExperimentalStack.Screen name="p/[id]/boost" />
         </ExperimentalStack>
@@ -196,7 +208,7 @@ export default function AppLayout() {
   // sheets and bloom's native portal outlet render their content above this
   // route, so anything mounted at this depth is invisible to them.
   return (
-    <>
+    <WatchPlaybackProvider pathname={pathname}>
       {/* Connection loss shows as a Bloom toast — see @oxy.so/bloom/connection-status.
           It replaced an app-local banner that pushed the whole screen down. */}
       <ConnectionStatusToasts />
@@ -263,7 +275,7 @@ export default function AppLayout() {
                   // including the Deck entry link that opens the home route.
                   keepMounted: true,
                   bottomBar: bottomContent === 'sign-in' ? <SignInBanner /> : undefined,
-                  width: deckOpen ? 390 : onVideosRoute ? 978 : 620,
+                  width: deckOpen ? 390 : videoEngagementOpen ? 978 : 620,
                   minWidth: deckOpen ? 390 : 0,
                   maxWidth: deckOpen ? 390 : undefined,
                   resizable: false,
@@ -284,7 +296,8 @@ export default function AppLayout() {
               {
                 id: 'context',
                 role: 'context',
-                visible: !deckOpen && !onVideosRoute,
+                visible: !deckOpen && !videoEngagementOpen,
+                keepMounted: onVideosRoute,
                 errorBoundary: { onError: reportBoundaryError },
                 sticky: true,
                 width: 350,
@@ -292,7 +305,15 @@ export default function AppLayout() {
                 appearance: 'plain',
                 chrome: 'none',
                 scroll: 'content',
-                content: <RightBar />,
+                content: onWatchRoute ? (
+                  <WatchVideoRail />
+                ) : onVideosRoute ? (
+                  <VideoSuggestions />
+                ) : (
+                  <WatchBrowseRail>
+                    <RightBar />
+                  </WatchBrowseRail>
+                ),
               },
               ...deckOrder
                 .filter((id) => deckPanels[id])
@@ -368,6 +389,6 @@ export default function AppLayout() {
       <BootMilestone name="route-mounted" />
       <WelcomeRedirectGate />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}
-    </>
+    </WatchPlaybackProvider>
   );
 }

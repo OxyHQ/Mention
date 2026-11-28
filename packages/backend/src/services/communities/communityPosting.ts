@@ -70,7 +70,7 @@ export function normalizeCommunityPostTitle(title: unknown): string | undefined 
  *  - **400** — a community named on a reply (it takes its thread's), a boost, a
  *    post published as another account (a community post is a person's), a post
  *    that is not public, or an account that is not a community hosted here; a
- *    title on a post written in no community, or on a reply.
+ *    title outside a community or an original video post, or on a reply.
  *  - **403** — the author is banned from the community.
  */
 export async function resolveNativePostCommunity(params: {
@@ -81,6 +81,7 @@ export async function resolveNativePostCommunity(params: {
   boostOf: string | null | undefined;
   visibility: PostVisibility;
   hasTitle: boolean;
+  hasVideo?: boolean;
 }): Promise<string | null> {
   const requested = params.requestedCommunityOxyUserId?.trim() || null;
 
@@ -109,7 +110,9 @@ export async function resolveNativePostCommunity(params: {
     }
     communityId = requested;
   } else {
-    if (params.hasTitle) throw new CommunityPostError(400, 'A title is for a community post');
+    if (params.hasTitle && (!params.hasVideo || params.boostOf)) {
+      throw new CommunityPostError(400, 'A title is for a community or video post');
+    }
     return null;
   }
 

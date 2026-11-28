@@ -31,6 +31,7 @@ import { MediaFlightLayer } from '@oxy.so/bloom/media-flight';
 
 // Hooks
 import { useAppLanguage } from '@/hooks/useAppLanguage';
+import { useRouteThemeMode } from '@/components/navigation/useRouteThemeMode';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
@@ -92,6 +93,7 @@ export default function RootLayout() {
   // Bloom's own strings and dates (pickers, chevrons, …) follow the app's
   // language, not the device's.
   const language = useAppLanguage();
+  const modeOverride = useRouteThemeMode();
 
   useEffect(() => initializeWebTelemetry(), []);
 
@@ -171,6 +173,7 @@ export default function RootLayout() {
         imageResolver={resolveImageSource}
         locale={language}
         defaultMode="system"
+        modeOverride={modeOverride}
         defaultColorPreset={APP_DEFAULT_COLOR_PRESET}
         persistKey={BLOOM_THEME_PERSIST_KEY}
         storage={BLOOM_THEME_STORAGE}

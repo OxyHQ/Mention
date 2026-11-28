@@ -15,8 +15,7 @@ import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiHome5Line } from '@oxy.so/bloom/icons/RiHome5Line';
 import { RiLoginBoxLine } from '@oxy.so/bloom/icons/RiLoginBoxLine';
 import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
-import { LogoIcon } from '@/assets/logo';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { MentionNavigationLogo } from './MentionNavigationLogo';
 
 /**
  * Signed-out account actions. ProfileButton only offers Sign in; Create account
@@ -155,7 +154,6 @@ export function useMentionSidebar(): SidebarProps {
   const deckAvailable = useDeckAvailable();
   const deckEnabled = useDeckSettings((state) => state.deckEnabled);
   const { selectDestination } = useTabPager();
-  const { colors } = useTheme();
 
   return {
     surface: 'plain',
@@ -164,7 +162,7 @@ export function useMentionSidebar(): SidebarProps {
     showSearch: false,
     showThemeToggle: false,
     logo: {
-      icon: <LogoIcon size={28} color={colors.text} />,
+      icon: <MentionNavigationLogo />,
       accessibilityLabel: 'Mention',
       onPress: () => selectDestination('index'),
     },

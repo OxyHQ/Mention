@@ -23,13 +23,18 @@ interface UseMediaPickerProps {
  */
 export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
   const openMediaPicker = useCallback(
-    (onAdd: (media: ComposerMediaItem[]) => void) => {
+    (
+      onAdd: (media: ComposerMediaItem[]) => void,
+      { videoOnly = false }: { videoOnly?: boolean } = {},
+    ) => {
       showBottomSheet?.({
         screen: 'FileManagement',
         props: {
           selectMode: true,
-          multiSelect: true,
-          disabledMimeTypes: ['audio/', 'application/pdf'],
+          multiSelect: !videoOnly,
+          disabledMimeTypes: videoOnly
+            ? ['image/', 'audio/', 'application/pdf']
+            : ['audio/', 'application/pdf'],
           afterSelect: 'back',
           // Keep unpublished media private; previews use Oxy's scoped URLs.
           // Publication applies the author's current audience policy.
@@ -37,7 +42,7 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
           onSelect: async (file: FileMetadata) => {
             const isImage = file?.contentType?.startsWith?.('image/');
             const isVideo = file?.contentType?.startsWith?.('video/');
-            if (!isImage && !isVideo) {
+            if ((!isImage && !isVideo) || (videoOnly && !isVideo)) {
               toast(t('compose.media.invalidType'), { type: 'error' });
               return;
             }
@@ -59,7 +64,9 @@ export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
           onConfirmSelection: async (files: FileMetadata[]) => {
             const validFiles = (files || []).filter((f) => {
               const contentType = f?.contentType || '';
-              return contentType.startsWith('image/') || contentType.startsWith('video/');
+              return (
+                contentType.startsWith('video/') || (!videoOnly && contentType.startsWith('image/'))
+              );
             });
             if (validFiles.length !== (files || []).length) {
               toast(t('compose.media.invalidTypes'), { type: 'error' });

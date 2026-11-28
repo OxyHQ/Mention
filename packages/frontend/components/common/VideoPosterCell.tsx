@@ -14,6 +14,8 @@ interface VideoPosterCellProps {
    */
   posterUri?: string;
   size: number;
+  height?: number;
+  contentFit?: 'cover' | 'contain';
   placeholderColor: string;
   /**
    * Play count for the post this cell's media belongs to.
@@ -85,11 +87,20 @@ const META_TEXT_SHADOW: Pick<
  * load → falls back to the video-icon placeholder, never a broken image.
  */
 const VideoPosterCell = React.memo<VideoPosterCellProps>(
-  ({ posterUri, size, placeholderColor, views, durationSec, scrim }) => {
+  ({
+    posterUri,
+    size,
+    height = size,
+    contentFit = 'cover',
+    placeholderColor,
+    views,
+    durationSec,
+    scrim,
+  }) => {
     const imageFade = useImageTransition(150);
     const containerStyle = useMemo(
-      () => ({ width: size, height: size, overflow: 'hidden' as const }),
-      [size],
+      () => ({ width: size, height, overflow: 'hidden' as const }),
+      [size, height],
     );
     const [posterFailed, setPosterFailed] = useState(false);
     // A new poster has not failed yet. Reset during render rather than in an
@@ -120,7 +131,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
           <Image
             source={{ uri: posterUri }}
             style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
+            contentFit={contentFit}
             transition={imageFade}
             cachePolicy="memory-disk"
             onError={handlePosterError}

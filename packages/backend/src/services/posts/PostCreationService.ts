@@ -502,6 +502,7 @@ class PostCreationService {
             boostOf: params.boostOf,
             visibility: params.visibility ?? PostVisibility.PUBLIC,
             hasTitle: typeof params.content.title === 'string' && params.content.title.length > 0,
+            hasVideo: params.content.media?.some((item) => item.type === 'video'),
           });
 
     let content = params.content;

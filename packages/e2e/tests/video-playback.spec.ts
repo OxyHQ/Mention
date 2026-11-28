@@ -20,6 +20,59 @@ async function observeFrames(page: Page, index = 0) {
   return page.locator('video[data-playback-subject="true"]');
 }
 
+test('Watch keeps its decoder in the right column while browsing the app', async ({
+  page,
+  candidate,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const requests = await arrangeVideoPost(page, 'hls');
+  await page.goto(`/watch/${POST_ID}?mediaIndex=0`);
+  const video = await observeFrames(page);
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime))
+    .toBeGreaterThan(0.4);
+  const before = await video.evaluate((element: HTMLVideoElement) => element.currentTime);
+
+  await page.getByRole('link', { name: 'Explore', exact: true }).click();
+  await expect(page).toHaveURL(/\/explore$/);
+  const dock = page.getByTestId('watch-browse-player-dock');
+  const original = dock.locator('video[data-playback-subject="true"]');
+  await expect(original).toBeVisible();
+  expect(await dock.evaluate((element) => getComputedStyle(element).position)).toBe('static');
+  const bounds = await dock.boundingBox();
+  expect(bounds?.x).toBeGreaterThan(900);
+  await expect
+    .poll(() => original.evaluate((element: HTMLVideoElement) => element.currentTime))
+    .toBeGreaterThan(before + 0.4);
+
+  await page.getByRole('link', { name: 'Home', exact: true }).click();
+  await expect(original).toBeVisible();
+  await dock.hover();
+  await expect(dock.getByRole('slider', { name: 'Playback position' })).toBeVisible();
+  await dock.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const pausedAt = await original.evaluate((element: HTMLVideoElement) => element.currentTime);
+  await dock.click({ position: { x: 25, y: 38 } });
+  await expect(page).toHaveURL(new RegExp(`/watch/${POST_ID}\\?mediaIndex=0$`));
+  await expect(
+    page.getByTestId('watch-player-inline').locator('video[data-playback-subject]'),
+  ).toBeVisible();
+  expect(await video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(true);
+  expect(await video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeCloseTo(
+    pausedAt,
+    1,
+  );
+  expect(requests.filter((name) => name.endsWith('.m3u8'))).toEqual(['clip.m3u8']);
+
+  await page.getByRole('link', { name: 'Explore', exact: true }).click();
+  await expect(dock).toBeVisible();
+  await page.getByRole('link', { name: 'Clips', exact: true }).click();
+  await expect(page).toHaveURL(/\/videos(?:\?|$)/);
+  await expect(dock).toHaveCount(0);
+  await expect(video).toHaveCount(0);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
 for (const format of ['mp4', 'hls'] as const) {
   for (const origin of ['post', 'feed'] as const) {
     test(`${format} keeps its decoder, frames and position from ${origin} to videos`, async ({
@@ -247,7 +300,13 @@ test('video replies follow their host across desktop, mobile and Deck without re
   });
   const retained = page.locator('video[data-retained-video="true"]');
   const replies = page.getByTestId('video-replies-screen');
+  const suggestions = page.getByTestId('video-suggestions');
+  const reply = screen.getByRole('button', { name: 'Reply', exact: true }).last();
+  await expect(suggestions).toBeVisible();
+  await expect(replies).toHaveCount(0);
+  await reply.click();
   await expect(replies).toBeVisible();
+  await expect(suggestions).toBeHidden();
   // Signed-out readers can browse replies; publication stays behind the account boundary.
   await expect(replies.getByRole('textbox')).toHaveCount(0);
   const replyViewport = replies.locator('[data-bloom-screen-viewport="element"]');
@@ -256,8 +315,6 @@ test('video replies follow their host across desktop, mobile and Deck without re
   await expect.poll(() => replyViewport.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
   await expect(retained).toHaveCount(1);
   await expect(page.locator('[data-bloom-resize-handle]')).toHaveCount(0);
-  await screen.getByRole('button', { name: 'Reply', exact: true }).last().click();
-  await expect(replies).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -267,10 +324,11 @@ test('video replies follow their host across desktop, mobile and Deck without re
   await expect(dialog).toBeHidden();
   await expect(retained).toHaveCount(1);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(replies).toBeVisible();
+  await expect(suggestions).toBeVisible();
+  await expect(replies).toBeHidden();
   await page.getByRole('button', { name: 'Deck mode', exact: true }).click();
   await expect(replies).toBeHidden();
-  await screen.getByRole('button', { name: 'Reply', exact: true }).last().click();
+  await reply.click();
   await expect(dialog.getByTestId('video-replies-screen')).toBeVisible();
   await expect(dialog.getByRole('textbox')).toHaveCount(0);
   await expect(retained).toHaveCount(1);
@@ -279,6 +337,9 @@ test('video replies follow their host across desktop, mobile and Deck without re
   );
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: 'Deck mode', exact: true }).click();
+  await expect(suggestions).toBeVisible();
+  await expect(replies).toBeHidden();
+  await reply.click();
   await expect(replies).toBeVisible();
   await expect(replies.getByRole('textbox')).toHaveCount(0);
   const time = await retained.evaluate((node: HTMLVideoElement) => node.currentTime);
@@ -288,7 +349,7 @@ test('video replies follow their host across desktop, mobile and Deck without re
   expect(candidate.scriptErrors).toEqual([]);
 });
 
-test('Videos reserves its replies column before delayed feed data arrives', async ({
+test('Videos keeps its suggestions column while delayed feed data arrives', async ({
   page,
   candidate,
 }) => {
@@ -296,23 +357,31 @@ test('Videos reserves its replies column before delayed feed data arrives', asyn
   const ready = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await arrangeVideoPost(page, 'mp4', { rankedReady: ready });
+  await arrangeVideoPost(page, 'mp4', { rankedReady: ready, replyCount: 2 });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/videos');
   const primary = page.getByTestId('mention-shell-panels-main-content');
-  await expect(page.getByTestId('video-replies-pending')).toBeVisible();
+  const suggestions = page.getByTestId('video-suggestions');
+  const replies = page.getByTestId('video-replies-screen');
+  await expect(suggestions).toBeVisible();
+  await expect(replies).toHaveCount(0);
   await expect.poll(async () => (await primary.boundingBox())?.width ?? 0).toBeCloseTo(620, 0);
   await primary.evaluate((node) => {
     node.dataset.retainedPendingVideo = 'true';
   });
   const before = await primary.boundingBox();
   release();
-  await expect(page.getByTestId('video-replies-screen')).toBeVisible();
+  await expect(suggestions).toBeVisible();
+  await expect(replies).toHaveCount(0);
   await expect(primary).toHaveAttribute('data-retained-pending-video', 'true');
   await expect
     .poll(async () => (await primary.boundingBox())?.width ?? 0)
     .toBeCloseTo(before?.width ?? 0, 0);
-  await expect(page.getByTestId('videos-screen').locator('video').first()).toBeVisible();
+  const screen = page.getByTestId('videos-screen');
+  await expect(screen.locator('video').first()).toBeVisible();
+  await screen.getByRole('button', { name: 'Reply', exact: true }).last().click();
+  await expect(replies).toBeVisible();
+  await expect(primary).toHaveAttribute('data-retained-pending-video', 'true');
   expect(candidate.scriptErrors).toEqual([]);
 });
 
