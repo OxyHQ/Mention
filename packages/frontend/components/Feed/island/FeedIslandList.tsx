@@ -16,19 +16,24 @@
  * mounted at the root before any data (`FeedIslandRoot`, out of sight): it composes the posts
  * there, and the home screen's host draws that composition at once when it mounts.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { Embed, Menu, toElement } from '@oxy.so/bloom-language';
+import { describePostMenu, PostMenuActions } from '../PostMenu';
 import {
   DeviceEventEmitter,
   requireNativeComponent,
   StyleSheet,
+  View,
   TurboModuleRegistry,
   type TurboModule,
+  type ViewInstance,
   type ViewProps,
 } from 'react-native';
 import { useBloomTheme, useColorTokens, useTheme } from '@oxy.so/bloom/theme';
 import { resolveAvatarTint, type AvatarColor } from '@oxy.so/bloom/avatar';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { benchMark } from '@/lib/bench';
+import type { HydratedPost } from '@mention/shared-types';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import type { FeedProps } from '../useFeedCore';
@@ -47,6 +52,15 @@ interface IslandEvent {
   key: string;
   name: string;
   payload: string;
+  /** The view the intent was pressed on, in the window's points (Bloom #1080). */
+  anchor?: IslandAnchor;
+}
+
+interface IslandAnchor {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 interface NativeIslandProps extends ViewProps {
@@ -96,6 +110,59 @@ function accountName(user: { name?: unknown; username?: string } | undefined): s
         name?.full?.trim() ||
         [name?.first, name?.last].filter(Boolean).join(' ');
   return text?.trim() || user?.username?.trim() || undefined;
+}
+
+/**
+ * A post's ⋯ menu for a row of the island: the row's own menu (`describePostMenu`,
+ * `PostMenuActions`), presented from a trigger laid over the glyph pressed in the island, and open
+ * from the start (`.presented`); closed, it unmounts.
+ */
+function IslandPostMenu({
+  host,
+  post,
+  anchor,
+  source,
+  label,
+  onClosed,
+}: {
+  host: RefObject<ViewInstance | null>;
+  post: HydratedPost;
+  anchor: IslandAnchor;
+  source: string | undefined;
+  label: string;
+  onClosed: () => void;
+}) {
+  const services = usePostInteractions().menuServices();
+  const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    host.current?.measureInWindow((x, y) => setOrigin({ x, y }));
+  }, [host]);
+  if (!services || !origin) return null;
+  const props = {
+    post,
+    isPostDetail: false,
+    source,
+    onOpenArticle: () => {},
+    onInsights: () => {},
+  };
+  const rows = describePostMenu(props, services);
+  const place = {
+    position: 'absolute' as const,
+    left: anchor.x - origin.x,
+    top: anchor.y - origin.y,
+    width: anchor.width,
+    height: anchor.height,
+  };
+  return (
+    <View style={place} pointerEvents="box-none">
+      {toElement(
+        Menu(Embed(<View style={{ width: anchor.width, height: anchor.height }} />), ...rows)
+          .actions(PostMenuActions(props))
+          .presented([true, (open: boolean) => (open ? undefined : onClosed())])
+          .label(label),
+      )}
+    </View>
+  );
 }
 
 /** The island of the feed `descriptor` (the home's first tab is `for_you`). */
@@ -156,6 +223,9 @@ export function FeedIslandList({
   bottomInset,
 }: FeedIslandListProps) {
   const interactions = usePostInteractions();
+  // The ⋯ menu a row of the island asked for, and the glyph it grows out of.
+  const [menu, setMenu] = useState<{ post: HydratedPost; anchor: IslandAnchor } | null>(null);
+  const hostRef = useRef<ViewInstance>(null);
   const { colorPreset } = useBloomTheme();
   const theme = useTheme();
   // The island draws in this screen's theme as React Native resolved it (its accents, seed or
@@ -222,7 +292,7 @@ export function FeedIslandList({
   }, [key]);
 
   onEvent.current = (event: IslandEvent) => {
-    const { name, payload } = event;
+    const { name, payload, anchor } = event;
     if (name !== 'onIntent') return;
     let intent: FeedIslandIntent;
     try {
@@ -260,6 +330,12 @@ export function FeedIslandList({
     // and scrolls. Every write (like, repost, save, reply, send) is dropped and logged.
     if (BENCH && WRITES.has(intent.kind)) {
       console.log(`BLOOM_BENCH dropped-write ${intent.kind} ${post.id}`);
+      return;
+    }
+    if (intent.kind === 'menu') {
+      // The post's ⋯ menu, presented as the row's own is (the lens menu), growing out of the
+      // glyph that was pressed in the island.
+      if (anchor) setMenu({ post, anchor });
       return;
     }
     const go = (href: string | null | undefined) => {
@@ -300,15 +376,27 @@ export function FeedIslandList({
 
   // Without the module (an older build), the host takes the posts as a prop.
   return (
-    <BloomIsland
-      island="FeedIsland"
-      islandKey={key}
-      props={islands ? undefined : json}
-      themePreset={colorPreset}
-      themeScheme={scheme}
-      themeColors={colors}
-      style={styles.island}
-    />
+    <View ref={hostRef} style={styles.island} collapsable={false}>
+      <BloomIsland
+        island="FeedIsland"
+        islandKey={key}
+        props={islands ? undefined : json}
+        themePreset={colorPreset}
+        themeScheme={scheme}
+        themeColors={colors}
+        style={styles.island}
+      />
+      {menu ? (
+        <IslandPostMenu
+          host={hostRef}
+          post={menu.post}
+          anchor={menu.anchor}
+          source={feedDescriptor}
+          label={t('postActions.title', { defaultValue: 'Post options' })}
+          onClosed={() => setMenu(null)}
+        />
+      ) : null}
+    </View>
   );
 }
 

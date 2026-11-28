@@ -18,12 +18,14 @@ let STRIP_HEIGHT = 200.0
 let PAIR_SHIFT = 5.4
 let PAIR_BACK = -5.4
 let PAIR_BOX = 36.0
-/// A link card's cover height (Bloom's `LinkPreviewCard`).
+/// A link card's cover height (Bloom's `LinkPreviewCard`), and its cell's width in the carousel.
 let LINK_COVER = 160.0
-/// Home's feed tabs: the label's row, the active tab's bar under it, and a tab's least width.
-let TAB_LABEL = 36.0
-let TAB_BAR = 2.0
+let LINK_CELL = 280.0
+/// Home's feed tabs: a tab's height and its least width.
+let TAB_HEIGHT = 38.0
 let TAB_MIN = 76.0
+/// A plain xs circle button's box (Bloom's `Button(…).size(.xs).shape(.circle)`).
+let ICON_BUTTON = 24.0
 /// The compose prompt's least height.
 let COMPOSER_HEIGHT = 56.0
 
@@ -101,11 +103,18 @@ struct Body: View, Equatable {
 /// description and the byline.
 struct LinkCard: View, Equatable {
   let link: FeedLink
+  /// In the carousel beside media: the cover fills what the text leaves of the cell
+  /// (`LinkPreviewCard`'s `coverFill`).
+  var fill: Bool = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: .none) {
       if let image = link.image {
-        Image(image).contentFit(.cover).frame(width: .full, height: LINK_COVER).background(.surface)
+        if fill {
+          Image(image).contentFit(.cover).frame(width: .full).grow().background(.surface)
+        } else {
+          Image(image).contentFit(.cover).frame(width: .full, height: LINK_COVER).background(.surface)
+        }
       }
       VStack(alignment: .leading, spacing: .xs) {
         if !link.site.isEmpty {
@@ -155,10 +164,13 @@ struct MediaBox: View, Equatable {
   }
 }
 
-/// Two or more: PostItem's carousel, each 200 tall at its own aspect.
+/// Two or more cells: PostItem's carousel (`PostAttachmentsRow`), each picture 200 tall at its
+/// own aspect, and a link beside them a 280 card of the same height.
 struct MediaStrip: View, Equatable {
   let media: [FeedMedia]
+  var link: FeedLink? = none
   let onTap: (Int) -> Void
+  var onLink: () -> Void = {}
 
   var body: some View {
     ScrollArea {
@@ -170,6 +182,11 @@ struct MediaStrip: View, Equatable {
             .background(.surface)
             .corner("15")
             .onPress { onTap(i) }
+        }
+        if let card = link {
+          LinkCard(link: card, fill: true)
+            .frame(width: LINK_CELL, height: STRIP_HEIGHT)
+            .onPress { onLink() }
         }
       }
       .padding(.trailing, .md)
@@ -251,12 +268,17 @@ public struct FeedRow: View, Equatable {
       .padding(.horizontal, .md)
       .onPress { send("open") }
       VStack(alignment: .leading, spacing: .md) {
-        if post.media.count == 1 {
+        if post.media.count == 1 && post.link == none {
           MediaBox(media: post.media[0]).onPress { onIntent(FeedIntent(kind: "media", postId: post.id, index: 0)) }
-        } else if post.media.count > 1 {
-          MediaStrip(media: post.media, onTap: { i in onIntent(FeedIntent(kind: "media", postId: post.id, index: i)) })
-        }
-        if let link = post.link {
+        } else if post.media.count > 0 {
+          // Beside media a link is one more cell of the carousel, not a card under it.
+          MediaStrip(
+            media: post.media,
+            link: post.link,
+            onTap: { i in onIntent(FeedIntent(kind: "media", postId: post.id, index: i)) },
+            onLink: { onIntent(FeedIntent(kind: "link", postId: post.id, href: post.link?.url ?? "")) },
+          )
+        } else if let link = post.link {
           LinkCard(link: link).onPress { onIntent(FeedIntent(kind: "link", postId: post.id, href: link.url)) }
         }
         if let quote = post.quote {
@@ -304,32 +326,34 @@ struct FeedHeaderRows: View, Equatable {
   var body: some View {
     VStack(alignment: .leading, spacing: .none) {
       if header.tabs.count > 0 {
-        HStack(alignment: .bottom, spacing: .none) {
+        // Bloom's underline Tabs, as Home's React Native header draws them: each tab 38 tall, at
+        // least 76 wide, its label 12 in from each side; the baseline and the chosen tab's
+        // underline are the strip's.
+        Tabs(Binding(get: header.active, set: { key in send("tab", key) })) {
           for tab in header.tabs {
-            VStack(spacing: .none) {
-              Text(tab.label)
-                .font(.md)
-                .weight(tab.key == header.active ? .bold : .medium)
-                .foregroundStyle(tab.key == header.active ? .primary : .foreground)
-                .padding(.horizontal, .md)
-                .frame(height: TAB_LABEL)
-              VStack(spacing: .none) {}
-                .frame(width: .full, height: TAB_BAR)
-                .background(tab.key == header.active ? .primary : .transparent)
-            }
-            .frame(minWidth: TAB_MIN)
-            .onPress { send("tab", tab.key) }
+            TabItem(tab.key, tab.label)
+              .font(.md)
+              .leading("18px")
+              .weight(tab.key == header.active ? .bold : .medium)
+              .padding(.horizontal, .md)
+              .frame(height: TAB_HEIGHT, minWidth: TAB_MIN)
           }
         }
-        .frame(width: .full)
-        .border(.border, .hairline, .bottom)
+        .style(.underline)
+        .frame(height: TAB_HEIGHT)
       }
       if header.composer {
         HStack(spacing: .md) {
           Avatar(header.avatar ?? "", { name: header.name }).size(.md)
-          Text(header.prompt).font(.md).foregroundStyle(.muted).lineLimit(1).grow()
-          Icon(.camera).size(.md).foregroundStyle(.muted).onPress { send("camera", "") }
-          Icon(.mediaAttachment).size(.md).foregroundStyle(.muted).onPress { send("compose", "") }
+          Text(header.prompt).font("16").leading("20px").foregroundStyle(.muted).lineLimit(1).grow()
+          // FeedHeader's plain xs circle buttons: a 24 box, the camera at the button's 14 and the
+          // media glyph at md.
+          ZStack { Icon(.camera).size("14") }
+            .frame(width: ICON_BUTTON, height: ICON_BUTTON)
+            .onPress { send("camera", "") }
+          ZStack { Icon(.mediaAttachment).size(.md).foregroundStyle(.muted) }
+            .frame(width: ICON_BUTTON, height: ICON_BUTTON)
+            .onPress { send("compose", "") }
         }
         .padding(.md)
         .frame(minHeight: COMPOSER_HEIGHT)
