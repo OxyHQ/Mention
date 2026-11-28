@@ -9,7 +9,8 @@
  * there for up to five minutes. The origin decides visibility fresh on every
  * request (`routes/webShell.routes.ts`); this makes the edge ask it again.
  *
- * HOW — the caller has COMMITTED its write. {@link purgePostPages} then:
+ * HOW — the caller has COMMITTED its write. {@link purgePostPages} then, for
+ * those posts and for the pages that repeat them (`postPageDependents.ts`):
  *  1. evicts the origin's own caches of those posts — the record
  *     (`postDetailCache`) and the OG card (`webShellOgCache`) — because the edge
  *     refills from the origin, and a purge answered from a stale cache would
@@ -18,6 +19,11 @@
  *     Cloudflare's limit per call), delayed a moment and retried with
  *     exponential backoff (`queue/constants.ts`);
  *  3. returns. The worker evicts the origin caches again and calls Cloudflare.
+ *
+ * NEVER HOLDS THE ACTION — a caller waits at most
+ * {@link POST_PAGE_PURGE_QUEUE_DEADLINE_MS}. The queue connection retries with
+ * no command timeout, so while queue Redis is unreachable an enqueue stays
+ * pending instead of rejecting; it is left running and counted as given up.
  *
  * NEVER FAILS THE ACTION — every entry point here resolves, whatever happens.
  * A purge that cannot be enqueued, or that Cloudflare refuses until the retries
@@ -46,6 +52,7 @@ import type { PostPagePurgeReason } from '../../queue/types';
 import { invalidateMany as invalidatePostDetails } from '../posts/postDetailCache';
 import { invalidatePostOgCards } from './webShellOgCache';
 import { CLOUDFLARE_PURGE_MAX_URLS, purgeCloudflareUrls } from './cloudflarePurgeClient';
+import { findDependentPostIds } from './postPageDependents';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 
@@ -62,6 +69,9 @@ export const POST_PAGE_PURGED_METRIC = 'post_page_edge_purged_total';
  * it silently disarms that alarm: change both together.
  */
 export const POST_PAGE_PURGE_GAVE_UP_LOG = '[EdgePurge] post page purge gave up';
+
+/** The longest a caller waits for its purge to be queued. */
+export const POST_PAGE_PURGE_QUEUE_DEADLINE_MS = 2_000;
 
 /** Each post has two cached URLs, so one call carries 15 posts. */
 const URLS_PER_POST = 2;
@@ -122,8 +132,31 @@ export function recordPostPagePurgeFailure(
 }
 
 /**
- * Purge these posts' pages from the edge, after the write that changed them
- * has COMMITTED. Resolves whatever happens; see the module comment.
+ * Wait for `work`, but never past the deadline. `work` must not reject; past
+ * the deadline it keeps running and `onDeadline` reports it.
+ */
+async function withinQueueDeadline(work: Promise<void>, onDeadline: () => void): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      onDeadline();
+      resolve();
+    }, POST_PAGE_PURGE_QUEUE_DEADLINE_MS);
+  });
+  try {
+    await Promise.race([work, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Purge these posts' pages from the edge, and the pages that repeat them, after
+ * the write that changed them has COMMITTED. Resolves whatever happens, within
+ * the queue deadline; see the module comment.
+ *
+ * A delete passes the dependents it read before deleting among `postIds`: they
+ * cannot be found afterwards.
  *
  * `priority: 'sweep'` is for batches swept on an author's behalf, so a person's
  * own delete or edit is never queued behind someone else's thousand posts.
@@ -141,6 +174,34 @@ export async function purgePostPages(
       ? POST_PAGE_EDGE_PURGE_PRIORITY_SWEEP
       : POST_PAGE_EDGE_PURGE_PRIORITY_ACTION;
 
+  await withinQueueDeadline(queueWithDependents(ids, reason, priority), () =>
+    recordPostPagePurgeFailure(reason, 'enqueue', ids.length, new Error('queue deadline passed')),
+  );
+}
+
+/** The posts' own pages first, so a failed dependents read cannot hold them back. */
+async function queueWithDependents(
+  ids: readonly string[],
+  reason: PostPagePurgeReason,
+  priority: number,
+): Promise<void> {
+  await queuePurge(ids, reason, priority);
+  let dependents: string[];
+  try {
+    dependents = await findDependentPostIds(ids);
+  } catch (error) {
+    recordPostPagePurgeFailure(reason, 'enqueue', ids.length, error);
+    return;
+  }
+  if (dependents.length > 0) await queuePurge(dependents, reason, priority);
+}
+
+/** Evict the origin's caches of these posts and queue their purge. Never rejects. */
+async function queuePurge(
+  ids: readonly string[],
+  reason: PostPagePurgeReason,
+  priority: number,
+): Promise<void> {
   try {
     await evictOriginCaches(ids);
   } catch (error) {
@@ -188,20 +249,22 @@ export async function scheduleAuthorPostPagePurge(
   dedupeKey?: string,
 ): Promise<void> {
   if (!isPostPageEdgePurgeEnabled() || !oxyUserId) return;
-  try {
-    // No inline fallback: a sweep is a walk over the author's posts, not
-    // something to run detached in the process that received the event.
-    await enqueuePostPageEdgePurge(
-      { kind: 'author', oxyUserId },
-      {
-        priority: POST_PAGE_EDGE_PURGE_PRIORITY_AUTHOR,
-        delayMs: POST_PAGE_EDGE_PURGE_AUTHOR_DELAY_MS,
-        ...(dedupeKey ? { dedupeKey: `author|${oxyUserId}|${dedupeKey}` } : {}),
-      },
-    );
-  } catch (error) {
-    recordPostPagePurgeFailure('author_check', 'enqueue', 0, error);
-  }
+  // No inline fallback: a sweep is a walk over the author's posts, not
+  // something to run detached in the process that received the event.
+  const queued = enqueuePostPageEdgePurge(
+    { kind: 'author', oxyUserId },
+    {
+      priority: POST_PAGE_EDGE_PURGE_PRIORITY_AUTHOR,
+      delayMs: POST_PAGE_EDGE_PURGE_AUTHOR_DELAY_MS,
+      ...(dedupeKey ? { dedupeKey: `author|${oxyUserId}|${dedupeKey}` } : {}),
+    },
+  ).then(
+    () => undefined,
+    (error: unknown) => recordPostPagePurgeFailure('author_check', 'enqueue', 0, error),
+  );
+  await withinQueueDeadline(queued, () =>
+    recordPostPagePurgeFailure('author_check', 'enqueue', 0, new Error('queue deadline passed')),
+  );
 }
 
 /**

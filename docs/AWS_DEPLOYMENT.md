@@ -107,14 +107,14 @@ readable there for those five minutes, the backend purges its page by URL
 (`/p/<id>` and `/p/<id>/`) as soon as the change commits
 (`packages/backend/src/services/webshell/postPageEdgePurge.ts`). These writes trigger it:
 
-| Change | Where |
-| --- | --- |
-| A post deleted, with the replies and boosts its deletion removes (native, federated, an import undone) | `PostDeletionCascade.deletePostSubtree` |
-| A boost undone (native unboost, federated `Undo(Announce)`) | `feed.controller.ts`, `inbox.service.ts` |
-| A public post edited (native, federated `Update`, a merged transport copy) | `updatePost.ts`, `inbox.service.ts`, `transportCopies.ts` |
-| A moderation decision (restrict, restore, content warning on or off), a community moderator's removal | `ModerationEnforcementService.ts`, `communityModeration.ts` |
+| Change                                                                                                                                                                                                                            | Where                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| A post deleted, with the replies and boosts its deletion removes (native, federated, an import undone)                                                                                                                            | `PostDeletionCascade.deletePostSubtree`                                                |
+| A boost undone (native unboost, federated `Undo(Announce)`)                                                                                                                                                                       | `feed.controller.ts`, `inbox.service.ts`                                               |
+| A public post edited (native, federated `Update`, a merged transport copy)                                                                                                                                                        | `updatePost.ts`, `inbox.service.ts`, `transportCopies.ts`                              |
+| A moderation decision (restrict, restore, content warning on or off), a community moderator's removal                                                                                                                             | `ModerationEnforcementService.ts`, `communityModeration.ts`                            |
 | An author Mention stops showing: an Oxy account change (suspended, archived, restricted) or a profile made private or followers-only. A job re-asks the page's own author check, then sweeps the author's public posts in batches | `userInvalidationSubscriber.ts`, `routes/profileSettings.ts`, `authorPostPagePurge.ts` |
-| An account erased or a channel deleted, batch by batch | `erasePosts.ts`, `channelCascadeQueries.ts` |
+| An account erased or a channel deleted, batch by batch                                                                                                                                                                            | `erasePosts.ts`, `channelCascadeQueries.ts`                                            |
 
 Each purge is a BullMQ job on `post-page-edge-purge` (30 URLs per Cloudflare
 call, 8 attempts with exponential backoff, at most 2 calls a second across the

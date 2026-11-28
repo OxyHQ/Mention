@@ -41,6 +41,7 @@ import { eraseAccountPosts } from '../../services/accounts/accountErasure/eraseP
 import { deleteBatchPosts } from '../../services/accounts/channelDeletion/channelCascadeQueries';
 import { absorbTransportCopy } from '../../connectors/shared/transportCopies';
 import { runAuthorPostPagePurge } from '../../services/webshell/authorPostPagePurge';
+import { findDependentPostIds } from '../../services/webshell/postPageDependents';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 
 const scope = serviceScope('edge-purge-triggers');
@@ -84,6 +85,26 @@ describe('a deletion', () => {
     expect(deleted).not.toBeNull();
     expect(await readPost(post.id)).toBeNull();
     expect(purgedFor('delete').sort()).toEqual([post.id, reply.id].sort());
+  });
+
+  it('purges the surviving pages that repeated the deleted post', async () => {
+    const author = scope.user('author');
+    const parent = await seedPost(scope, { oxyUserId: scope.user('parent-author') });
+    const reply = await seedPost(scope, {
+      oxyUserId: author,
+      parentPostId: parent.id,
+      threadId: parent.id,
+      isReply: true,
+    });
+    const quote = await seedPost(scope, {
+      oxyUserId: scope.user('quoter'),
+      type: PostType.QUOTE,
+      quoteOf: reply.id,
+    });
+
+    await deleteAuthoredPost(reply.id, author);
+
+    expect(purgedFor('delete').sort()).toEqual([reply.id, parent.id, quote.id].sort());
   });
 
   it('purges nothing when the claim matches no row', async () => {
@@ -162,6 +183,30 @@ describe('an erased account', () => {
 
     expect(result.posts).toBe(2);
     expect(purgedFor('author_erased').sort()).toEqual([first.id, second.id].sort());
+  });
+
+  it('finds the boosts, quotes and parent that repeat a post', async () => {
+    const parent = await seedPost(scope);
+    const post = await seedPost(scope, {
+      parentPostId: parent.id,
+      threadId: parent.id,
+      isReply: true,
+    });
+    const boost = await seedPost(scope, {
+      oxyUserId: scope.user('booster'),
+      type: PostType.REPOST,
+      boostOf: post.id,
+      content: { variants: [] },
+    });
+    const quote = await seedPost(scope, {
+      oxyUserId: scope.user('quoter'),
+      type: PostType.QUOTE,
+      quoteOf: post.id,
+    });
+
+    expect((await findDependentPostIds([post.id])).sort()).toEqual(
+      [parent.id, boost.id, quote.id].sort(),
+    );
   });
 
   it('purges a deleted channel’s posts', async () => {

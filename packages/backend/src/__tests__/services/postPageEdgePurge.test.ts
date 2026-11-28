@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   warn: vi.fn(),
   info: vi.fn(),
   runAuthorPostPagePurge: vi.fn(),
+  dependents: vi.fn(),
   token: 'test-purge-token' as string | undefined,
 }));
 
@@ -26,6 +27,9 @@ vi.mock('../../services/posts/postDetailCache', () => ({
 }));
 vi.mock('../../services/webshell/webShellOgCache', () => ({
   invalidatePostOgCards: mocks.invalidatePostOgCards,
+}));
+vi.mock('../../services/webshell/postPageDependents', () => ({
+  findDependentPostIds: mocks.dependents,
 }));
 vi.mock('../../services/webshell/authorPostPagePurge', () => ({
   runAuthorPostPagePurge: mocks.runAuthorPostPagePurge,
@@ -51,6 +55,7 @@ import { config } from '../../config';
 import {
   POST_PAGE_PURGE_FAILED_METRIC,
   POST_PAGE_PURGE_GAVE_UP_LOG,
+  POST_PAGE_PURGE_QUEUE_DEADLINE_MS,
   postPageUrls,
   purgePostPages,
   runPostPagePurge,
@@ -100,6 +105,7 @@ beforeEach(() => {
   mocks.enqueue.mockResolvedValue(true);
   mocks.invalidatePostDetails.mockResolvedValue(undefined);
   mocks.invalidatePostOgCards.mockResolvedValue(undefined);
+  mocks.dependents.mockResolvedValue([]);
   vi.stubGlobal('fetch', fetchMock);
   cloudflareAnswers(200, { success: true, errors: [], result: { id: 'zone' } });
 });
@@ -180,6 +186,57 @@ describe('purgePostPages', () => {
 
     await expect(purgePostPages(['a'], 'moderation')).resolves.toBeUndefined();
     expect(mocks.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('also evicts and queues the pages that repeat the posts', async () => {
+    mocks.dependents.mockResolvedValue(['boost', 'parent']);
+
+    await purgePostPages(['a'], 'edit');
+
+    expect(mocks.dependents).toHaveBeenCalledWith(['a']);
+    expect(mocks.invalidatePostOgCards).toHaveBeenCalledWith(['boost', 'parent']);
+    expect(mocks.enqueue.mock.calls.map(([data]) => data.postIds)).toEqual([
+      ['a'],
+      ['boost', 'parent'],
+    ]);
+  });
+
+  it('still queues the posts’ own pages when their dependents cannot be read', async () => {
+    mocks.dependents.mockRejectedValue(new Error('database gone'));
+
+    await expect(purgePostPages(['a'], 'edit')).resolves.toBeUndefined();
+
+    expect(mocks.enqueue).toHaveBeenCalledTimes(1);
+    expect(mocks.error).toHaveBeenCalledWith(
+      POST_PAGE_PURGE_GAVE_UP_LOG,
+      expect.objectContaining({ reason: 'edit', stage: 'enqueue' }),
+    );
+  });
+
+  it.each([
+    ['a post purge', () => purgePostPages(['a'], 'delete'), 'delete'],
+    ['an author sweep', () => scheduleAuthorPostPagePurge('user-1'), 'author_check'],
+  ])('stops holding %s when the enqueue never settles', async (_label, call, reason) => {
+    vi.useFakeTimers();
+    try {
+      mocks.enqueue.mockReturnValue(new Promise(() => {}));
+      let resolved = false;
+      const pending = call().then(() => {
+        resolved = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(POST_PAGE_PURGE_QUEUE_DEADLINE_MS - 1);
+      expect(resolved).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+
+      expect(mocks.error).toHaveBeenCalledWith(
+        POST_PAGE_PURGE_GAVE_UP_LOG,
+        expect.objectContaining({ reason, stage: 'enqueue' }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('without a queue, tries once inline and never rejects, even when Cloudflare fails', async () => {
