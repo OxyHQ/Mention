@@ -15,11 +15,15 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, like } from 'drizzle-orm';
+import { lookupManyOf } from '../helpers/oxyLookup';
 
 vi.mock('../../utils/oxyHelpers', () => ({
   // The actor resolve is not what this file is about, and an unresolved actor
-  // must never block the read-state write — that is asserted below.
-  getServiceOxyClient: () => ({ getUsersByIds: async () => [] }),
+  // must never block the read-state write — that is asserted below. Oxy
+  // answers the bulk read without the actor; a double without `lookupMany`
+  // sent the read to the per-id `users.get` fallback on the REAL runtime
+  // client instead, an HTTP request to Oxy.
+  getServiceOxyClient: () => ({ users: { lookupMany: lookupManyOf(() => []) } }),
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';

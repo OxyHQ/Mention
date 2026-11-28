@@ -20,6 +20,21 @@ const mocks = vi.hoisted(() => ({
   resolveOxyIdentity: vi.fn(),
 }));
 
+// An unreachable holder sends the resolver to WebFinger, whose SSRF guard
+// resolves the host before it connects. The fixture hosts are `.test` names
+// (RFC 6761: never delegated), so the real resolver could only ever answer
+// NXDOMAIN — asked over the network, at the network's speed. The double gives
+// that answer without asking.
+vi.mock('node:dns/promises', () => ({
+  lookup: async (hostname: string) => {
+    throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${hostname}`), {
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname,
+    });
+  },
+}));
+
 vi.mock('../../../connectors/activitypub/helpers', async () => {
   const actual = await vi.importActual<typeof import('../../../connectors/activitypub/helpers')>(
     '../../../connectors/activitypub/helpers',

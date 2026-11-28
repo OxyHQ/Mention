@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { lookupManyOf } from '../../helpers/oxyLookup';
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import {
@@ -89,7 +90,15 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    users: { byUsername: mocks.getProfileByUsername, search: mocks.searchProfiles },
+    users: {
+      byUsername: mocks.getProfileByUsername,
+      search: mocks.searchProfiles,
+      // Hydrating the stored mention resolves its people in bulk. Oxy has none
+      // of these fixture accounts, so the double answers "missing" — without it
+      // each id fell to the per-id `users.get` fallback on the REAL runtime
+      // client, an HTTP request to Oxy.
+      lookupMany: lookupManyOf(() => []),
+    },
   }),
 }));
 

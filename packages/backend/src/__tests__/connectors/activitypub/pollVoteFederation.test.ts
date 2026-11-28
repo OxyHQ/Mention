@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { lookupManyOf } from '../../helpers/oxyLookup';
 
 import { asc, eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
@@ -102,7 +103,13 @@ vi.mock('../../../services/posts/PollVoteService', () => ({
   },
 }));
 
-vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
+// A reply that reaches the follower gate is hydrated, which resolves its people
+// in bulk. Oxy has none of these fixture accounts, so the double answers
+// "missing" — without it each id fell to the per-id `users.get` fallback on the
+// REAL runtime client, an HTTP request to Oxy.
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: vi.fn(() => ({ users: { lookupMany: lookupManyOf(() => []) } })),
+}));
 vi.mock('../../../services/media/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
