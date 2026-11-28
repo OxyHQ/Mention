@@ -64,6 +64,7 @@ import {
   POST_PAGE_PURGE_FAILED_METRIC,
   POST_PAGE_PURGE_GAVE_UP_LOG,
   POST_PAGE_PURGE_QUEUE_DEADLINE_MS,
+  postPagePrefix,
   postPageUrls,
   purgePostPages,
   runPostPagePurge,
@@ -152,17 +153,27 @@ describe('postPageUrls', () => {
   });
 });
 
-describe('purgePostPages', () => {
-  it('evicts the origin caches first, then queues one job per 15 posts (30 URLs)', async () => {
-    await purgePostPages([...ids(31), 'post-0', ''], 'delete');
+describe('postPagePrefix', () => {
+  it('is host/p/<id>, without the scheme, so it covers the slash and every query variant', () => {
+    expect(postPagePrefix('019fd158-c7ff-7ae3-8edb-a8b2589800f2')).toBe(
+      'mention.earth/p/019fd158-c7ff-7ae3-8edb-a8b2589800f2',
+    );
+    expect(postPagePrefix('a', 'https://mention.org')).toBe('mention.org/p/a');
+    expect(postPagePrefix('a/b?c')).toBe('mention.earth/p/a%2Fb%3Fc');
+  });
+});
 
-    expect(mocks.invalidatePostDetails).toHaveBeenCalledWith(ids(31));
-    expect(mocks.invalidatePostOgCards).toHaveBeenCalledWith(ids(31));
+describe('purgePostPages', () => {
+  it('evicts the origin caches first, then queues one job per 30 posts (30 prefixes)', async () => {
+    await purgePostPages([...ids(61), 'post-0', ''], 'delete');
+
+    expect(mocks.invalidatePostDetails).toHaveBeenCalledWith(ids(61));
+    expect(mocks.invalidatePostOgCards).toHaveBeenCalledWith(ids(61));
     expect(mocks.enqueue).toHaveBeenCalledTimes(3);
     const batches = mocks.enqueue.mock.calls.map(([data]) => data.postIds.length);
-    expect(batches).toEqual([15, 15, 1]);
+    expect(batches).toEqual([30, 30, 1]);
     expect(mocks.enqueue.mock.calls[0]).toEqual([
-      { kind: 'posts', postIds: ids(15), reason: 'delete' },
+      { kind: 'posts', postIds: ids(30), reason: 'delete' },
       { priority: POST_PAGE_EDGE_PURGE_PRIORITY_ACTION, delayMs: expect.any(Number) },
     ]);
     expect(mocks.invalidatePostDetails.mock.invocationCallOrder[0]).toBeLessThan(
@@ -294,7 +305,7 @@ describe('scheduleAuthorPostPagePurge', () => {
 });
 
 describe('runPostPagePurge (the worker half)', () => {
-  it('evicts the origin caches again, then purges both URLs of every post in one call', async () => {
+  it('evicts the origin caches again, then purges every post by its page prefix in one call', async () => {
     await runPostPagePurge(['a', 'b'], 'delete');
 
     expect(mocks.invalidatePostDetails).toHaveBeenCalledWith(['a', 'b']);
@@ -306,12 +317,7 @@ describe('runPostPagePurge (the worker half)', () => {
     expect(init.method).toBe('POST');
     expect(init.headers.Authorization).toBe('Bearer test-purge-token');
     expect(JSON.parse(init.body)).toEqual({
-      files: [
-        'https://mention.earth/p/a',
-        'https://mention.earth/p/a/',
-        'https://mention.earth/p/b',
-        'https://mention.earth/p/b/',
-      ],
+      prefixes: ['mention.earth/p/a', 'mention.earth/p/b'],
     });
   });
 
@@ -345,15 +351,15 @@ describe('runPostPagePurge (the worker half)', () => {
       zones.zones = before;
     }
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const calls = fetchMock.mock.calls.map(([url, init]) => [url, JSON.parse(init.body).files]);
+    const calls = fetchMock.mock.calls.map(([url, init]) => [url, JSON.parse(init.body).prefixes]);
     expect(calls).toEqual([
       [
         `https://api.cloudflare.com/client/v4/zones/${'e'.repeat(32)}/purge_cache`,
-        ['https://mention.earth/p/a', 'https://mention.earth/p/a/'],
+        ['mention.earth/p/a'],
       ],
       [
         `https://api.cloudflare.com/client/v4/zones/${'f'.repeat(32)}/purge_cache`,
-        ['https://mention.org/p/a', 'https://mention.org/p/a/'],
+        ['mention.org/p/a'],
       ],
     ]);
   });
