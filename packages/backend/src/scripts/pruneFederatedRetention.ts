@@ -25,7 +25,7 @@
  *     account, no mention of a local account, no post (of anyone) reposting,
  *     quoting, replying to or threading under it, it does not itself point at a
  *     local post, no local post in its thread, no notification about it, no
- *     report / label / enforcement about it, no poll votes, attendance, article,
+ *     report / label / enforcement about it, no poll, attendance, article,
  *     promotion, commerce metrics, gate, correction or cross-post cluster, no
  *     feed interaction, no pending engagement delivery, not in a local
  *     community, and not among the newest {@link DEFAULT_KEEP_NEWEST_PER_FOLLOWED_AUTHOR}
@@ -43,10 +43,12 @@
  *   projection points an actor row at a LOCAL person. An account Oxy does not
  *   answer for (missing or failed) counts as local, so the post is kept.
  *
- *   The delete is one `DELETE ... WHERE id IN (batch) AND <the SQL rules again>`
- *   after `assertPostsSafeToDelete` cleared the batch with nothing acknowledged
+ *   After `assertPostsSafeToDelete` cleared the batch with nothing acknowledged
  *   but the rows `ON DELETE CASCADE` removes and that the rules above decided
- *   may go (remote likes, the recent-replier projection, evaluations). The
+ *   may go (remote likes, the recent-replier projection, evaluations), the
+ *   delete locks the batch's rows and then runs one `DELETE ... WHERE id IN
+ *   (batch) AND <the SQL rules again>` in the same transaction, so a save, like
+ *   or reply committed meanwhile is seen and one still open has to wait. The
  *   post family (variants, authorships, media, source keys, hashtags, import
  *   ledger, mentions, attachments, …) goes by its foreign keys. Counters on a
  *   surviving parent are not adjusted: the remote reply still exists, only our
@@ -352,7 +354,8 @@ const SQL_RULES: Readonly<
     or exists (select 1 from content_labels cl where cl.target_type = 'post' and cl.target_id = p.id)
     or exists (select 1 from moderation_enforcements me
       where me.subject_type in ('post', 'comment') and me.subject_id = p.id))`,
-  feature: sql`(exists (select 1 from polls pl join poll_votes v on v.poll_id = pl.id where pl.post_id = p.id)
+  // EVERY poll, voted or not: the preflight refuses a batch holding any.
+  feature: sql`(exists (select 1 from polls pl where pl.post_id = p.id)
     or exists (select 1 from event_attendance ea where ea.post_id = p.id)
     or exists (select 1 from articles a where a.post_id = p.id)
     or exists (select 1 from commerce_post_daily_metrics cm where cm.post_id = p.id)
@@ -502,9 +505,11 @@ async function loadFacts(ids: readonly string[]): Promise<PostRetentionFacts[]> 
 }
 
 /**
- * Which posts are among the newest `keep` public posts of an author a local
- * user follows. Thresholds are memoized per author for the run: the walk is in
- * time order, so the same authors recur batch after batch.
+ * Which posts are among the newest `keep` public posts of an actor a local user
+ * follows. Counted per source ACTOR, as the outbox sync reads them: linked
+ * accounts share one Oxy owner, and one's posts must not push another's out of
+ * its window. Thresholds are memoized for the run: the walk is in time order,
+ * so the same actors recur batch after batch.
  */
 function createFollowedAuthorWindow(keep: number) {
   const followed = new Map<string, boolean>();
@@ -535,19 +540,19 @@ function createFollowedAuthorWindow(keep: number) {
         inWindow.add(fact.id);
         continue;
       }
-      if (!threshold.has(fact.oxyUserId)) {
+      const key = `${fact.oxyUserId}${ID_SEPARATOR}${fact.federationActorUri}`;
+      if (!threshold.has(key)) {
+        // The owner leads so the author index serves it; the actor narrows.
         const [row] = await getDb().execute<{ created_at: string | Date; id: string }>(sql`
           select created_at, id from posts
           where oxy_user_id = ${fact.oxyUserId} and visibility = 'public' and status = 'published'
+            and federation_actor_uri = ${fact.federationActorUri}
           order by created_at desc, id desc
           offset ${keep - 1} limit 1
         `);
-        threshold.set(
-          fact.oxyUserId,
-          row ? { createdAt: new Date(row.created_at), id: row.id } : null,
-        );
+        threshold.set(key, row ? { createdAt: new Date(row.created_at), id: row.id } : null);
       }
-      const nth = threshold.get(fact.oxyUserId);
+      const nth = threshold.get(key);
       const newer =
         !nth ||
         fact.createdAt.getTime() > nth.createdAt.getTime() ||
@@ -561,13 +566,25 @@ function createFollowedAuthorWindow(keep: number) {
 /**
  * Delete the batch, re-checking every SQL rule and that no account outside
  * `remote` liked, authored or is mentioned by it, in the statement itself.
+ *
+ * The rows are locked FIRST, in the same transaction. A statement checks its
+ * conditions against the snapshot it started with: a bookmark, like or reply
+ * committed while a bare DELETE waited on the post row would be invisible to it
+ * and then cascade away. `FOR UPDATE` conflicts with the key lock a foreign-key
+ * insert takes, so once the locks are held every such write has either
+ * committed, and the DELETE's fresh snapshot sees it, or has to wait for us.
  */
 async function deletePosts(ids: readonly string[], remote: ReadonlySet<string>): Promise<string[]> {
   if (ids.length === 0) return [];
   const remoteIds = [...remote];
   const remoteArray = textArray(remoteIds);
   const outside = (column: SQL) => sql`not (${column} = any(${remoteArray}))`;
-  const rows = await getDb().execute<{ id: string }>(sql`
+  return getDb().transaction(async (tx) => {
+    // Id order, the order `deletePostSubtree` locks in.
+    await tx.execute(sql`
+      select id from posts where id = any(${textArray(ids)}) order by id for update
+    `);
+    const rows = await tx.execute<{ id: string }>(sql`
     delete from posts p
     where p.id = any(${textArray(ids)})
       and p.visibility = 'public' and p.status = 'published'
@@ -581,7 +598,8 @@ async function deletePosts(ids: readonly string[], remote: ReadonlySet<string>):
       and (p.community_oxy_user_id is null or p.community_oxy_user_id = any(${remoteArray}))
     returning p.id
   `);
-  return rows.map((row) => row.id);
+    return rows.map((row) => row.id);
+  });
 }
 
 // ── The runner ──────────────────────────────────────────────────────────────
@@ -909,6 +927,7 @@ async function main(): Promise<number> {
     keepNewestPerFollowedAuthor: positiveIntEnv('RETENTION_KEEP_NEWEST_PER_FOLLOWED_AUTHOR'),
     edgeUnknownTtlDays: positiveIntEnv('RETENTION_EDGE_UNKNOWN_TTL_DAYS'),
     postBatchSize: positiveIntEnv('RETENTION_BATCH_SIZE'),
+    edgeBatchSize: positiveIntEnv('RETENTION_BATCH_SIZE'),
     limit: positiveIntEnv('RETENTION_LIMIT'),
     startAt,
     resetCursor: ['1', 'true', 'yes'].includes(

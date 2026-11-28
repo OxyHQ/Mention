@@ -26,6 +26,7 @@ import {
   remoteFollowEdges,
 } from '../../db/schema/federation';
 import { REPORT_CATEGORIES, reports } from '../../db/schema/moderation';
+import { polls } from '../../db/schema/polls';
 import { posts } from '../../db/schema/posts';
 import { postContentVariants } from '../../db/schema/postContent';
 import { upsertRemoteFollowEdges } from '../../db/federation/remoteGraphRepository';
@@ -267,6 +268,83 @@ describe('which posts go', () => {
     expect(await exists(oldest.id)).toBe(false);
     expect(await exists(middle.id)).toBe(true);
     expect(await exists(newest.id)).toBe(true);
+  });
+
+  it('counts a followed actor’s newest posts apart from its owner’s other accounts', async () => {
+    await getDb()
+      .insert(federatedFollows)
+      .values({
+        localUserId: 'local-u',
+        remoteActorUri: `${ORIGIN}/users/linked`,
+        direction: 'outbound',
+        status: 'accepted',
+      });
+    const followed = await federated('linked', {
+      createdAt: new Date(OLD.getTime() - 30 * DAY_MS),
+    });
+    // A linked account on another network: the same Oxy owner, newer posts.
+    const sameOwner = (activityId: string) =>
+      federated('linked', {
+        federation: { actorUri: `${ORIGIN}/users/other-network`, activityId },
+      });
+    await sameOwner(`${ORIGIN}/notes/other-1`);
+    await sameOwner(`${ORIGIN}/notes/other-2`);
+
+    await run({ keepNewestPerFollowedAuthor: 1 });
+
+    expect(await exists(followed.id)).toBe(true);
+  });
+
+  it('keeps a post with a poll nobody here voted in, without blocking the rest', async () => {
+    const withPoll = await federated();
+    await getDb()
+      .insert(polls)
+      .values({ postId: withPoll.id, question: 'which?', createdBy: 'remote-a', endsAt: NOW });
+    const other = await federated();
+
+    const report = await run();
+
+    expect(report.posts).toMatchObject({ preflightBlocked: 0, deleted: 1 });
+    expect(await exists(withPoll.id)).toBe(true);
+    expect(await exists(other.id)).toBe(false);
+  });
+
+  it('keeps a post saved while the batch was being deleted', async () => {
+    const post = await federated();
+    let commit!: () => void;
+    const held = new Promise<void>((resolve) => {
+      commit = resolve;
+    });
+    let inserted!: () => void;
+    const uncommitted = new Promise<void>((resolve) => {
+      inserted = resolve;
+    });
+    // A save still open on another connection: the walk cannot see it yet.
+    const saving = getDb().transaction(async (tx) => {
+      await tx.insert(bookmarks).values({ userId: 'local-u', postId: post.id });
+      inserted();
+      await held;
+    });
+    await uncommitted;
+
+    const pruning = run();
+    // Commit only once the prune is waiting on the saved row.
+    await vi.waitFor(async () => {
+      const [{ waiting }] = await getDb().execute<{ waiting: number }>(sql`
+        select count(*)::int as waiting from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'
+      `);
+      expect(waiting).toBeGreaterThan(0);
+    });
+    commit();
+    await saving;
+    const report = await pruning;
+
+    expect(await exists(post.id)).toBe(true);
+    expect(report.posts).toMatchObject({ deleted: 0, keptAtDelete: 1 });
+    expect(
+      await getDb().select().from(bookmarks).where(eq(bookmarks.postId, post.id)),
+    ).toHaveLength(1);
   });
 
   it('removes a thread from its leaves inward, one layer per pass', async () => {
