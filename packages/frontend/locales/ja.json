@@ -1155,6 +1155,18 @@
       "inviteTitle": "Mentionに参加"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "ミュートしたアカウント",
+        "entry": "投稿を非表示にしたユーザー",
+        "description": "ミュートしたアカウントの投稿はフィードに表示されません。相手に通知されることはなく、フォローは継続されます。",
+        "empty": "ミュートしたアカウントはありません",
+        "loadFailed": "ミュートしたアカウントを読み込めませんでした",
+        "unmute": "ミュート解除",
+        "unmuted": "ミュートを解除しました",
+        "unmuteFailed": "ミュートを解除できませんでした",
+        "signInRequired": "ミュートしたアカウントを管理するにはログインしてください",
+        "unknown": "利用できないアカウント"
+      },
       "title": "プライバシー",
       "privateProfile": "非公開プロフィール",
       "public": "公開",

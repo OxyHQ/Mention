@@ -334,6 +334,8 @@ export const viewerQueryKeys = {
   /** The caller's own lanes, each with its current post count. */
   ownedLanes: (viewerId: ViewerId) => [...viewerQueryKeys.lanesRoot(viewerId), 'owned'] as const,
   /** The lanes this reader has silenced, grouped by publisher. */
+  mutedAccounts: (viewerId: ViewerId) =>
+    [...viewerQueryKeys.all(viewerId), 'muted-accounts'] as const,
   mutedLanes: (viewerId: ViewerId) => [...viewerQueryKeys.lanesRoot(viewerId), 'muted'] as const,
   /**
    * A publisher's lanes that HAVE a tab. Reader-agnostic on the server, but

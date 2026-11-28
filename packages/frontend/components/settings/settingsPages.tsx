@@ -37,6 +37,7 @@ import Page15 from './pages/privacy/blocked';
 import Page16 from './pages/privacy/hidden-words';
 import Page17 from './pages/privacy/hide-counts';
 import Page18 from './pages/privacy/muted-lanes';
+import MutedAccountsPage from './pages/privacy/muted-accounts';
 import Page19 from './pages/privacy/online-status';
 import Page20 from './pages/privacy/profile-visibility';
 import Page21 from './pages/privacy/restricted';
@@ -147,6 +148,10 @@ export function useMentionSettingsPages(): MentionSettingsPages {
     'privacy/hide-counts': {
       title: t('settings.privacy.hideAllCounts'),
       content: <Page17 />,
+    },
+    'privacy/muted-accounts': {
+      title: t('settings.privacy.mutedAccounts.title'),
+      content: <MutedAccountsPage />,
     },
     'privacy/muted-lanes': {
       title: t('lanes.muted.title', { defaultValue: 'Muted lanes' }),

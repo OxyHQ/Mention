@@ -1155,6 +1155,18 @@
       "inviteTitle": "加入 Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "已静音的账号",
+        "entry": "你已隐藏其帖子的用户",
+        "description": "已静音账号的帖子不会出现在你的信息流中。对方不会收到通知，你仍然关注他们。",
+        "empty": "没有已静音的账号",
+        "loadFailed": "无法加载已静音的账号",
+        "unmute": "取消静音",
+        "unmuted": "已取消静音",
+        "unmuteFailed": "无法取消静音",
+        "signInRequired": "登录以管理已静音的账号",
+        "unknown": "账号不可用"
+      },
       "title": "隐私",
       "privateProfile": "私密主页",
       "public": "公开",

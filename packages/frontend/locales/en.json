@@ -1155,6 +1155,18 @@
       "inviteTitle": "Join Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Muted accounts",
+        "entry": "People whose posts you have hidden",
+        "description": "Posts from muted accounts stay out of your feeds. They are not told, and you keep following them.",
+        "empty": "No muted accounts",
+        "loadFailed": "Failed to load muted accounts",
+        "unmute": "Unmute",
+        "unmuted": "Account unmuted",
+        "unmuteFailed": "Failed to unmute account",
+        "signInRequired": "Sign in to manage muted accounts",
+        "unknown": "Unavailable account"
+      },
       "title": "Privacy",
       "privateProfile": "Private profile",
       "public": "Public",

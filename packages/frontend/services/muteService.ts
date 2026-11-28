@@ -41,14 +41,10 @@ class MuteService {
     }
   }
 
+  /** The viewer's mutes, newest first. Rejects, so a failed read is never an empty list. */
   async getMutedUsers(): Promise<SerializedMute[]> {
-    try {
-      const res = await authenticatedClient.get<MutedUsersResponse>('/mute');
-      return res.data.mutes;
-    } catch (error) {
-      logger.warn('Failed to get muted users', { error });
-      return [];
-    }
+    const res = await authenticatedClient.get<MutedUsersResponse>('/mute');
+    return res.data.mutes;
   }
 
   async checkMuted(userId: string): Promise<boolean> {

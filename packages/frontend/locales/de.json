@@ -1155,6 +1155,18 @@
       "inviteTitle": "Mach mit bei Mention"
     },
     "privacy": {
+      "mutedAccounts": {
+        "title": "Stummgeschaltete Konten",
+        "entry": "Personen, deren Beiträge du ausgeblendet hast",
+        "description": "Beiträge stummgeschalteter Konten erscheinen nicht in deinen Feeds. Sie erfahren es nicht, und du folgst ihnen weiterhin.",
+        "empty": "Keine stummgeschalteten Konten",
+        "loadFailed": "Stummgeschaltete Konten konnten nicht geladen werden",
+        "unmute": "Stummschaltung aufheben",
+        "unmuted": "Stummschaltung aufgehoben",
+        "unmuteFailed": "Stummschaltung konnte nicht aufgehoben werden",
+        "signInRequired": "Melde dich an, um stummgeschaltete Konten zu verwalten",
+        "unknown": "Nicht verfügbares Konto"
+      },
       "title": "Privatsphäre",
       "privateProfile": "Privates Profil",
       "public": "Öffentlich",
