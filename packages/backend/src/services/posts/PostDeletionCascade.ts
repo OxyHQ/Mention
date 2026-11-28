@@ -80,6 +80,8 @@ import {
   type PostReferenceProbeName,
 } from '../../scripts/lib/adminDeletionPreflight';
 import { typeIsRepost } from '../../utils/repostType';
+import { purgePostPages } from '../webshell/postPageEdgePurge';
+import { findDependentPostIds } from '../webshell/postPageDependents';
 
 /**
  * Best-effort work after a COMMITTED deletion that did not complete.
@@ -526,6 +528,7 @@ export async function deletePostSubtree(
 ): Promise<DeletedPostSubtree | null> {
   let result: DeletedPostSubtree | null = null;
   let equivalenceClusterIds: string[] = [];
+  let dependentPageIds: string[] = [];
   try {
     await getDb().transaction(async (tx) => {
       const collected = await collectDeletionTargets(postId, tx);
@@ -563,6 +566,7 @@ export async function deletePostSubtree(
         all.map((row) => row.id),
         tx,
       );
+      dependentPageIds = await findDependentPostIds(ids, tx);
       // The whole subtree's re-hosted federated media, in this transaction.
       await enqueueFederatedMediaDeletionsForPosts(
         all.map((row) => row.id),
@@ -595,6 +599,12 @@ export async function deletePostSubtree(
   if (equivalenceClusterIds.length > 0) {
     await reevaluateClusters(equivalenceClusterIds);
   }
+  // Every page this removed — the post, its replies, the boosts of it — and
+  // every surviving page that repeated one (quotes, the parent) leaves
+  // Cloudflare's edge now rather than when `s-maxage` runs out. After the
+  // commit, so the origin answers the purged URL with the 404. Never throws.
+  const deleted = result as DeletedPostSubtree | null;
+  if (deleted) await purgePostPages([...deleted.removedIds, ...dependentPageIds], 'delete');
   return result;
 }
 

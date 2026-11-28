@@ -102,6 +102,7 @@ import { isBannedFromCommunity } from '../../db/communities/communityBanReposito
 import { communityOfPost } from '../../services/communities/communityPosting';
 import { getNotificationRecipients, normalizeAuthorship } from '../../utils/postAuthorship';
 import { typeIsRepost } from '../../utils/repostType';
+import { purgePostPages } from '../../services/webshell/postPageEdgePurge';
 
 /**
  * Whether a Note replies to one of our posts, or mentions or is addressed to one
@@ -486,6 +487,8 @@ export class InboxProcessingService {
     // fail-closed guard against a concurrent mutation between lookup/delete.
     const deleted = await deletePostRecord(repost.id, eq(posts.federationActorUri, actorUri));
     if (!deleted) return;
+    // The boost's own page leaves the edge. Never throws.
+    await purgePostPages([repost.id], 'delete');
     // Both counters move in lockstep, because the federated Announce incremented
     // both at import. `bumpPostCounters` clamps at zero, which is what the two
     // separate `$gt: 0`-filtered updates were expressing — and it does so in ONE
@@ -1223,6 +1226,10 @@ export class InboxProcessingService {
       await reevaluateClusterForPost(existingPost.id);
 
       logger.debug('[Federation] updated federated post');
+      // Its cached public page shows the edit now, not after `s-maxage`. Never throws.
+      if (existingPost.visibility === 'public' && existingPost.status === 'published') {
+        await purgePostPages([existingPost.id], 'edit');
+      }
 
       // A community hosted here relays its member's edit (`Announce { Update }`),
       // under the same rule as their Create: only an activity that speaks for its

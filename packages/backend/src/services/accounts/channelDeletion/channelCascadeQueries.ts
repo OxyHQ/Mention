@@ -12,6 +12,8 @@ import type { PgTable } from 'drizzle-orm/pg-core';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import type { PostBatch } from './channelDeletionTargets';
+import { purgePostPages } from '../../webshell/postPageEdgePurge';
+import { findDependentPostIds } from '../../webshell/postPageDependents';
 
 /** How many rows match, without touching them. */
 export async function countRows(table: PgTable, where: SQL): Promise<number> {
@@ -41,9 +43,16 @@ export async function countOrDelete(table: PgTable, where: SQL, dryRun: boolean)
 export async function deleteBatchPosts(batch: PostBatch, dryRun: boolean): Promise<number> {
   const ids = batch.channelPosts.map((row) => row.id);
   if (dryRun) return ids.length;
+  // Read first: the delete cascades the boosts and unlinks quotes and replies.
+  const dependentPageIds = await findDependentPostIds(ids);
   const removed = await getDb()
     .delete(posts)
     .where(inArray(posts.id, ids))
     .returning({ id: posts.id });
+  // The deleted channel's pages, and those that repeated them, leave
+  // Cloudflare's edge. Never throws.
+  await purgePostPages([...removed.map((row) => row.id), ...dependentPageIds], 'author_erased', {
+    priority: 'sweep',
+  });
   return removed.length;
 }

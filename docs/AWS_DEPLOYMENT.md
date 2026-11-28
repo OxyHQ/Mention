@@ -98,6 +98,38 @@ rolling the backend and running the frontend deploy (see
 production rather than start into an apex that answers every page with the empty
 fallback shell.
 
+## Post pages on Cloudflare's edge
+
+Anonymous `GET /p/<id>` on the apex is cached at Cloudflare's edge for the
+origin's `s-maxage` (300 s) by the Cache Rule `mention_post_pages_edge_cache`
+(oxy-infra runbook 72). So that a post that stops being public does not stay
+readable there for those five minutes, the backend purges its page by URL
+(`/p/<id>` and `/p/<id>/`) as soon as the change commits
+(`packages/backend/src/services/webshell/postPageEdgePurge.ts`). These writes trigger it:
+
+| Change                                                                                                                                                                                                                            | Where                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| A post deleted, with the replies and boosts its deletion removes (native, federated, an import undone)                                                                                                                            | `PostDeletionCascade.deletePostSubtree`                                                |
+| A boost undone (native unboost, federated `Undo(Announce)`)                                                                                                                                                                       | `feed.controller.ts`, `inbox.service.ts`                                               |
+| A public post edited (native, federated `Update`, a merged transport copy)                                                                                                                                                        | `updatePost.ts`, `inbox.service.ts`, `transportCopies.ts`                              |
+| A moderation decision (restrict, restore, content warning on or off), a community moderator's removal                                                                                                                             | `ModerationEnforcementService.ts`, `communityModeration.ts`                            |
+| An author Mention stops showing: an Oxy account change (suspended, archived, restricted) or a profile made private or followers-only. A job re-asks the page's own author check, then sweeps the author's public posts in batches | `userInvalidationSubscriber.ts`, `routes/profileSettings.ts`, `authorPostPagePurge.ts` |
+| An account erased or a channel deleted, batch by batch                                                                                                                                                                            | `erasePosts.ts`, `channelCascadeQueries.ts`                                            |
+
+Each purge is a BullMQ job on `post-page-edge-purge` (30 URLs per Cloudflare
+call, 8 attempts with exponential backoff, at most 2 calls a second across the
+fleet). It never blocks or fails the action: a purge that is given up logs
+`[EdgePurge] post page purge gave up`, which the CloudWatch alarm
+`oxy-mention-post-page-edge-purge-failed` watches, and the page then expires
+from the edge at `s-maxage` as before. A URL with a query string is a separate
+cache entry that purge-by-URL does not reach; it also expires at `s-maxage`.
+
+`EDGE_CACHE_PURGE_ENABLED` (default `true` in production) is the off switch:
+set the repository variable of that name to `false` and dispatch
+`deploy-backend-config.yml`. It is inert without `CLOUDFLARE_PURGE_TOKEN`, a token scoped to
+Zone > Cache Purge on mention.earth only, with an expiry (oxy-infra runbook 73
+says how it is created and rotated).
+
 ## Runtime secrets
 
 SSM Parameter Store is the ONE source of every backend and MCP runtime secret:

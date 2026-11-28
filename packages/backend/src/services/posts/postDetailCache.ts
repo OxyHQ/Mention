@@ -124,3 +124,13 @@ export async function getOrLoadPostRecords(
 export async function invalidate(postId: string): Promise<void> {
   await cache.delete([keyFor(postId)]);
 }
+
+/**
+ * {@link invalidate} for many posts in one `DEL`: the edge purge evicts a whole
+ * batch (an erased account's, a hidden author's) before Cloudflare refills
+ * those pages from the origin.
+ */
+export async function invalidateMany(postIds: readonly string[]): Promise<void> {
+  if (postIds.length === 0) return;
+  await cache.delete(postIds.map(keyFor));
+}

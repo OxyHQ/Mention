@@ -65,6 +65,7 @@ const mocks = vi.hoisted(() => ({
   loggerInfo: vi.fn(),
   loggerError: vi.fn(),
   loggerDebug: vi.fn(),
+  purgePostPages: vi.fn(),
 }));
 
 vi.mock('../../../utils/logger', () => ({
@@ -113,6 +114,11 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
     importAnnounce: (...args: unknown[]) => mocks.importAnnounce(...args),
     syncOutboxPosts: vi.fn(),
   },
+}));
+
+// The edge purge is asserted below; its own behaviour is `postPageEdgePurge.test.ts`.
+vi.mock('../../../services/webshell/postPageEdgePurge', () => ({
+  purgePostPages: (...args: unknown[]) => mocks.purgePostPages(...args),
 }));
 
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
@@ -190,6 +196,13 @@ afterAll(async () => {
 });
 
 describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
+  it('purges the edited public post from the edge, after the write', async () => {
+    await inboxProcessingService.processInboxActivity(updateActivity(), ACTOR_URI);
+
+    expect(await storedVariants(edited.id)).toEqual([{ tag: 'es', body: 'texto editado' }]);
+    expect(mocks.purgePostPages).toHaveBeenCalledWith([edited.id], 'edit');
+  });
+
   it('recovers a contentMap-only edit into the stored renditions', async () => {
     await inboxProcessingService.processInboxActivity(updateActivity(), ACTOR_URI);
 

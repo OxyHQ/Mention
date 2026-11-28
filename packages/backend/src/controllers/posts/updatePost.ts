@@ -49,6 +49,7 @@ import {
   servesMediaPublicly,
 } from '../../services/posts/access/postMediaVisibility';
 import { enrichIngestedPosts } from '../../services/posts/postEnrichment';
+import { purgePostPages } from '../../services/webshell/postPageEdgePurge';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import {
   applyDetectedPrimaryTag,
@@ -617,6 +618,12 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // The same post-ingest enrichment a new post gets: new media wait for Oxy's
     // metadata and ladder, and new links resolve their previews.
     enrichIngestedPosts([{ id: post.id, content }]);
+
+    // A public page the edge may hold shows the edit now, not after `s-maxage`.
+    // A draft or a scheduled post has no public page to purge. Never throws.
+    if (post.status === 'published' && post.visibility === PostVisibility.PUBLIC) {
+      await purgePostPages([post.id], 'edit');
+    }
 
     // The correction trail — the half of permanent editability that makes it
     // honest. Recorded AFTER the write, so an edit that failed leaves no claim

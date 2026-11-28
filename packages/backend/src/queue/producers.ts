@@ -7,6 +7,7 @@ import {
   getAccountErasureQueue,
   getInstagramGraphSyncQueue,
   getSubscriberNotificationQueue,
+  getPostPageEdgePurgeQueue,
 } from './queues';
 import {
   DELIVERY_JOB_ATTEMPTS,
@@ -21,6 +22,8 @@ import {
   SUBSCRIBER_NOTIFICATION_BACKOFF_BASE_MS,
   ACCOUNT_ERASURE_JOB_ATTEMPTS,
   ACCOUNT_ERASURE_BACKOFF_BASE_MS,
+  POST_PAGE_EDGE_PURGE_JOB_ATTEMPTS,
+  POST_PAGE_EDGE_PURGE_BACKOFF_BASE_MS,
 } from './constants';
 import type {
   InboxJobData,
@@ -30,6 +33,7 @@ import type {
   AccountErasureJobData,
   InstagramGraphSyncJobData,
   SubscriberNotificationJobData,
+  PostPageEdgePurgeJobData,
 } from './types';
 
 /**
@@ -217,6 +221,29 @@ export async function enqueueSubscriberNotifications(
     jobId: `subnotify-${shortHash(data.postId)}`,
     attempts: SUBSCRIBER_NOTIFICATION_JOB_ATTEMPTS,
     backoff: { type: 'exponential', delay: SUBSCRIBER_NOTIFICATION_BACKOFF_BASE_MS },
+  });
+  return true;
+}
+
+/**
+ * Enqueue one edge-purge job. `dedupeKey` collapses copies of one trigger into
+ * one job: an Oxy account change reaches EVERY task, and each would otherwise
+ * enqueue its own sweep of the same author. Returns false when no queue is
+ * available.
+ */
+export async function enqueuePostPageEdgePurge(
+  data: PostPageEdgePurgeJobData,
+  options: { priority: number; delayMs: number; dedupeKey?: string },
+): Promise<boolean> {
+  const queue = getPostPageEdgePurgeQueue();
+  if (!queue) return false;
+
+  await queue.add(data.kind === 'posts' ? 'post-pages' : 'author-pages', data, {
+    ...(options.dedupeKey ? { jobId: `edgepurge-${shortHash(options.dedupeKey)}` } : {}),
+    priority: options.priority,
+    delay: options.delayMs,
+    attempts: POST_PAGE_EDGE_PURGE_JOB_ATTEMPTS,
+    backoff: { type: 'exponential', delay: POST_PAGE_EDGE_PURGE_BACKOFF_BASE_MS },
   });
   return true;
 }

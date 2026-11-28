@@ -82,6 +82,7 @@ import { recordRecentReplierForPost } from '../services/posts/PostRecentReplierS
 import { postCreationService } from '../services/posts/PostCreationService';
 import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
+import { purgePostPages } from '../services/webshell/postPageEdgePurge';
 
 /**
  * The one message both "already boosted" answers use.
@@ -882,6 +883,8 @@ class FeedController {
       if (!repost) {
         return res.status(404).json({ error: 'Boost not found' });
       }
+      // The boost's own page (`/p/<boost id>`) leaves the edge. Never throws.
+      await purgePostPages([repost.id], 'delete');
 
       // Outbound federation: retract the boost with an Undo(Announce). The boost
       // row is already deleted, but the returned doc still carries what we need

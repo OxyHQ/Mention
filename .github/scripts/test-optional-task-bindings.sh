@@ -75,6 +75,13 @@ expect_refusal 'limit-zero' OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT=0
 expect_refusal 'limit-too-high' OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT=201
 expect_refusal 'limit-not-integer' OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT=5.5
 
+# The edge purge's off switch takes the backend's boolean, and nothing else.
+expect 'edge-purge-off' '.environment.EDGE_CACHE_PURGE_ENABLED == "false"' \
+  OPTIONAL_TASK_ENV=EDGE_CACHE_PURGE_ENABLED OPTIONAL_ENV_EDGE_CACHE_PURGE_ENABLED=false
+expect 'edge-purge-unset' '.environmentRemovals == ["ATPROTO_ENABLED","EDGE_CACHE_PURGE_ENABLED"]' \
+  OPTIONAL_TASK_ENV=EDGE_CACHE_PURGE_ENABLED
+expect_refusal 'edge-purge-not-boolean' OPTIONAL_TASK_ENV=EDGE_CACHE_PURGE_ENABLED OPTIONAL_ENV_EDGE_CACHE_PURGE_ENABLED=off
+
 # App link identities reach the running task through the same optional path.
 fingerprint='AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB'
 expect 'app-identities-set' '.environment.APPLE_TEAM_ID == "ABCDE12345" and (.environment.ANDROID_APP_SIGNING_SHA256 | contains(","))' \
