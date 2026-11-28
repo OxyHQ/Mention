@@ -1,0 +1,79 @@
+// Printed by bloom migrate from components/payments/CheckoutPlaygroundScreen.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { CheckoutFixtureSheet } from "@/components/payments/CheckoutFixtureSheet"
+import { CheckoutPreviewBadge } from "@/components/payments/CheckoutPreviewBadge"
+import { CheckoutPreviewControls } from "@/components/payments/CheckoutPreviewControls"
+import { MerchantInstallmentSettings } from "@/components/payments/MerchantInstallmentSettings"
+import {
+  isLocalCheckoutPreview,
+  type CheckoutScenario,
+  type PreviewOutcome,
+  type CheckoutCustomerMode,
+} from "@/lib/payments/checkoutPreview"
+import {
+  DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES,
+  type InstallmentPreviewDecision,
+} from "@/lib/payments/merchantInstallmentPreview"
+
+// Local developer fixtures only. This route is never a customer checkout mode.
+
+/// What the route drew before its screen: a state of its own, without the screen.
+private struct CheckoutPlaygroundScreenGate: ViewModifier {
+  func body(content: Content) -> some View {
+    if !isLocalCheckoutPreview() { Text("Not available").ownScreen() } else { content }
+  }
+}
+
+public struct CheckoutPlaygroundScreen: Screen {
+  @State private var open = false
+  @State private var scenario: CheckoutScenario = "physical"
+  @State private var outcome: PreviewOutcome = "success"
+  @State private var customerMode: CheckoutCustomerMode = "account-preview"
+  @State private var decision: InstallmentPreviewDecision = "available"
+  @State private var incomingFunds = false
+  @State private var soundEnabled = true
+  @State private var preferences = DEFAULT_MERCHANT_INSTALLMENT_PREFERENCES
+
+  var body: some View {
+    Group {
+      ScrollView {
+        VStack {
+          Text("Checkout development fixtures").font(.title2).weight(.semibold)
+          CheckoutPreviewControls(
+            scenario: scenario,
+            onScenario: { next in scenario = next },
+            outcome: outcome,
+            onOutcome: { next in outcome = next },
+            customerMode: customerMode,
+            onCustomerMode: { next in customerMode = next },
+            installmentDecision: decision,
+            onInstallmentDecision: { next in decision = next },
+            incomingFunds: incomingFunds,
+            onIncomingFunds: { next in incomingFunds = next },
+            soundEnabled: soundEnabled,
+            onSoundEnabled: { next in soundEnabled = next },
+          )
+          MerchantInstallmentSettings(value: preferences, onChange: { next in preferences = next })
+          Button(Text("Open checkout")).size(.lg).onPress { open = true }
+        }
+        .padding(.all, .xxl)
+        .spacing(.xl)
+      }
+      CheckoutPreviewBadge()
+      if open {
+        CheckoutFixtureSheet(
+          cadence: "month",
+          previewScenario: scenario,
+          previewOutcome: outcome,
+          previewCustomerMode: customerMode,
+          previewInstallmentDecision: decision,
+          previewIncomingFunds: incomingFunds,
+          previewSoundEnabled: soundEnabled,
+          merchantInstallmentPreferences: preferences,
+          onClose: { open = false },
+        )
+      }
+    }
+    .header(Header().inPage())
+    .modifier(CheckoutPlaygroundScreenGate())
+  }
+}

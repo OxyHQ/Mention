@@ -1,0 +1,408 @@
+// Printed by bloom migrate from app/(app)/feeds/marketplace.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { FeedCard, FeedCardSkeleton, type FeedCardData } from "@/components/FeedCard"
+import { FeedSubscribeButton } from "@/components/FeedSubscribeButton"
+import { SupervisedFeatureGate } from "@/components/SupervisedFeatureGate.bloom"
+import { EmptyState } from "@/components/common/EmptyState"
+import { ListSkeleton } from "@/components/loading/ContentSkeleton"
+import { publicQueryKeys, viewerQueryKeys } from "@/lib/viewerQueryKeys"
+import { customFeedsService, type MarketplaceFeed } from "@/services/customFeedsService"
+import { formatCompactNumber } from "@/utils/formatNumber"
+import { defineTokens } from "@oxy.so/bloom-language"
+import { RiCloseLine } from "@oxy.so/bloom/icons/RiCloseLine"
+import { RiSearchLine } from "@oxy.so/bloom/icons/RiSearchLine"
+import { Rating } from "@oxy.so/bloom/rating"
+import { useColorTokens, useTheme } from "@oxy.so/bloom/theme"
+import { toast } from "@oxy.so/bloom/toast"
+import { useAuth } from "@oxy.so/services/ui/client"
+import { useInfiniteQuery, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query"
+import { clearTimeout, setTimeout } from "js"
+import { StyleSheet, ScrollView as RNScrollView, Platform } from "react-native"
+
+private let PAGE_LIMIT = 20
+
+private let IS_WEB = Platform.OS == "web"
+
+// The category pills' scroller stays React Native (a horizontal ScrollView); this draws
+// what its class drew.
+private let classStyles = { pills: { marginTop: 12 } }
+
+/// A category pill's 7pt vertical padding, off the space scale.
+private let marketTokens = defineTokens(space: { pillY: 7 })
+
+private let styles = StyleSheet.create(pillsContent: { paddingHorizontal: 16, gap: 8 })
+
+private type SortBy = "trending" | "top_rated" | "newest"
+
+private let SORT_OPTIONS_CONFIG: [{ id: SortBy, labelKey: String }] = [
+  { id: "trending", labelKey: "feeds.marketplace.trending" },
+  { id: "top_rated", labelKey: "feeds.marketplace.topRated" },
+  { id: "newest", labelKey: "feeds.marketplace.newest" },
+]
+
+private let ALL_CATEGORY = "All"
+
+/// Marketplace feed item — wraps the shared FeedCard with
+/// subscribe button, rating, and subscriber count.
+private struct MarketplaceFeedCard: View {
+  let item: MarketplaceFeed
+  let onSubscribeToggle: (String, Bool) -> Unit
+  let subscribingId: String?
+  let theme = useTheme()
+  let feedId = "\(item._id || item.id)"
+  let isSubscribing = subscribingId == feedId
+
+  func handleSubscribe() { onSubscribeToggle(feedId, item.isLiked ?? false) }
+
+  let averageRating = item.averageRating ?? 0
+  let reviewCount = item.ratingsCount ?? 0
+  let subscriberCount = item.subscriberCount ?? 0
+
+  let feedData: FeedCardData = {
+    id: feedId,
+    displayName: item.title,
+    description: item.description,
+    creator: item.owner ? {
+      username: item.owner.username ?? "",
+      displayName: item.owner.name?.displayName,
+      kind: item.owner.kind,
+      character: item.owner.character,
+      color: item.owner.color,
+      avatar: item.owner.avatar,
+    } : none,
+    likeCount: item.likeCount,
+    memberCount: item.memberCount,
+    topicCount: item.topicCount,
+    memberAvatars: item.memberAvatars,
+    memberProfiles: item.memberProfiles,
+  }
+
+  var body: some View {
+    VStack {
+      FeedCard(
+        feed: feedData,
+        showDescription: true,
+        showLikes: false,
+        headerRight: FeedSubscribeButton(
+          isSubscribed: item.isLiked ?? false,
+          isSubscribing: isSubscribing,
+          onPress: handleSubscribe,
+        ),
+      )
+      // Extra marketplace metadata below the card
+      if averageRating > 0 || subscriberCount > 0 {
+        HStack {
+          if averageRating > 0 {
+            Rating(
+              variant: "stars",
+              size: "sm",
+              value: averageRating.formatted(fractionDigits: 1),
+              fillValue: averageRating,
+              count: reviewCount > 0 ? formatCompactNumber(reviewCount) : none,
+              starColor: theme.colors.primary,
+            )
+          }
+          if subscriberCount > 0 {
+            HStack(alignment: .center) {
+              Icon(.group).size("13").foreground(.muted)
+              RawText(formatCompactNumber(subscriberCount)).font(.sm).foreground(.muted)
+            }
+            .spacing("3")
+          }
+        }
+        .padding(.horizontal, .lg)
+        .padding(.bottom, .sm)
+        .align(.center)
+        .spacing(.md)
+        .margin(.top, "-xs")
+      }
+    }
+    .margin(.horizontal, .lg)
+    .margin(.top, .md)
+  }
+}
+
+public struct FeedMarketplaceScreen: Screen {
+  let colors = useColorTokens()
+  let queryClient = useQueryClient()
+  let { user } = useAuth()
+
+  @State private var activeCategory: String = ALL_CATEGORY
+  @State private var sortBy: SortBy = "trending"
+  @State private var search = ""
+  @State private var searchVisible = false
+  @State private var subscribingId: String? = none
+
+  @State private var searchTimer: Ref<Foreign<"ReturnType<typeof setTimeout>">?> = Ref(none)
+  @State private var debouncedSearch = ""
+
+  func handleSearchChange(_ text: String) {
+    search = text
+    if let searchTimer = searchTimer.value { clearTimeout(searchTimer) }
+    searchTimer.value = setTimeout({ debouncedSearch = text }, 350)
+  }
+
+  // Include the viewer identity in the key so the per-viewer `isLiked`
+  // (subscribed) flags refetch when a slow SSO cold-boot session lands, rather
+  // than sticking to the anonymous snapshot for the whole staleTime window.
+  let marketplaceKey = viewerQueryKeys.customFeedMarketplace(
+    user?.id,
+    sortBy: sortBy,
+    category: activeCategory,
+    search: debouncedSearch,
+  )
+
+  let feedsQuery = useInfiniteQuery(
+    queryKey: marketplaceKey,
+    queryFn: { arg in
+      let { pageParam } = arg
+      var params: Foreign<"Parameters<typeof customFeedsService.getMarketplace>[0]"> = {
+        page: pageParam,
+        limit: PAGE_LIMIT,
+        sortBy: sortBy,
+      }
+      if activeCategory != ALL_CATEGORY { params = { ..params, category: activeCategory } }
+      if !(debouncedSearch.trimmed()).isEmpty {
+        params = { ..params, search: debouncedSearch.trimmed() }
+      }
+      return customFeedsService.getMarketplace(params)
+    },
+    initialPageParam: 1,
+    getNextPageParam: { lastPage, allPages in
+      let loaded = allPages.reduce({ sum, pageData in sum + (pageData.items?.length ?? 0) }, 0)
+      return loaded < (lastPage.total ?? 0) ? allPages.length + 1 : none
+    }, // Keep the current results on screen while a new sort/category/search query
+    // resolves (mirrors the old "keep old feeds until the replace lands" UX).
+    placeholderData: keepPreviousData,
+  )
+
+  let { data: feedsData, isLoading: loading, isRefetching, isFetchingNextPage: loadingMore, hasNextPage: hasMore, refetch, fetchNextPage } = feedsQuery
+
+  let feeds = feedsData?.pages?.flatMap { pageData in pageData.items ?? [] } ?? []
+
+  // Pull-to-refresh spins only on a same-key refetch, not while paginating.
+  let refreshing = isRefetching && !loadingMore
+
+  func handleRefresh() { task { await refetch() } }
+
+  func handleLoadMore() {
+    if loadingMore || !hasMore { return }
+    task { await fetchNextPage() }
+  }
+
+  func handleCategoryPress(_ cat: String) { activeCategory = cat }
+
+  func handleSortPress(_ id: SortBy) { sortBy = id }
+
+  // Categories rarely change — cache for 10 minutes and share across revisits.
+  // Public (not viewer-specific) data, so keyed without the viewer identity.
+  let categoriesQuery = useQuery(
+    queryKey: publicQueryKeys.marketplaceCategories(),
+    queryFn: { customFeedsService.getMarketplaceCategories() },
+    staleTime: 10 * 60 * 1000,
+  )
+
+  let categories = categoriesQuery.data?.categories ?? []
+
+  func handleSubscribeToggle(_ feedId: String, _ isSubscribed: Bool) async {
+    if subscribingId != none && !subscribingId.isEmpty { return }
+    subscribingId = feedId
+
+    // Optimistically flip the subscribed flag + like count in the infinite
+    // query cache; `delta` reverses on failure.
+    let applyToggle = { nextSubscribed: Bool, delta: Float in
+      queryClient
+      .setQueryData(
+        marketplaceKey,
+        { prev in
+          // bloom: review: type arguments `<InfiniteData<CustomFeedListResponse>>` dropped from `queryClient.setQueryData(…)`: annotate the binding if tsc needs them
+          if !prev { return prev }
+          return {
+            ..prev,
+            pages: prev.pages.map {
+              pageData in
+              ({
+                ..pageData,
+                items: pageData.items.map { f in
+                  if "\(f._id || f.id)" != feedId { return f }
+                  return {
+                    ..f,
+                    isLiked: nextSubscribed,
+                    likeCount: max(0, (f.likeCount ?? 0) + delta),
+                  }
+                },
+              })
+            },
+          }
+        },
+      )
+    }
+
+    applyToggle(!isSubscribed, isSubscribed ? -1 : 1)
+
+    defer { subscribingId = none }
+    do {
+      if isSubscribed {
+        try await customFeedsService.unlikeFeed(feedId)
+      } else {
+        try await customFeedsService.likeFeed(feedId)
+      }
+    } catch {
+      applyToggle(isSubscribed, isSubscribed ? 1 : -1)
+      toast(String(localized: "marketplace.subscribeError"), type: "error")
+    }
+  }
+
+  let categoryPills = [ALL_CATEGORY, ..categories.map { c in c.category }]
+
+  func renderItem(_ arg: { item: MarketplaceFeed }) -> View {
+    let { item } = arg
+    MarketplaceFeedCard(
+      item: item,
+      onSubscribeToggle: handleSubscribeToggle,
+      subscribingId: subscribingId,
+    )
+  }
+
+  func keyExtractor(_ item: MarketplaceFeed) -> String { "\(item._id || item.id)" }
+
+  let ListHeader = VStack {
+    if searchVisible {
+      VStack {
+        Search(Binding(get: search, set: handleSearchChange))
+        .label(String(localized: "marketplace.searchPlaceholder"))
+        .onClearText { handleSearchChange("") }
+        .autoFocus()
+      }
+      .margin(.horizontal, .lg)
+      .margin(.top, .sm)
+      .margin(.bottom, .xs)
+    }
+    RNScrollView(
+      horizontal: true,
+      showsHorizontalScrollIndicator: false,
+      contentContainerStyle: styles.pillsContent,
+      style: classStyles.pills,
+    ) {
+      for cat in categoryPills {
+        let active = cat == activeCategory
+        VStack {
+          RawText(cat)
+          .font("14")
+          .leading("20px")
+          .weight(.medium)
+          .foregroundStyle(active ? .white : .foreground)
+        }
+        .padding(.horizontal, "14")
+        .padding(.vertical, marketTokens.space.pillY)
+        .when(active, { v in v.background("primary") })
+        .when(!active, { v in v.border("border", "thin") })
+        .corner(.xl)
+        .onPress { handleCategoryPress(cat) }
+        .pressFade("70")
+        .id(cat)
+      }
+    }
+    HStack {
+      for opt in SORT_OPTIONS_CONFIG {
+        let active = opt.id == sortBy
+        VStack {
+          RawText(String(localized: opt.labelKey))
+          .font("14")
+          .leading("20px")
+          .weight(active ? .bold : .medium)
+          .foregroundStyle(active ? .primary : .muted)
+          if active {
+            VStack()
+            .frame(height: .xxs)
+            .background(.primary)
+            .corner(.xs, .topLeft)
+            .corner(.xs, .topRight)
+            .position(bottom: .none, left: "25%", right: "25%")
+          }
+        }
+        .flex("1")
+        .align(.center)
+        .padding(.vertical, "10")
+        .onPress { handleSortPress(opt.id) }
+        .pressFade("70")
+        .id(opt.id)
+      }
+    }
+    .margin(.top, .md)
+    .border(.border, .thin, .bottom)
+  }
+
+  let ListEmpty = {
+    if loading { return none }
+    (EmptyState(
+      title: String(localized: "marketplace.emptyTitle"),
+      subtitle: !debouncedSearch.isEmpty ? String(
+        localized: "marketplace.emptySearchSubtitle",
+      ) : String(localized: "marketplace.emptySubtitle"),
+      sticker: "feedStore",
+    ))
+  }()
+
+  let ListFooter = (loadingMore ? ListSkeleton(count: 2) : VStack().frame(height: .xxxl))
+
+  var body: some View {
+    Group {
+      if loading && feeds.count == 0 {
+        ScrollView { for (i, _) in (0..<4).enumerated() { FeedCardSkeleton().id(i) } }
+        .contentView { v in v.padding("horizontal", "lg").padding("top", "lg").spacing("md") }
+      } else if IS_WEB {
+        ScrollView {
+          ListHeader
+          Embed(
+            feeds.count == 0 ? ListEmpty : feeds.map {
+              item in
+              (MarketplaceFeedCard(
+                item: item,
+                onSubscribeToggle: handleSubscribeToggle,
+                subscribingId: subscribingId,
+              ).id(keyExtractor(item)))
+            },
+          )
+          ListFooter
+        }
+        .contentView { v in v.padding("bottom", "3xl") }
+        .onEndReached(handleLoadMore)
+        .keyboardTaps(.handled)
+      } else {
+        VirtualList(feeds, renderItem)
+        .screen()
+        .itemKey(keyExtractor)
+        .headerContent(ListHeader)
+        .emptyState(Embed(ListEmpty))
+        .footerContent(ListFooter)
+        .contentMargins(.bottom, .xxxl)
+        .onEndReached(handleLoadMore, 0.4)
+        .refreshable({ refreshing: refreshing, onRefresh: handleRefresh })
+        .scrollbar(.never)
+        .keyboardTaps(.handled)
+        .scrollDismissesKeyboard(.immediately)
+      }
+    }
+    .header(
+      Header(String(localized: "marketplace.title"))
+        .backLabel(String(localized: "common.back"))
+        .toolbar(
+          Button(Icon(searchVisible ? RiCloseLine : RiSearchLine))
+            .style(.subtle)
+            .tint(.neutral)
+            .shape(.circle)
+            .onPress {
+              let searchVisibleBefore = searchVisible
+              searchVisible = !searchVisible
+              if searchVisibleBefore { handleSearchChange("") }
+            }
+            .label(
+              searchVisible ? String(localized: "common.close") : String(localized: "search.title"),
+            ),
+        )
+        .inPage(),
+    )
+    .modifier(SupervisedFeatureGate())
+    .onDisappear { if let searchTimer = searchTimer.value { clearTimeout(searchTimer) } }
+  }
+}

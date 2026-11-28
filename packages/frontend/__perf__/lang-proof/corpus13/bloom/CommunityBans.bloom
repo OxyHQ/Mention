@@ -1,0 +1,90 @@
+// Printed by bloom migrate from app/(app)/communities/[id]/bans.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { SignInRequired } from "@/components/common/SignInRequired"
+import { ListSkeleton } from "@/components/loading/ContentSkeleton"
+import { CommunitiesPreviewGate } from "@/hooks/CommunitiesPreviewGate.bloom"
+import { useLocalSearchParams } from "@/lib/navigation/router"
+import { viewerQueryKeys } from "@/lib/viewerQueryKeys"
+import { communityService } from "@/services/communityService"
+import { displayNameOrHandle } from "@/utils/displayName"
+import { type CommunityBan } from "@mention/shared-types"
+import { MEDIA_VARIANT_AVATAR } from "@mention/shared-types/post"
+import { toast } from "@oxy.so/bloom/toast"
+import { getNormalizedUserHandle } from "@oxy.so/core"
+import { logger } from "@oxy.so/core/logger"
+import { useAuth } from "@oxy.so/services/ui/client"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+
+/// Who a community's moderators banned from posting in it, and the way to lift a
+/// ban. Bans are made from a post's menu; the server decides who may read or
+/// change this list (`assertCanModerateCommunity`), so a non-moderator sees its
+/// refusal rather than a list.
+public struct CommunityBansScreen: Screen {
+  let queryClient = useQueryClient()
+  let { user, canUsePrivateApi } = useAuth()
+  let { id }: { id: String } = useLocalSearchParams()
+  let communityId = id
+  let queryKey = viewerQueryKeys.communityBans(user?.id, communityId)
+
+  // bloom: review: type arguments `<CommunityBan[]>` dropped from `useQuery(…)`: annotate the binding if tsc needs them
+  let { data: bansOrNone, isLoading, isError } = useQuery(
+    queryKey: queryKey,
+    queryFn: { communityService.bans(communityId) },
+    enabled: canUsePrivateApi && communityId.utf16.count > 0,
+  )
+  let bans = bansOrNone ?? []
+
+  let unban = useMutation(
+    mutationFn: { userId: String in communityService.unban(communityId, userId) },
+    onSuccess: {
+      task { await queryClient.invalidateQueries(queryKey: queryKey) }
+      toast.success(String(localized: "communities.unbanned"))
+    },
+    onError: { error in
+      logger.error("[Communities] Failed to lift a ban", error)
+      toast.error(String(localized: "communities.unbanFailed"))
+    },
+  )
+
+  func renderBan(_ ban: CommunityBan) -> View {
+    let handle = getNormalizedUserHandle(ban.user) ?? ""
+    Row(displayNameOrHandle(ban.user.name?.displayName, !handle.isEmpty ? "@\(handle)" : ""))
+    .leadingView(Avatar(ban.user.avatar, { variant: MEDIA_VARIANT_AVATAR }).size(.lg))
+    .subtitle(ban.reason ?? (!handle.isEmpty ? "@\(handle)" : none))
+    .trailing(
+      Button(Text(String(localized: "communities.unban")))
+        .size(.sm)
+        .style(.subtle)
+        .tint(.neutral)
+        .disabled(unban.isPending)
+        .onPress { unban.mutate(ban.user.id) },
+    )
+    .id(ban.user.id)
+  }
+
+  var body: some View {
+    SignInRequired(label: String(localized: "communities.signInRequired")) {
+      ScrollView {
+        Embed(
+          isLoading ? VStack { ListSkeleton() }.padding(.vertical, .xxxl) : isError ? RawText(
+            String(localized: "communities.bansUnavailable"),
+          )
+            .padding(.horizontal, .lg)
+            .padding(.vertical, .xxl)
+            .foregroundStyle(.muted)
+            .font("14") : bans.count == 0 ? RawText(String(localized: "communities.noBans"))
+            .padding(.horizontal, .lg)
+            .padding(.vertical, .xxl)
+            .foregroundStyle(.muted)
+            .font("14") : bans.map(renderBan),
+        )
+      }
+      .contentView { v in v.padding("bottom", "4xl") }
+    }
+    .header(
+      Header(String(localized: "communities.bansTitle"))
+        .backLabel(String(localized: "common.back"))
+        .inPage(),
+    )
+    .modifier(CommunitiesPreviewGate())
+  }
+}

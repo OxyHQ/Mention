@@ -185,7 +185,38 @@ jest.mock('@/services/customFeedsService', () => ({
       options.mine
         ? { items: mockWorld.myFeeds, total: 0 }
         : { items: mockWorld.publicFeeds, total: 0 },
+    getMarketplace: async () => ({
+      items: mockWorld.publicFeeds,
+      total: mockWorld.publicFeeds.length,
+    }),
+    getMarketplaceCategories: async () => ({ categories: ['tech', 'art'] }),
+    likeFeed: async () => undefined,
+    unlikeFeed: async () => undefined,
   },
+}));
+jest.mock('@/components/payments/CheckoutPreviewBadge', () => ({
+  CheckoutPreviewBadge: mockStub('CheckoutPreviewBadge'),
+}));
+jest.mock('@/components/payments/CheckoutFixtureSheet', () => ({
+  CheckoutFixtureSheet: mockStub('CheckoutFixtureSheet'),
+}));
+jest.mock('@/lib/payments/checkoutPreview', () => ({
+  ...jest.requireActual('@/lib/payments/checkoutPreview'),
+  isLocalCheckoutPreview: () => mockWorld.checkoutPreview,
+}));
+jest.mock('@/components/FeedCard', () => ({
+  FeedCard: mockStub('FeedCard'),
+  FeedCardSkeleton: mockStub('FeedCardSkeleton'),
+}));
+jest.mock('@/components/FeedSubscribeButton', () => ({
+  FeedSubscribeButton: mockStub('FeedSubscribeButton'),
+}));
+jest.mock('@/components/common/SignInRequired', () => ({
+  SignInRequired: mockStub('SignInRequired'),
+}));
+jest.mock('@/services/listsService', () => ({ listsService: { create: async () => ({}) } }));
+jest.mock('@/services/communityService', () => ({
+  communityService: { bans: async () => mockWorld.bans, unban: async () => undefined },
 }));
 jest.mock('@/utils/feedTelemetry', () => ({ reportTrendEvent: () => undefined }));
 jest.mock('@/services/jobsService', () => ({
@@ -317,6 +348,8 @@ const longAgo = new Date(Date.now() - 3 * DAY).toISOString();
 const mockWorld = {
   /** What `useSupervisionState()` answers beyond ready and not supervised. */
   supervision: {} as Record<string, unknown>,
+  bans: [] as unknown[],
+  checkoutPreview: false,
   params: {} as Record<string, string>,
   auth: {} as Record<string, unknown>,
   mediaFeed: {} as Record<string, unknown>,
@@ -545,7 +578,7 @@ const BROKEN: Record<string, string> = {
   ...Object.fromEntries(
     ['fetched', 'reply'].map((state) => [
       `components/Post/PostDetailScreen.tsx/${state}`,
-      "branch-chrome-modifiers: `.testID(\"post-screen\")` on the root Group's drawn branch is not the screen's (lang-mention-16)",
+      'branch-chrome-modifiers: `.testID("post-screen")` on the root Group\'s drawn branch is not the screen\'s (lang-mention-16)',
     ]),
   ),
   'app/(app)/feeds.tsx/supervised':
@@ -1095,6 +1128,137 @@ const CASES: Case[] = [
         },
         before: () => undefined,
         effects: ['<unmount>', 'onClose'],
+      },
+    },
+  },
+  {
+    file: 'app/(app)/feeds/marketplace.tsx',
+    name: 'default',
+    bloomExport: 'FeedMarketplaceScreen',
+    bloomComponent: true,
+    ts: () => require('@/app/(app)/feeds/marketplace'),
+    bloom: () => require('./bloom/FeedMarketplace.bloom'),
+    states: {
+      loaded: {
+        props: {},
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.publicFeeds = [customFeed('f1'), customFeed('f2')];
+        },
+      },
+      empty: {
+        props: {},
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.publicFeeds = [];
+        },
+      },
+      // The gate holds the screen back: its state is drawn instead, with no screen.
+      checking: {
+        props: {},
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.supervision = { ready: false };
+          mockWorld.publicFeeds = [];
+        },
+      },
+    },
+  },
+  {
+    file: 'app/(app)/lists/create.tsx',
+    name: 'default',
+    bloomExport: 'CreateListScreen',
+    bloomComponent: true,
+    ts: () => require('@/app/(app)/lists/create'),
+    bloom: () => require('./bloom/CreateList.bloom'),
+    states: {
+      signedIn: {
+        props: {},
+        before: () => {
+          mockWorld.auth = signedIn();
+        },
+      },
+      signedOut: {
+        props: {},
+        before: () => {
+          mockWorld.auth = {
+            isAuthenticated: false,
+            isAuthResolved: true,
+            canUsePrivateApi: false,
+          };
+        },
+      },
+      checkFailed: {
+        props: {},
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.supervision = { isError: true };
+        },
+      },
+    },
+  },
+  {
+    file: 'app/(app)/communities/[id]/bans.tsx',
+    name: 'default',
+    bloomExport: 'CommunityBansScreen',
+    bloomComponent: true,
+    ts: () => require('@/app/(app)/communities/[id]/bans'),
+    bloom: () => require('./bloom/CommunityBans.bloom'),
+    states: {
+      // A preview account (`nate`) sees the page; anyone else the not-found page, with no screen.
+      bans: {
+        props: {},
+        before: () => {
+          mockWorld.params = { id: 'c1' };
+          mockWorld.auth = { ...signedIn(), user: { id: 'me', username: 'nate' } };
+          mockWorld.bans = [
+            {
+              user: { id: 'u1', username: 'troll', name: { displayName: 'A Troll' } },
+              reason: 'spam',
+              createdAt: '2026-11-01T10:00:00.000Z',
+            },
+          ];
+        },
+      },
+      none: {
+        props: {},
+        before: () => {
+          mockWorld.params = { id: 'c1' };
+          mockWorld.auth = { ...signedIn(), user: { id: 'me', username: 'nate' } };
+          mockWorld.bans = [];
+        },
+      },
+      notInPreview: {
+        props: {},
+        before: () => {
+          mockWorld.params = { id: 'c1' };
+          mockWorld.auth = signedIn();
+          mockWorld.bans = [];
+        },
+      },
+    },
+  },
+  {
+    file: 'components/payments/CheckoutPlaygroundScreen.tsx',
+    name: 'default',
+    bloomExport: 'CheckoutPlaygroundScreen',
+    bloomComponent: true,
+    ts: () => require('@/components/payments/CheckoutPlaygroundScreen'),
+    bloom: () => require('./bloom/CheckoutPlayground.bloom'),
+    states: {
+      // Outside a local checkout preview the route draws its notice and no screen (the
+      // `.bloom` form: its file-local gate's held state, `.ownScreen()`).
+      unavailable: {
+        props: {},
+        before: () => {
+          mockWorld.checkoutPreview = false;
+        },
+      },
+      preview: {
+        props: {},
+        before: () => {
+          mockWorld.checkoutPreview = true;
+        },
       },
     },
   },
