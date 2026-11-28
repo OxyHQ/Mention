@@ -31,6 +31,15 @@ const httpsOrigin = httpsUrl
     }
   }, 'must be a public HTTPS DNS origin without a path, query or port')
   .transform((value) => new URL(value).origin);
+/** A public DNS hostname, compared and stored in lowercase. */
+const dnsHostname = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/,
+    'must be a public DNS hostname without a scheme, port or path',
+  );
 const accountId = z
   .string()
   .min(1)
@@ -48,6 +57,14 @@ export const managedMentionDeploymentSchema = z
     apiBaseUrl: httpsOrigin,
     mcpBaseUrl: httpsOrigin,
     shellBaseUrl: httpsOrigin,
+    /**
+     * The fediverse domain of this instance's accounts (`@user@<domain>`, WebFinger,
+     * every ActivityPub id). Optional: absent, it is `publicBaseUrl`'s hostname, as
+     * it always was. Set it to keep accounts on their domain when the web moves to
+     * another host (docs/mention-org-domain-move.md); the host named must still
+     * serve this instance's WebFinger and ActivityPub paths.
+     */
+    federationDomain: dnsHostname.optional(),
     region: z
       .string()
       .min(1)
@@ -91,6 +108,11 @@ export const managedMentionDeploymentSchema = z
 
 export type ManagedMentionDeployment = z.infer<typeof managedMentionDeploymentSchema>;
 
+/** The deployment's federation domain: `federationDomain`, else the public origin's host. */
+export function deploymentFederationDomain(deployment: ManagedMentionDeployment): string {
+  return deployment.federationDomain ?? new URL(deployment.publicBaseUrl).hostname;
+}
+
 export function readManagedDeployment(
   environment: DeploymentEnvironment,
 ): ManagedMentionDeployment | undefined {
@@ -122,6 +144,7 @@ export function withManagedDeploymentEnvironment(
 ): DeploymentEnvironment {
   const deployment = readManagedDeployment(environment);
   if (!deployment) return environment;
+  const federationDomain = deploymentFederationDomain(deployment);
   const canonical: Record<string, string> = {
     FRONTEND_URL: deployment.publicBaseUrl,
     MENTION_FRONTEND_ORIGIN: deployment.publicBaseUrl,
@@ -131,8 +154,10 @@ export function withManagedDeploymentEnvironment(
     MENTION_API_URL: deployment.apiBaseUrl,
     MENTION_MCP_PUBLIC_URL: deployment.mcpBaseUrl,
     WEB_SHELL_ORIGIN: deployment.shellBaseUrl,
-    FEDERATION_DOMAIN: new URL(deployment.publicBaseUrl).hostname,
-    ACTOR_DOMAIN: new URL(deployment.publicBaseUrl).hostname,
+    // The web origin and the federation domain are separate inputs: they agree
+    // unless the manifest names a `federationDomain`.
+    FEDERATION_DOMAIN: federationDomain,
+    ACTOR_DOMAIN: federationDomain,
     FEDERATION_ENABLED: 'true',
   };
   for (const [key, value] of Object.entries(canonical)) {
@@ -163,7 +188,7 @@ export function publicDeploymentInfo(deployment: ManagedMentionDeployment) {
     mode: deployment.mode,
     publicBaseUrl: deployment.publicBaseUrl,
     apiBaseUrl: deployment.apiBaseUrl,
-    federationDomain: new URL(deployment.publicBaseUrl).hostname,
+    federationDomain: deploymentFederationDomain(deployment),
     mcpBaseUrl: deployment.mcpBaseUrl,
     signupPolicy: deployment.signup.policy,
     branding: { ...deployment.branding },
@@ -213,6 +238,9 @@ export function frontendDeploymentEnvironment(
     EXPO_PUBLIC_API_URL: deployment.apiBaseUrl,
     EXPO_PUBLIC_API_URL_SOCKET: deployment.apiBaseUrl.replace(/^https:/, 'wss:'),
     EXPO_PUBLIC_WEB_BASE_URL: deployment.publicBaseUrl,
+    EXPO_PUBLIC_FEDERATION_DOMAIN: deploymentFederationDomain(deployment),
+    // A managed deployment has no alias hosts (the backend's `none` default).
+    EXPO_PUBLIC_WEB_ALIAS_HOSTS: 'none',
     EXPO_PUBLIC_MCP_URL: deployment.mcpBaseUrl,
     EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI: deployment.publicBaseUrl,
     EXPO_PUBLIC_INSTANCE_NAME: deployment.branding.name,

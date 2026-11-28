@@ -7,6 +7,8 @@ type Endpoints = {
   socket: string;
   web: string;
   redirect: string;
+  federation: string;
+  aliases: string[];
   widget: { apiBaseUrl: string; webBaseUrl: string };
 };
 
@@ -30,7 +32,8 @@ function evaluateConfig(overrides: ConfigOverrides): Endpoints {
     const { expo } = require(${JSON.stringify(path.join(root, 'app.config.js'))})({});
     const widget = expo.plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === './modules/mention-widgets/app.plugin')[1];
     process.stdout.write(JSON.stringify({ preview: client.MENTION_PLUS_UI_PREVIEW, api: client.API_URL, socket: client.API_URL_SOCKET,
-      web: client.WEB_BASE_URL, redirect: client.OXY_AUTH_REDIRECT_URI, widget }));
+      web: client.WEB_BASE_URL, redirect: client.OXY_AUTH_REDIRECT_URI,
+      federation: client.FEDERATION_DOMAIN, aliases: client.WEB_ALIAS_HOSTS, widget }));
   `;
   // `--env-file=/dev/null` is load-bearing, not tidiness. A curated `env` is not
   // enough, because Bun AUTO-LOADS `.env`, `.env.local` and friends from the
@@ -69,15 +72,38 @@ describe('per-deployment frontend endpoint binding', () => {
         socket: `wss://api.${tenant}.example`,
         web,
         redirect: web,
+        // A tenant built without the generator still never claims mention.earth's links.
+        federation: 'mention.earth',
+        aliases: [],
         widget: { apiBaseUrl: api, webBaseUrl: web },
       });
     },
   );
+  it('takes the federation domain and alias hosts a deployment sets', () => {
+    expect(
+      evaluateConfig({
+        NODE_ENV: 'production',
+        EXPO_PUBLIC_WEB_BASE_URL: 'https://social.alpha.example',
+        EXPO_PUBLIC_FEDERATION_DOMAIN: 'Alpha.Example',
+        EXPO_PUBLIC_WEB_ALIAS_HOSTS: 'www.alpha.example',
+      }),
+    ).toMatchObject({ federation: 'alpha.example', aliases: ['www.alpha.example'] });
+    // The flip: the web moves, the handle domain and both hosts stay.
+    expect(
+      evaluateConfig({ NODE_ENV: 'production', EXPO_PUBLIC_WEB_BASE_URL: 'https://mention.org' }),
+    ).toMatchObject({
+      web: 'https://mention.org',
+      federation: 'mention.earth',
+      aliases: ['mention.earth', 'mention.org'],
+    });
+  });
   it('preserves the public production defaults and localhost development fallback', () => {
     expect(evaluateConfig({ NODE_ENV: 'production' })).toMatchObject({
       api: 'https://api.mention.earth',
       socket: 'wss://api.mention.earth',
       web: 'https://mention.earth',
+      federation: 'mention.earth',
+      aliases: ['mention.earth', 'mention.org'],
     });
     expect(evaluateConfig({ NODE_ENV: 'development' })).toMatchObject({
       api: 'http://localhost:4110',

@@ -74,20 +74,25 @@ Required fields:
 | `branding`                                                  | Name, about text, optional logo/icon URLs, accent hex, terms and contact HTTPS URLs                          |
 | `release`                                                   | Deployed version, full Git revision, corresponding source URL and release-channel declaration                |
 
+Optional: `federationDomain`, the fediverse domain of the instance's accounts
+(`@user@<domain>`, WebFinger, ActivityPub ids). Absent, it is `publicBaseUrl`'s
+hostname. Set it to keep accounts on their domain when the web origin moves; that
+host must still serve the instance's WebFinger and ActivityPub paths.
+
 The source revision/channel are deployment metadata, not a scheduler or proof of
 artifact provenance. The future release controller must bind them to the actual
 signed image and publish accessible source for that revision.
 
 The manifest resolves the existing environment inputs:
 
-| Manifest field  | Runtime inputs                                                          |
-| --------------- | ----------------------------------------------------------------------- |
-| public origin   | `FRONTEND_URL`, `MENTION_FRONTEND_ORIGIN`, `MENTION_WEB_ORIGIN`         |
-| API origin      | `MENTION_PUBLIC_API_URL`, `MENTION_API_ORIGIN`, MCP's `MENTION_API_URL` |
-| MCP origin      | `MENTION_MCP_PUBLIC_URL`                                                |
-| shell origin    | `WEB_SHELL_ORIGIN`                                                      |
-| public hostname | `FEDERATION_DOMAIN`, `ACTOR_DOMAIN`                                     |
-| public mode     | `FEDERATION_ENABLED=true`                                               |
+| Manifest field    | Runtime inputs                                                                |
+| ----------------- | ----------------------------------------------------------------------------- |
+| public origin     | `FRONTEND_URL`, `MENTION_FRONTEND_ORIGIN`, `MENTION_WEB_ORIGIN`               |
+| API origin        | `MENTION_PUBLIC_API_URL`, `MENTION_API_ORIGIN`, MCP's `MENTION_API_URL`       |
+| MCP origin        | `MENTION_MCP_PUBLIC_URL`                                                      |
+| shell origin      | `WEB_SHELL_ORIGIN`                                                            |
+| federation domain | `FEDERATION_DOMAIN`, `ACTOR_DOMAIN`, frontend `EXPO_PUBLIC_FEDERATION_DOMAIN` |
+| public mode       | `FEDERATION_ENABLED=true`                                                     |
 
 Explicit environment values that disagree with the manifest fail startup. Remove
 public-instance defaults from a copied `.env.example`; do not silently reuse them.

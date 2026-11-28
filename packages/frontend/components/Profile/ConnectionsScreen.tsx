@@ -34,6 +34,7 @@ import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { shareLink } from '@/utils/shareLink';
+import { webUrl } from '@/utils/webUrl';
 import { getErrorMessage } from '@/utils/apiError';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { fetchProfileConnections } from '@/services/profileConnectionsService';
@@ -332,7 +333,7 @@ function ConnectionsContent({
 
   const getInviteMessage = useCallback(() => {
     const userHandle = user?.username || '';
-    const appUrl = 'https://mention.earth';
+    const appUrl = webUrl('');
     const viewerName = user?.name.displayName ?? 'Someone';
 
     if (userHandle) {
@@ -357,7 +358,7 @@ function ConnectionsContent({
     await shareLink({
       title: t('settings.inviteContacts.inviteTitle', { defaultValue: 'Join me on Mention' }),
       message: inviteMessage,
-      url: 'https://mention.earth',
+      url: webUrl(''),
       copiedToast: t('widgetMenu.linkCopied'),
       errorToast: t('widgetMenu.shareFailed'),
     });

@@ -142,6 +142,12 @@ set the repository variable of that name to `false` and dispatch
 Zone > Cache Purge on mention.earth only, with an expiry (oxy-infra runbook 73
 says how it is created and rotated).
 
+Each web host is purged in its own zone. `CLOUDFLARE_PURGE_ZONES` names them as
+comma-separated `host=zoneId` pairs (`mention.earth=<id>,mention.org=<id>`); unset,
+only the canonical web host is purged, in `CLOUDFLARE_ZONE_ID`, as before. A web host
+without a zone (mention.org today) is skipped and logged once per task. Before a zone is
+listed, the token must be able to purge it (docs/mention-org-domain-move.md, Phase 2).
+
 ## Runtime secrets
 
 SSM Parameter Store is the ONE source of every backend and MCP runtime secret:

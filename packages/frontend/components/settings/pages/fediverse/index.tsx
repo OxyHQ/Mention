@@ -1,7 +1,7 @@
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
-import { WEB_BASE_URL } from '@/config';
+import { FEDERATION_DOMAIN } from '@/config';
 import { useSettingsRouter as useRouter } from '@/context/MentionSettingsContext';
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
@@ -11,6 +11,7 @@ import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { localFederatedHandle } from '@/utils/localFederatedHandle';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
@@ -36,9 +37,9 @@ function FediverseSharingBody() {
   const [sharing, setSharing] = useState<boolean>(user?.fediverseSharing !== false);
   const [pending, setPending] = useState(false);
 
-  const federatedHandle = user?.username
-    ? `@${user.username}@${new URL(WEB_BASE_URL).host}`
-    : undefined;
+  // The federation domain, never the web host: the handle stays
+  // `@user@mention.earth` when the web moves to mention.org.
+  const federatedHandle = user?.username ? localFederatedHandle(user.username) : undefined;
 
   const applyChange = useCallback(
     async (value: boolean) => {

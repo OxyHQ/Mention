@@ -235,6 +235,7 @@ describe('the host gate still decides what the READER sees as a mention', () => 
     // is wider on purpose: it mirrors what the write boundary BUDGETS, not what
     // the reading surface renders.
     expect(ownProfileLinkHandle('https://mention.earth/@alice')).toBe('alice');
+    expect(ownProfileLinkHandle('https://mention.org/@alice')).toBe('alice');
     expect(ownProfileLinkHandle('https://mastodon.social/@alice')).toBeUndefined();
   });
 });

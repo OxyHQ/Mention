@@ -1,4 +1,5 @@
 import { shareLink } from '@/utils/shareLink';
+import { webUrl } from '@/utils/webUrl';
 import { ListSkeleton } from '@/components/loading/ContentSkeleton';
 import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -25,7 +26,7 @@ import {
 } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 
-const APP_URL = 'https://mention.earth';
+const APP_URL = webUrl('');
 
 /** Placeholder rows painted while the first page of recommendations loads. */
 const SKELETON_ROW_COUNT = 8;
