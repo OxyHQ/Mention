@@ -14,6 +14,11 @@
  * corpus in slices: `--shard=k/N` takes the rows whose id hashes to `k` of `N`, and `N` runs can go at
  * once. The small tables are not sharded; shard 0 (or an unsharded run) does them.
  *
+ * The CLI run goes through the backfill throttle (`lib/backfillThrottle.ts`): batches run only
+ * inside the off-peak UTC window (`BACKFILL_WINDOW_UTC`, default 01-07) and back off when they slow
+ * down. A run the throttle stops exits 75 and records its cursor in `admin_script_cursors`
+ * (`throttle-stop:<table>`, or `throttle-stop:<table>/<k>of<N>` for a shard); `--table=<name> --after=<id>` resumes that one table there.
+ *
  *   bun packages/backend/dist/src/scripts/backfillRepostValues.js --dry-run
  *   CONFIRM_ADMIN_MUTATION=backfillRepostValues bun packages/backend/dist/src/scripts/backfillRepostValues.js --shard=0/4
  */
@@ -23,6 +28,12 @@ import { connectPostgres, getDb } from '../db/postgres';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  type BackfillThrottle,
+  backfillExitCode,
+  createBackfillThrottle,
+  fixedPauseThrottle,
+} from './lib/backfillThrottle';
 
 const DEFAULT_BATCH_SIZE = 2000;
 /** Rest between batches, so the load stays a trickle autovacuum and the replicas keep up with. */
@@ -87,6 +98,10 @@ export interface BackfillRepostValuesOptions {
   only?: readonly string[];
   /** Narrow to some ids of each table's `idColumn` (the suites pass their fixtures). */
   ids?: readonly string[];
+  /** Resume strictly after this key; only with exactly one table in `only`. */
+  after?: string;
+  /** Paces the batches. Default: a fixed `pauseMs` rest; the CLI passes the off-peak/backpressure guard. */
+  throttle?: BackfillThrottle;
 }
 
 export type BackfillRepostValuesResult = Record<string, number>;
@@ -134,6 +149,10 @@ export async function backfillRepostValues(
   ) {
     throw new Error(`Invalid shard ${shard.index}/${shard.count}`);
   }
+  if (opts.after !== undefined && opts.only?.length !== 1) {
+    throw new Error('A resume cursor (after) needs exactly one table (only)');
+  }
+  const throttle = opts.throttle ?? fixedPauseThrottle(pauseMs);
   const db = getDb();
   const result: BackfillRepostValuesResult = {};
 
@@ -151,9 +170,12 @@ export async function backfillRepostValues(
         ? sql`and mod(hashtext(${idColumn})::bigint & 2147483647, ${shard.count}) = ${shard.index}`
         : sql``;
 
-    let cursor = '';
+    let cursor = opts.after ?? '';
     let done = 0;
+    const scopeName =
+      shard && target.shardable ? `${target.table}/${shard.index}of${shard.count}` : target.table;
     for (;;) {
+      await throttle.beforeBatch({ cursor: cursor || null, scope: scopeName, scanned: done });
       const page = await db.execute<{ id: string }>(sql`
         select ${idColumn} as id from ${table}
         where ${idColumn} > ${cursor} and ${column} = ${target.from} ${scope} ${shardScope}
@@ -190,7 +212,6 @@ export async function backfillRepostValues(
           )
         `),
       );
-      if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
     }
     result[target.table] = done;
     logger.info('[backfillRepostValues] table done', {
@@ -210,12 +231,34 @@ function shardFromArgs(): { index: number; count: number } | undefined {
   return { index, count };
 }
 
+/** `--name=value` from the command line. */
+function argValue(name: string): string | undefined {
+  const arg = process.argv.find((value) => value.startsWith(`--${name}=`));
+  return arg?.slice(name.length + 3);
+}
+
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   try {
     assertAdminMutationAllowed({ scriptName: 'backfillRepostValues', dryRun });
+    // Built before connecting, so a malformed BACKFILL_* value fails before any work.
+    const throttle = createBackfillThrottle({
+      script: 'backfillRepostValues',
+      pauseMs: DEFAULT_PAUSE_MS,
+      dryRun,
+    });
+    const table = argValue('table');
+    if (table && !REPOST_VALUE_TARGETS.some((target) => target.table === table)) {
+      throw new Error(`Unknown table ${table}`);
+    }
     await connectPostgres();
-    const result = await backfillRepostValues({ dryRun, shard: shardFromArgs() });
+    const result = await backfillRepostValues({
+      dryRun,
+      shard: shardFromArgs(),
+      throttle,
+      ...(table ? { only: [table] } : {}),
+      after: argValue('after'),
+    });
     logger.info('[backfillRepostValues] done', { dryRun, result });
   } catch (error) {
     logger.error('[backfillRepostValues] failed', error);
@@ -228,5 +271,5 @@ async function main(): Promise<void> {
 if (require.main === module) {
   main()
     .then(() => process.exit(0))
-    .catch(() => process.exit(1));
+    .catch((error) => process.exit(backfillExitCode(error)));
 }

@@ -44,7 +44,12 @@ import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import { sleep } from '../utils/sleep';
+import {
+  type BackfillThrottle,
+  backfillExitCode,
+  createBackfillThrottle,
+  fixedPauseThrottle,
+} from './lib/backfillThrottle';
 
 const SCRIPT_NAME = 'backfillPostHashtags';
 
@@ -80,16 +85,17 @@ function listedInRange(after: string, upTo: string) {
  * it in-process against real rows.
  */
 export async function backfillPostHashtags(
-  opts: { dryRun?: boolean; pauseMs?: number } = {},
+  opts: { dryRun?: boolean; pauseMs?: number; throttle?: BackfillThrottle } = {},
 ): Promise<PostHashtagsBackfillResult> {
   const dryRun = opts.dryRun ?? true;
-  const pauseMs = opts.pauseMs ?? PAUSE_MS;
+  const throttle = opts.throttle ?? fixedPauseThrottle(opts.pauseMs ?? PAUSE_MS);
   const startedAt = Date.now();
   const result: PostHashtagsBackfillResult = { postsScanned: 0, postsListed: 0, rowsWritten: 0 };
   let cursor = '';
   let batches = 0;
 
   for (;;) {
+    await throttle.beforeBatch({ cursor: cursor || null, scanned: result.postsScanned });
     const range = await getDb()
       .select({ id: posts.id })
       .from(posts)
@@ -130,7 +136,6 @@ export async function backfillPostHashtags(
     if (batches % PROGRESS_EVERY_BATCHES === 0) {
       logger.info(`[${SCRIPT_NAME}] progress`, { dryRun, ...result });
     }
-    if (pauseMs > 0) await sleep(pauseMs);
   }
 
   logger.info(`[${SCRIPT_NAME}] complete`, {
@@ -144,9 +149,10 @@ export async function backfillPostHashtags(
 async function main(): Promise<void> {
   const dryRun = (process.env.DRY_RUN ?? 'true') !== 'false';
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
+  const throttle = createBackfillThrottle({ script: SCRIPT_NAME, pauseMs: PAUSE_MS, dryRun });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun });
-  await backfillPostHashtags({ dryRun });
+  await backfillPostHashtags({ dryRun, throttle });
 }
 
 if (require.main === module) {
@@ -160,6 +166,6 @@ if (require.main === module) {
         reason: error instanceof Error ? error.message : 'unknown',
       });
       await closeAdminScriptResources().catch(() => undefined);
-      process.exit(1);
+      process.exit(backfillExitCode(error));
     });
 }

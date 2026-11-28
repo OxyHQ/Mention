@@ -38,10 +38,19 @@ import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 import { assertAdminRunComplete, closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  type BackfillThrottle,
+  backfillExitCode,
+  createBackfillThrottle,
+  fixedPauseThrottle,
+} from './lib/backfillThrottle';
 import { typeIsRepost } from '../utils/repostType';
 
 /** Posts scanned per page (stable ascending `id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
+
+/** Rest between pages of a CLI run, so the request path keeps its I/O. */
+const CLI_PAUSE_MS = 100;
 
 export interface BackfillFederatedRepostCountsResult {
   scanned: number;
@@ -55,9 +64,15 @@ export interface BackfillFederatedRepostCountsResult {
  * caller.
  */
 export async function backfillFederatedRepostCounts(
-  opts: { batchSize?: number; dryRun?: boolean; postIds?: readonly string[] } = {},
+  opts: {
+    batchSize?: number;
+    dryRun?: boolean;
+    postIds?: readonly string[];
+    throttle?: BackfillThrottle;
+  } = {},
 ): Promise<BackfillFederatedRepostCountsResult> {
   const pageSize = opts.batchSize ?? DEFAULT_PAGE_SIZE;
+  const throttle = opts.throttle ?? fixedPauseThrottle(0);
   const dryRun = opts.dryRun ?? false;
   /**
    * Optional scope. The CLI never passes one — a corpus backfill is the point —
@@ -79,6 +94,7 @@ export async function backfillFederatedRepostCounts(
   // the stored default, so they are skipped without a write (idempotency). The
   // ascending `id` cursor never revisits a page.
   for (;;) {
+    await throttle.beforeBatch({ cursor: lastId, scanned });
     const cursor: SQL | undefined = lastId ? gt(posts.id, lastId) : undefined;
     const page = await db
       .select({ id: posts.id, federatedBoostsCount: posts.statsFederatedRepostsCount })
@@ -155,10 +171,15 @@ async function main(): Promise<void> {
       scriptName: 'backfillFederatedRepostCounts',
       dryRun,
     });
+    const throttle = createBackfillThrottle({
+      script: 'backfillFederatedRepostCounts',
+      pauseMs: CLI_PAUSE_MS,
+      dryRun,
+    });
     await connectPostgres();
     logger.info('[backfillFederatedRepostCounts] connected to PostgreSQL', { dryRun });
 
-    const result = await backfillFederatedRepostCounts({ dryRun });
+    const result = await backfillFederatedRepostCounts({ dryRun, throttle });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
@@ -181,6 +202,6 @@ if (require.main === module) {
     .then(() => process.exit(0))
     .catch((error) => {
       logger.error('[backfillFederatedRepostCounts] unhandled failure', error);
-      process.exit(1);
+      process.exit(backfillExitCode(error));
     });
 }

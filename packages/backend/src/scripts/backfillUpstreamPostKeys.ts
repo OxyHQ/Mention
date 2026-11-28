@@ -39,7 +39,12 @@ import { keyedMirrorHosts } from '../utils/federation/mirrorTransports';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import { sleep } from '../utils/sleep';
+import {
+  type BackfillThrottle,
+  backfillExitCode,
+  createBackfillThrottle,
+  fixedPauseThrottle,
+} from './lib/backfillThrottle';
 
 const SCRIPT_NAME = 'backfillUpstreamPostKeys';
 
@@ -113,10 +118,10 @@ async function keylessPostsOf(
 
 /** The backfill. The CALLER owns the connection lifecycle, so a test can run it in-process. */
 export async function backfillUpstreamPostKeys(
-  opts: { dryRun?: boolean; pauseMs?: number } = {},
+  opts: { dryRun?: boolean; pauseMs?: number; throttle?: BackfillThrottle } = {},
 ): Promise<UpstreamPostKeyBackfillResult> {
   const dryRun = opts.dryRun ?? true;
-  const pauseMs = opts.pauseMs ?? PAUSE_MS;
+  const throttle = opts.throttle ?? fixedPauseThrottle(opts.pauseMs ?? PAUSE_MS);
   const result: UpstreamPostKeyBackfillResult = {
     actors: 0,
     candidates: 0,
@@ -127,6 +132,7 @@ export async function backfillUpstreamPostKeys(
 
   let after = '';
   for (;;) {
+    await throttle.beforeBatch({ cursor: after || null, scanned: result.actors });
     const actors = await getDb()
       .select({ id: federatedActors.id, uri: federatedActors.uri })
       .from(federatedActors)
@@ -156,7 +162,6 @@ export async function backfillUpstreamPostKeys(
         else result.claimed += 1;
       }
     }
-    if (pauseMs > 0) await sleep(pauseMs);
   }
 
   logger.info(`[${SCRIPT_NAME}] complete`, { dryRun, ...result });
@@ -176,9 +181,10 @@ export function upstreamKeyBackfillExitCode(
 async function main(): Promise<void> {
   const dryRun = (process.env.DRY_RUN ?? 'true') !== 'false';
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
+  const throttle = createBackfillThrottle({ script: SCRIPT_NAME, pauseMs: PAUSE_MS, dryRun });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun });
-  const result = await backfillUpstreamPostKeys({ dryRun });
+  const result = await backfillUpstreamPostKeys({ dryRun, throttle });
   process.exitCode = upstreamKeyBackfillExitCode(result);
 }
 
@@ -193,6 +199,6 @@ if (require.main === module) {
         reason: error instanceof Error ? error.message : 'unknown',
       });
       await closeAdminScriptResources().catch(() => undefined);
-      process.exit(1);
+      process.exit(backfillExitCode(error));
     });
 }

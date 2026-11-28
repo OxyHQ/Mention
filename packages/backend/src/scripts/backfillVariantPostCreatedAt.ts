@@ -42,7 +42,12 @@ import { connectPostgres, getDb } from '../db/postgres';
 import { logger } from '../utils/logger';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
-import { sleep } from '../utils/sleep';
+import {
+  type BackfillThrottle,
+  backfillExitCode,
+  createBackfillThrottle,
+  fixedPauseThrottle,
+} from './lib/backfillThrottle';
 
 const SCRIPT_NAME = 'backfillVariantPostCreatedAt';
 
@@ -108,11 +113,16 @@ async function ensureIndex(): Promise<boolean> {
 
 /** The backfill. The CALLER owns the connection lifecycle, so a test can run it in-process. */
 export async function backfillVariantPostCreatedAt(
-  opts: { dryRun?: boolean; batchSize?: number; pauseMs?: number } = {},
+  opts: {
+    dryRun?: boolean;
+    batchSize?: number;
+    pauseMs?: number;
+    throttle?: BackfillThrottle;
+  } = {},
 ): Promise<VariantPostCreatedAtBackfillResult> {
   const dryRun = opts.dryRun ?? true;
   const batchSize = opts.batchSize ?? BATCH_SIZE;
-  const pauseMs = opts.pauseMs ?? PAUSE_MS;
+  const throttle = opts.throttle ?? fixedPauseThrottle(opts.pauseMs ?? PAUSE_MS);
   const startedAt = Date.now();
 
   const candidates = await countCandidates();
@@ -129,6 +139,7 @@ export async function backfillVariantPostCreatedAt(
   let after = '';
   let batches = 0;
   for (;;) {
+    await throttle.beforeBatch({ cursor: after || null, scanned: result.written });
     const page = await getDb().execute<{ id: string }>(sql`
       select id from post_content_variants
       where id > ${after}
@@ -155,7 +166,6 @@ export async function backfillVariantPostCreatedAt(
     if (batches % PROGRESS_EVERY_BATCHES === 0) {
       logger.info(`[${SCRIPT_NAME}] progress`, { written: result.written, candidates, after });
     }
-    if (pauseMs > 0) await sleep(pauseMs);
   }
 
   result.indexValid = await ensureIndex();
@@ -172,9 +182,10 @@ export async function backfillVariantPostCreatedAt(
 async function main(): Promise<void> {
   const dryRun = (process.env.DRY_RUN ?? 'true') !== 'false';
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
+  const throttle = createBackfillThrottle({ script: SCRIPT_NAME, pauseMs: PAUSE_MS, dryRun });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun });
-  await backfillVariantPostCreatedAt({ dryRun });
+  await backfillVariantPostCreatedAt({ dryRun, throttle });
 }
 
 if (require.main === module) {
@@ -188,6 +199,6 @@ if (require.main === module) {
         reason: error instanceof Error ? error.message : 'unknown',
       });
       await closeAdminScriptResources().catch(() => undefined);
-      process.exit(1);
+      process.exit(backfillExitCode(error));
     });
 }
