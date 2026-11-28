@@ -16,7 +16,7 @@ import {
 import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
 import Animated from 'react-native-reanimated';
-import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import {
   Screen,
   ScreenPager,
@@ -1812,141 +1812,135 @@ export default function VideosScreen() {
         robots="index,follow"
       />
       {/* The reel is a dark surface: its header and controls render dark over it. */}
-      <BloomColorScope mode="dark" asChild>
-        <Screen
-          reselect={{
-            isAtTop: () => currentVisibleIndex === 0,
-            scrollToTop: scrollReelToTop,
-            refresh: handleRetry,
-          }}
-          scroll="auto"
-          headerPlacement="overlay"
-          contentClearance={0}
-          testID="videos-screen"
-          style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
-          header={
-            <PageHeader
-              testID="videos-header"
-              titleAlign="center"
-              presentation="floating"
-              scrim="always"
-              scrimColor="#000000"
-              scrimFalloff="linear"
-              tone="onImage"
-              onBack={inDeck ? undefined : null}
-              actions={
-                <Button
-                  appearance="subtle"
-                  tone="neutral"
-                  iconOnly
-                  leadingIcon={RiVideoLine}
-                  accessibilityLabel={t('videos.upload', { defaultValue: 'Upload video' })}
-                  onPress={() => router.push('/video-upload')}
-                />
-              }
-              title={<VideoFeedTabs value={activeFeed} onValueChange={handleSelectFeed} />}
-            />
+      <Screen
+        reselect={{
+          isAtTop: () => currentVisibleIndex === 0,
+          scrollToTop: scrollReelToTop,
+          refresh: handleRetry,
+        }}
+        scroll="auto"
+        headerPlacement="overlay"
+        contentClearance={0}
+        testID="videos-screen"
+        style={{ backgroundColor: posts.length === 0 ? theme.colors.background : '#000000' }}
+        header={
+          <PageHeader
+            testID="videos-header"
+            titleAlign="center"
+            presentation="floating"
+            scrim="always"
+            scrimColor="#000000"
+            scrimFalloff="linear"
+            tone="onImage"
+            onBack={inDeck ? undefined : null}
+            actions={
+              <Button
+                appearance="subtle"
+                tone="neutral"
+                iconOnly
+                leadingIcon={RiVideoLine}
+                accessibilityLabel={t('videos.upload', { defaultValue: 'Upload video' })}
+                onPress={() => router.push('/video-upload')}
+              />
+            }
+            title={<VideoFeedTabs value={activeFeed} onValueChange={handleSelectFeed} />}
+          />
+        }
+      >
+        <View
+          className="w-full native:flex-1"
+          onLayout={
+            Platform.OS === 'web'
+              ? undefined
+              : (event) => setViewportHeight(event.nativeEvent.layout.height)
           }
         >
-          <View
-            className="w-full native:flex-1"
-            onLayout={
-              Platform.OS === 'web'
-                ? undefined
-                : (event) => setViewportHeight(event.nativeEvent.layout.height)
-            }
-          >
-            {/* The reel publishes its own viewability (the snapped slide) to the
-                    playback authority. A context provider renders no view, so the
-                    slides' layout is untouched. */}
-            {posts.length > 0 && (
-              <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
-                {Platform.OS === 'web' ? (
-                  <ScreenPager
-                    key={sessionId}
-                    ref={pagerRef}
-                    data={posts}
-                    keyExtractor={keyExtractor}
-                    renderRadius={WEB_RENDER_RADIUS}
-                    onIndexChange={setCurrentVisibleIndex}
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={2}
-                    renderItem={({ item, index, viewportHeight }) => (
-                      <VideoItem
-                        item={item}
-                        isActive={index === currentVisibleIndex}
-                        // See the native path: the session's owner keeps its player.
-                        isNear={isSlideNear(
-                          index,
-                          currentVisibleIndex,
-                          activeRadius,
-                          item.id === pipOwnerId,
-                          isFocused,
-                        )}
-                        onBufferAhead={handleBufferAhead}
-                        screenFocused={isFocused}
-                        theme={theme}
-                        onLike={handleLike}
-                        onComment={handleComment}
-                        onQuote={handleQuote}
-                        onRepost={handleRepost}
-                        onSave={handleSave}
-                        onShare={handleShare}
-                        onSendInAllo={interactions.sendInAllo}
-                        muted={globalMuted}
-                        onMutedChange={handleMuteChange}
-                        t={t}
-                        windowHeight={viewportHeight}
-                        viewerId={viewerId}
-                        ownsSession={item.id === pipOwnerId}
-                        sessionActive={pipOwnerId !== null}
-                        sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
-                        onSessionStart={startPipSession}
-                        onSessionEnd={endPipSession}
-                        onRegisterTransportSeek={registerTransportSeek}
-                      />
-                    )}
-                  />
-                ) : WINDOW_HEIGHT > 0 ? (
-                  <FlatList
-                    key={sessionId}
-                    ref={flatListRef}
-                    data={posts}
-                    renderItem={renderVideoItem}
-                    keyExtractor={keyExtractor}
-                    pagingEnabled
-                    snapToInterval={WINDOW_HEIGHT}
-                    snapToAlignment="start"
-                    decelerationRate="fast"
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
-                    onViewableItemsChanged={handleViewableItemsChanged}
-                    viewabilityConfig={VIEWABILITY_CONFIG}
-                    showsVerticalScrollIndicator={false}
-                    removeClippedSubviews
-                    maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
-                    windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
-                    initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
-                    style={styles.list}
-                    contentContainerStyle={styles.listContent}
-                    contentInsetAdjustmentBehavior="never"
-                    getItemLayout={getItemLayout}
-                  />
-                ) : null}
-              </VideoViewabilityProvider>
-            )}
+          {/* The reel publishes its own viewability (the snapped slide) to the
+                  playback authority. A context provider renders no view, so the
+                  slides' layout is untouched. */}
+          {posts.length > 0 && (
+            <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
+              {Platform.OS === 'web' ? (
+                <ScreenPager
+                  key={sessionId}
+                  ref={pagerRef}
+                  data={posts}
+                  keyExtractor={keyExtractor}
+                  renderRadius={WEB_RENDER_RADIUS}
+                  onIndexChange={setCurrentVisibleIndex}
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={2}
+                  renderItem={({ item, index, viewportHeight }) => (
+                    <VideoItem
+                      item={item}
+                      isActive={index === currentVisibleIndex}
+                      // See the native path: the session's owner keeps its player.
+                      isNear={isSlideNear(
+                        index,
+                        currentVisibleIndex,
+                        activeRadius,
+                        item.id === pipOwnerId,
+                        isFocused,
+                      )}
+                      onBufferAhead={handleBufferAhead}
+                      screenFocused={isFocused}
+                      theme={theme}
+                      onLike={handleLike}
+                      onComment={handleComment}
+                      onQuote={handleQuote}
+                      onRepost={handleRepost}
+                      onSave={handleSave}
+                      onShare={handleShare}
+                      onSendInAllo={interactions.sendInAllo}
+                      muted={globalMuted}
+                      onMutedChange={handleMuteChange}
+                      t={t}
+                      windowHeight={viewportHeight}
+                      viewerId={viewerId}
+                      ownsSession={item.id === pipOwnerId}
+                      sessionActive={pipOwnerId !== null}
+                      sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
+                      onSessionStart={startPipSession}
+                      onSessionEnd={endPipSession}
+                      onRegisterTransportSeek={registerTransportSeek}
+                    />
+                  )}
+                />
+              ) : WINDOW_HEIGHT > 0 ? (
+                <FlatList
+                  key={sessionId}
+                  ref={flatListRef}
+                  data={posts}
+                  renderItem={renderVideoItem}
+                  keyExtractor={keyExtractor}
+                  pagingEnabled
+                  snapToInterval={WINDOW_HEIGHT}
+                  snapToAlignment="start"
+                  decelerationRate="fast"
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
+                  onViewableItemsChanged={handleViewableItemsChanged}
+                  viewabilityConfig={VIEWABILITY_CONFIG}
+                  showsVerticalScrollIndicator={false}
+                  removeClippedSubviews
+                  maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
+                  windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
+                  initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
+                  style={styles.list}
+                  contentContainerStyle={styles.listContent}
+                  contentInsetAdjustmentBehavior="never"
+                  getItemLayout={getItemLayout}
+                />
+              ) : null}
+            </VideoViewabilityProvider>
+          )}
 
-            {posts.length === 0 && (
-              <VideoStatus
-                isLoading={isLoading}
-                hasLoadError={hasLoadError}
-                onRetry={handleRetry}
-              />
-            )}
-            {loadingMore && <VideoLoadingMore />}
-          </View>
-        </Screen>
-      </BloomColorScope>
+          {posts.length === 0 && (
+            <VideoStatus isLoading={isLoading} hasLoadError={hasLoadError} onRetry={handleRetry} />
+          )}
+          {loadingMore && <VideoLoadingMore />}
+        </View>
+      </Screen>
     </>
   );
 }
