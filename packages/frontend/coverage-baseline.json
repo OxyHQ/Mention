@@ -76,6 +76,7 @@
     "hooks/useMentionColorViewer.ts": {"statements":[27,28],"branches":[24,25],"functions":[7,7],"lines":[22,23]},
     "hooks/useMentionSearchResults.ts": {"statements":[24,24],"branches":[13,14],"functions":[4,4],"lines":[19,19]},
     "hooks/useMutualFollowers.ts": {"statements":[0,17],"branches":[0,13],"functions":[0,3],"lines":[0,16]},
+    "hooks/useNewPosts.ts": {"statements":[62,64],"branches":[31,39],"functions":[15,15],"lines":[52,52]},
     "hooks/useNotificationFilter.ts": {"statements":[8,8],"branches":[12,12],"functions":[3,3],"lines":[7,7]},
     "hooks/useOpenInAllo.tsx": {"statements":[8,11],"branches":[0,0],"functions":[6,9],"lines":[8,11]},
     "hooks/useOptimizedMediaQuery.ts": {"statements":[0,2],"branches":[0,0],"functions":[0,2],"lines":[0,2]},

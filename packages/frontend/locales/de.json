@@ -2066,6 +2066,9 @@
   },
   "feed": {
     "caughtUp": "Du bist auf dem neuesten Stand.",
+    "newPosts_one": "{{count}} neuer Beitrag",
+    "newPosts_other": "{{count}} neue Beiträge",
+    "newPostsOverflow": "{{count}}+ neue Beiträge",
     "empty": {
       "title": "Beiträge konnten nicht geladen werden",
       "message": "Beim Laden deines Feeds ist etwas schiefgelaufen. Zieh nach unten, um zu aktualisieren, oder tippe unten auf die Schaltfläche, um es erneut zu versuchen."

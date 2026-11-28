@@ -2086,6 +2086,10 @@
   },
   "feed": {
     "caughtUp": "Ya estás al día.",
+    "newPosts_one": "{{count}} post nuevo",
+    "newPosts_many": "{{count}} posts nuevos",
+    "newPosts_other": "{{count}} posts nuevos",
+    "newPostsOverflow": "{{count}}+ posts nuevos",
     "empty": {
       "title": "No se pudieron cargar las publicaciones",
       "message": "Algo salió mal al cargar tu feed. Desliza hacia abajo para actualizar o toca el botón de abajo para intentar de nuevo."

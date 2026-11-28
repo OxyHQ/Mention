@@ -24,6 +24,8 @@ jest.mock('../feedRows', () => ({
   feedRowKey: (row: { id?: string; item?: { id: string } }) => row.item?.id ?? row.id,
   renderFeedRow: () => null,
 }));
+jest.mock('../NewPostsPill', () => ({ NewPostsPill: () => null }));
+jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 0 }));
 jest.mock('../useFeedCore', () => ({
   FeedErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
   areFeedPropsEqual: () => false,
@@ -32,6 +34,7 @@ jest.mock('../useFeedCore', () => ({
     theme: { colors: { border: 'gray' } },
     feedRows: mockRows,
     feedState: { hasMore: false, feedScrollKey: 'following' },
+    newPosts: { count: 0, overflow: false, dismiss: () => {} },
     impressionTracker: mockTracker,
   }),
 }));

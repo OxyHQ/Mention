@@ -8,6 +8,8 @@ import { getItemKey } from '@/utils/feedUtils';
 import { renderFeedRow, feedRowKey, type FeedRow } from './feedRows';
 import { recordBootMilestone } from '@/lib/webTelemetry';
 import { type FeedProps, FeedErrorBoundary, areFeedPropsEqual, useFeedCore } from './useFeedCore';
+import { NewPostsPill } from './NewPostsPill';
+import { useHeaderDockInset } from '@oxy.so/bloom/layout';
 
 // Estimated row height (px) before a row is measured. Post rows vary widely
 // (text-only vs. media vs. threads), so this is only the first-paint guess; the
@@ -20,6 +22,9 @@ const ESTIMATED_ROW_HEIGHT = 400;
 // the DOM never holds the whole feed — the whole point of virtualizing on web.
 // Rows are tall, so three on each side is already a screen or more.
 const OVERSCAN_ROWS = 3;
+
+/** Air between the header and the "new posts" pill. */
+const NEW_POSTS_PILL_GAP = 8;
 
 // The next page is requested two viewports before the reader reaches the end: a
 // feed page runs the whole gather-rank-hydrate pipeline server-side, and at one
@@ -110,10 +115,18 @@ function VirtualizedWebFeed(props: FeedProps) {
     feedState,
     feedRows,
     handleLoadMore,
+    handleRefresh,
+    newPosts,
     feedDescriptor,
     impressionTracker,
     receivesOwnNewPost,
   } = core;
+  const headerDockInset = useHeaderDockInset();
+  const showNewPosts = useCallback(() => {
+    newPosts.dismiss();
+    scrollToTop();
+    void handleRefresh();
+  }, [newPosts, scrollToTop, handleRefresh]);
 
   // Per-row impression observer. ONE IntersectionObserver (threshold 50%) watches
   // every mounted post row against the viewport (the implicit root clips through
@@ -197,6 +210,24 @@ function VirtualizedWebFeed(props: FeedProps) {
 
   return (
     <FeedErrorBoundary>
+      {newPosts.count > 0 ? (
+        // A zero-height sticky line: the pill follows the reader down the
+        // document without taking room from the list.
+        <div
+          style={{
+            position: 'sticky',
+            top: headerDockInset + NEW_POSTS_PILL_GAP,
+            height: 0,
+            zIndex: 1,
+          }}
+        >
+          <NewPostsPill
+            count={newPosts.count}
+            overflow={newPosts.overflow}
+            onPress={showNewPosts}
+          />
+        </div>
+      ) : null}
       <VirtualList
         ref={listRef}
         restorationKey={feedState.feedScrollKey}

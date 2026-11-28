@@ -2066,6 +2066,9 @@
   },
   "feed": {
     "caughtUp": "Hepsini gördün.",
+    "newPosts_one": "{{count}} yeni gönderi",
+    "newPosts_other": "{{count}} yeni gönderi",
+    "newPostsOverflow": "{{count}}+ yeni gönderi",
     "empty": {
       "title": "Gönderiler yüklenemedi",
       "message": "Akışın yüklenirken bir şeyler ters gitti. Yenilemek için aşağı çek veya tekrar denemek için aşağıdaki düğmeye dokun."
