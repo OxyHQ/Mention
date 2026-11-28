@@ -5,9 +5,10 @@
  * `CHROME_HIDDEN_BY_PAGE` never hid the bar for it: the tab bar and the compose
  * FAB sat on the reply composer's own footer (#1140). `/write`, the composer
  * TAB, is not listed: it is a pager page, and the bar fades out over it with
- * the swipe.
+ * the swipe. `/signup` owns its own Create account and Sign in actions; the
+ * anonymous invitation would stack a second copy of them over that page.
  */
-const FULL_SCREEN_ROUTES = ['/compose', '/welcome'] as const;
+const FULL_SCREEN_ROUTES = ['/compose', '/welcome', '/signup'] as const;
 
 export function hidesBottomBar(pathname: string | null | undefined): boolean {
   if (!pathname) return false;

@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { View } from 'react-native';
 import { createStore, useStore, type StoreApi } from 'zustand';
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
+import { useOptionalPanelRouter } from '@oxy.so/bloom/panel-routing';
 import { Screen } from '@oxy.so/bloom/screen';
 import { useRouter } from '@/lib/navigation/router';
 import { WatchPlaybackVideo, type WatchPlaybackSource } from './WatchPlaybackVideo';
@@ -58,7 +59,11 @@ export function WatchPlayerSurface({
   canContinue,
   children,
 }: WatchPlayerSurfaceProps) {
-  const playback = useContext(WatchPlaybackContext);
+  const shared = useContext(WatchPlaybackContext);
+  // A Deck column navigates on its own history, which the shared host never
+  // sees: it would drop the session. The column draws its own player.
+  const inColumn = Boolean(useOptionalPanelRouter());
+  const playback = inColumn ? null : shared;
   const [node, setNode] = useState<HTMLDivElement | null>(null);
   const {
     post: { id: postId },
@@ -102,7 +107,11 @@ export function WatchPlayerSurface({
       data-testid="watch-player-inline"
       className="flex aspect-video w-full flex-col items-center justify-center overflow-hidden rounded-2xl bg-black"
     >
-      {concealed ? children : !playback ? <WatchPlaybackVideo video={video} /> : null}
+      {concealed ? (
+        children
+      ) : !playback && (focused || !inColumn) ? (
+        <WatchPlaybackVideo video={video} />
+      ) : null}
     </div>
   );
 }

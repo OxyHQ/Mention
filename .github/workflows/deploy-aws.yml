@@ -298,13 +298,20 @@ jobs:
           # (oxy-mention:505, 2026-10-10). The connector stays inert until
           # vars.INSTAGRAM_GRAPH_ENABLED is true. A NEW secret follows the same
           # order: write the parameter first, then name it here.
+          #
+          # CLOUDFLARE_PURGE_TOKEN: purges a post's page from Cloudflare's edge
+          # when it stops being public or changes (backend
+          # services/webshell/postPageEdgePurge.ts). Scoped to Zone > Cache Purge
+          # on mention.earth only, with an expiry; created, stored and rotated per
+          # oxy-infra runbook 73. The parameter was written before this line was.
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL",
              "MENTION_SHELL_ACCESS_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_SHELL_ACCESS_KEY",
              "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET",
              "META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_GRAPH_ACCESS_TOKEN",
-             "META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_IG_BUSINESS_ACCOUNT_ID"}
+             "META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/META_IG_BUSINESS_ACCOUNT_ID",
+             "CLOUDFLARE_PURGE_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CLOUDFLARE_PURGE_TOKEN"}
           # Provider credentials never enter this task, and neither does a
           # routing input: Mention asks Kaana for the `instant` power level, a
           # code constant (utils/inference.ts), and Oxy's grant decides the rest.
@@ -337,13 +344,15 @@ jobs:
           # Set: validated against the backend's config schema and rendered.
           # Unset: REMOVED from the revision, so the code default applies —
           # Instagram off, Graph v23.0, backfill 50, federated media deletion
-          # ON. The Instagram connector additionally stays
-          # inert until both credentials are present.
+          # ON, post-page edge purge ON. The Instagram connector additionally
+          # stays inert until both credentials are present, and the edge purge
+          # until CLOUDFLARE_PURGE_TOKEN is.
           OPTIONAL_TASK_ENV: >-
             INSTAGRAM_GRAPH_ENABLED
             META_GRAPH_API_VERSION
             INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT
             FEDERATED_MEDIA_DELETE_ENABLED
+            EDGE_CACHE_PURGE_ENABLED
             APPLE_TEAM_ID
             ANDROID_APP_SIGNING_SHA256
           OPTIONAL_ENV_APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
@@ -352,6 +361,7 @@ jobs:
           OPTIONAL_ENV_META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
           OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT: ${{ vars.INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT }}
           OPTIONAL_ENV_FEDERATED_MEDIA_DELETE_ENABLED: ${{ vars.FEDERATED_MEDIA_DELETE_ENABLED }}
+          OPTIONAL_ENV_EDGE_CACHE_PURGE_ENABLED: ${{ vars.EDGE_CACHE_PURGE_ENABLED }}
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.

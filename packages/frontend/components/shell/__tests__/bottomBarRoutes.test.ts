@@ -8,6 +8,13 @@ describe('hidesBottomBar', () => {
 
   // The first-run flow owns its own Back/Next footer: the tab bar and the
   // sign-in invitation stacked under it (the wizard's footer was covered).
+  it('hides the invitation over the shareable signup page', () => {
+    expect(hidesBottomBar('/signup')).toBe(true);
+    expect(
+      bottomBarContent({ pathname: '/signup', isAuthenticated: false, isAuthResolved: true }),
+    ).toBeNull();
+  });
+
   it('hides the bar over the first-run welcome flow', () => {
     expect(hidesBottomBar('/welcome')).toBe(true);
     expect(

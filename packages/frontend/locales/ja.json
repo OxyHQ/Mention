@@ -3533,9 +3533,13 @@
       "withOxy": "Oxyでログイン"
     },
     "banner": {
+      "createAccount": "アカウントを作成",
       "signIn": "ログイン",
       "title": "いま起きていることを見逃さない",
       "subtitle": "Mentionのみんなが、いちばん早く知っています。"
+    },
+    "gate": {
+      "title": "続きを見るには無料アカウントを作成"
     }
   },
   "welcome": {

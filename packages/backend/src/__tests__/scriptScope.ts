@@ -179,6 +179,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'Walks every rendition by primary key and rewrites post_created_at wherever it disagrees ' +
       'with the post, then builds an index concurrently.',
   },
+  pruneFederatedRetention: {
+    scope: 'whole-table',
+    reason:
+      'Walks every public post older than its cutoff by (created_at, id) and deletes the ' +
+      'federated ones nothing here depends on; drains the table-wide follow-edge expiry.',
+  },
   backfillPostLanguages: {
     scope: 'whole-table',
     reason: 'Its own docblock: "takes no scope — by design, it is a one-shot over" the table.',

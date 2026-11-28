@@ -64,6 +64,13 @@ export const SUBSCRIBER_NOTIFICATION_QUEUE = 'subscriber-notifications';
  */
 export const ACCOUNT_ERASURE_QUEUE = 'account-erasure';
 
+/**
+ * Purge Mention's public post pages (`/p/<id>`) from Cloudflare's edge cache
+ * after a post stops being public or changes, and sweep an author's pages when
+ * the author is hidden (`services/webshell/postPageEdgePurge.ts`).
+ */
+export const POST_PAGE_EDGE_PURGE_QUEUE = 'post-page-edge-purge';
+
 // --- Inbox worker tunables --------------------------------------------------
 
 /**
@@ -321,3 +328,46 @@ export const SUBSCRIBER_NOTIFICATION_BACKOFF_BASE_MS = 15 * MS_PER_SECOND;
 export const SUBSCRIBER_NOTIFICATION_WORKER_CONCURRENCY = 2;
 export const SUBSCRIBER_NOTIFICATION_REMOVE_ON_COMPLETE_COUNT = 500;
 export const SUBSCRIBER_NOTIFICATION_REMOVE_ON_FAIL_COUNT = 2000;
+
+// --- Post-page edge purge worker tunables ------------------------------------
+
+/**
+ * 1 initial + 7 retries, exponential from 5 s: 5, 10, 20, 40, 80, 160, 320 s,
+ * about ten minutes in all. Past that the page has long expired from the edge
+ * on its own (`s-maxage=300`), so a later retry would purge nothing.
+ */
+export const POST_PAGE_EDGE_PURGE_JOB_ATTEMPTS = 8;
+export const POST_PAGE_EDGE_PURGE_BACKOFF_BASE_MS = 5 * MS_PER_SECOND;
+
+/**
+ * A purge waits this long after the commit that caused it, and the worker
+ * evicts the origin's own caches again first: a read that loaded the old row
+ * just before the commit may have re-cached it, and the edge refills from the
+ * origin the moment a page is purged.
+ */
+export const POST_PAGE_EDGE_PURGE_DELAY_MS = 2 * MS_PER_SECOND;
+
+/**
+ * An author check waits for every task to apply the Oxy invalidation that
+ * caused it (each evicts its own SDK response cache), so the visibility it
+ * re-asks is the new one.
+ */
+export const POST_PAGE_EDGE_PURGE_AUTHOR_DELAY_MS = 5 * MS_PER_SECOND;
+
+/**
+ * At most 2 Cloudflare calls a second across the fleet (BullMQ's limiter is
+ * per queue, not per worker): 600 per 5 minutes, half of Cloudflare's
+ * 1,200-per-5-minutes API budget, which other automation shares. Each call
+ * purges up to 30 URLs, so a sweep moves 30 posts a second.
+ */
+export const POST_PAGE_EDGE_PURGE_RATE_MAX = 2;
+export const POST_PAGE_EDGE_PURGE_RATE_DURATION_MS = MS_PER_SECOND;
+export const POST_PAGE_EDGE_PURGE_WORKER_CONCURRENCY = 2;
+
+/** BullMQ priorities (1 is first): a person's own action never waits behind a sweep. */
+export const POST_PAGE_EDGE_PURGE_PRIORITY_ACTION = 1;
+export const POST_PAGE_EDGE_PURGE_PRIORITY_AUTHOR = 2;
+export const POST_PAGE_EDGE_PURGE_PRIORITY_SWEEP = 5;
+
+export const POST_PAGE_EDGE_PURGE_REMOVE_ON_COMPLETE_COUNT = 500;
+export const POST_PAGE_EDGE_PURGE_REMOVE_ON_FAIL_COUNT = 2000;

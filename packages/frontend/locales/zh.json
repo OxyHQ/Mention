@@ -3533,9 +3533,13 @@
       "withOxy": "使用 Oxy 登录"
     },
     "banner": {
+      "createAccount": "创建帐户",
       "signIn": "登录",
       "title": "不错过正在发生的一切",
       "subtitle": "Mention 上的用户总是第一时间知晓。"
+    },
+    "gate": {
+      "title": "创建免费帐户以查看更多内容"
     }
   },
   "welcome": {

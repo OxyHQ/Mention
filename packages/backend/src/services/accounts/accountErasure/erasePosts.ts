@@ -50,6 +50,8 @@ import {
 import { reevaluateClusters } from '../../posts/PostEquivalenceService';
 import { recomputeRecentRepliers } from '../../posts/PostRecentReplierService';
 import { invalidate as invalidatePostDetail } from '../../posts/postDetailCache';
+import { purgePostPages } from '../../webshell/postPageEdgePurge';
+import { findDependentPostIds } from '../../webshell/postPageDependents';
 import { logger } from '../../../utils/logger';
 import { ownedBySql } from '../../../utils/postAuthorship';
 import { ERASURE_REPOST_CHUNK, ERASURE_POST_BATCH } from './erasureLimits';
@@ -139,6 +141,7 @@ async function repostLevels(seedIds: readonly string[]): Promise<CascadedPostRow
  */
 async function deleteRepostChunk(rows: readonly CascadedPostRow[]): Promise<number> {
   const ids = rows.map((row) => row.id);
+  const dependentPageIds = await findDependentPostIds(ids);
   let removed = 0;
   await getDb().transaction(async (tx) => {
     await cascadePostReferences(rows, tx);
@@ -150,6 +153,7 @@ async function deleteRepostChunk(rows: readonly CascadedPostRow[]): Promise<numb
     removed = deleted.length;
   });
   for (const id of ids) await invalidatePostDetail(id);
+  await purgePostPages([...ids, ...dependentPageIds], 'author_erased', { priority: 'sweep' });
   return removed;
 }
 
@@ -288,6 +292,8 @@ export async function eraseAccountPosts(
       removed,
     );
 
+    // Surviving quotes and parents repeat these posts; the delete unlinks them.
+    const dependentPageIds = await findDependentPostIds(allIds);
     let clusterIds: string[] = [];
     await db.transaction(async (tx) => {
       clusterIds = await findClusterIdsForPosts(allIds, tx);
@@ -332,6 +338,10 @@ export async function eraseAccountPosts(
       }
     }
     for (const id of allIds) await invalidatePostDetail(id);
+    // This batch's pages (the account's posts and the boosts of them), and the
+    // pages that repeated them, leave Cloudflare's edge after the commit.
+    // Never throws.
+    await purgePostPages([...allIds, ...dependentPageIds], 'author_erased', { priority: 'sweep' });
 
     const residue = await collectPostCascadeResidue(targetsOf(rows), [
       ...CASCADED_POST_REFERENCES,

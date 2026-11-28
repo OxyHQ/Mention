@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
   publishAliasChange: vi.fn(),
+  scheduleAuthorPostPagePurge: vi.fn(),
 }));
 
 vi.mock('../utils/redis', () => ({
@@ -76,6 +77,10 @@ vi.mock('../services/accounts/oxyAuthorVisibilityCache', () => ({
 
 vi.mock('../services/federation/aliasPublication', () => ({
   publishAliasChange: mocks.publishAliasChange,
+}));
+
+vi.mock('../services/webshell/postPageEdgePurge', () => ({
+  scheduleAuthorPostPagePurge: mocks.scheduleAuthorPostPagePurge,
 }));
 
 vi.mock('../utils/logger', () => ({
@@ -127,6 +132,18 @@ describe('startUserInvalidationSubscriber', () => {
     });
     expect(mocks.serviceInvalidate).toHaveBeenCalledWith(sweep);
     expect(mocks.runtimeInvalidate).toHaveBeenCalledWith(sweep);
+  });
+
+  it("asks for the account's post pages to be re-checked, once per event across tasks, after the visibility eviction", async () => {
+    await startUserInvalidationSubscriber();
+    deliver(VALID);
+
+    await vi.waitFor(() =>
+      expect(mocks.scheduleAuthorPostPagePurge).toHaveBeenCalledWith('user-1', 'oxy|1'),
+    );
+    expect(mocks.invalidateOxyAuthorVisibility.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.scheduleAuthorPostPagePurge.mock.invocationCallOrder[0],
+    );
   });
 
   it('hands every profile event to the alias check, which rebroadcasts a changed alsoKnownAs', async () => {

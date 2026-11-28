@@ -81,3 +81,20 @@ export interface SubscriberNotificationJobData {
   postId: string;
   authorId: string;
 }
+
+/** Why a post page is purged from the edge; a metric and log label only. */
+export type PostPagePurgeReason =
+  | 'delete'
+  | 'edit'
+  | 'moderation'
+  | 'author_hidden'
+  | 'author_erased';
+
+/**
+ * One edge-purge job: the pages of up to 15 posts (30 URLs, Cloudflare's limit
+ * per call), or one author whose public pages are swept if Mention no longer
+ * shows the author (`services/webshell/authorPostPagePurge.ts`).
+ */
+export type PostPageEdgePurgeJobData =
+  | { kind: 'posts'; postIds: string[]; reason: PostPagePurgeReason }
+  | { kind: 'author'; oxyUserId: string };

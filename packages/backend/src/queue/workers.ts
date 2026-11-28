@@ -22,6 +22,10 @@ import {
   MEDIA_METADATA_ENRICH_WORKER_CONCURRENCY,
   DELIVERY_BACKOFF_INTERVALS_MS,
   DELIVERY_BACKOFF_STRATEGY,
+  POST_PAGE_EDGE_PURGE_QUEUE,
+  POST_PAGE_EDGE_PURGE_WORKER_CONCURRENCY,
+  POST_PAGE_EDGE_PURGE_RATE_MAX,
+  POST_PAGE_EDGE_PURGE_RATE_DURATION_MS,
 } from './constants';
 import type {
   InboxJobData,
@@ -33,6 +37,7 @@ import type {
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
   SubscriberNotificationJobData,
+  PostPageEdgePurgeJobData,
 } from './types';
 import { runSubscriberNotificationJob } from '../services/notifications/subscriberNotifications';
 import { logger } from '../utils/logger';
@@ -47,6 +52,8 @@ import {
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { processAccountErasure } from '../services/accounts/accountErasure/AccountErasureService';
 import { findErasedAccountUsernames } from '../db/accountErasures/accountErasureRepository';
+import { processPostPageEdgePurgeJob } from '../services/webshell/postPageEdgePurgeJob';
+import { isPostPageEdgePurgeEnabled } from '../services/webshell/postPageEdgePurge';
 
 /**
  * BullMQ consumers (workers) for the federation queues.
@@ -73,6 +80,7 @@ let instagramGraphSyncWorker: Worker<InstagramGraphSyncJobData> | null = null;
 let mediaMetadataEnrichWorker: Worker<MediaMetadataEnrichJobData> | null = null;
 let accountErasureWorker: Worker<AccountErasureJobData> | null = null;
 let subscriberNotificationWorker: Worker<SubscriberNotificationJobData> | null = null;
+let postPageEdgePurgeWorker: Worker<PostPageEdgePurgeJobData> | null = null;
 let workersStarted = false;
 
 /**
@@ -361,6 +369,25 @@ export function startWorkers(): void {
       )
     : null;
 
+  // Only when purging is on (the flag and the token): otherwise nothing is
+  // enqueued, and a worker would hold a Redis connection polling for nothing.
+  // The limiter is per QUEUE, so it bounds the fleet's Cloudflare calls, not
+  // each task's (`POST_PAGE_EDGE_PURGE_RATE_MAX`).
+  postPageEdgePurgeWorker = isPostPageEdgePurgeEnabled()
+    ? new Worker<PostPageEdgePurgeJobData>(
+        POST_PAGE_EDGE_PURGE_QUEUE,
+        processPostPageEdgePurgeJob,
+        {
+          connection,
+          concurrency: POST_PAGE_EDGE_PURGE_WORKER_CONCURRENCY,
+          limiter: {
+            max: POST_PAGE_EDGE_PURGE_RATE_MAX,
+            duration: POST_PAGE_EDGE_PURGE_RATE_DURATION_MS,
+          },
+        },
+      )
+    : null;
+
   for (const worker of [
     inboxWorker,
     deliveryWorker,
@@ -370,6 +397,7 @@ export function startWorkers(): void {
     accountErasureWorker,
     subscriberNotificationWorker,
     ...(instagramGraphSyncWorker ? [instagramGraphSyncWorker] : []),
+    ...(postPageEdgePurgeWorker ? [postPageEdgePurgeWorker] : []),
   ]) {
     worker.on('failed', (job, err) => {
       // "Oxy has not finished the metadata yet" is the enrich job's deliberate
@@ -394,7 +422,7 @@ export function startWorkers(): void {
   }
 
   logger.info(
-    'Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure, subscriber-notifications, instagram-graph-sync)',
+    'Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure, subscriber-notifications, instagram-graph-sync, post-page-edge-purge)',
   );
 }
 
@@ -416,6 +444,7 @@ export async function shutdownQueues(): Promise<void> {
     | Worker<AccountErasureJobData>
     | Worker<SubscriberNotificationJobData>
     | Worker<InstagramGraphSyncJobData>
+    | Worker<PostPageEdgePurgeJobData>
   > = [];
   if (inboxWorker) workers.push(inboxWorker);
   if (deliveryWorker) workers.push(deliveryWorker);
@@ -425,6 +454,7 @@ export async function shutdownQueues(): Promise<void> {
   if (accountErasureWorker) workers.push(accountErasureWorker);
   if (subscriberNotificationWorker) workers.push(subscriberNotificationWorker);
   if (instagramGraphSyncWorker) workers.push(instagramGraphSyncWorker);
+  if (postPageEdgePurgeWorker) workers.push(postPageEdgePurgeWorker);
 
   await Promise.allSettled(workers.map((w) => w.close()));
 
@@ -436,6 +466,7 @@ export async function shutdownQueues(): Promise<void> {
   accountErasureWorker = null;
   subscriberNotificationWorker = null;
   instagramGraphSyncWorker = null;
+  postPageEdgePurgeWorker = null;
   workersStarted = false;
 
   await closeQueues();

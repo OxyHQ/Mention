@@ -3533,9 +3533,13 @@
       "withOxy": "Masuk dengan Oxy"
     },
     "banner": {
+      "createAccount": "Buat akun",
       "signIn": "Masuk",
       "title": "Jangan lewatkan apa yang sedang terjadi",
       "subtitle": "Orang-orang di Mention yang pertama tahu."
+    },
+    "gate": {
+      "title": "Buat akun gratis untuk melihat lebih banyak"
     }
   },
   "welcome": {

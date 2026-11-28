@@ -3567,9 +3567,13 @@
       "withOxy": "Accedi con Oxy"
     },
     "banner": {
+      "createAccount": "Crea un account",
       "signIn": "Accedi",
       "title": "Non perderti quello che succede",
       "subtitle": "Chi è su Mention lo scopre per primo."
+    },
+    "gate": {
+      "title": "Crea un account gratuito per vedere altro"
     }
   },
   "welcome": {

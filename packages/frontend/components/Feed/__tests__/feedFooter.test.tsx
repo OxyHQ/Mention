@@ -14,9 +14,25 @@ jest.mock('react-i18next', () => ({
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
 jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
+const mockSignIn = jest.fn(() => Promise.resolve());
+const mockOpenAccountDialog = jest.fn();
+const mockAuthState = {
+  isAuthenticated: true,
+  isAuthResolved: true,
+  signIn: () => mockSignIn(),
+};
+
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ isAuthenticated: true, isAuthResolved: true, signIn: jest.fn() }),
+  useAuth: () => mockAuthState,
+  useOxy: () => ({ openAccountDialog: mockOpenAccountDialog }),
 }));
+
+beforeEach(() => {
+  mockAuthState.isAuthenticated = true;
+  mockAuthState.isAuthResolved = true;
+  mockSignIn.mockClear();
+  mockOpenAccountDialog.mockClear();
+});
 
 function render(props: Partial<React.ComponentProps<typeof FeedFooter>>) {
   let tree!: TestRenderer.ReactTestRenderer;
@@ -71,6 +87,54 @@ describe('FeedFooter on a feed that loads on request', () => {
     expect(
       render({ loadOnRequest: true, hasItems: false, onRetryLoadMore: jest.fn() }).toJSON(),
     ).toBeNull();
+  });
+});
+
+/**
+ * Anonymous readers keep paging. The footer is the invitation to join, with
+ * Create account as the primary action, and it is not a cap on how many posts
+ * they can read.
+ */
+describe('FeedFooter for an anonymous reader', () => {
+  const text = (tree: ReturnType<typeof render>) => JSON.stringify(tree.toJSON());
+
+  beforeEach(() => {
+    mockAuthState.isAuthenticated = false;
+    mockAuthState.isAuthResolved = true;
+  });
+
+  it('offers create account first and sign in second', () => {
+    const tree = render({});
+    expect(text(tree)).toContain('auth.gate.title');
+    const buttons = tree.root.findAllByType('Button' as never);
+    expect(buttons.map((button) => button.props.children)).toEqual([
+      'auth.banner.createAccount',
+      'auth.banner.signIn',
+    ]);
+    expect(buttons[0]?.props.testID).toBe('anonymous-feed-gate-create-account');
+    act(() => buttons[0]?.props.onPress());
+    expect(mockOpenAccountDialog).toHaveBeenCalledWith('signup');
+    expect(mockSignIn).not.toHaveBeenCalled();
+    act(() => buttons[1]?.props.onPress());
+    expect(mockSignIn).toHaveBeenCalledTimes(1);
+    expect(mockOpenAccountDialog).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays available while more pages exist, without a load-more stand-in', () => {
+    const tree = render({ hasMore: true, isLoadingMore: true });
+    expect(tree.root.findAllByType('Button' as never)).toHaveLength(2);
+    expect(text(tree)).not.toContain('common.loadMore');
+  });
+
+  it('says nothing before there are rows', () => {
+    expect(render({ hasItems: false }).toJSON()).toBeNull();
+  });
+
+  it('says nothing while the session is still resolving', () => {
+    mockAuthState.isAuthResolved = false;
+    expect(render({}).toJSON()).toBeNull();
+    expect(mockOpenAccountDialog).not.toHaveBeenCalled();
+    expect(mockSignIn).not.toHaveBeenCalled();
   });
 });
 
