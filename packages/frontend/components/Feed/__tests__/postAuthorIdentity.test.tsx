@@ -99,7 +99,7 @@ jest.mock('@/components/Post/PostActions.bloom', () => ({
   PostActions: () => null,
 }));
 jest.mock('@/components/Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/components/Post/PostLocation', () => ({ __esModule: true, postLocation: () => null }));
+jest.mock('@/components/Post/PostLocation.bloom', () => ({ __esModule: true, postLocation: () => null }));
 jest.mock('@/components/Post/PostAttachmentsRow', () => ({
   __esModule: true,
   default: () => null,

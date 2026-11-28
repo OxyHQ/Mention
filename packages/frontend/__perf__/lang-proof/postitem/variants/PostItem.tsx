@@ -81,7 +81,7 @@ import { ContentWarning } from '@/components/Post/ContentWarning.bloom';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
 import { PostCorrectionNotice } from '@/components/Post/PostCorrectionNotice.bloom';
 import PostDetailStats from '@/components/Post/PostDetailStats';
-import { postLocation } from '@/components/Post/PostLocation';
+import { postLocation } from '@/components/Post/PostLocation.bloom';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
 import type { NestedPostRenderer } from '@/components/Post/Attachments/PostAttachmentNested';
 import UserName from '@/components/UserName';

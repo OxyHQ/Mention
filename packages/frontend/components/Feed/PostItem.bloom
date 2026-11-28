@@ -1274,7 +1274,7 @@ private struct PostRowView: View {
           socialContext.total > 0) &&
           !((socialContext.type == "boostedBy" && reposter != none) &&
             socialContext.actors.every({ actor in actor.id == reposter.id })) {
-          let names = socialContext.actors
+          let names: [String] = socialContext.actors
             .slice(0, 2)
             .map { actor in
               let identity = mergeKnownIdentity(actor, knownIdentities.get(actor.id))
@@ -1285,7 +1285,7 @@ private struct PostRowView: View {
             }
             .filter(Boolean)
           let isBoostSocialContext = socialContext.type == "boostedBy"
-          let label = isBoostSocialContext ? "\(t("post.repostedBy", defaultValue: "Reposted by")) \(names.join(", "))" : names.length
+          let label = isBoostSocialContext ? "\(t("post.repostedBy", defaultValue: "Reposted by")) \(names.joined(", "))" : names.count
             < 2 ||
             socialContext.total == 1 ? t(
             "post.likedBy.one",
@@ -1303,7 +1303,7 @@ private struct PostRowView: View {
             count: socialContext.total - 2,
             defaultValue: "Liked by {{name1}}, {{name2}} and {{count}} others",
           )
-          if names.length > 0 {
+          if names.count > 0 {
             contextRows = [
               ..contextRows,
               HStack(alignment: "center") {
@@ -1609,7 +1609,7 @@ private struct PostRowView: View {
         .justify("between")
         .padding("horizontal", "md")
       let inset = {
-        child: View in
+        child: View? in
         VStack(child).padding("leading", contentInset).padding("trailing", "md")
       }
       let blocks = hasBelowHeaderBlocks && !isContentGated ? VStack(
