@@ -75,6 +75,18 @@ export const FEDERATION_DOMAIN: string =
   process.env.EXPO_PUBLIC_FEDERATION_DOMAIN?.trim().toLowerCase() || 'mention.earth';
 
 /**
+ * The domain of the fediverse handle this build SHOWS for local accounts,
+ * `@user@<domain>` (`EXPO_PUBLIC_FEDERATION_HANDLE_DOMAIN`). Unset, it is
+ * `FEDERATION_DOMAIN`, so nothing changes. It mirrors the backend's
+ * `FEDERATION_HANDLE_DOMAIN`, which moves the handles WebFinger hands out (actor
+ * ids stay on `FEDERATION_DOMAIN`). The backend switches accounts one by one
+ * (`FEDERATION_HANDLE_DOMAIN_ACCOUNTS`); a build cannot, so set this only once the
+ * backend has switched everyone (`all`). docs/mention-org-domain-move.md (Phase 3).
+ */
+export const FEDERATION_HANDLE_DOMAIN: string =
+  process.env.EXPO_PUBLIC_FEDERATION_HANDLE_DOMAIN?.trim().toLowerCase() || FEDERATION_DOMAIN;
+
+/**
  * Every web host of the public Mention instance. A link on any of them names the
  * same page, so they all count as "ours" while this build's web host is one of them.
  */

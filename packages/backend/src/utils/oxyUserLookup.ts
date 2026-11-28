@@ -31,7 +31,8 @@ export type OxyUserReadSource =
   | 'notification.read_state'
   | 'poke.users'
   | 'web_shell.profile'
-  | 'federation.retention';
+  | 'federation.retention'
+  | 'federation.handle_announcement';
 
 export type OxyUserLookup = Awaited<
   ReturnType<ReturnType<typeof getServiceOxyClient>['users']['lookupMany']>

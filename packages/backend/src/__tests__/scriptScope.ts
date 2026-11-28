@@ -327,6 +327,13 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: "Appends to the caller's own failure log rows, keyed by the ids it was given.",
   },
+  announceFederationHandles: {
+    scope: 'caller-scoped',
+    reason:
+      'Its suite injects every dependency (in-memory store, fake account pages and senders) and ' +
+      'touches no database. In production the driving select pages actor_key_pairs only for ' +
+      'FEDERATION_HANDLE_DOMAIN_ACCOUNTS=all, and it writes no row: the record is a Redis hash.',
+  },
   // The repo-ROOT scripts/lib, not src/scripts: the import regex matches any
   // `../`-depth, so the root helper lands here under the same key shape.
   'lib/jevOwnedPg.mjs': {

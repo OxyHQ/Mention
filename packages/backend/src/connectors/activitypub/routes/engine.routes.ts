@@ -20,6 +20,8 @@ import { inboxProcessingService } from '../inbox.service';
 import { enqueueInboxActivity } from '../../../queue/producers';
 import { webfingerCacheKey } from '../webfingerCache';
 import { withWebfingerAliasDomains } from '../webfingerAliasDomains';
+import { withWebfingerHandleDomain } from '../webfingerHandleDomain';
+import { federationHandlePolicy } from '../federationHandleDomain';
 import { config } from '../../../config';
 import {
   FEDERATION_DOMAIN,
@@ -118,48 +120,56 @@ async function resolvePublicFederatingUser(username: string) {
  * WebFinger + host-meta discovery router. It also answers `acct:` resources on the
  * web alias hosts (`mention.org`) with the SAME JRD as the federation domain's:
  * subject and links stay on FEDERATION_DOMAIN (`webfingerAliasDomains.ts`).
+ *
+ * An account switched to the handle domain (`FEDERATION_HANDLE_DOMAIN`, off by
+ * default) answers with its handle there instead, its actor id unchanged
+ * (`webfingerHandleDomain.ts`). The rewrite happens after the cache below, which
+ * keeps holding the engine's own answer.
  */
-export const webfingerRouter = withWebfingerAliasDomains(
-  createWebfingerRouter({
-    domain: FEDERATION_DOMAIN,
-    federationEnabled: FEDERATION_ENABLED,
-    httpCacheTtlSeconds: 0,
-    urls: federationUrls,
-    resolveUser: resolvePublicFederatingUser,
-    consent: {
-      isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user),
-      getSharingStateByUsername: (username) => getFediverseSharingStateByUsername(username),
-    },
-    // An account Oxy told us was deleted answers 410, which is what makes Mastodon
-    // drop its copy (`services/accountErasure`, docs/account-erasure.md).
-    isActorGone: (username) => isErasedActorHandle(username),
-    cache: {
-      get: async (username) => {
-        if (!(await resolvePublicFederatingUser(username))) return null;
-        const redis = getRedisClient();
-        if (!redis?.isReady) return null;
-        try {
-          const cached = await redis.get(webfingerCacheKey(username));
-          if (!cached) return null;
-          // Keep authority errors outside the Redis fail-soft block below.
-          return JSON.parse(cached) as WebfingerJrd;
-        } catch {
-          // Redis unavailable / malformed entry — treat as a cache miss.
-          return null;
-        }
+export const webfingerRouter = withWebfingerHandleDomain(
+  withWebfingerAliasDomains(
+    createWebfingerRouter({
+      domain: FEDERATION_DOMAIN,
+      federationEnabled: FEDERATION_ENABLED,
+      httpCacheTtlSeconds: 0,
+      urls: federationUrls,
+      resolveUser: resolvePublicFederatingUser,
+      consent: {
+        isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user),
+        getSharingStateByUsername: (username) => getFediverseSharingStateByUsername(username),
       },
-      set: (username, jrd) => {
-        const redis = getRedisClient();
-        if (redis?.isReady) {
-          redis
-            .setEx(webfingerCacheKey(username), WEBFINGER_CACHE_TTL, JSON.stringify(jrd))
-            .catch(() => {});
-        }
+      // An account Oxy told us was deleted answers 410, which is what makes Mastodon
+      // drop its copy (`services/accountErasure`, docs/account-erasure.md).
+      isActorGone: (username) => isErasedActorHandle(username),
+      cache: {
+        get: async (username) => {
+          if (!(await resolvePublicFederatingUser(username))) return null;
+          const redis = getRedisClient();
+          if (!redis?.isReady) return null;
+          try {
+            const cached = await redis.get(webfingerCacheKey(username));
+            if (!cached) return null;
+            // Keep authority errors outside the Redis fail-soft block below.
+            return JSON.parse(cached) as WebfingerJrd;
+          } catch {
+            // Redis unavailable / malformed entry — treat as a cache miss.
+            return null;
+          }
+        },
+        set: (username, jrd) => {
+          const redis = getRedisClient();
+          if (redis?.isReady) {
+            redis
+              .setEx(webfingerCacheKey(username), WEBFINGER_CACHE_TTL, JSON.stringify(jrd))
+              .catch(() => {});
+          }
+        },
       },
-    },
-    logger: { error: (message, detail) => logger.error(message, detail) },
-  }),
-  { domain: FEDERATION_DOMAIN, aliasDomains: config.federation.webfingerAliasDomains },
+      logger: { error: (message, detail) => logger.error(message, detail) },
+    }),
+    { domain: FEDERATION_DOMAIN, aliasDomains: config.federation.webfingerAliasDomains },
+  ),
+  { policy: federationHandlePolicy, urls: federationUrls, webOrigin: config.web.origin },
 );
 
 /** Actor GET + inbox POST + followers/following router. */

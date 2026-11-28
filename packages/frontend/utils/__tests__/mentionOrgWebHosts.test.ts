@@ -10,6 +10,7 @@ import path from 'node:path';
 
 import {
   FEDERATION_DOMAIN,
+  FEDERATION_HANDLE_DOMAIN,
   PUBLIC_INSTANCE_WEB_HOSTS,
   WEB_ALIAS_HOSTS,
   WEB_BASE_URL,
@@ -24,6 +25,7 @@ describe('today (no configuration): output is unchanged', () => {
   it('is still the public instance on mention.earth', () => {
     expect(WEB_BASE_URL).toBe('https://mention.earth');
     expect(FEDERATION_DOMAIN).toBe('mention.earth');
+    expect(FEDERATION_HANDLE_DOMAIN).toBe('mention.earth');
   });
 
   it('builds the same links the hard-coded strings did', () => {
@@ -120,6 +122,23 @@ describe('after the flip (EXPO_PUBLIC_WEB_BASE_URL=https://mention.org)', () => 
       expect(flippedPermalink('abc123')).toBe('https://mention.org/p/abc123');
       expect(flippedWebUrl('/@alice')).toBe('https://mention.org/@alice');
       expect(flippedHandle('alice')).toBe('@alice@mention.earth');
+    });
+  });
+});
+
+describe('handles on the handle domain (EXPO_PUBLIC_FEDERATION_HANDLE_DOMAIN=mention.org)', () => {
+  it('shows @user@mention.org while links and the federation domain stay put', () => {
+    jest.isolateModules(() => {
+      jest.doMock('@/config', () => ({
+        ...jest.requireActual('@/config'),
+        FEDERATION_HANDLE_DOMAIN: 'mention.org',
+      }));
+      const { localFederatedHandle: switchedHandle } = require('@/utils/localFederatedHandle');
+      const { webUrl: sameWebUrl } = require('@/utils/webUrl');
+      const config = require('@/config');
+      expect(switchedHandle('alice')).toBe('@alice@mention.org');
+      expect(sameWebUrl('/@alice')).toBe('https://mention.earth/@alice');
+      expect(config.FEDERATION_DOMAIN).toBe('mention.earth');
     });
   });
 });

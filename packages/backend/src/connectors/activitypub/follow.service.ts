@@ -35,6 +35,7 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { lookupOxyUsers } from '../../utils/oxyUserLookup';
 import type { LocalBoostEventPayload } from '@oxy.so/federation';
 import { deliveryService } from './delivery.service';
+import { federationHandlePolicy, localAcct } from './federationHandleDomain';
 import { relayToCommunityFollowers, resolveCommunityAudience } from './communityRelay';
 import { resolveMediaRef } from '../../utils/mediaResolver';
 import {
@@ -1327,7 +1328,9 @@ export class FollowService {
     return {
       objectUri: `${authorActorUri}/posts/${originalPostId}`,
       authorActorUri,
-      authorAcct: `${ownerUsername}@${FEDERATION_DOMAIN}`,
+      // A label (`href` addresses the mention): the author's handle, on the handle
+      // domain once their account has switched (`federationHandleDomain.ts`).
+      authorAcct: localAcct(federationHandlePolicy, ownerUsername),
     };
   }
 

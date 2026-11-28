@@ -5,6 +5,7 @@ import { createLocalActorBuilder, type ActorMediaResolver } from '@oxy.so/federa
 import { logger } from '../../utils/logger';
 import { resolveAvatarUrl, resolveMediaRef } from '../../utils/mediaResolver';
 import { FEDERATION_DOMAIN, federationUrls } from './constants';
+import { federationHandlePolicy, withFederationHandleBuilder } from './federationHandleDomain';
 
 /**
  * The single builder of a LOCAL user's ActivityPub `Person` actor document.
@@ -36,13 +37,20 @@ const actorMedia: ActorMediaResolver = {
  * `name.displayName` (falling back to the handle); it is never recomposed from
  * name parts here. The banner lives in Mention's own `UserSettings`, passed in as
  * `profileHeaderImage`.
+ *
+ * An account switched to the handle domain (`FEDERATION_HANDLE_DOMAIN`, off by
+ * default) also carries FEP-2c59 `webfinger: "<user>@<handle domain>"`; every
+ * other field is unchanged (`federationHandleDomain.ts`).
  */
-export const buildLocalActorObject = createLocalActorBuilder({
-  domain: FEDERATION_DOMAIN,
-  urls: federationUrls,
-  media: actorMedia,
-  onWarn: (message) => logger.warn(message),
-});
+export const buildLocalActorObject = withFederationHandleBuilder(
+  createLocalActorBuilder({
+    domain: FEDERATION_DOMAIN,
+    urls: federationUrls,
+    media: actorMedia,
+    onWarn: (message) => logger.warn(message),
+  }),
+  federationHandlePolicy,
+);
 
 /**
  * The profile banner Mention owns, from `user_settings`.

@@ -39,7 +39,7 @@ export function canonicalWebfingerResource(
 }
 
 /** Pin a query on this request; Express 5 re-parses `req.query` from the URL on every read. */
-function pinQuery(req: Request, query: Request['query']): void {
+export function pinQuery(req: Request, query: Request['query']): void {
   Object.defineProperty(req, 'query', {
     configurable: true,
     enumerable: true,

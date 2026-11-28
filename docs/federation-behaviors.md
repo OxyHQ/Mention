@@ -44,6 +44,33 @@ re-fetches the stale holder and retries the upsert once:
   write is refused as before. Taking a handle a live actor holds would let one
   server hijack another's identity, which is what the constraints exist to stop.
 
+## Our own handles on a separate domain (`FEDERATION_HANDLE_DOMAIN`)
+
+Off by default. With `FEDERATION_HANDLE_DOMAIN=mention.org` and the account in
+`FEDERATION_HANDLE_DOMAIN_ACCOUNTS` (usernames, or `all`), a local account's handle
+is `@user@mention.org` while its actor id, inbox and keys stay
+`https://mention.earth/ap/users/user`: Mastodon's `LOCAL_DOMAIN`/`WEB_DOMAIN` split
+(docs/mention-org-domain-move.md, Phase 3). The one decision is
+`federationHandleDomain.ts`, a pure function of the username and the configuration.
+
+- **WebFinger** (`webfingerHandleDomain.ts`): for a switched account, on any host,
+  `acct:user@mention.org`, `acct:user@mention.earth` and the actor URL all answer
+  `subject: acct:user@mention.org`, aliases `[actor id, <web origin>/@user,
+  acct:user@mention.earth]`, the `self` link unchanged and the profile page on the
+  web origin. The engine still answers 404, 410 and 400; only its 200 answer for
+  exactly that account is rewritten, after the Redis JRD cache, which keeps the
+  engine's own answer. Everyone else answers as before.
+- **Actor**: FEP-2c59 `webfinger: "user@mention.org"`, read by Mastodon 4.6+ (on
+  fetch) and 4.7+ (on `Update`). `url` stays on mention.earth, because Mastodon
+  drops a `url` whose host is not the actor id's.
+- **Telling followers**: `scripts/announceFederationHandles.ts` sends one
+  `Update(Person)` per account whose handle changed since it was last announced
+  (a Redis hash), batched and paced against the delivery queue. The same run
+  after unsetting the variable announces the old handle again (rollback).
+- The config refuses a handle domain this service does not answer WebFinger on.
+  The frontend shows the handle from `EXPO_PUBLIC_FEDERATION_HANDLE_DOMAIN`, which a
+  build cannot vary per account, so it is set only once the backend is on `all`.
+
 ## A remote account that moved to another server
 
 A `Move` whose target is another server cannot be applied by Oxy today. Oxy only

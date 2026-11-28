@@ -8,6 +8,7 @@ type Endpoints = {
   web: string;
   redirect: string;
   federation: string;
+  handle: string;
   aliases: string[];
   widget: { apiBaseUrl: string; webBaseUrl: string };
 };
@@ -33,7 +34,8 @@ function evaluateConfig(overrides: ConfigOverrides): Endpoints {
     const widget = expo.plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === './modules/mention-widgets/app.plugin')[1];
     process.stdout.write(JSON.stringify({ preview: client.MENTION_PLUS_UI_PREVIEW, api: client.API_URL, socket: client.API_URL_SOCKET,
       web: client.WEB_BASE_URL, redirect: client.OXY_AUTH_REDIRECT_URI,
-      federation: client.FEDERATION_DOMAIN, aliases: client.WEB_ALIAS_HOSTS, widget }));
+      federation: client.FEDERATION_DOMAIN, handle: client.FEDERATION_HANDLE_DOMAIN,
+      aliases: client.WEB_ALIAS_HOSTS, widget }));
   `;
   // `--env-file=/dev/null` is load-bearing, not tidiness. A curated `env` is not
   // enough, because Bun AUTO-LOADS `.env`, `.env.local` and friends from the
@@ -74,6 +76,7 @@ describe('per-deployment frontend endpoint binding', () => {
         redirect: web,
         // A tenant built without the generator still never claims mention.earth's links.
         federation: 'mention.earth',
+        handle: 'mention.earth',
         aliases: [],
         widget: { apiBaseUrl: api, webBaseUrl: web },
       });
@@ -87,15 +90,32 @@ describe('per-deployment frontend endpoint binding', () => {
         EXPO_PUBLIC_FEDERATION_DOMAIN: 'Alpha.Example',
         EXPO_PUBLIC_WEB_ALIAS_HOSTS: 'www.alpha.example',
       }),
-    ).toMatchObject({ federation: 'alpha.example', aliases: ['www.alpha.example'] });
+    ).toMatchObject({
+      federation: 'alpha.example',
+      // The shown handle follows the federation domain unless it is set on its own.
+      handle: 'alpha.example',
+      aliases: ['www.alpha.example'],
+    });
     // The flip: the web moves, the handle domain and both hosts stay.
     expect(
       evaluateConfig({ NODE_ENV: 'production', EXPO_PUBLIC_WEB_BASE_URL: 'https://mention.org' }),
     ).toMatchObject({
       web: 'https://mention.org',
       federation: 'mention.earth',
+      handle: 'mention.earth',
       aliases: ['mention.earth', 'mention.org'],
     });
+  });
+  it('shows handles on the handle domain only when EXPO_PUBLIC_FEDERATION_HANDLE_DOMAIN is set', () => {
+    expect(
+      evaluateConfig({
+        NODE_ENV: 'production',
+        EXPO_PUBLIC_FEDERATION_HANDLE_DOMAIN: ' Mention.Org ',
+      }),
+    ).toMatchObject({ federation: 'mention.earth', handle: 'mention.org' });
+    expect(
+      evaluateConfig({ NODE_ENV: 'production', EXPO_PUBLIC_FEDERATION_HANDLE_DOMAIN: '  ' }),
+    ).toMatchObject({ federation: 'mention.earth', handle: 'mention.earth' });
   });
   it('preserves the public production defaults and localhost development fallback', () => {
     expect(evaluateConfig({ NODE_ENV: 'production' })).toMatchObject({

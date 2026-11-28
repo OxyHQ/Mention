@@ -4,6 +4,7 @@ import {
   isRedisRuntimeConfigured,
   isQueueRedisRuntimeConfigured,
   parseRuntimeEnvironment,
+  webfingerAliasDomainsOf,
 } from '../config';
 
 describe('runtime configuration', () => {
@@ -180,4 +181,70 @@ describe('CLOUDFLARE_PURGE_ZONES', () => {
       'CLOUDFLARE_PURGE_ZONES',
     );
   });
+});
+
+describe('fediverse handles on a separate domain (Phase 3)', () => {
+  it('is off by default: no handle domain, nobody switched, the same WebFinger domains', () => {
+    const defaults = parseRuntimeEnvironment({});
+    expect(defaults.FEDERATION_HANDLE_DOMAIN).toBeUndefined();
+    expect(defaults.FEDERATION_HANDLE_DOMAIN_ACCOUNTS).toEqual([]);
+    expect(
+      parseRuntimeEnvironment({
+        FEDERATION_HANDLE_DOMAIN: ' ',
+        FEDERATION_HANDLE_DOMAIN_ACCOUNTS: '',
+      }).FEDERATION_HANDLE_DOMAIN_ACCOUNTS,
+    ).toEqual([]);
+    // Unset, the list is exactly the alias hosts it was before the handle domain existed.
+    expect(webfingerAliasDomainsOf(defaults, ['https://mention.org'])).toEqual(['mention.org']);
+    expect(webfingerAliasDomainsOf(defaults, [])).toEqual([]);
+    expect(
+      webfingerAliasDomainsOf(defaults, ['https://mention.earth', 'https://mention.org']),
+    ).toEqual(['mention.org']);
+  });
+
+  it('accepts the handle domain on a host this service answers', () => {
+    const alias = parseRuntimeEnvironment({
+      FEDERATION_HANDLE_DOMAIN: 'Mention.Org',
+      FEDERATION_HANDLE_DOMAIN_ACCOUNTS: 'OxyQA, bob ,,bob',
+    });
+    expect(alias.FEDERATION_HANDLE_DOMAIN).toBe('mention.org');
+    expect(alias.FEDERATION_HANDLE_DOMAIN_ACCOUNTS).toEqual(['oxyqa', 'bob']);
+    expect(
+      parseRuntimeEnvironment({ FEDERATION_HANDLE_DOMAIN_ACCOUNTS: ' ALL ' })
+        .FEDERATION_HANDLE_DOMAIN_ACCOUNTS,
+    ).toBe('all');
+    // Phase 2: mention.org is the canonical web origin, mention.earth the alias.
+    const phase2 = parseRuntimeEnvironment({
+      MENTION_WEB_ORIGIN: 'https://mention.org',
+      MENTION_WEB_ALIAS_ORIGINS: 'https://mention.earth',
+      FEDERATION_HANDLE_DOMAIN: 'mention.org',
+    });
+    expect(phase2.FEDERATION_HANDLE_DOMAIN).toBe('mention.org');
+    // WebFinger must answer for the handle it hands out, alias or not.
+    expect(webfingerAliasDomainsOf(phase2, ['https://mention.earth'])).toEqual(['mention.org']);
+    expect(webfingerAliasDomainsOf(alias, ['https://mention.org'])).toEqual(['mention.org']);
+    // Naming the federation domain itself is the same as unset.
+    expect(
+      parseRuntimeEnvironment({ FEDERATION_HANDLE_DOMAIN: 'mention.earth' })
+        .FEDERATION_HANDLE_DOMAIN,
+    ).toBe('mention.earth');
+  });
+
+  it.each([
+    [{ FEDERATION_HANDLE_DOMAIN: 'elsewhere.example' }],
+    [{ FEDERATION_HANDLE_DOMAIN: 'mention.org', MENTION_WEB_ALIAS_ORIGINS: 'none' }],
+    [{ FEDERATION_HANDLE_DOMAIN: 'https://mention.org' }],
+    [{ FEDERATION_HANDLE_DOMAIN: 'user@mention.org' }],
+  ])('refuses a handle domain nobody would verify: %o', (source) => {
+    expect(() => parseRuntimeEnvironment(source)).toThrow('FEDERATION_HANDLE_DOMAIN');
+  });
+
+  it.each(['all,bob', 'alice@mention.org', 'two words', 'bad/name', '@alice'])(
+    'refuses the rollout list %p',
+    (value) => {
+      expect(() => parseRuntimeEnvironment({ FEDERATION_HANDLE_DOMAIN_ACCOUNTS: value })).toThrow(
+        'FEDERATION_HANDLE_DOMAIN_ACCOUNTS',
+      );
+    },
+  );
 });
