@@ -26,15 +26,15 @@ index de8d39050cecbc7519ac46c99029ecc3d355a412..a344bcfb312e8399bf3f8223d101cdb2
  import { useReleasingSharedObjectWithLifecycle } from 'expo-modules-core';
  import { useState } from 'react';
  import resolveAssetSource from './resolveAssetSource';
-+// Two play() rejections are not failures of the call. Removing, pausing, or
-+// replacing media cancels a pending play (AbortError). A source the browser
-+// cannot load rejects it with NotSupportedError, a failure the element's error
-+// event already reports as status 'error'. Consume those; others stay observable.
++// Three play() rejections are not failures of the call. Removing, pausing or
++// replacing media cancels a pending play (AbortError); an unloadable source
++// (NotSupportedError) is already status 'error'; a refused autoplay
++// (NotAllowedError) leaves the element paused, so the app offers a play tap.
 +function playVideo(video) {
 +  void video.play().catch((error) => {
 +    if (
 +      error instanceof DOMException &&
-+      (error.name === 'AbortError' || error.name === 'NotSupportedError')
++      ['AbortError', 'NotSupportedError', 'NotAllowedError'].includes(error.name)
 +    )
 +      return;
 +    throw error;
@@ -97,15 +97,15 @@ index 6b5083eaf6505d376112acd6ee0995fa7b856f88..4ea1d26310d339204fc526207e560e5d
  import type { VideoThumbnail } from './VideoThumbnail';
  import resolveAssetSource from './resolveAssetSource';
  
-+// Two play() rejections are not failures of the call. Removing, pausing, or
-+// replacing media cancels a pending play (AbortError). A source the browser
-+// cannot load rejects it with NotSupportedError, a failure the element's error
-+// event already reports as status 'error'. Consume those; others stay observable.
++// Three play() rejections are not failures of the call. Removing, pausing or
++// replacing media cancels a pending play (AbortError); an unloadable source
++// (NotSupportedError) is already status 'error'; a refused autoplay
++// (NotAllowedError) leaves the element paused, so the app offers a play tap.
 +function playVideo(video: HTMLVideoElement): void {
 +  void video.play().catch((error) => {
 +    if (
 +      error instanceof DOMException &&
-+      (error.name === 'AbortError' || error.name === 'NotSupportedError')
++      ['AbortError', 'NotSupportedError', 'NotAllowedError'].includes(error.name)
 +    )
 +      return;
 +    throw error;

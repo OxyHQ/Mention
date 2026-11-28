@@ -33,14 +33,19 @@ were not repeated for this forward.
 
 # expo-video 58.0.13
 
-The web player calls `video.play()` and drops the returned promise, so two
+The web player calls `video.play()` and drops the returned promise, so three
 rejections that are not failures of the call surface as unhandled rejections:
-removing, pausing or replacing media cancels a pending play (`AbortError`), and
-a source the browser cannot load rejects it with `NotSupportedError`. That
-second one is already reported: the element's `error` event sets the player's
-status to `error`, which `VideoPlayer` renders as "video unavailable", the same
-state as any broken or missing media. The patch routes every call through
-`playVideo()`, which consumes exactly those two and rethrows anything else.
+removing, pausing or replacing media cancels a pending play (`AbortError`), a
+source the browser cannot load rejects it with `NotSupportedError`, and a
+browser that refuses to autoplay rejects it with `NotAllowedError`. The second
+is already reported: the element's `error` event sets the player's status to
+`error`, which `VideoPlayer` renders as "video unavailable", the same state as
+any broken or missing media. The third leaves the element paused, so no
+`playingChange` fires and `VideoPlayer` shows its poster and play button; the
+viewer's tap is the gesture the browser wanted. (Mention also never autoplays
+unmuted on web without one: `stores/videoMuteStore.ts`.) The patch routes every
+call through `playVideo()`, which consumes exactly those three and rethrows
+anything else.
 Still present in 58.0.13 (all five calls); re-made against it. Remove when
 upstream handles the `play()` promise.
 

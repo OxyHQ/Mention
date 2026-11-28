@@ -103,8 +103,36 @@ describe.each([
     expect(player.status).toBe('error');
   });
 
+  // `Uncaught (in promise) NotAllowedError: play() failed because the user
+  // didn't interact with the document first`, on a profile with video. The
+  // element stays paused (the browser rejects before leaving `paused`), so no
+  // `playingChange` reports playback and `VideoPlayer` keeps its poster and play
+  // button: the viewer's tap is the gesture the browser asked for.
+  it.each(operations)('%s consumes a refused autoplay and stays paused', async (_name, operate) => {
+    const player = new VideoPlayer('/original.mp4');
+    const video = videoElement();
+    player.mountVideoView(video);
+    const playing = jest.fn();
+    player.addListener('playingChange', playing);
+    const refused = new DOMException(
+      "play() failed because the user didn't interact with the document first.",
+      'NotAllowedError',
+    );
+    const pending = Promise.reject(refused);
+    void pending.catch(() => undefined);
+    const catchSpy = jest.spyOn(pending, 'catch');
+    jest.mocked(video.play).mockReturnValueOnce(pending);
+
+    const operation = operate(player, video);
+
+    expect(catchSpy).toHaveBeenCalledTimes(1);
+    await expect(catchSpy.mock.results[0].value).resolves.toBeUndefined();
+    await operation;
+    expect(video.paused).toBe(true);
+    expect(playing).not.toHaveBeenCalledWith(expect.objectContaining({ isPlaying: true }));
+  });
+
   it.each([
-    ['autoplay rejection', () => new DOMException('Autoplay is forbidden', 'NotAllowedError')],
     ['ordinary error', () => new Error('Playback implementation failed')],
     [
       'non-DOM AbortError',
