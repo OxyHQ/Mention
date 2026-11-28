@@ -3475,9 +3475,13 @@
       "withOxy": "Mit Oxy anmelden"
     },
     "banner": {
+      "createAccount": "Konto erstellen",
       "signIn": "Anmelden",
       "title": "Verpasse nicht, was gerade passiert",
       "subtitle": "Menschen auf Mention wissen es zuerst."
+    },
+    "gate": {
+      "title": "Erstelle ein kostenloses Konto, um mehr zu sehen"
     }
   },
   "welcome": {

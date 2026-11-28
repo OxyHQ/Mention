@@ -187,6 +187,7 @@
     "lib/seoHandoff.ts": {"statements":[48,48],"branches":[41,41],"functions":[11,11],"lines":[45,45]},
     "lib/shareIntent.native.ts": {"statements":[0,40],"branches":[0,31],"functions":[0,5],"lines":[0,37]},
     "lib/shareIntent.ts": {"statements":[0,1],"branches":[0,0],"functions":[0,1],"lines":[0,1]},
+    "lib/signupEntry.ts": {"statements":[15,15],"branches":[12,12],"functions":[4,4],"lines":[13,13]},
     "lib/socketBfcache.native.ts": {"statements":[0,2],"branches":[0,0],"functions":[0,2],"lines":[0,1]},
     "lib/socketBfcache.ts": {"statements":[0,0],"branches":[0,0],"functions":[0,0],"lines":[0,0]},
     "lib/stickers.ts": {"statements":[16,16],"branches":[0,0],"functions":[0,0],"lines":[16,16]},

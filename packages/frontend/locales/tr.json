@@ -3475,9 +3475,13 @@
       "withOxy": "Oxy ile giriş yap"
     },
     "banner": {
+      "createAccount": "Hesap oluştur",
       "signIn": "Giriş yap",
       "title": "Neler olduğunu kaçırma",
       "subtitle": "Mention'daki insanlar her şeyi ilk öğrenenlerdir."
+    },
+    "gate": {
+      "title": "Daha fazlasını görmek için ücretsiz bir hesap oluşturun"
     }
   },
   "welcome": {

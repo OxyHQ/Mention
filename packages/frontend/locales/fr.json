@@ -3505,9 +3505,13 @@
       "withOxy": "Se connecter avec Oxy"
     },
     "banner": {
+      "createAccount": "Créer un compte",
       "signIn": "Se connecter",
       "title": "Ne rate rien de ce qui se passe",
       "subtitle": "Sur Mention, on est les premiers au courant."
+    },
+    "gate": {
+      "title": "Créez un compte gratuit pour en voir plus"
     }
   },
   "welcome": {
