@@ -664,6 +664,7 @@
     "expand": "打开完整编辑器"
   },
   "post": {
+    "restrictedNotice": "此帖子已被审核限制，其他人无法看到。",
     "threadPosition": "帖子串中的第 {{index}} / {{total}} 条帖子",
     "viewConversation": "查看对话",
     "threadContinuation": "帖子串后续（{{count}}）",

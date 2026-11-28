@@ -664,6 +664,7 @@
     "expand": "पूरा कंपोज़र खोलें"
   },
   "post": {
+    "restrictedNotice": "मॉडरेशन ने इस पोस्ट को प्रतिबंधित किया है। दूसरे लोग इसे नहीं देख सकते।",
     "threadPosition": "थ्रेड की {{total}} में से {{index}} पोस्ट",
     "viewConversation": "बातचीत देखें",
     "threadContinuation": "थ्रेड का अगला भाग ({{count}})",

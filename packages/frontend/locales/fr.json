@@ -671,6 +671,7 @@
     "expand": "Ouvrir le compositeur complet"
   },
   "post": {
+    "restrictedNotice": "La modération a restreint ce post. Les autres personnes ne peuvent pas le voir.",
     "threadPosition": "Publication {{index}} sur {{total}} du fil",
     "viewConversation": "Voir la conversation",
     "threadContinuation": "Suite du fil ({{count}})",

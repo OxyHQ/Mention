@@ -10,6 +10,7 @@ import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 interface PodcastSearchResult {
   syraPodcastId: string;
@@ -31,6 +32,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
   result: PodcastSearchResult;
   onSelect: (result: PodcastSearchResult) => void;
 }) {
+  const imageFade = useImageTransition(120);
   const { colors } = useTheme();
 
   const handlePress = useCallback(() => {
@@ -48,7 +50,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
             source={{ uri: result.artworkUrl }}
             style={{ width: 40, height: 40, borderRadius: 6 }}
             contentFit="cover"
-            transition={120}
+            transition={imageFade}
           />
         ) : (
           <View

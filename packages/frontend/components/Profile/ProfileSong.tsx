@@ -9,6 +9,7 @@ import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import type { ProfileSongMedia } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { SongPreviewButton } from './SongPreviewButton';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 interface ProfileSongProps {
   song: ProfileSongMedia;
@@ -29,6 +30,7 @@ export const ProfileSong = memo(function ProfileSong({
   isOwnProfile,
   onEdit,
 }: ProfileSongProps) {
+  const imageFade = useImageTransition(120);
   const { t } = useTranslation();
   const { colors } = useTheme();
   const preview = useProfileSongPreview(song.previewUrl);
@@ -55,7 +57,7 @@ export const ProfileSong = memo(function ProfileSong({
             source={{ uri: song.artworkUrl }}
             style={{ width: 32, height: 32, borderRadius: 6 }}
             contentFit="cover"
-            transition={120}
+            transition={imageFade}
           />
         ) : (
           <View

@@ -671,6 +671,7 @@
     "expand": "Obre l’editor complet"
   },
   "post": {
+    "restrictedNotice": "La moderació ha restringit aquesta publicació. Les altres persones no la poden veure.",
     "threadPosition": "Publicació {{index}} de {{total}} del fil",
     "viewConversation": "Mostra la conversa",
     "threadContinuation": "Continuació del fil ({{count}})",

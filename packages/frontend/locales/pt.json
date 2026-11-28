@@ -671,6 +671,7 @@
     "expand": "Abrir o editor completo"
   },
   "post": {
+    "restrictedNotice": "A moderação restringiu esta publicação. Outras pessoas não podem vê-la.",
     "threadPosition": "Publicação {{index}} de {{total}} na sequência",
     "viewConversation": "Ver conversa",
     "threadContinuation": "Continuação da sequência ({{count}})",

@@ -664,6 +664,7 @@
     "expand": "Vollständigen Editor öffnen"
   },
   "post": {
+    "restrictedNotice": "Die Moderation hat diesen Beitrag eingeschränkt. Andere können ihn nicht sehen.",
     "threadPosition": "Beitrag {{index}} von {{total}} im Thread",
     "viewConversation": "Unterhaltung ansehen",
     "threadContinuation": "Fortsetzung des Threads ({{count}})",

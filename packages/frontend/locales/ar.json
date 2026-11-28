@@ -692,6 +692,7 @@
     "expand": "فتح المحرر الكامل"
   },
   "post": {
+    "restrictedNotice": "قيّد الإشراف هذا المنشور. لا يمكن للآخرين رؤيته.",
     "threadPosition": "المنشور {{index}} من {{total}} في السلسلة",
     "viewConversation": "عرض المحادثة",
     "threadContinuation": "متابعة السلسلة ({{count}})",
