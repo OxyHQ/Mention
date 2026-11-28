@@ -207,21 +207,36 @@ function WatchPlaybackMount({
     return () => document.removeEventListener('playing', dismissWhenAnotherVideoPlays, true);
   }, [browsing, playback, surface]);
 
+  useEffect(() => {
+    if (!rail) return;
+    const openFromPicture = (event: MouseEvent) => {
+      const target = event.target;
+      if (
+        surface.parentElement !== rail ||
+        event.button !== 0 ||
+        !(target instanceof Element) ||
+        target.closest('button, input, a, [role="button"], [role="slider"], [role="link"]')
+      ) {
+        return;
+      }
+      event.stopPropagation();
+      if (browsing) {
+        router.push({
+          pathname: '/watch/[id]',
+          params: { id: session.postId, mediaIndex: String(session.mediaIndex) },
+        });
+      } else {
+        inline?.node.scrollIntoView({ block: 'center', inline: 'nearest' });
+      }
+    };
+    // The controls share the player's tap layer. Leave their events with the original player.
+    surface.addEventListener('click', openFromPicture, true);
+    return () => surface.removeEventListener('click', openFromPicture, true);
+  }, [browsing, inline, rail, router, session.mediaIndex, session.postId, surface]);
+
   return createPortal(
     <WatchPlaybackVideo
       video={session}
-      onSurfacePress={() => {
-        if (!rail || surface.parentElement !== rail) return false;
-        if (browsing) {
-          router.push({
-            pathname: '/watch/[id]',
-            params: { id: session.postId, mediaIndex: String(session.mediaIndex) },
-          });
-        } else {
-          inline?.node.scrollIntoView({ block: 'center', inline: 'nearest' });
-        }
-        return true;
-      }}
       onPlaybackStart={
         session.canContinue
           ? () => {

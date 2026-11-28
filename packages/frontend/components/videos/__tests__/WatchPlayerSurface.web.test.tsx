@@ -25,16 +25,13 @@ jest.mock('@oxy.so/bloom/app-shell', () => ({ useAppShellPanel: () => ({ active:
 const mockPush = jest.fn();
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('../WatchPlaybackVideo', () => ({
-  WatchPlaybackVideo: ({
-    onPlaybackStart,
-    onSurfacePress,
-  }: {
-    onPlaybackStart?: () => void;
-    onSurfacePress?: () => boolean;
-  }) => (
-    <video onPlaying={onPlaybackStart} onClick={onSurfacePress}>
-      <track kind="captions" />
-    </video>
+  WatchPlaybackVideo: ({ onPlaybackStart }: { onPlaybackStart?: () => void }) => (
+    <>
+      <video onPlaying={onPlaybackStart}>
+        <track kind="captions" />
+      </video>
+      <button type="button">Pause</button>
+    </>
   ),
 }));
 
@@ -149,6 +146,12 @@ it('keeps the same player across navigation and restores it to Watch', () => {
       '[data-testid="right-column"] [data-testid="watch-browse-player-dock"] video',
     ),
   ).toBe(player);
+  const pause = container.querySelector<HTMLButtonElement>(
+    '[data-testid="watch-browse-player-dock"] button',
+  );
+  expect(pause).toBeInstanceOf(HTMLButtonElement);
+  act(() => pause?.click());
+  expect(mockPush).not.toHaveBeenCalled();
   act(() => player.click());
   expect(mockPush).toHaveBeenCalledWith({
     pathname: '/watch/[id]',

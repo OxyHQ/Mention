@@ -39,8 +39,6 @@ interface VideoPlayerProps {
   controlsLayout?: 'default' | 'watch';
   /** Begins a persistent Watch session after the video actually plays. */
   onPlaybackStart?: () => void;
-  /** Returns true when the surrounding surface handled a press on the picture. */
-  onSurfacePress?: () => boolean;
   /**
    * Played once if `src` fails to load — the original upload behind an adaptive
    * stream, so a ladder that turns out to be broken degrades to the file
@@ -189,7 +187,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   src,
   controlsLayout = 'default',
   onPlaybackStart,
-  onSurfacePress,
   fallbackSrc,
   concealed = false,
   style,
@@ -428,7 +425,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, []);
 
   const handleTap = useCallback(() => {
-    if (onSurfacePress?.()) return;
     setShowControls((prev) => {
       const next = !prev;
       if (next && isPlaying) {
@@ -436,7 +432,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
       return next;
     });
-  }, [isPlaying, onSurfacePress, scheduleHideControls]);
+  }, [isPlaying, scheduleHideControls]);
 
   const handlePlayPause = useCallback(() => {
     if (isPlaying) {
