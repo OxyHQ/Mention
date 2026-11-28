@@ -5,8 +5,22 @@ import type { TRawNotification } from '@/types/validation';
 import TestRenderer, { act } from 'react-test-renderer';
 import { notifyManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 
 let mockUserId = 'A';
+/**
+ * The rendered viewer (`useAuth`) and the signed-in account (the scope), moved
+ * together. The scope drops a scratch client, not the rendered one: these pin
+ * the screen's own fencing, with every viewer's seeded page still in the cache.
+ *
+ * An account change hands React Query back its default (timer) scheduler
+ * (`dropAccountQueries`), so the synchronous one this file runs on is put back.
+ */
+function setViewer(id: string) {
+  mockUserId = id;
+  signInAs(id);
+  notifyManager.setScheduler((callback) => callback());
+}
 const mockMarkAsRead = jest.fn();
 const mockDelete = jest.fn();
 const mockGetNotifications = jest.fn();
@@ -36,7 +50,6 @@ jest.mock('@oxy.so/core/logger', () => ({ createLogger: () => ({ error: jest.fn(
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ ...mockAuth, user: { id: mockUserId } }),
   OxyAuthPrompt: () => null,
-  useAuthStore: { getState: () => ({ user: { id: mockUserId } }) },
 }));
 jest.mock('@/services/notificationService', () => ({
   notificationService: {
@@ -94,6 +107,7 @@ jest.mock('@oxy.so/bloom/tabs', () => ({
   TabsTrigger: () => null,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
   useTheme: () => ({ colors: { border: '', primary: '', textSecondary: '' } }),
 }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
@@ -194,7 +208,7 @@ function ui() {
   );
 }
 beforeEach(() => {
-  mockUserId = 'A';
+  setViewer('A');
   mockRenders.length = 0;
   mockVisibleKeys = [];
   for (const key of Object.keys(mockRows)) delete mockRows[key];
@@ -210,6 +224,7 @@ beforeEach(() => {
 afterEach(() => {
   if (renderer) act(() => renderer?.unmount());
   client.clear();
+  signOutForTests();
 });
 it('renders each row at most once when a read becomes optimistic', async () => {
   const op = deferred();
@@ -262,7 +277,7 @@ it('keeps callbacks current when the viewer changes A → B → A', async () => 
     await tick();
   });
   const oldSettled = whenCurrentMutationSettles();
-  mockUserId = 'B';
+  setViewer('B');
   await act(async () => {
     mounted().update(ui());
     await tick();
@@ -272,7 +287,7 @@ it('keeps callbacks current when the viewer changes A → B → A', async () => 
     await tick();
   });
   expect(notificationsFor('B').pages[0].notifications[0].read).toBe(true);
-  mockUserId = 'A';
+  setViewer('A');
   await act(async () => {
     mounted().update(ui());
     await tick();

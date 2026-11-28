@@ -19,13 +19,12 @@ import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiIndeterminateCircleFill } from '@oxy.so/bloom/icons/RiIndeterminateCircleFill';
-import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { listsService } from '@/services/listsService';
 import { logger } from '@oxy.so/core/logger';
-import { queryClient } from '@/lib/queryClient';
+import { actorWriter } from '@/lib/actorCache';
 import type { User } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
 
@@ -71,18 +70,16 @@ function EditListMembersScreen() {
     setLoading(true);
     setError(null);
     try {
+      // Bound to the account asking, before the first request leaves.
+      const actors = actorWriter();
       const data = await listsService.get(listId);
       const memberIds: string[] = Array.isArray(data?.memberOxyUserIds)
         ? data.memberOxyUserIds
         : [];
-      // Single bulk fetch (no per-id N+1); prime the shared React Query cache so
-      // downstream profile reads for these members hit the cache.
+      // Single bulk fetch (no per-id N+1); prime the actor cache so downstream
+      // profile reads for these members hit it.
       const fetched = await oxyServices.users.getMany(memberIds);
-      for (const user of fetched) {
-        if (user?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
-        }
-      }
+      actors.cacheActors(fetched.filter((user) => Boolean(user?.id)));
       const byId = new Map(fetched.map((user) => [user.id, user]));
       const profiles = memberIds
         .map((uid) => byId.get(uid))
@@ -234,7 +231,16 @@ function EditListMembersScreen() {
   if (error) {
     return (
       <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3 px-8">
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            paddingHorizontal: 32,
+          }}
+        >
           <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
@@ -287,7 +293,7 @@ function EditListMembersScreen() {
                       </Text>
                     </View>
                     {busy ? (
-                      <SpinnerIcon size={18} className="text-primary" />
+                      <SpinnerIcon size={18} color={theme.colors.primary} />
                     ) : already ? (
                       <RiCheckboxCircleFill width={22} height={22} fill={theme.colors.primary} />
                     ) : (
@@ -341,7 +347,7 @@ function EditListMembersScreen() {
                       accessibilityLabel={t('lists.create.remove', { defaultValue: 'Remove' })}
                     >
                       {busy ? (
-                        <SpinnerIcon size={18} className="text-destructive" />
+                        <SpinnerIcon size={18} color={theme.colors.destructive} />
                       ) : (
                         <RiIndeterminateCircleFill size="lg" fill={theme.colors.error} />
                       )}

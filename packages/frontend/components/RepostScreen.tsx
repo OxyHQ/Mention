@@ -152,7 +152,11 @@ const RepostScreen: React.FC = () => {
           </View>
         }
       >
-        <ScreenScrollView contentContainerClassName="px-4" showsVerticalScrollIndicator={false}>
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Boost Header */}
           <View className="flex-row items-center py-3">
             <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />

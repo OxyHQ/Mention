@@ -272,7 +272,10 @@ const LabelerDetailScreen: React.FC = () => {
           />
         }
       >
-        <ScreenScrollView contentContainerClassName="flex-1 justify-center items-center">
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        >
           <Text className="text-[15px] text-muted-foreground">
             {t('labelers.notFound', { defaultValue: 'Labeler not found.' })}
           </Text>
@@ -333,12 +336,7 @@ const LabelerDetailScreen: React.FC = () => {
           activeOpacity={0.7}
         >
           {subscribing ? (
-            <Loading
-              className="text-primary"
-              variant="inline"
-              size="sm"
-              style={{ flex: undefined }}
-            />
+            <Loading variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <Text
               className={cn(

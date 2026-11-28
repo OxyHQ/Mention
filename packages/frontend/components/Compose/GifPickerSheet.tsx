@@ -139,7 +139,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         )}
         {isUploading && (
           <View className="absolute inset-0 bg-black/50 justify-center items-center">
-            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
+            <Loading size="sm" style={{ flex: undefined }} />
           </View>
         )}
       </TouchableOpacity>

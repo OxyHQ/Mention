@@ -8,7 +8,7 @@ import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
 
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import {
@@ -18,6 +18,11 @@ import {
   INTERSTITIAL_SKELETON_ITEMS,
 } from './interstitialLayout';
 import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
+
+const useTextStyles = createTokenStyles((t) => ({
+  title: { fontSize: 16, lineHeight: 24, fontWeight: '700', flexShrink: 1 },
+  seeMore: { fontSize: 14, lineHeight: 24, color: t.primary, fontWeight: '600' },
+}));
 
 /**
  * The frame every recommendation band shares.
@@ -69,6 +74,7 @@ export function InterstitialShell<TItem>({
   renderSkeleton,
   report,
 }: InterstitialShellProps<TItem>) {
+  const textStyles = useTextStyles();
   const router = useRouter();
   const { t } = useTranslation();
   const isDesktop = useIsScreenNotMobile();
@@ -87,7 +93,7 @@ export function InterstitialShell<TItem>({
   const impressionRef = useInterstitialImpression(report, !isLoading && items.length > 0);
 
   const header = (
-    <Text className="text-base leading-6 font-bold text-foreground flex-shrink" numberOfLines={1}>
+    <Text style={textStyles.title} numberOfLines={1}>
       {title}
     </Text>
   );
@@ -163,22 +169,37 @@ export function InterstitialShell<TItem>({
  * suggestions — the same gesture you were already making.
  */
 function SeeMoreCard({ label, onPress }: { label: string; onPress: () => void }) {
+  const seeMoreStyles = useSeeMoreStyles();
+  const textStyles = useTextStyles();
   const theme = useTheme();
 
   return (
     <PressableScale
       onPress={onPress}
-      className="bg-surface border-border flex-1 items-center justify-center gap-2 rounded-xl border"
+      style={seeMoreStyles.card}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
       <View className="bg-primary/10 h-9 w-9 items-center justify-center rounded-full">
         <RiArrowRightLine width={18} height={18} fill={theme.colors.primary} />
       </View>
-      <Text className="text-primary text-sm leading-6 font-semibold">{label}</Text>
+      <Text style={textStyles.seeMore}>{label}</Text>
     </PressableScale>
   );
 }
+
+const useSeeMoreStyles = createTokenStyles((t) => ({
+  card: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: t.border,
+    backgroundColor: t.surface,
+  },
+}));
 
 const styles = StyleSheet.create({
   // Title row to cards — tighter than Bloom's gallery default of 16.

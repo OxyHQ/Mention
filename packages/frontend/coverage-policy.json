@@ -135,11 +135,6 @@
     "clearing the bar is reported as a failure until it is deleted."
   ],
   "belowBarExemptions": {
-    "stores/postsStore.ts": {
-      "since": "2026-08-15",
-      "measured": "47.85% statements / 29.93% branches",
-      "reason": "stores/__tests__/postsStoreGranularReactivity.test.tsx is the only test naming it, and it is about selector reactivity. At 29.93% branches, most of the engagement write path this store owns — the authority every post surface reads — is unexercised."
-    },
     "services/channelDeletionService.ts": {
       "since": "2026-08-15",
       "measured": "0%",
@@ -243,7 +238,7 @@
   ],
   "expectedCounts": {
     "unenforceable": 5,
-    "belowBarExemptions": 5,
+    "belowBarExemptions": 4,
     "criticalPaths": 35,
     "snapshotAssertions": 0
   }

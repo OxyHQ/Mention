@@ -255,7 +255,7 @@ export function AddToStarterPackSheet({
                 </Text>
               </TouchableOpacity>
               {row.pending ? (
-                <SpinnerIcon size={18} className="text-primary" />
+                <SpinnerIcon size={18} color={theme.colors.primary} />
               ) : (
                 <Checkbox
                   size="lg"

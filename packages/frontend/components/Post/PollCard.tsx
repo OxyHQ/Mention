@@ -99,7 +99,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
 
   if (loading)
     return (
-      <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
+      <Card radius="radius-16" style={{ flex: 1, width: '100%', padding: 12 }} appearance="outline">
         <PollSkeleton />
       </Card>
     );
@@ -109,7 +109,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId }) => {
   const locked = ended || (hasVoted && !poll.isMultipleChoice);
 
   return (
-    <Card radius="radius-16" className="flex-1 w-full p-3" appearance="outline">
+    <Card radius="radius-16" style={{ flex: 1, width: '100%', padding: 12 }} appearance="outline">
       <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>
         {poll.question}
       </Text>

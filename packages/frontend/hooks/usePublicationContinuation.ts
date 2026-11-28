@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
-import { useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { currentAccountId } from '@/lib/accountScope';
 
 /**
  * Fence UI continuations after a screen or projected session changes.
@@ -22,14 +23,14 @@ export function usePublicationContinuation(ownerStillActive?: () => boolean) {
     if (
       !mounted.current ||
       !viewerId ||
-      useAuthStore.getState().user?.id !== viewerId ||
+      currentAccountId() !== viewerId ||
       (ownerStillActive && !ownerStillActive())
     )
       return null;
     const epoch = oxyServices.http.getSessionEpoch();
     return () =>
       (ownerStillActive ? ownerStillActive() : mounted.current) &&
-      useAuthStore.getState().user?.id === viewerId &&
+      currentAccountId() === viewerId &&
       oxyServices.http.getSessionEpoch() === epoch;
   }, [oxyServices, viewerId, ownerStillActive]);
 

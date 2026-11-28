@@ -80,12 +80,7 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
           activeOpacity={0.7}
         >
           {subscribing ? (
-            <Loading
-              className="text-primary"
-              variant="inline"
-              size="sm"
-              style={{ flex: undefined }}
-            />
+            <Loading variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <Text
               className={cn(

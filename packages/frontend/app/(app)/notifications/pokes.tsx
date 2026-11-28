@@ -7,7 +7,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
@@ -21,10 +21,16 @@ import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTime, useBloomLocale } from '@oxy.so/bloom/locale';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
+const useTextStyles = createTokenStyles((t) => ({
+  sectionCount: { color: t.mutedForeground },
+  signedOut: { fontSize: 16, lineHeight: 24, textAlign: 'center', color: t.mutedForeground },
+}));
+
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
 
 export default function PokesScreen() {
+  const textStyles = useTextStyles();
   const { user, isAuthenticated, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
@@ -163,13 +169,10 @@ export default function PokesScreen() {
   const renderSectionHeader = useCallback(
     (title: string, count?: number, showAll?: boolean, onToggle?: () => void) => (
       <View style={styles.sectionHeader}>
-        <Text className="text-foreground" style={styles.sectionTitle}>
+        <Text style={styles.sectionTitle}>
           {title}
           {count != null && count > 0 ? (
-            <Text className="text-muted-foreground" style={styles.sectionCount}>
-              {' '}
-              ({count})
-            </Text>
+            <Text style={[textStyles.sectionCount, styles.sectionCount]}> ({count})</Text>
           ) : null}
         </Text>
         {onToggle && (
@@ -183,16 +186,14 @@ export default function PokesScreen() {
         )}
       </View>
     ),
-    [theme, t],
+    [theme, t, textStyles],
   );
 
   const renderContent = () => {
     if (!isAuthenticated) {
       return (
         <View className="flex-1 justify-center items-center px-5">
-          <Text className="text-base leading-6 text-center text-muted-foreground">
-            {t('state.no_session')}
-          </Text>
+          <Text style={textStyles.signedOut}>{t('state.no_session')}</Text>
         </View>
       );
     }

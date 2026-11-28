@@ -3,7 +3,6 @@ import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
@@ -13,7 +12,8 @@ import { useSurfaceFill, tokens } from '@oxy.so/bloom/styles';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { queryKeys as sdkQueryKeys } from '@oxy.so/services/ui/client';
+import { type Store, useStore, withStore } from '@oxy.so/bloom-data';
+import { User as UserRecord, type UserRecord as HeldUser } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { notificationSubjectHref } from '@/utils/notificationRoute';
@@ -146,6 +146,28 @@ function normalizedHandle(
  * fields win — restoring the proven fallback the old row had via the prewarmed
  * user cache — with the raw actor as the floor.
  */
+function isOptional(value: unknown, type: 'boolean' | 'string' | 'object'): boolean {
+  return value === undefined || value === null || typeof value === type;
+}
+
+/** Whether a held record's loosely typed fields are what this row reads them as. */
+function isCachedIdentity(record: HeldUser): record is HeldUser & CachedIdentity {
+  return (
+    isOptional(record.verified, 'boolean') &&
+    isOptional(record.isFederated, 'boolean') &&
+    isOptional(record.instance, 'string') &&
+    isOptional(record.federation, 'object') &&
+    isOptional(record.kind, 'string') &&
+    isOptional(record.color, 'string')
+  );
+}
+
+/** The account's held copy of a person (the SDK's `User`), read once without subscribing. */
+function readUser(store: Store, id: string): CachedIdentity | undefined {
+  const record = withStore(store, () => UserRecord.get(id));
+  return record && isCachedIdentity(record) ? record : undefined;
+}
+
 /**
  * The best identity known for one actor: the prewarmed cache entry, with a
  * profile edit made in this session laid over it.
@@ -157,7 +179,7 @@ function normalizedHandle(
  * changes when a profile is edited, which is the only reason it re-runs at all.
  */
 function correctedIdentity(
-  cached: User | undefined,
+  cached: CachedIdentity | undefined,
   known: IdentityUpdate | undefined,
 ): CachedIdentity | undefined {
   if (!known) return cached;
@@ -342,7 +364,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
   const locale = useBloomLocale();
   const theme = useTheme();
   const surfaceFill = useSurfaceFill();
-  const queryClient = useQueryClient();
+  const dataStore = useStore();
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
   // Accepting/declining an invite mutates the post's authorship, so the updated
   // post must be propagated here — updating only the React Query post-detail cache
@@ -406,17 +428,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
           : mergeActor(
               actor,
               // An actor with no id has no cache entry and no edit to lay over
-              // it; reading the cache under an `undefined` key would ask for a
-              // query key that cannot exist.
+              // it; reading the cache under an `undefined` id would ask for a
+              // record that cannot exist.
               actor.id
-                ? correctedIdentity(
-                    queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id)),
-                    knownIdentities.get(actor.id),
-                  )
+                ? correctedIdentity(readUser(dataStore, actor.id), knownIdentities.get(actor.id))
                 : undefined,
             ),
       ),
-    [item.actors, resolvedPrimary, queryClient, knownIdentities],
+    [item.actors, resolvedPrimary, dataStore, knownIdentities],
   );
 
   // Collab invites carry no backend preview — read the invited post through the
@@ -898,7 +917,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
             {isCollabInvite && collabInvitePending ? (
               <View className="flex-row gap-2 mt-2">
                 <Button
-                  className="flex-1"
+                  style={{ flex: 1 }}
                   onPress={openAcceptSheet}
                   disabled={actionLoading}
                   stopPropagation
@@ -908,7 +927,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 <Button
                   appearance="subtle"
                   tone="neutral"
-                  className="flex-1"
+                  style={{ flex: 1 }}
                   stopPropagation
                   onPress={() => {
                     const intent = captureIntent();

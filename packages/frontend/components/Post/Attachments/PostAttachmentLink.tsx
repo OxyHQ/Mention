@@ -14,16 +14,20 @@ interface PostAttachmentLinkProps {
   /** The byline, e.g. `documentByline(document)`. */
   author?: string;
   /**
-   * The card sits in the attachments carousel, whose `className` binds it to the
+   * The card sits in the attachments carousel, whose `style` binds it to the
    * row's height: the cover image then flexes to fill it (`coverFill`) so the
    * link matches the other items. False when the link is alone, keeping the
    * card's intrinsic height.
    */
   coverFill?: boolean;
-  /** Layout classes: `w-full` alone in the row, the card width and row height in the carousel. */
-  className?: string;
+  /**
+   * Layout over the card's own width: the full row alone, the card width and row
+   * height in the carousel.
+   */
   style?: ViewStyle;
 }
+
+const defaultWidthStyle: ViewStyle = { width: 280 };
 
 const webGrabCursorStyle: ViewStyle | null =
   Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
@@ -36,7 +40,6 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   siteName,
   author,
   coverFill = false,
-  className = 'w-[280px]',
   style,
 }) => {
   const imageSources = useMemo(() => linkPreviewImageSources(image), [image]);
@@ -50,8 +53,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       author={author}
       onPress={() => openExternalLink(url)}
       coverFill={coverFill}
-      className={className}
-      style={[webGrabCursorStyle, style]}
+      style={[defaultWidthStyle, webGrabCursorStyle, style]}
     />
   );
 };

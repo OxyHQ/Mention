@@ -1,6 +1,5 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { resetCrowdSourceForOxyService } from '@crowdsource.you/core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -81,7 +80,7 @@ beforeAll(async () => {
   settings.oxyApiUrl = origin;
   clearRuntimeOxyClient();
   settings.crowdSource.baseUrl = origin;
-  resetCrowdSourceForOxyService();
+  resetCrowdSourceClient();
 });
 
 afterAll(async () => {

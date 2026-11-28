@@ -1,14 +1,15 @@
 import TestRenderer, { act } from 'react-test-renderer';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { User } from '@oxy.so/core';
-import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
+import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
+import { User as UserRecord, useUserById as mockUseSdkUserById } from '@oxy.so/services/ui/client';
+import { type CachedUserSnapshot, useCachedUserSnapshot } from '@/hooks/useCachedUser';
 
+// The real `User` entity; the SDK's fetching read is a spy that must stay idle.
 jest.mock('@oxy.so/services/ui/client', () => ({
-  queryKeys: { users: { detail: (id: string) => ['users', 'detail', id] } },
+  ...require('@/test-support/oxyUsers').oxyUsers,
   useUserById: jest.fn(),
 }));
 
-const seen: (User | undefined)[] = [];
+const seen: (CachedUserSnapshot | undefined)[] = [];
 function Probe({ id }: { id: string }) {
   seen.push(useCachedUserSnapshot(id));
   return null;
@@ -17,50 +18,46 @@ function Probe({ id }: { id: string }) {
 describe('useCachedUserSnapshot', () => {
   beforeEach(() => {
     seen.length = 0;
+    (mockUseSdkUserById as jest.Mock).mockClear();
   });
 
-  it('reads a stale seeded entry without ever fetching, and follows later writes', async () => {
-    const client = new QueryClient();
-    const fetchSpy = jest.spyOn(client, 'fetchQuery');
-    // The actor cache seeds cold entries STALE (updatedAt 0) on purpose.
-    client.setQueryData(['users', 'detail', 'u1'], { id: 'u1', username: 'ada' }, { updatedAt: 0 });
+  it('reads a held record without ever fetching, and follows later writes', () => {
+    const store = new Store();
+    withStore(store, () => UserRecord.put({ id: 'u1', username: 'ada' } as never));
 
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
       renderer = TestRenderer.create(
-        <QueryClientProvider client={client}>
+        <DataProvider store={store}>
           <Probe id="u1" />
-        </QueryClientProvider>,
+        </DataProvider>,
       );
     });
-    expect(seen.at(-1)).toEqual({ id: 'u1', username: 'ada' });
+    expect(seen.at(-1)).toMatchObject({ username: 'ada' });
 
-    await act(async () => {
-      client.setQueryData(['users', 'detail', 'u1'], {
-        id: 'u1',
-        username: 'ada',
-        avatar: 'file-1',
-      });
-      // React Query delivers observer notifications on its next tick.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    // A batched avatar enrichment lands on the same record.
+    act(() => {
+      withStore(store, () => UserRecord.merge('u1', { avatar: 'file-1' } as never));
     });
-    expect(seen.at(-1)).toEqual({ id: 'u1', username: 'ada', avatar: 'file-1' });
+    expect(seen.at(-1)).toMatchObject({ username: 'ada', avatar: 'file-1' });
 
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(client.getQueryState(['users', 'detail', 'u1'])?.fetchStatus).toBe('idle');
+    expect(mockUseSdkUserById).not.toHaveBeenCalled();
     act(() => renderer?.unmount());
   });
 
-  it('is undefined for an id nothing has cached, still without a request', () => {
-    const client = new QueryClient();
+  it('is undefined for an id nothing has stored, still without a request', () => {
+    const store = new Store();
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
-      TestRenderer.create(
-        <QueryClientProvider client={client}>
+      renderer = TestRenderer.create(
+        <DataProvider store={store}>
           <Probe id="nobody" />
-        </QueryClientProvider>,
+        </DataProvider>,
       );
     });
     expect(seen.at(-1)).toBeUndefined();
-    expect(client.getQueryState(['users', 'detail', 'nobody'])?.fetchStatus ?? 'idle').toBe('idle');
+    expect(mockUseSdkUserById).not.toHaveBeenCalled();
+    expect(withStore(store, () => UserRecord.ids())).toEqual([]);
+    act(() => renderer?.unmount());
   });
 });

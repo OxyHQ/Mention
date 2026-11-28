@@ -6,6 +6,7 @@ import enMessages from '@/locales/en.json';
 import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
 import { useSubscription } from '@/components/Profile/hooks/useSubscription';
 import { waitUntil } from '@/test-support/waitUntil';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 const mockRankingChanged = jest.fn();
 // Keep the renderer boundary isolated; the account policy has its own contract tests.
 jest.mock('@oxy.so/bloom/agent-avatar', () => ({
@@ -108,24 +109,41 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/context/MentionSettingsContext', () => ({ useSettingsBack: () => jest.fn() }));
 
-const mockAuthListeners = new Set<() => void>();
+/** Account-scope subscriptions still open: each removal must release its own. */
+const mockAuthListeners = new Set<object>();
 const mockAuth = {
   user: { id: 'viewer-1' },
   canUsePrivateApi: true,
   isPrivateApiPending: false,
 };
 
+/** The rendered viewer (`useAuth`) and the signed-in account, moved together. */
+function setViewer(id: string) {
+  mockAuth.user = { id };
+  signInAs(id);
+}
+
+// The real account scope, with its subscriptions counted.
+jest.mock('@/lib/accountScope', () => {
+  const actual = jest.requireActual('@/lib/accountScope');
+  return {
+    ...actual,
+    subscribeAccount: (listener: () => void) => {
+      const subscription = {};
+      mockAuthListeners.add(subscription);
+      const unsubscribe = actual.subscribeAccount(listener);
+      return () => {
+        mockAuthListeners.delete(subscription);
+        unsubscribe();
+      };
+    },
+  };
+});
+
 jest.mock('@oxy.so/services/ui/client', () => {
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => mockAuth,
-    useAuthStore: {
-      getState: () => mockAuth,
-      subscribe: (listener: () => void) => {
-        mockAuthListeners.add(listener);
-        return () => mockAuthListeners.delete(listener);
-      },
-    },
     OxyAuthPrompt: ({ label }: { label?: string }) => <Text>{label}</Text>,
     FollowButton: () => <View testID="follow-button" />,
   };
@@ -167,6 +185,7 @@ jest.mock('@oxy.so/bloom/skeleton', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
   useTheme: () => ({
     colors: {
       primary: '#0000ff',
@@ -333,7 +352,7 @@ async function renderScreen(client: QueryClient) {
 
 describe('activity subscriptions screen', () => {
   beforeEach(() => {
-    mockAuth.user = { id: 'viewer-1' };
+    setViewer('viewer-1');
     mockAuthListeners.clear();
     mockList.mockReset();
     mockUnsubscribe.mockReset().mockResolvedValue({ subscribed: false });
@@ -353,6 +372,7 @@ describe('activity subscriptions screen', () => {
       client.unmount();
     });
     clients.length = 0;
+    signOutForTests();
   });
 
   it('shows the empty state, not a spinner, when the viewer has no subscriptions', async () => {
@@ -488,7 +508,7 @@ describe('activity subscriptions screen', () => {
     expect(client.isMutating()).toBe(1);
     expect(mockUnsubscribe).not.toHaveBeenCalled();
     // Change the authoritative store even before React re-renders the screen.
-    mockAuth.user = { id: 'viewer-2' };
+    setViewer('viewer-2');
     await act(async () => {
       release();
     });
@@ -522,8 +542,8 @@ describe('activity subscriptions screen', () => {
     expect(requestSignal?.aborted).toBe(false);
     expect(mockAuthListeners.size).toBe(1);
     await act(async () => {
-      mockAuth.user = { id: 'viewer-2' };
-      for (const listener of mockAuthListeners) listener();
+      // The runtime's switch: the scope tells its subscribers synchronously.
+      setViewer('viewer-2');
     });
     await settle(client);
     expect(requestSignal?.aborted).toBe(true);

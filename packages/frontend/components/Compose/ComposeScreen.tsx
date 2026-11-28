@@ -33,7 +33,8 @@ import { composeStyles as styles } from './ComposeScreen.styles';
 import { RiBriefcase4Line } from '@oxy.so/bloom/icons/RiBriefcase4Line';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { OxyAuthPrompt, useAuth, useAuthStore, useOxy } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth, useOxy } from '@oxy.so/services/ui/client';
+import { currentAccountId } from '@/lib/accountScope';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
 import * as ExpoLocation from 'expo-location';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1302,7 +1303,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     void saveDraftNow(snapshot)
       .then(() => {
         incoming.acknowledge({
-          viewerId: useAuthStore.getState().user?.id ?? '',
+          viewerId: currentAccountId() ?? '',
           epoch: oxyServices.http.getSessionEpoch(),
           replyToPostId,
         });
@@ -1329,11 +1330,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     const viewer = user.id;
     const epoch = oxyServices.http.getSessionEpoch();
     return () => {
-      if (
-        useAuthStore.getState().user?.id !== viewer ||
-        oxyServices.http.getSessionEpoch() !== epoch
-      )
-        return;
+      if (currentAccountId() !== viewer || oxyServices.http.getSessionEpoch() !== epoch) return;
       const snapshot = latestDraftSnapshot.current;
       if (hasDraftContent(snapshot) || snapshot.currentDraftId) {
         // A committed native/system Back may unmount before the debounce fires.

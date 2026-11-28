@@ -143,7 +143,8 @@ export default function EditJobScreen() {
   return (
     <Screen header={header}>
       <ScreenScrollView
-        contentContainerClassName="px-4 pb-16 pt-2"
+        contentView
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 64, paddingTop: 8 }}
         keyboardShouldPersistTaps="handled"
       >
         {metrics ? (

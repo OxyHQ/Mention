@@ -1,7 +1,8 @@
 import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk/live';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
-import { queryKeys } from '@oxy.so/services/ui/client';
+import { User as UserRecord } from '@oxy.so/services/ui/client';
+import { actorWriter } from '@/lib/actorCache';
 import { SYRA_SOCKET_URL } from '@/config';
 import { syraLinkedClient } from '@/lib/syraApi';
 import { useTheme as useBloomTheme } from '@oxy.so/bloom/theme';
@@ -36,18 +37,19 @@ const LiveAvatar: ComponentType<LiveAvatarProps> = ({ shape, ...rest }) => {
 };
 
 /**
- * Cache-first user fetch for live rooms — reads/writes the shared React Query
- * cache. Returns the cached user when fresh, otherwise runs the caller's loader
- * and primes the cache via `fetchQuery`.
+ * Cache-first user fetch for live rooms — reads/writes the SDK's `User`.
+ * Returns the held person, otherwise runs the caller's loader and primes the
+ * record through `lib/actorCache` (bound to the account asking, so an answer
+ * after a switch primes nothing).
  */
-const ensureUserById: LiveConfig['ensureUserById'] = (id, loader) =>
-  queryClient
-    .fetchQuery<UserEntity | null | undefined>({
-      queryKey: queryKeys.users.detail(id),
-      queryFn: () => loader(id),
-      staleTime: 5 * 60 * 1000,
-    })
-    .then((user) => user ?? undefined);
+const ensureUserById: LiveConfig['ensureUserById'] = async (id, loader) => {
+  const held = UserRecord.get(id);
+  if (held) return held;
+  const actors = actorWriter();
+  const user = await loader(id);
+  if (user) actors.cacheActor(user);
+  return user ?? undefined;
+};
 
 /**
  * Localize the shared live-room UI via Mention's i18n instance. `i18n.t` is
@@ -140,10 +142,7 @@ export const liveConfig: LiveConfig = {
   isDesktop: false, // Will be overridden at runtime if needed
   // Mention's web shell uses a DOCUMENT-scroll model (global.css forces
   // html/body/#root to height:auto + overflow:visible, so the window is the
-  // scroller). `web:fixed` pins the floating live-room dock + backdrop to the
-  // VIEWPORT bottom; without it `position: absolute` resolves against the tall
-  // document and the dock sinks to the page bottom (only visible after
-  // scrolling all the way down). No-op on native. The literal lives here (a
-  // Tailwind-scanned `lib/` file) so the `web:fixed` utility is generated.
-  dockClassName: 'web:fixed',
+  // scroller): the floating live-room dock and its backdrop pin to the viewport.
+  // No effect on native.
+  documentScroll: true,
 };

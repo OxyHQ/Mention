@@ -41,6 +41,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockRouterPush }) })
 jest.mock('../../../stores/postsStore', () => ({ usePostSelector: () => undefined }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));

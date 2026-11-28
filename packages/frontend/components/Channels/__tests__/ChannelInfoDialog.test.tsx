@@ -241,12 +241,11 @@ describe('the explainer opens, steps and closes', () => {
    *
    * Stacked, the card grows tall enough on a phone to push the copy it is
    * explaining off the top of the sheet, and the second button lands under the
-   * thumb that just pressed the first. The className is what is asserted because
-   * it is what decides this: `react-native-css` emits real CSS on web and a
-   * runtime style on native, so there is no single computed value both platforms
-   * expose to a renderer test. The width behaviour that className produces is
-   * verified in a real browser instead, at the narrowest supported viewport and
-   * in the language with the longest labels.
+   * thumb that just pressed the first. The row's className and each Bloom
+   * button's style are what is asserted because they are what decides this: no
+   * renderer test computes a width. The width behaviour they produce is verified
+   * in a real browser instead, at the narrowest supported viewport and in the
+   * language with the longest labels.
    */
   it('puts both buttons on one row, each taking half of it', () => {
     const renderer = mount();
@@ -267,8 +266,7 @@ describe('the explainer opens, steps and closes', () => {
     // Each half, so the split cannot move when the labels do (they change on
     // every card and in every language).
     const halves = renderer.root.findAll(
-      (node) =>
-        typeof node.props?.className === 'string' && node.props.className.includes('flex-1'),
+      (node) => typeof node.props?.onPress === 'function' && node.props.style?.flex === 1,
       { deep: true },
     );
     const labelled = new Set(halves.map((node) => textIn(node)).filter(Boolean));

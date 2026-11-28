@@ -3,74 +3,91 @@
  *
  * `precacheActorsFromPosts` is the surviving Mention seeding wrapper: it extracts
  * every embedded actor from a batch of posts (author, related-post author,
- * boost actor) and hands them to the SDK's canonical merge-upsert,
- * `upsertCachedUsers`. Routing through that ONE merge-upsert is the structural
- * fix for the whole "sparse feed author clobbers the authoritative profile entry"
- * class of bug — the merge preserves `createdAt` (the "Joined … disappears on the
- * user's own profile" case), the viewer `relationship` ("Follows you vanishes"),
- * and `_count`, overriding only the fields the sparse source actually carries.
+ * boost actor) and hands them to the account's actor writer (`lib/actorCache`),
+ * which merges them into the SDK's `User` through `storeUsers`. Routing through
+ * that ONE merge is the structural fix for the whole "sparse feed author
+ * clobbers the authoritative profile entry" class of bug — the merge preserves
+ * `createdAt` (the "Joined … disappears on the user's own profile" case), the
+ * viewer `relationship` ("Follows you vanishes"), and `_count`, overriding only
+ * the fields the sparse source actually carries.
  *
- * The MERGE SEMANTICS themselves are the SDK helper's own contract (and are
- * verified in the `@oxy.so/services` package). What Mention owns — and what these
- * tests pin — is the WIRING: that every post's actors are extracted and every
- * seeding path is delegated to the merge-upsert, so no writer here can clobber.
+ * What Mention owns — and what these tests pin — is the WIRING: that every
+ * post's actors are extracted and handed to the writer (a recording one, for
+ * the exact list), and that what reaches the REAL `User` through the default
+ * writer is corrected for an identity the viewer just edited.
  */
 
-import { queryClient as mockQueryClient } from '@/lib/queryClient';
-import { noteIdentityChanged } from '@/lib/actorCache';
+import { type Store, withStore } from '@oxy.so/bloom-data';
+import { User } from '@oxy.so/services/ui/client';
+import { type ActorWriter, noteIdentityChanged } from '@/lib/actorCache';
 import { getKnownIdentity, resetIdentityUpdates } from '@/stores/identityUpdates';
+import { openAccountStore, signInAs, signOutForTests } from '@/test-support/accountScope';
 import { precacheActorsFromPosts } from '../precacheActorsFromPosts';
 
-const mockUpsertCachedUsers = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
-  upsertCachedUsers: (...args: unknown[]) => mockUpsertCachedUsers(...args),
-  // `stores/identityUpdates` writes the edit through the SDK's single-user
-  // upsert; this file is about what reaches the BATCH one, so it only has to
-  // exist.
-  upsertCachedUser: jest.fn(),
+  ...require('@/test-support/oxyUsers').oxyUsers,
 }));
 
 /**
- * The app's singleton actor cache client, swapped for a sentinel: the function
- * forwards it to the upsert untouched, so a bare object is enough to assert it is
- * threaded through (and priming the real client would arm its GC timer past the
- * test run). The sentinel is created INSIDE the factory — an outer variable would
- * still be undefined when the mock is hoisted above it — and both the module
- * under test and this file import that one shared reference.
+ * The app's singleton query client, swapped for a sentinel: `noteIdentityChanged`
+ * only invalidates the operated-accounts list on it.
  */
 jest.mock('@/lib/queryClient', () => ({
   queryClient: { __sentinel: 'queryClient', invalidateQueries: jest.fn() },
 }));
 
-/** The users the upsert was asked to prime on its single call. */
+const cacheActors = jest.fn();
+/** A writer that records what it is handed, for the exact extracted list. */
+const recording: ActorWriter = { cacheActors, cacheActor: jest.fn() };
+
+/** The users handed to the writer on its single call. */
 function upsertedUsers(): unknown[] {
-  expect(mockUpsertCachedUsers).toHaveBeenCalledTimes(1);
-  const [client, users] = mockUpsertCachedUsers.mock.calls[0];
-  expect(client).toBe(mockQueryClient);
-  return users as unknown[];
+  expect(cacheActors).toHaveBeenCalledTimes(1);
+  return cacheActors.mock.calls[0][0] as unknown[];
+}
+
+let store: Store;
+
+/** The held record of `id` in the signed-in account's store. */
+function held(id: string) {
+  return withStore(store, () => User.get(id));
+}
+
+/** Every id the signed-in account's `User` holds. */
+function storedIds(): string[] {
+  return withStore(store, () => User.ids());
 }
 
 beforeEach(() => {
-  mockUpsertCachedUsers.mockReset();
+  cacheActors.mockReset();
+  store = openAccountStore();
+  signInAs('viewer-1');
+});
+
+afterEach(() => {
+  signOutForTests();
 });
 
 describe('precacheActorsFromPosts — extraction', () => {
   it('extracts actors from canonical quote and boost relations', () => {
-    precacheActorsFromPosts([
-      {
-        user: { id: 'author-1', username: 'author' },
-        originalPost: { user: { id: 'quoted-1', username: 'quoted' } },
-        quotedPost: { user: { id: 'quoted-1', username: 'quoted' } },
-      },
-      {
-        user: { id: 'booster-1', username: 'booster' },
-        originalPost: { user: { id: 'orig-1', username: 'orig' } },
-        repost: {
-          actor: { id: 'booster-1', username: 'booster' },
-          originalPost: { user: { id: 'orig-1', username: 'orig' } },
+    precacheActorsFromPosts(
+      [
+        {
+          user: { id: 'author-1', username: 'author' },
+          originalPost: { user: { id: 'quoted-1', username: 'quoted' } },
+          quotedPost: { user: { id: 'quoted-1', username: 'quoted' } },
         },
-      },
-    ]);
+        {
+          user: { id: 'booster-1', username: 'booster' },
+          originalPost: { user: { id: 'orig-1', username: 'orig' } },
+          repost: {
+            actor: { id: 'booster-1', username: 'booster' },
+            originalPost: { user: { id: 'orig-1', username: 'orig' } },
+          },
+        },
+      ],
+      recording,
+    );
 
     expect(upsertedUsers()).toEqual([
       { id: 'author-1', username: 'author' },
@@ -83,30 +100,46 @@ describe('precacheActorsFromPosts — extraction', () => {
 
   it('does not admit a legacy `_id` as canonical post identity', () => {
     precacheActorsFromPosts([{ user: { _id: 'author-2', username: 'legacy' } }]);
-    expect(mockUpsertCachedUsers).not.toHaveBeenCalled();
+    expect(storedIds()).toEqual([]);
   });
 
   it('skips a post author with no id (id-less actors cannot be keyed)', () => {
-    precacheActorsFromPosts([
-      { user: { username: 'no-id' } },
-      { user: { id: 'author-3', username: 'has-id' } },
-    ]);
+    precacheActorsFromPosts(
+      [{ user: { username: 'no-id' } }, { user: { id: 'author-3', username: 'has-id' } }],
+      recording,
+    );
 
     expect(upsertedUsers()).toEqual([{ id: 'author-3', username: 'has-id' }]);
   });
 
   it('collects actors across every post in the batch, so a repeated author merges twice', () => {
+    precacheActorsFromPosts(
+      [
+        { user: { id: 'author-4', username: 'a4' } },
+        { user: { id: 'author-4', name: { displayName: 'A Four' } } },
+      ],
+      recording,
+    );
+
+    // Both slices are handed to the merge — it is the SDK's job to fold the
+    // repeated id into one cumulatively merged record.
+    expect(upsertedUsers()).toEqual([
+      { id: 'author-4', username: 'a4' },
+      { id: 'author-4', name: { displayName: 'A Four' } },
+    ]);
+  });
+
+  it("folds a repeated author into one record of the account's User by default", () => {
     precacheActorsFromPosts([
       { user: { id: 'author-4', username: 'a4' } },
       { user: { id: 'author-4', name: { displayName: 'A Four' } } },
     ]);
 
-    // Both slices are handed to the merge-upsert — it is the upsert's job to fold
-    // the repeated id into one cumulatively merged cache entry.
-    expect(upsertedUsers()).toEqual([
-      { id: 'author-4', username: 'a4' },
-      { id: 'author-4', name: { displayName: 'A Four' } },
-    ]);
+    expect(held('author-4')).toMatchObject({
+      id: 'author-4',
+      username: 'a4',
+      name: { displayName: 'A Four' },
+    });
   });
 });
 
@@ -117,26 +150,26 @@ describe('precacheActorsFromPosts — no-op inputs', () => {
     ['an empty array', []],
   ])('does not touch the cache for %s', (_label, input) => {
     precacheActorsFromPosts(input);
-    expect(mockUpsertCachedUsers).not.toHaveBeenCalled();
+    expect(storedIds()).toEqual([]);
   });
 
   it('does not touch the cache when no post carries an actor', () => {
     precacheActorsFromPosts([{}, { user: null }, { user: { username: 'no-id' } }]);
-    expect(mockUpsertCachedUsers).not.toHaveBeenCalled();
+    expect(storedIds()).toEqual([]);
   });
 
   it('ignores non-object entries in the batch', () => {
-    precacheActorsFromPosts([null, 42, 'post', { user: { id: 'author-5' } }]);
+    precacheActorsFromPosts([null, 42, 'post', { user: { id: 'author-5' } }], recording);
     expect(upsertedUsers()).toEqual([{ id: 'author-5' }]);
   });
 });
 
 /**
- * The merge-upsert this file delegates to is a MERGE, which is exactly why a
- * stale author is dangerous here rather than harmless: a real avatar id
- * overrides a real avatar id, so the pre-edit picture wins on arrival. Verified
- * against the SDK's own implementation — seed an entry, upsert an edit, then
- * upsert a hydrated author still carrying the old picture, and the entry is back
+ * The SDK write this file reaches is a MERGE, which is exactly why a stale
+ * author is dangerous here rather than harmless: a real avatar id overrides a
+ * real avatar id, so the pre-edit picture wins on arrival. These run against the
+ * SDK's own `User` — the edit is stored, then a hydrated author still carrying
+ * the old picture arrives, and without the correction the record would be back
  * to the old picture.
  *
  * Whether a given response IS stale is a race (the server is told about the
@@ -147,13 +180,6 @@ describe('precacheActorsFromPosts — no-op inputs', () => {
  */
 describe('precacheActorsFromPosts — an identity the viewer just edited', () => {
   const EDITED = 'channel-1';
-
-  /** The users handed to the upsert on its LAST call. */
-  function lastUpsertedUsers(): unknown[] {
-    const calls = mockUpsertCachedUsers.mock.calls;
-    expect(calls.length).toBeGreaterThan(0);
-    return calls[calls.length - 1][1] as unknown[];
-  }
 
   /** That account as the server still hydrates it: the picture from before the edit. */
   function staleAuthorPost() {
@@ -169,9 +195,7 @@ describe('precacheActorsFromPosts — an identity the viewer just edited', () =>
 
     precacheActorsFromPosts([staleAuthorPost()]);
 
-    expect(lastUpsertedUsers()).toEqual([
-      { id: EDITED, username: 'daily', avatar: 'avatar-after' },
-    ]);
+    expect(held(EDITED)).toMatchObject({ id: EDITED, username: 'daily', avatar: 'avatar-after' });
   });
 
   it('leaves every other author in the same batch untouched', () => {
@@ -182,10 +206,8 @@ describe('precacheActorsFromPosts — an identity the viewer just edited', () =>
       { user: { id: 'someone-else', username: 'else', avatar: 'their-avatar' } },
     ]);
 
-    expect(lastUpsertedUsers()).toEqual([
-      { id: EDITED, username: 'daily', avatar: 'avatar-after' },
-      { id: 'someone-else', username: 'else', avatar: 'their-avatar' },
-    ]);
+    expect(held(EDITED)).toMatchObject({ username: 'daily', avatar: 'avatar-after' });
+    expect(held('someone-else')).toMatchObject({ username: 'else', avatar: 'their-avatar' });
   });
 
   it('retires the correction once hydration carries the edit, and stops correcting', () => {
@@ -200,9 +222,10 @@ describe('precacheActorsFromPosts — an identity the viewer just edited', () =>
       { user: { id: EDITED, username: 'daily', avatar: 'avatar-changed-elsewhere' } },
     ]);
 
-    expect(lastUpsertedUsers()).toEqual([
-      { id: EDITED, username: 'daily', avatar: 'avatar-changed-elsewhere' },
-    ]);
+    expect(held(EDITED)).toMatchObject({
+      username: 'daily',
+      avatar: 'avatar-changed-elsewhere',
+    });
   });
 
   it('keeps correcting a description no post can speak for', () => {
@@ -253,13 +276,11 @@ describe('precacheActorsFromPosts — an identity the viewer just edited', () =>
     ]);
     precacheActorsFromPosts([staleAuthorPost()]);
 
-    expect(lastUpsertedUsers()).toEqual([
-      {
-        id: EDITED,
-        username: 'daily',
-        name: { displayName: 'Daily Digest' },
-        avatar: 'avatar-after',
-      },
-    ]);
+    expect(held(EDITED)).toMatchObject({
+      id: EDITED,
+      username: 'daily',
+      name: { displayName: 'Daily Digest' },
+      avatar: 'avatar-after',
+    });
   });
 });

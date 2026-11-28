@@ -161,9 +161,7 @@ const VariantEditor = memo(function VariantEditor({
             className="flex-row items-center gap-1.5 self-start px-3 py-1.5 rounded-full border mt-2"
             style={{ borderColor: theme.colors.border, opacity: canTranslate ? 1 : 0.5 }}
           >
-            {isTranslating ? (
-              <Loading className="text-primary" variant="inline" size="sm" style={loadingStyle} />
-            ) : null}
+            {isTranslating ? <Loading variant="inline" size="sm" style={loadingStyle} /> : null}
             <Text className="text-[13px] font-semibold" style={{ color: theme.colors.primary }}>
               {t('compose.languages.translate', { defaultValue: 'Translate with AI' })}
             </Text>

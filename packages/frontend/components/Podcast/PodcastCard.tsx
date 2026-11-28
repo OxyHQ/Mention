@@ -202,8 +202,13 @@ export const PodcastCard = memo(function PodcastCard({
         <Card
           appearance="plain"
           radius="radius-16"
-          className="flex-row items-center gap-3 p-3"
-          style={{ backgroundColor: colors.contrast50 }}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            padding: 12,
+            backgroundColor: colors.contrast50,
+          }}
         >
           {artworkUrl ? (
             <View className="size-14 rounded-xl overflow-hidden">

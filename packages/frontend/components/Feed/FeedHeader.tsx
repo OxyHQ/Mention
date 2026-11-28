@@ -7,10 +7,14 @@ import { AccountAvatar } from '@/components/ui/AccountAvatar';
 import { Button } from '@oxy.so/bloom/button';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { MediaAttachmentIcon } from '@oxy.so/bloom/icons/MediaAttachmentIcon';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Text } from '@oxy.so/bloom/typography';
+
+const useTextStyles = createTokenStyles((t) => ({
+  prompt: { fontSize: 16, lineHeight: 20, flex: 1, color: t.mutedForeground },
+}));
 
 interface FeedHeaderProps {
   showComposeButton?: boolean;
@@ -25,6 +29,7 @@ export const FEED_COMPOSER_PROMPT_HEIGHT = 80;
 /** Social template composer, with Mention's real account and camera destinations. */
 export const FeedHeader = memo<FeedHeaderProps>(
   ({ showComposeButton, onComposePress, hideHeader, promptText }) => {
+    const textStyles = useTextStyles();
     const { t } = useTranslation();
     const router = useRouter();
     const { user } = useAuth();
@@ -40,7 +45,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
           onPress={compose}
           accessibilityRole="button"
           accessibilityLabel={t('settings.quickActions.createPost')}
-          className="min-w-0 flex-1 flex-row items-center gap-3"
+          style={{ minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
         >
           <AccountAvatar
             account={user ?? undefined}
@@ -48,9 +53,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
             size={32}
             variant={MEDIA_VARIANT_AVATAR}
           />
-          <Text className="flex-1 text-base leading-5 text-muted-foreground">
-            {promptText || t('compose.placeholder')}
-          </Text>
+          <Text style={textStyles.prompt}>{promptText || t('compose.placeholder')}</Text>
         </PressableScale>
         {Platform.OS !== 'web' && (
           <Button

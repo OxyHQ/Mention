@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 import { FollowButton } from '../FollowButton';
 
 type Props = ComponentProps<typeof FollowButton>;
@@ -8,7 +9,6 @@ let mockProps: Props | undefined;
 const mockNotify = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: mockViewerId ? { id: mockViewerId } : undefined }),
-  useAuthStore: { getState: () => ({ user: { id: mockViewerId } }) },
   FollowButton: (props: Props) => {
     mockProps = props;
     return null;
@@ -18,11 +18,19 @@ jest.mock('@/stores/feedRankingInvalidation', () => ({
   notifyFeedRankingChanged: (...args: unknown[]) => mockNotify(...args),
 }));
 
+/** The rendered viewer (`useAuth`) and the signed-in account (the scope), moved together as on device. */
+function setViewer(id: string | undefined) {
+  mockViewerId = id;
+  signInAs(id ?? null);
+}
+
 beforeEach(() => {
-  mockViewerId = 'viewer-a';
+  setViewer('viewer-a');
   mockProps = undefined;
   jest.clearAllMocks();
 });
+
+afterEach(signOutForTests);
 
 function render(props: Props) {
   act(() => {
@@ -46,12 +54,12 @@ it('invalidates only accepted follow/unfollow, preserving the federated callback
 it('fences a late success to the originating viewer and suppresses stale consumer writes', () => {
   const bridge = jest.fn();
   const props = render({ userId: 'target', onFollowChange: bridge });
-  mockViewerId = 'viewer-b';
+  setViewer('viewer-b');
   props.onFollowChange?.(false);
   expect(mockNotify).toHaveBeenCalledWith('viewer-a');
   expect(mockNotify).not.toHaveBeenCalledWith('viewer-b');
   expect(bridge).not.toHaveBeenCalled();
-  mockViewerId = undefined;
+  setViewer(undefined);
   render({ userId: 'target' }).onFollowChange?.(true);
   expect(mockNotify).toHaveBeenCalledTimes(1);
 });
@@ -86,7 +94,7 @@ it('uses actual bulk outcomes, including partial success, and forwards consumer 
   expect(followed).toHaveBeenCalledWith(partialFollow);
   expect(unfollowed).toHaveBeenCalledWith(failedUnfollow);
   expect(changed).toHaveBeenCalledWith(false);
-  mockViewerId = 'viewer-b';
+  setViewer('viewer-b');
   props.onFollowChange?.(true);
   props.onBulkFollow?.(partialFollow);
   props.onBulkUnfollow?.({ unfollowedCount: 1, results: [] });

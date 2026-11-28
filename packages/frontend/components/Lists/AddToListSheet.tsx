@@ -200,7 +200,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
                 </Text>
               </TouchableOpacity>
               {row.pending ? (
-                <SpinnerIcon size={18} className="text-primary" />
+                <SpinnerIcon size={18} color={theme.colors.primary} />
               ) : (
                 <Checkbox
                   size="lg"

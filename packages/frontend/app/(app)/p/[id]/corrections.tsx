@@ -15,6 +15,21 @@ import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { useStorePost } from '@/hooks/useStorePost';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { EmptyState } from '@/components/common/EmptyState';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  intro: {
+    fontSize: 13,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 4,
+    color: t.mutedForeground,
+  },
+  errorText: { fontSize: 14, lineHeight: 20, textAlign: 'center', color: t.mutedForeground },
+  truncated: { fontSize: 13, paddingHorizontal: 16, paddingBottom: 12, color: t.mutedForeground },
+  versionTitle: { fontSize: 15, fontWeight: '600' },
+  versionSubtitle: { fontSize: 13, color: t.mutedForeground },
+}));
 
 /**
  * A post's public correction trail (route `/p/<id>/corrections`).
@@ -30,6 +45,7 @@ import { EmptyState } from '@/components/common/EmptyState';
  * writer, so naming one here would route around that setting.
  */
 export default function PostCorrectionsScreen() {
+  const textStyles = useTextStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
   const postId = String(id);
   const { t } = useTranslation();
@@ -66,8 +82,8 @@ export default function PostCorrectionsScreen() {
       <Screen
         header={<PageHeader title={title} backLabel={t('common.back', { defaultValue: 'Back' })} />}
       >
-        <ScreenScrollView contentContainerClassName="pb-16">
-          <Text className="px-4 pb-3 pt-1 text-[13px] text-muted-foreground">
+        <ScreenScrollView contentView contentContainerStyle={{ paddingBottom: 64 }}>
+          <Text style={textStyles.intro}>
             {t('post.corrections.intro', {
               defaultValue:
                 'This post has been changed since it was published. Every version it has had is listed here, oldest first.',
@@ -81,7 +97,7 @@ export default function PostCorrectionsScreen() {
             // corrections" over an outage would say the post was never
             // changed, which is the opposite of what the marker promised.
             <View className="items-center gap-3 px-4 py-10">
-              <Text className="text-center text-sm text-muted-foreground">
+              <Text style={textStyles.errorText}>
                 {t('post.corrections.error', {
                   defaultValue: "Couldn't load this post's correction history.",
                 })}
@@ -101,7 +117,7 @@ export default function PostCorrectionsScreen() {
           ) : (
             <>
               {droppedVersions > 0 ? (
-                <Text className="px-4 pb-3 text-[13px] text-muted-foreground">
+                <Text style={textStyles.truncated}>
                   {t('post.corrections.truncated', {
                     count: droppedVersions,
                     defaultValue:
@@ -162,10 +178,11 @@ export default function PostCorrectionsScreen() {
 
 /** One entry in the trail: what it was called, when, and what it said. */
 function Version({ title, subtitle, text }: { title: string; subtitle: string; text: string }) {
+  const textStyles = useTextStyles();
   return (
     <View className="border-border border-t px-4 py-4">
-      <Text className="text-[15px] font-semibold text-foreground">{title}</Text>
-      <Text className="text-[13px] text-muted-foreground">{subtitle}</Text>
+      <Text style={textStyles.versionTitle}>{title}</Text>
+      <Text style={textStyles.versionSubtitle}>{subtitle}</Text>
       <LinkifiedText text={text} className="text-foreground mt-2 text-[15px]" />
     </View>
   );

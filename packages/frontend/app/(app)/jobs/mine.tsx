@@ -204,7 +204,7 @@ export default function MyJobsScreen() {
 
   return (
     <Screen header={header}>
-      <ScreenScrollView contentContainerClassName="pb-10">
+      <ScreenScrollView contentView contentContainerStyle={{ paddingBottom: 40 }}>
         {jobs.length === 0 ? (
           <EmptyState
             title={t('jobs.mine.emptyTitle', { defaultValue: 'No jobs yet' })}

@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { Text } from '@oxy.so/bloom/typography';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
@@ -25,6 +25,11 @@ import {
   type UseInfiniteRecommendationsResult,
 } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
+
+const useTextStyles = createTokenStyles((t) => ({
+  inviteTitle: { lineHeight: 24 },
+  inviteSubtitle: { lineHeight: 24, color: t.mutedForeground },
+}));
 
 const APP_URL = webUrl('');
 
@@ -89,6 +94,7 @@ function ProfileDiscoveryList({
   listHeaderComponent,
   showInviteBanner = true,
 }: ProfileDiscoveryListProps) {
+  const textStyles = useTextStyles();
   const { user } = useAuth();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -170,10 +176,10 @@ function ProfileDiscoveryList({
               <RiGroupFill width={18} fill={theme.colors.card} />
             </View>
             <View style={styles.inviteContent}>
-              <Text className="leading-6 text-foreground" style={styles.inviteTitle}>
+              <Text style={[textStyles.inviteTitle, styles.inviteTitle]}>
                 {t('settings.inviteContacts.inviteBannerTitle')}
               </Text>
-              <Text className="leading-6 text-muted-foreground" style={styles.inviteSubtitle}>
+              <Text style={[textStyles.inviteSubtitle, styles.inviteSubtitle]}>
                 {t('settings.inviteContacts.inviteBannerSubtitle')}
               </Text>
             </View>
@@ -189,6 +195,7 @@ function ProfileDiscoveryList({
       theme.colors.card,
       theme.colors.textSecondary,
       t,
+      textStyles,
     ],
   );
 

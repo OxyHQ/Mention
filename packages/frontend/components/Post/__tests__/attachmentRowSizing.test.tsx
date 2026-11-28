@@ -84,14 +84,18 @@ function render(props: Record<string, unknown>): Captured[] {
 const of = (items: Captured[], kind: string) =>
   items.find((item) => item.kind === kind)?.props ?? {};
 
-/** The height class a carousel cell was given, if any. */
-const heightClass = (props: Record<string, unknown>) =>
-  String(props.className ?? '').match(/\bh-\[\d+px\]/)?.[0];
+/** The height a carousel cell was given, as a class or (a Bloom card's cell) a style. */
+const heightClass = (props: Record<string, unknown>) => {
+  const style = props.style as { height?: number } | undefined;
+  return style?.height
+    ? `h-[${style.height}px]`
+    : String(props.className ?? '').match(/\bh-\[\d+px\]/)?.[0];
+};
 
 describe('one item takes the full width', () => {
   it('a link card fills the row by layout, with no fixed height', () => {
     const link1 = of(render({ documents: [link] }), 'link');
-    expect(link1.className).toBe('w-full');
+    expect(link1.style).toEqual({ width: '100%' });
     expect(link1.coverFill).toBe(false);
   });
 

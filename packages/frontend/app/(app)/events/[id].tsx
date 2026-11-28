@@ -94,7 +94,16 @@ function EventDetail({ id, viewerId, signIn }: { id: string; viewerId?: string; 
   };
   return (
     <Screen header={<PageHeader title={text('title', 'Event')} />}>
-      <ScreenScrollView contentContainerClassName="p-4 gap-4 max-w-2xl w-full self-center">
+      <ScreenScrollView
+        contentView
+        contentContainerStyle={{
+          padding: 16,
+          gap: 16,
+          maxWidth: 672,
+          width: '100%',
+          alignSelf: 'center',
+        }}
+      >
         {query.isPending && (
           <Text className="text-muted-foreground">{text('loading', 'Loading event…')}</Text>
         )}

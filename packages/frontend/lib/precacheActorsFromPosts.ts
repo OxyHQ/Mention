@@ -1,9 +1,9 @@
 /**
- * Prime the React Query actor cache from feed/post ingestion.
+ * Prime the actor cache (the SDK's `User`) from feed/post ingestion.
  *
  * Replaces the former SQLite user-priming pass (which wrote embedded post
  * authors into a local table — a silent no-op on web). Now it merge-upserts those
- * user objects into the shared React Query cache via the SDK's
+ * user objects into the signed-in account's `User` through
  * `lib/actorCache`, so avatars and names populate on web (and native) the
  * moment a feed response arrives — WITHOUT a sparse feed author clobbering the
  * `createdAt`, viewer `relationship`, or `_count` an authoritative profile fetch
@@ -11,7 +11,7 @@
  */
 
 import type { CacheableUser } from '@oxy.so/services/ui/client';
-import { cacheActors } from '@/lib/actorCache';
+import { type ActorWriter, actorWriter } from '@/lib/actorCache';
 
 /**
  * A post-shaped record carrying actors from the canonical hydration contract.
@@ -30,12 +30,15 @@ interface PostWithActors {
 }
 
 /**
- * Extract every embedded actor from a batch of posts and prime React Query.
+ * Extract every embedded actor from a batch of posts and prime the actor cache.
  * Extract the post author, the one embedded related-post author, and the boost
  * actor. Hydration may expose the same related post through `originalPost` and
  * the more specific quote/boost field, so precedence avoids duplicate upserts.
  */
-export function precacheActorsFromPosts(posts: readonly unknown[] | null | undefined): void {
+export function precacheActorsFromPosts(
+  posts: readonly unknown[] | null | undefined,
+  writer: ActorWriter = actorWriter(),
+): void {
   if (!Array.isArray(posts) || posts.length === 0) return;
 
   const users: CacheableUser[] = [];
@@ -55,5 +58,5 @@ export function precacheActorsFromPosts(posts: readonly unknown[] | null | undef
   // post in the response is authored by the account whose picture just changed,
   // which is what made this the surface the bug was found on — but not the only
   // one that could cause it, which is why the correction is not here.
-  cacheActors(users);
+  writer.cacheActors(users);
 }

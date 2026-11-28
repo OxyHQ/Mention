@@ -14,6 +14,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('@/utils/api', () => ({ api: { get: jest.fn() } }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
   useTheme: () => ({ colors: { textSecondary: '#777' } }),
 }));
 jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: 'skeleton-box' }));

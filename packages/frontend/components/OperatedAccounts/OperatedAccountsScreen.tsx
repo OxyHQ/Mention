@@ -141,7 +141,7 @@ export function OperatedAccountsScreen({ kind, copy }: OperatedAccountsScreenPro
       }
     >
       <SignInRequired label={copy.signInRequired} description={copy.signInRequiredDesc}>
-        <ScreenScrollView contentContainerClassName="pb-10">
+        <ScreenScrollView contentView contentContainerStyle={{ paddingBottom: 40 }}>
           <View className="px-4 pt-4 pb-2">
             <Text className="text-foreground text-lg font-bold">{copy.createTitle}</Text>
             <Text className="text-muted-foreground text-[13px] mt-1">{copy.createSubtitle}</Text>

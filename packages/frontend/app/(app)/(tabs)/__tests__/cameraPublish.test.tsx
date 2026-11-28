@@ -26,6 +26,11 @@ const mockCreatePost = jest.fn();
 const mockSelectTab = jest.fn();
 let mockSessionEpoch = 1;
 let mockViewerId: string | null = 'a';
+/** The rendered viewer (`useAuth`) and the signed-in account, moved together as on device. */
+function setViewer(id: string | null) {
+  mockViewerId = id;
+  signInAs(id);
+}
 const mockToast = jest.fn();
 const mockSetPendingShareMedia = jest.fn();
 let mockResolveUpload: ((value: unknown) => void) | undefined;
@@ -50,7 +55,6 @@ jest.mock('@/lib/oxyServices', () => ({
 }));
 
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuthStore: { getState: () => ({ user: mockViewerId ? { id: mockViewerId } : null }) },
   useOxy: () => ({ sessionClient: null, sessionMode: 'account' }),
   useAuth: () => ({
     user: mockViewerId ? { id: mockViewerId } : null,
@@ -101,6 +105,7 @@ jest.mock('@/utils/pendingShareMedia', () => ({
 }));
 
 import CameraPage from '../camera';
+import { signInAs, signOutForTests } from '@/test-support/accountScope';
 
 /**
  * Every mount is torn down, and that is not tidiness: several cases here deliberately leave `createPost` pending,
@@ -109,6 +114,8 @@ import CameraPage from '../camera';
  * render, and that test then finds no viewfinder to capture with.
  */
 const mounted: TestRenderer.ReactTestRenderer[] = [];
+
+afterEach(signOutForTests);
 
 afterEach(() => {
   act(() => {
@@ -170,7 +177,7 @@ beforeEach(() => {
   viewfinderProps = {};
   mockResolveUpload = undefined;
   mockSessionEpoch = 1;
-  mockViewerId = 'a';
+  setViewer('a');
   mockToast.mockReset();
   mockSelectTab.mockReset();
   mockCreatePost.mockReset();
@@ -179,7 +186,7 @@ beforeEach(() => {
 
 describe('posting a capture', () => {
   it('reports an unavailable session without starting an upload', async () => {
-    mockViewerId = null;
+    setViewer(null);
     mountWithCapture();
     await act(async () => {
       await (capturedProps.onPublish as () => Promise<void>)();
@@ -317,7 +324,7 @@ describe('posting a capture', () => {
     });
     await settleUpload();
     mockSessionEpoch += 1;
-    mockViewerId = 'b';
+    setViewer('b');
     await act(async () => {
       reject(new Error('uncertain'));
       await Promise.resolve();
@@ -342,11 +349,11 @@ describe('posting a capture', () => {
       });
       await settleUpload();
       mockSessionEpoch += 1;
-      if (transition === 'logout') mockViewerId = null;
+      if (transition === 'logout') setViewer(null);
       if (transition === 'aba') {
-        mockViewerId = 'b';
+        setViewer('b');
         mockSessionEpoch += 1;
-        mockViewerId = 'a';
+        setViewer('a');
       }
       if (transition === 'unmount') {
         act(() => renderer.unmount());

@@ -114,7 +114,13 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
             appearance="subtle"
             border="hairline"
             radius="radius-16"
-            className="flex-row items-center py-3 px-3.5 mb-4.5"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              marginBottom: 18,
+            }}
           >
             <View className="flex-1">
               <Text className="text-[13px] text-muted-foreground mb-1">

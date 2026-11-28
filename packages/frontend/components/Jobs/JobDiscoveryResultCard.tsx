@@ -236,7 +236,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
     <Card
       radius="radius-16"
       onPress={open}
-      className="mx-4 mb-3 p-4"
+      style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}
       accessibilityRole="button"
       accessibilityLabel={job.title}
       appearance="outline"

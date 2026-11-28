@@ -21,7 +21,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
-import { cacheActors } from '@/lib/actorCache';
+import { actorWriter } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
@@ -77,11 +77,12 @@ async function loadRecommendationsPage(
   getUsersByIds: (ids: string[]) => Promise<User[]>,
   fetchPage: () => Promise<RecommendationsPage>,
 ): Promise<RecommendationsPage> {
+  const actors = actorWriter();
   try {
     const page = await fetchPage();
     const users = page.recommendations.filter((u) => u.id.length > 0);
     if (users.length > 0) {
-      cacheActors(users);
+      actors.cacheActors(users);
       void enrichMissingAvatars(users, getUsersByIds);
     }
     return { ...page, recommendations: users };

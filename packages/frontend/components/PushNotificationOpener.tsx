@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { currentAccountId } from '@/lib/accountScope';
 import { useRouter } from '@/lib/navigation/router';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { notificationService } from '@/services/notificationService';
@@ -31,16 +32,13 @@ export function PushNotificationOpener() {
 
     void subscribeToPushOpens((data) => {
       const epoch = oxyServices.http.getSessionEpoch();
-      if (!cancelled && data.notificationId && useAuthStore.getState().user?.id === userId) {
+      if (!cancelled && data.notificationId && currentAccountId() === userId) {
         // The socket echo patches the inbox when it is connected; refetching
         // covers a cold start, where it is not yet.
         notificationService
           .markAsRead(data.notificationId, userId)
           .then(() => {
-            if (
-              useAuthStore.getState().user?.id === userId &&
-              oxyServices.http.getSessionEpoch() === epoch
-            ) {
+            if (currentAccountId() === userId && oxyServices.http.getSessionEpoch() === epoch) {
               return queryClient.invalidateQueries({
                 queryKey: viewerQueryKeys.notificationsRoot(userId),
               });

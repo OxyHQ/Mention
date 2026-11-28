@@ -3,7 +3,8 @@ import { useState, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@/lib/navigation/router';
-import { OxyAuthPrompt, useAuth, useAuthStore } from '@oxy.so/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { currentAccountId, subscribeAccount } from '@/lib/accountScope';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
@@ -18,7 +19,7 @@ import { createLogger } from '@oxy.so/core/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { normalizeApiError } from '@/utils/apiError';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import {
   groupNotifications,
   type GroupedNotification,
@@ -58,6 +59,18 @@ import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 import { SYSTEM_NOTIFICATION_ACTOR_ID } from '@mention/shared-types/notification';
 import type { NotificationIntent } from '@/types/notificationIntent';
+
+const useTextStyles = createTokenStyles((t) => ({
+  sectionLabel: {
+    fontSize: 13,
+    lineHeight: 24,
+    color: t.mutedForeground,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  pokesTitle: { lineHeight: 24 },
+  pokesSubtitle: { lineHeight: 24, color: t.mutedForeground },
+}));
 
 const notificationLogger = createLogger('Notifications');
 
@@ -115,12 +128,13 @@ const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
 type TabUnreadCounts = Record<FilterableTab, number>;
 
 const NotificationsScreen: React.FC = () => {
+  const textStyles = useTextStyles();
   const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const isCurrentIntent = useCallback(
     (intent: NotificationIntent) =>
       canUsePrivateApi &&
       user?.id === intent.viewerId &&
-      useAuthStore.getState().user?.id === intent.viewerId &&
+      currentAccountId() === intent.viewerId &&
       oxyServices.session.isAuthenticated &&
       oxyServices.http.getSessionEpoch() === intent.epoch,
     [canUsePrivateApi, user?.id, oxyServices],
@@ -132,7 +146,7 @@ const NotificationsScreen: React.FC = () => {
   }, [user?.id, oxyServices, isCurrentIntent]);
   const subscribeSession = useCallback(
     (listener: () => void) => {
-      const unsubscribeUser = useAuthStore.subscribe(listener);
+      const unsubscribeUser = subscribeAccount(listener);
       try {
         const unsubscribeToken = oxyServices.session.onChange(listener);
         return () => {
@@ -479,7 +493,7 @@ const NotificationsScreen: React.FC = () => {
 
   // Notifications whose actor the backend did NOT populate would each fire their
   // own `getProfileById` from inside NotificationItem — an N+1 across the page.
-  // Collect those distinct actor ids and warm the React Query user cache with ONE
+  // Collect those distinct actor ids and warm the actor cache with ONE
   // bulk `getUsersByIds`, so every per-row read hits the warm cache instead.
   const unpopulatedActorIds = useMemo(() => {
     const ids = new Set<string>();
@@ -583,9 +597,7 @@ const NotificationsScreen: React.FC = () => {
       if (item.kind === 'header') {
         return (
           <View className="px-3 pb-1 pt-3">
-            <Text className="text-muted-foreground text-[13px] font-semibold uppercase leading-6">
-              {item.label}
-            </Text>
+            <Text style={textStyles.sectionLabel}>{item.label}</Text>
           </View>
         );
       }
@@ -615,6 +627,7 @@ const NotificationsScreen: React.FC = () => {
       captureRowIntent,
       isCurrentIntent,
       ownNotificationSurface,
+      textStyles,
     ],
   );
 
@@ -763,13 +776,10 @@ const NotificationsScreen: React.FC = () => {
             <RiHand width={18} height={18} fill="#fff" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text className="leading-6 text-foreground" style={{ fontSize: 15, fontWeight: '600' }}>
+            <Text style={[textStyles.pokesTitle, { fontSize: 15, fontWeight: '600' }]}>
               {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
             </Text>
-            <Text
-              className="leading-6 text-muted-foreground"
-              style={{ fontSize: 13, marginTop: 1 }}
-            >
+            <Text style={[textStyles.pokesSubtitle, { fontSize: 13, marginTop: 1 }]}>
               {t('pokes.seeAllPokesSubtitle', {
                 defaultValue: 'Suggested follows, poke history & more',
               })}

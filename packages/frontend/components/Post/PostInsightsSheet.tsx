@@ -73,7 +73,10 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
 
   return (
     <Screen scroll="auto" header={headerEl} testID="post-insights-screen">
-      <ScreenScrollView contentContainerClassName="gap-4 px-5 pt-2 pb-6">
+      <ScreenScrollView
+        contentView
+        contentContainerStyle={{ gap: 16, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
+      >
         {isLoading ? (
           <InsightsSkeleton />
         ) : !insights ? (

@@ -224,7 +224,7 @@ describe('a channel', () => {
 
     onUpdated(account, { cleared: ['bio'] });
 
-    expect(mockNoteIdentityChanged).toHaveBeenCalledWith(account, 'viewer-1', { cleared: ['bio'] });
+    expect(mockNoteIdentityChanged).toHaveBeenCalledWith(account, { cleared: ['bio'] });
   });
 });
 

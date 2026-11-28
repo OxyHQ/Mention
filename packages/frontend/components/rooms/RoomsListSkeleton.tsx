@@ -61,7 +61,7 @@ const RoomRowSkeleton: React.FC = () => (
 );
 
 export const RoomsListSkeleton: React.FC = () => (
-  <Skeleton.Region className="w-full mt-4">
+  <Skeleton.Region style={{ width: '100%', marginTop: 16 }}>
     <View className="px-4">
       {Array.from({ length: FEATURED_PLACEHOLDERS }).map((_, index) => (
         <FeaturedRoomSkeleton key={`featured-${index}`} />

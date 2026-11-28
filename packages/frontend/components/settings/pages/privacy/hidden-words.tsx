@@ -181,12 +181,7 @@ export default function HiddenWordsScreen() {
                 })}
               />
               {addMutation.isPending ? (
-                <Loading
-                  className="text-primary"
-                  variant="inline"
-                  size="sm"
-                  style={{ flex: undefined }}
-                />
+                <Loading variant="inline" size="sm" style={{ flex: undefined }} />
               ) : (
                 <Button
                   size="sm"

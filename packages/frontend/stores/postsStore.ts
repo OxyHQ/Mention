@@ -54,6 +54,7 @@ import {
 } from '@/db';
 import type { FeedItem, FeedMetaData } from '@/db';
 import { toFeedItem } from '@/db/feedItem';
+import { actorWriter } from '@/lib/actorCache';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import type { FeedFilters } from '@/utils/feedUtils';
 import { classifyFeedFailure, isFeedCursorExpired, type FeedFailureKind } from '@/utils/feedRetry';
@@ -602,6 +603,8 @@ export const usePostsStore = create<PostsStoreState>()(
         },
       }));
 
+      // Bound to the account asking, before the request leaves.
+      const actors = actorWriter();
       try {
         const response = await feedService.getFeed(request, { signal: abortController.signal });
         if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
@@ -613,8 +616,8 @@ export const usePostsStore = create<PostsStoreState>()(
         // Transform items
         const items = response.items?.map((item) => toFeedItem(item)) || [];
 
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
+        // Prime the actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items, actors);
 
         // Write to SQLite — this replaces the entire feed
         dbSetFeedItems(feedKey, items, {
@@ -690,6 +693,8 @@ export const usePostsStore = create<PostsStoreState>()(
         },
       }));
 
+      // Bound to the account asking, before the request leaves.
+      const actors = actorWriter();
       try {
         const response = await feedService.getUserFeed(userId, request, {
           signal: abortController.signal,
@@ -701,8 +706,8 @@ export const usePostsStore = create<PostsStoreState>()(
         const isPendingEmptyInitialLoad =
           !request.cursor && response.pending === true && items.length === 0;
 
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
+        // Prime the actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items, actors);
 
         // While a federated profile's outbox is still syncing, each poll returns
         // `pending` with no posts. Those polls must not wipe what is on screen.
@@ -799,6 +804,8 @@ export const usePostsStore = create<PostsStoreState>()(
         },
       }));
 
+      // Bound to the account asking, before the request leaves.
+      const actors = actorWriter();
       try {
         const response = await feedService.getSavedPosts({
           ...request,
@@ -807,8 +814,8 @@ export const usePostsStore = create<PostsStoreState>()(
         if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
         const processedPosts = response.data.posts?.map((post) => toFeedItem(post)) || [];
 
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(processedPosts);
+        // Prime the actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(processedPosts, actors);
 
         dbSetFeedItems(feedKey, processedPosts, {
           hasMore: response.data.hasMore || false,
@@ -871,6 +878,8 @@ export const usePostsStore = create<PostsStoreState>()(
         },
       }));
 
+      // Bound to the account asking, before the request leaves.
+      const actors = actorWriter();
       try {
         const response = await feedService.getFeed(
           { type, limit: 20, filters },
@@ -879,8 +888,8 @@ export const usePostsStore = create<PostsStoreState>()(
         if (abortController.signal.aborted || !isCurrentViewerStateEpoch(operationEpoch)) return;
         const items = response.items?.map((item) => toFeedItem(item)) || [];
 
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
+        // Prime the actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items, actors);
 
         dbSetFeedItems(feedKey, items, {
           hasMore: response.hasMore || false,
@@ -955,6 +964,8 @@ export const usePostsStore = create<PostsStoreState>()(
         feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: true } },
       }));
 
+      // Bound to the account asking, before the request leaves.
+      const actors = actorWriter();
       try {
         const cursorAtRequestTime = meta.nextCursor;
         const response = await feedService.getFeed(
@@ -966,8 +977,8 @@ export const usePostsStore = create<PostsStoreState>()(
 
         const items = response.items?.map((item) => toFeedItem(item)) || [];
 
-        // Prime the React Query actor cache (works web + native, no SQLite)
-        precacheActorsFromPosts(items);
+        // Prime the actor cache (works web + native, no SQLite)
+        precacheActorsFromPosts(items, actors);
 
         // Append to SQLite — dedup handled by PRIMARY KEY
         const appended = dbAppendFeedItems(feedKey, items, {

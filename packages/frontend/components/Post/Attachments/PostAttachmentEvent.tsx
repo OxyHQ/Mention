@@ -1,16 +1,16 @@
 import React from 'react';
 import { View, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
-import { cn } from '@/lib/utils';
+
+const cardStyle: ViewStyle = { width: 200, minHeight: 140, flexDirection: 'row' };
 
 interface PostAttachmentEventProps {
   name: string;
   date: string; // ISO date string or Date object
   location?: string;
   onPress?: () => void;
+  /** Layout over the card's own size, e.g. the full row when the event is alone. */
   style?: StyleProp<ViewStyle>;
-  /** Layout classes from the row (e.g. `w-full` when the event is alone). */
-  className?: string;
 }
 
 const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
@@ -19,7 +19,6 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   location,
   onPress,
   style,
-  className,
 }) => {
   // Parse date and format
   const eventDate = React.useMemo(() => {
@@ -46,13 +45,7 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   return (
     // Bloom's `Card` owns the surface (border, card fill, corner, clip) and,
     // given `onPress`, the press dip; without one it is a plain, inert view.
-    <Card
-      radius="radius-16"
-      className={cn('w-[200px] min-h-[140px] flex-row', className)}
-      style={style}
-      onPress={onPress}
-      appearance="outline"
-    >
+    <Card radius="radius-16" style={[cardStyle, style]} onPress={onPress} appearance="outline">
       <View className="w-[60px] py-3 px-2 items-center justify-center bg-primary">
         {day !== null && (
           <>

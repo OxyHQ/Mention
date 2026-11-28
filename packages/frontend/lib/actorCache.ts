@@ -1,6 +1,7 @@
+import { currentStore, withStore } from '@oxy.so/bloom-data';
 import {
-  upsertCachedUser,
-  upsertCachedUsers,
+  storeUsers,
+  User,
   type CacheableUser,
   type UpsertCachedUserOptions,
 } from '@oxy.so/services/ui/client';
@@ -14,24 +15,31 @@ import {
 } from '@/stores/identityUpdates';
 
 /**
- * The ONE door into the SDK's user cache — Mention's in-memory actor cache.
+ * The ONE door into the SDK's people (`User`), the actor cache of the signed-in
+ * account. Services holds it in that account's `@oxy.so/bloom-data` store.
  *
- * Six surfaces fetch users and prime that cache with what they got: the feed's
- * post authors, the recommendation rail, the suggested-users card, the profile
- * interstitial, the followers/following lists and the mention picker's
- * enrichment. Each of them was calling the SDK's merge-upsert directly, and the
- * merge overrides a real value with a real value — so ANY of them could put a
- * server copy that predates a profile edit back over that edit, which is exactly
- * what the feed was doing on a channel's own page.
+ * Several surfaces fetch users and prime that cache with what they got: the
+ * feed's post authors, the recommendation rail, the suggested-users card, the
+ * profile interstitial, the followers/following lists and the mention picker's
+ * enrichment among them. The SDK's merge overrides a real value with a real
+ * value unless the held copy carries a later `updatedAt`, so ANY of them could
+ * put a server copy that predates a profile edit back over that edit, which is
+ * exactly what the feed was doing on a channel's own page.
  *
  * Guarding them one by one would be six guards, and six guards is the shape that
- * quietly becomes five when somebody adds a seventh surface. They all pass the
- * SAME singleton query client to the SAME two SDK functions, so they can all
- * pass through here instead, and the correction is written once. That is also
- * why this module — not the store behind it — is the thing new code should
- * import: it is enforceable by grep (`@oxy.so/services`'s upserts have exactly
- * one caller in the app, this file) in a way that "remember to correct your
- * actors" is not.
+ * quietly becomes five when somebody adds a seventh surface. They all call the
+ * SAME SDK function (`storeUsers`), so they can all pass through here instead,
+ * and the correction is written once. That is also why this module — not the
+ * store behind it — is the thing new code should import: it is enforceable by
+ * grep (`storeUsers` has exactly one caller in the app, this file) in a way
+ * that "remember to correct your actors" is not.
+ *
+ * A surface that fetches takes an {@link actorWriter} BEFORE it awaits and
+ * writes the answer through it. The writer is bound to the store of the account
+ * that asked, which Services closes when that account is left, so an answer
+ * that lands after a switch is dropped instead of putting the previous
+ * account's people (and their viewer-relative `relationship`) into the next
+ * account's store.
  *
  * It owns the WRITE half of identity as well ({@link noteIdentityChanged}),
  * because a profile edit is the same question from the other side: the cache
@@ -43,24 +51,36 @@ import {
  * SDK barrel; see the note at the top of `stores/identityUpdates.ts`.
  */
 
-/**
- * Prime the cache with actors a surface just fetched.
- *
- * Reconciles FIRST: an actor the server has caught up with retires its overlay
- * entry, so the correction that follows is a no-op from then on and an identity
- * changed somewhere else is never pinned to what this session wrote.
- */
-export function cacheActors(actors: readonly CacheableUser[] | null | undefined): void {
-  if (!Array.isArray(actors) || actors.length === 0) return;
-  reconcileKnownIdentities(actors);
-  upsertCachedUsers(queryClient, actors.map(applyKnownIdentity));
+/** Writes actors into the people of the account that was signed in when it was made. */
+export interface ActorWriter {
+  /**
+   * Prime the cache with actors a surface just fetched.
+   *
+   * Reconciles FIRST: an actor the server has caught up with retires its overlay
+   * entry, so the correction that follows is a no-op from then on and an identity
+   * changed somewhere else is never pinned to what this session wrote.
+   */
+  cacheActors(actors: readonly CacheableUser[] | null | undefined): void;
+  /** {@link ActorWriter.cacheActors} for a single actor. */
+  cacheActor(actor: CacheableUser | null | undefined): void;
 }
 
-/** {@link cacheActors} for a single actor. */
-export function cacheActor(actor: CacheableUser | null | undefined): void {
-  if (!actor) return;
-  reconcileKnownIdentities([actor]);
-  upsertCachedUser(queryClient, applyKnownIdentity(actor));
+/** An {@link ActorWriter} for the signed-in account now: take it before the request. */
+export function actorWriter(): ActorWriter {
+  const store = currentStore();
+  const write = (actors: readonly CacheableUser[]) => {
+    if (actors.length === 0 || store.closed) return;
+    reconcileKnownIdentities(actors);
+    withStore(store, () => storeUsers(actors.map(applyKnownIdentity)));
+  };
+  return {
+    cacheActors(actors) {
+      if (Array.isArray(actors)) write(actors);
+    },
+    cacheActor(actor) {
+      if (actor) write([actor]);
+    },
+  };
 }
 
 /**
@@ -80,24 +100,25 @@ export function cacheActor(actor: CacheableUser | null | undefined): void {
  */
 export function noteIdentityChanged(
   update: IdentityUpdate,
-  viewerId?: string,
   options?: UpsertCachedUserOptions,
 ): void {
   const stored = recordIdentityChange(update);
   if (!stored) return;
 
-  // The SDK's canonical merge-upsert writes BOTH keys its user hooks read (by-id
-  // and the viewer-scoped by-username) and merges rather than replaces — so the
-  // profile screen, the hover card and every `useUserById` card get the edit
-  // without losing the counts and viewer relationship an authoritative profile
-  // fetch had already stored. Not routed through `cacheActor`: this is the
-  // authority for that identity, so it must not be reconciled against itself.
-  upsertCachedUser(queryClient, stored, viewerId, options);
+  // The SDK's `User` is read by id and by username, and merges rather than
+  // replaces — so the profile screen, the hover card and every `useUserById`
+  // card get the edit without losing the counts and viewer relationship an
+  // authoritative profile fetch had already stored. It keeps the newer of two
+  // copies by `updatedAt`, and one without it counts as the oldest, so the edit
+  // is written as of the copy held. Not routed through an `ActorWriter`: this is
+  // the authority for that identity, so it must not be reconciled against itself.
+  const updatedAt = User.get(stored.id)?.updatedAt;
+  storeUsers(updatedAt ? { updatedAt, ...stored } : stored, options);
 
   // The operated-accounts list embeds each account's profile and feeds the
   // channels screen, the composer's publish-as picker and the channel settings
   // screen itself. It is a list of accounts rather than an actor cache, so the
-  // upsert above cannot reach it.
+  // write above cannot reach it.
   void queryClient.invalidateQueries({
     predicate: (query) => viewerQueryKeys.isOperatedAccounts(query.queryKey),
   });

@@ -49,6 +49,7 @@ module.exports = {
   Muted: textComponent('Muted'),
   Blockquote,
   fontFamilies: {},
+  fontFamilyStyle: (kind) => ({ fontFamily: kind }),
   TYPE_SCALE: {},
   typeScale: () => ({}),
 };

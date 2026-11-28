@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { queryKeys, useAuth } from '@oxy.so/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -18,7 +18,8 @@ export function FollowingAvatars() {
   });
   const ids = enabled ? (graph.data?.followingIds.slice(0, 3) ?? []) : [];
   const profiles = useQuery({
-    queryKey: queryKeys.users.list(ids),
+    // Whom the viewer follows is the viewer's own, and so is this answer.
+    queryKey: viewerQueryKeys.followingProfiles(viewerId, ids),
     queryFn: () => oxyServices.users.getMany(ids),
     enabled: enabled && ids.length > 0,
     staleTime: 2 * 60 * 1000,

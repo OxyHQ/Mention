@@ -23,7 +23,10 @@ jest.mock('@oxy.so/bloom/icon-circle', () => ({ IconCircle: 'IconCircle' }));
 jest.mock('@oxy.so/bloom/pressable-scale', () => ({ PressableScale: 'PressableScale' }));
 jest.mock('@oxy.so/bloom/typography', () => ({ Text: 'Text' }));
 jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: 'SkeletonBox' }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { card: '#fff' } }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
+  useTheme: () => ({ colors: { card: '#fff' } }),
+}));
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: null }) }));
 jest.mock('@/lib/navigation/router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@/components/ProfileHoverCard', () => ({ ProfileHoverCard: 'ProfileHoverCard' }));

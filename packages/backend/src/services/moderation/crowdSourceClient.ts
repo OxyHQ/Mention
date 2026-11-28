@@ -1,8 +1,4 @@
-import {
-  crowdSourceForOxyService,
-  resetCrowdSourceForOxyService,
-  type CrowdSource,
-} from '@crowdsource.you/core';
+import { crowdSourceForOxyService, type CrowdSource } from '@crowdsource.you/core';
 
 import { config } from '../../config';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
@@ -34,7 +30,7 @@ export function getCrowdSourceClient(): CrowdSource | undefined {
     },
   });
   // This client has service identity only. Requester-bound clients remain per operation.
-  if (client) cachedClient = { oxy, baseUrl, client };
+  cachedClient = { oxy, baseUrl, client };
   return client;
 }
 
@@ -60,5 +56,4 @@ export function canDeliverToCrowdSource(): boolean {
 export function resetCrowdSourceClient(): void {
   cachedClient?.client.dispose();
   cachedClient = undefined;
-  resetCrowdSourceForOxyService();
 }

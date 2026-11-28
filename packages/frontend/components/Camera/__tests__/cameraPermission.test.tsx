@@ -74,7 +74,7 @@ jest.mock('@oxy.so/bloom/button', () => ({
 }));
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Text };
+  return { Text, fontFamilyStyle: () => ({}) };
 });
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';

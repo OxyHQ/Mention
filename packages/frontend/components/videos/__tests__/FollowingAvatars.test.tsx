@@ -16,12 +16,11 @@ jest.mock('@oxy.so/services/ui/client', () => ({
     canUsePrivateApi: mockPrivate,
     oxyServices: { follows: { viewerGraph: mockViewerGraph }, users: { getMany: mockGetMany } },
   }),
-  queryKeys: { users: { list: (ids: string[]) => ['users', 'list', ids] } },
 }));
 jest.mock('@tanstack/react-query', () => ({
   useQuery: (options: (typeof mockQueries)[number]) => {
     mockQueries.push(options);
-    return { data: options.queryKey[0] === 'users' ? mockProfiles : mockGraph };
+    return { data: options.queryKey.includes('profiles') ? mockProfiles : mockGraph };
   },
 }));
 jest.mock('@/components/ui/AccountAvatarGroup', () => ({ AccountAvatarGroup: () => null }));
@@ -49,6 +48,8 @@ it('hydrates only three real followed identities and preserves their graph order
   expect(group.props).toMatchObject({ size: 18, overlap: 6, max: 3 });
   mockQueries[1].queryFn();
   expect(mockGetMany).toHaveBeenCalledWith(['b', 'a', 'missing']);
+  // The profiles answer is the viewer's own, keyed under their following graph.
+  expect(mockQueries[1].queryKey).toEqual([...mockQueries[0].queryKey, 'profiles', 'b,a,missing']);
   act(() => renderer.unmount());
 });
 
@@ -79,6 +80,7 @@ it('drops the previous viewer facepile while the next viewer graph loads', () =>
   expect(renderer.toJSON()).toBeNull();
   expect(mockQueries[2].queryKey).not.toEqual(firstKey);
   expect(mockQueries[3].enabled).toBe(false);
+  expect(mockQueries[3].queryKey.slice(0, firstKey.length)).not.toEqual(firstKey);
   act(() => renderer.unmount());
 });
 

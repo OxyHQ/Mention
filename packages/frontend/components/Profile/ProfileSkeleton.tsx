@@ -77,7 +77,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
 
   if (variant === 'channel') {
     return (
-      <Skeleton.Region className="w-full">
+      <Skeleton.Region style={{ width: '100%' }}>
         <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
           <View className="px-4 pb-4">
             {/* Centred masthead — avatar, then name, then handle. The margins
@@ -147,7 +147,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   }
 
   return (
-    <Skeleton.Region className="w-full">
+    <Skeleton.Region style={{ width: '100%' }}>
       {/* Banner and profile info block — the loaded profile's `CoverHeader`,
           with ProfileContent's padding. The band is dampened (`blend`) so the
           avatar placeholder reads clearly over it. */}

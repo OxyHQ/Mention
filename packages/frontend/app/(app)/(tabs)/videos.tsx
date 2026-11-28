@@ -644,7 +644,7 @@ const ReelSurface: React.FC<
       {showBufferSpinner && (
         <View style={styles.bufferSpinner} pointerEvents="none">
           <View style={styles.bufferSpinnerInner}>
-            <SpinnerIcon size={32} className="text-white" />
+            <SpinnerIcon size={32} color="#ffffff" />
           </View>
         </View>
       )}
@@ -1072,7 +1072,7 @@ function VideoLoadingMore() {
       style={{ bottom: bottomInset + 24 }}
       pointerEvents="none"
     >
-      <SpinnerIcon size={24} className="text-white" />
+      <SpinnerIcon size={24} color="#ffffff" />
     </View>
   );
 }

@@ -35,7 +35,7 @@ const NotificationSkeletonRow: React.FC = () => (
 export const NotificationSkeleton: React.FC<{ count?: number }> = ({
   count = PLACEHOLDER_ROWS,
 }) => (
-  <Skeleton.Region className="w-full">
+  <Skeleton.Region style={{ width: '100%' }}>
     {Array.from({ length: count }).map((_, index) => (
       <NotificationSkeletonRow key={index} />
     ))}

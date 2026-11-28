@@ -23,8 +23,8 @@ import {
  * is still one screen; the seam between them is documented in
  * `Profile/ProfileChromeFrame.tsx`.
  *
- * Nothing here is fetched twice. `useProfileAccount` is a React Query read under
- * the same key the layout uses, so this asks the cache the layout has already
+ * Nothing here is fetched twice. `useProfileAccount` reads the same cached
+ * records the layout does, so this asks the caches the layout has already
  * filled; the two answer the same `isPrivate` / `isOwnProfile` because both go
  * through `profileViewer.ts` rather than deriving them inline.
  *

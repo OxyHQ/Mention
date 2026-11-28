@@ -189,7 +189,10 @@ export default function JobApplyScreen() {
   if (step === 'review') {
     return (
       <Screen header={header}>
-        <ScreenScrollView contentContainerClassName="px-4 pb-16 pt-2">
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 64, paddingTop: 8 }}
+        >
           <Text className="text-foreground text-lg font-bold mb-1">
             {t('jobs.apply.reviewTitle', { defaultValue: 'Review what you are sharing' })}
           </Text>
@@ -286,7 +289,8 @@ export default function JobApplyScreen() {
   return (
     <Screen header={header}>
       <ScreenScrollView
-        contentContainerClassName="px-4 pb-16 pt-2"
+        contentView
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 64, paddingTop: 8 }}
         keyboardShouldPersistTaps="handled"
       >
         <Text className="text-foreground text-lg font-bold mb-1">{job.title}</Text>

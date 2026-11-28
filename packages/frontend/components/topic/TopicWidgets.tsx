@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Text } from '@oxy.so/bloom/typography';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles, useTheme } from '@oxy.so/bloom/theme';
 import type { PostUser, TrendRelatedDTO, TrendTopicResponse } from '@mention/shared-types';
 import { BaseWidget } from '@/components/widgets/BaseWidget';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
@@ -12,6 +12,12 @@ import { useRouter } from '@/lib/navigation/router';
 import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
+
+const useTextStyles = createTokenStyles((t) => ({
+  statValue: { fontSize: 18, fontWeight: '700' },
+  quiet: { fontSize: 12, lineHeight: 16, color: t.mutedForeground },
+  name: { fontSize: 15, fontWeight: '700' },
+}));
 
 /** The topic's live numbers, shared by every widget below. */
 function useTopic(term: string) {
@@ -91,16 +97,18 @@ function TopicMovementWidget({ topic }: { topic: TrendTopicResponse }) {
 }
 
 function Stat({ value, label }: { value: string; label: string }) {
+  const textStyles = useTextStyles();
   return (
     <View className="items-start">
-      <Text className="text-[18px] font-bold text-foreground">{value}</Text>
-      <Text className="text-xs text-muted-foreground">{label}</Text>
+      <Text style={textStyles.statValue}>{value}</Text>
+      <Text style={textStyles.quiet}>{label}</Text>
     </View>
   );
 }
 
 /** Trends that co-occur with this one in the batch's graph. */
 function TopicRelatedWidget({ related }: { related: TrendRelatedDTO[] }) {
+  const textStyles = useTextStyles();
   const { t } = useTranslation();
   const router = useRouter();
   if (related.length === 0) return null;
@@ -113,10 +121,10 @@ function TopicRelatedWidget({ related }: { related: TrendRelatedDTO[] }) {
             accessibilityRole="link"
             onPress={() => router.push(`/t/${encodeURIComponent(item.term)}`)}
           >
-            <Text className="text-[15px] font-bold text-foreground" numberOfLines={1}>
+            <Text style={textStyles.name} numberOfLines={1}>
               {item.displayName ?? item.term}
             </Text>
-            <Text className="text-xs text-muted-foreground">
+            <Text style={textStyles.quiet}>
               {t('trend.topic.relatedPosts', {
                 count: item.volume,
                 defaultValue: '{{count}} publicaciones',

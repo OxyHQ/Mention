@@ -130,16 +130,14 @@ function OperatedAccountSettings({
   accountId: string;
   kind: OperatedAccountKind;
 }) {
-  const { user } = useAuth();
-  const viewerId = user?.id;
   const archive = useOperatedAccountArchive(kind);
 
   // The SDK's user cache already holds the write; `noteIdentityChanged` reaches
   // Mention's own copies — the identity overlay every post row reads, and the
   // operated-accounts list — which the SDK cannot see.
   const handleUpdated = useCallback<NonNullable<AccountSettingsProps['onUpdated']>>(
-    (account, { cleared }) => noteIdentityChanged(account, viewerId, { cleared }),
-    [viewerId],
+    (account, { cleared }) => noteIdentityChanged(account, { cleared }),
+    [],
   );
 
   return (

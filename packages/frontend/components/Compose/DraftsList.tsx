@@ -366,12 +366,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
             accessibilityLabel={t('compose.deleteDraft')}
           >
             {isBusy ? (
-              <Loading
-                className="text-primary"
-                variant="inline"
-                size="sm"
-                style={{ flex: undefined }}
-              />
+              <Loading variant="inline" size="sm" style={{ flex: undefined }} />
             ) : (
               <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
             )}
@@ -395,6 +390,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
       t,
       theme,
       viewerId,
+      tokens,
     ],
   );
 
@@ -411,7 +407,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
           defaultValue: "We couldn't load the drafts saved to your account",
         })}
       </Text>
-      <Button className="mt-3" onPress={refetchServerDrafts}>
+      <Button style={{ marginTop: 12 }} onPress={refetchServerDrafts}>
         {t('common.retry', { defaultValue: 'Retry' })}
       </Button>
     </View>
@@ -426,7 +422,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
           defaultValue: "We couldn't load the drafts saved on this device",
         })}
       </Text>
-      <Button className="mt-3" onPress={refetchDeviceDrafts}>
+      <Button style={{ marginTop: 12 }} onPress={refetchDeviceDrafts}>
         {t('common.retry', { defaultValue: 'Retry' })}
       </Button>
     </View>

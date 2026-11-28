@@ -9,6 +9,11 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { useResolvedProfileIdentity, type ProfileCardData } from './ProfileCard';
 import UserName from './UserName';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
+
+const useTextStyles = createTokenStyles((t) => ({
+  handle: { fontSize: 13, color: t.mutedForeground, textAlign: 'center' },
+}));
 
 const AVATAR_SIZE = 64;
 
@@ -64,6 +69,7 @@ export function SuggestedProfileCard({
   onFollowChange,
   accessory,
 }: SuggestedProfileCardProps) {
+  const textStyles = useTextStyles();
   const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
   const bio = resolved.description?.trim();
 
@@ -73,7 +79,7 @@ export function SuggestedProfileCard({
         onPress={press}
         disabled={!press}
         accessibilityRole={press ? 'link' : undefined}
-        className="flex-1 items-center gap-2"
+        style={{ flex: 1, alignItems: 'center', gap: 8 }}
       >
         <AccountAvatar
           account={resolved}
@@ -94,11 +100,7 @@ export function SuggestedProfileCard({
           align="center"
           style={IDENTITY_STYLE}
         />
-        <Text
-          className="text-muted-foreground text-center text-[13px]"
-          style={styles.bio}
-          numberOfLines={BIO_LINES}
-        >
+        <Text style={[textStyles.handle, styles.bio]} numberOfLines={BIO_LINES}>
           {bio ?? ''}
         </Text>
       </PressableScale>

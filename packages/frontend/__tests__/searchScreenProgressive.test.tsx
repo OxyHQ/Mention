@@ -104,6 +104,7 @@ jest.mock('@/stores/trendsStore', () => {
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
   useTheme: () => ({ colors: new Proxy({}, { get: () => '#000' }) }),
 }));
 

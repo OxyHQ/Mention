@@ -322,7 +322,15 @@ function ListDetailScreen() {
           />
         }
       >
-        <ScreenScrollView contentContainerClassName="flex-1 items-center justify-center gap-3">
+        <ScreenScrollView
+          contentView
+          contentContainerStyle={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+          }}
+        >
           <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base">{error || 'List not found'}</Text>
           <TouchableOpacity onPress={loadList}>

@@ -59,7 +59,7 @@ const ComposeScheduleIndicator = memo<ComposeScheduleIndicatorProps>(
         // `@handle` give way first (it carries `flexShrink: 10`), which is the
         // right trade here since the composer shows the viewer their OWN handle
         // and the publish time is the part they do not already know.
-        className="flex-shrink-0"
+        style={{ flexShrink: 0 }}
         accessibilityRole="button"
         // The label carries the STATE, not just the action — the visible text is
         // now only a date, so this is the only place a screen reader learns the

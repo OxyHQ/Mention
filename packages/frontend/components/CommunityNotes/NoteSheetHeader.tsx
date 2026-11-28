@@ -20,7 +20,7 @@ export function NoteSheetHeader({ title, onClose }: NoteSheetHeaderProps) {
         leadingIcon={RiCloseLine}
         accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
         onPress={onClose}
-        className="z-10"
+        style={{ zIndex: 10 }}
       />
       {title ? (
         <Text

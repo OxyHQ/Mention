@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { memo, useMemo } from 'react';
-import type { QueryClient } from '@tanstack/react-query';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import { AppRootErrorBoundary } from '@/components/AppRootErrorBoundary';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { BootMilestone } from '@/components/BootMilestone';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
+import { AccountScopeFollower } from '@/components/providers/AccountScopeFollower';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { SurfaceHost } from '@oxy.so/bloom/surfaces';
 import { OXY_CLIENT_ID } from '@/config';
@@ -95,101 +96,108 @@ export const AppProviders = memo(function AppProviders({
          * widget needs none of this (Explore answers anonymously) and is
          * unaffected either way.
          */}
-        <OxyProvider
-          onAskAlia={onAskAlia}
-          documentationUrl="https://oxy.so/developers/docs/mention/"
-          aliaAvatar={<GemieAvatarIcon width={32} height={32} />}
-          oxyOneArtwork={<OxyOneVideo />}
-          oxyServices={oxyServices}
-          clientId={OXY_CLIENT_ID}
-          authRedirectUri={OXY_AUTH_REDIRECT_URI}
-          webAuthMode="popup"
-          storageKeyPrefix="mention"
-          queryClient={queryClient}
-          backgroundSession
-          campaignAttribution
-          language={{
-            legacyStorageKeys: [STORAGE_KEYS.LANGUAGE_PREFERENCE],
-            supportedLocales: SUPPORTED_LANGUAGES,
-            fallbackLocale: DEFAULT_LANGUAGE,
-            onChange: setLanguage,
-            onError: handleLanguageError,
-          }}
-        >
-          {/*
-           * The boot visual, held up for exactly as long as AccountSwitchReset
-           * keeps account-dependent descendants unmounted. It must be supplied
-           * HERE rather than below, because this gate is above the root
-           * layout's own splash branch — anything the root renders is already
-           * a descendant of it, so during the auth window the root's splash
-           * cannot paint at all. It holds until the gate opens and the root
-           * takes over.
-           */}
-          {/* Oxy's shared sticker catalogue, read through the query client
-                OxyProvider just installed. */}
-          <StickersProvider client={stickersClient}>
-            <AccountSwitchReset fallback={<AppSplashScreen />}>
-              <BootMilestone name="cache-owner-established" />
-              <I18nextProvider i18n={i18n}>
-                {/*
-                 * `AppShellProviders` sits ABOVE this component's own
-                 * `children` and the surface host below on purpose, and moving
-                 * it back down reintroduces a crash.
-                 *
-                 * Surfaces render content far above where its JSX was written,
-                 * and React resolves context by RENDER position: Bloom's
-                 * `<SurfaceHost />` renders every presented sheet beside the
-                 * children below, and bloom's NATIVE portal group re-parents
-                 * `<Portal>` children onto the `<Outlet/>` that
-                 * `app/_layout.tsx` mounts among them. Both land at THIS depth.
-                 * While the app-shell contexts lived in `app/(app)/_layout.tsx`,
-                 * anything a sheet rendered was outside all of them — the
-                 * composer's GIF picker asked for the video playback authority
-                 * from inside a sheet and threw.
-                 */}
-                <AppShellProviders>
-                  {/* The feed rows' one command controller (#1103). ABOVE the
+        {/*
+         * Mention's own React Query client, above OxyProvider: Services keeps no
+         * React Query cache and mounts no QueryClientProvider. Which account the
+         * cache may hold is `AccountSwitchReset`'s, below.
+         */}
+        <QueryClientProvider client={queryClient}>
+          <OxyProvider
+            onAskAlia={onAskAlia}
+            documentationUrl="https://oxy.so/developers/docs/mention/"
+            aliaAvatar={<GemieAvatarIcon width={32} height={32} />}
+            oxyOneArtwork={<OxyOneVideo />}
+            oxyServices={oxyServices}
+            clientId={OXY_CLIENT_ID}
+            authRedirectUri={OXY_AUTH_REDIRECT_URI}
+            webAuthMode="popup"
+            storageKeyPrefix="mention"
+            backgroundSession
+            campaignAttribution
+            language={{
+              legacyStorageKeys: [STORAGE_KEYS.LANGUAGE_PREFERENCE],
+              supportedLocales: SUPPORTED_LANGUAGES,
+              fallbackLocale: DEFAULT_LANGUAGE,
+              onChange: setLanguage,
+              onError: handleLanguageError,
+            }}
+          >
+            <AccountScopeFollower />
+            {/*
+             * The boot visual, held up for exactly as long as AccountSwitchReset
+             * keeps account-dependent descendants unmounted. It must be supplied
+             * HERE rather than below, because this gate is above the root
+             * layout's own splash branch — anything the root renders is already
+             * a descendant of it, so during the auth window the root's splash
+             * cannot paint at all. It holds until the gate opens and the root
+             * takes over.
+             */}
+            {/* Oxy's shared sticker catalogue, read through Mention's query
+                client above. */}
+            <StickersProvider client={stickersClient}>
+              <AccountSwitchReset fallback={<AppSplashScreen />}>
+                <BootMilestone name="cache-owner-established" />
+                <I18nextProvider i18n={i18n}>
+                  {/*
+                   * `AppShellProviders` sits ABOVE this component's own
+                   * `children` and the surface host below on purpose, and moving
+                   * it back down reintroduces a crash.
+                   *
+                   * Surfaces render content far above where its JSX was written,
+                   * and React resolves context by RENDER position: Bloom's
+                   * `<SurfaceHost />` renders every presented sheet beside the
+                   * children below, and bloom's NATIVE portal group re-parents
+                   * `<Portal>` children onto the `<Outlet/>` that
+                   * `app/_layout.tsx` mounts among them. Both land at THIS depth.
+                   * While the app-shell contexts lived in `app/(app)/_layout.tsx`,
+                   * anything a sheet rendered was outside all of them — the
+                   * composer's GIF picker asked for the video playback authority
+                   * from inside a sheet and threw.
+                   */}
+                  <AppShellProviders>
+                    {/* The feed rows' one command controller (#1103). ABOVE the
                       surface host, so a post rendered inside a sheet still
                       reaches it; its services are bound by
                       <PostInteractionsBinder />. */}
-                  <PostInteractionsProvider>
-                    <AppRootErrorBoundary>
-                      <LiveRoomControllerProvider>
-                        {children}
-                        {/*
-                         * No <ToastOutlet /> here on purpose. Bloom's toast
-                         * stack must be mounted exactly once — every mount
-                         * subscribes to the same store and renders the same
-                         * rows, so a second outlet shows every toast twice.
-                         * OxyProvider above already mounts one at the app
-                         * root, and it carries Bloom's defaults.
-                         */}
-                        {/*
-                         * Bloom's imperative surface stack. OxyProvider mounts
-                         * the one <SurfaceProvider>, above these providers;
-                         * this host takes its stack over, so every sheet,
-                         * menu and confirm() (presentSheet, showActionMenu,
-                         * confirmDialog) renders inside the app's contexts.
-                         */}
-                        <SurfaceHost />
-                        <PostInteractionsBinder />
-                        <FediverseInfoDialogProvider />
-                        <ChannelInfoDialogProvider />
-                        <LiveFeatureHost />
-                        {/*
-                         * The one live-presence poll. Inside
-                         * AccountSwitchReset so it is viewer-scoped and
-                         * torn down with the previous identity.
-                         */}
-                        <LivePresencePoller />
-                      </LiveRoomControllerProvider>
-                    </AppRootErrorBoundary>
-                  </PostInteractionsProvider>
-                </AppShellProviders>
-              </I18nextProvider>
-            </AccountSwitchReset>
-          </StickersProvider>
-        </OxyProvider>
+                    <PostInteractionsProvider>
+                      <AppRootErrorBoundary>
+                        <LiveRoomControllerProvider>
+                          {children}
+                          {/*
+                           * No <ToastOutlet /> here on purpose. Bloom's toast
+                           * stack must be mounted exactly once — every mount
+                           * subscribes to the same store and renders the same
+                           * rows, so a second outlet shows every toast twice.
+                           * OxyProvider above already mounts one at the app
+                           * root, and it carries Bloom's defaults.
+                           */}
+                          {/*
+                           * Bloom's imperative surface stack. OxyProvider mounts
+                           * the one <SurfaceProvider>, above these providers;
+                           * this host takes its stack over, so every sheet,
+                           * menu and confirm() (presentSheet, showActionMenu,
+                           * confirmDialog) renders inside the app's contexts.
+                           */}
+                          <SurfaceHost />
+                          <PostInteractionsBinder />
+                          <FediverseInfoDialogProvider />
+                          <ChannelInfoDialogProvider />
+                          <LiveFeatureHost />
+                          {/*
+                           * The one live-presence poll. Inside
+                           * AccountSwitchReset so it is viewer-scoped and
+                           * torn down with the previous identity.
+                           */}
+                          <LivePresencePoller />
+                        </LiveRoomControllerProvider>
+                      </AppRootErrorBoundary>
+                    </PostInteractionsProvider>
+                  </AppShellProviders>
+                </I18nextProvider>
+              </AccountSwitchReset>
+            </StickersProvider>
+          </OxyProvider>
+        </QueryClientProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

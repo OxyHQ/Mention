@@ -24,17 +24,6 @@ import { useSupervisionState } from './useSupervisionState';
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
-/**
- * React Query key for a federated profile resolved via WebFinger. Mention-owned
- * — the SDK has no by-handle federated-resolve hook, so there is no
- * `queryKeys.users.*` helper for it — but it is rooted at the SDK's
- * `queryKeys.users.details()` so it lives in the users-cache namespace and is
- * cleared alongside the SDK user keys. Viewer-scoped for the same reason as
- * `useUserByUsername`: an authenticated resolve embeds the viewer-relative
- * `relationship` (`followsYou`), so anon vs authed must be distinct entries and
- * a landing session must force a refetch. Defined once here so this Mention-only
- * key has a single source of truth and can never drift from its reader.
- */
 export interface ProfileDesign {
   displayName: string;
   bannerUrl?: string;
@@ -165,7 +154,7 @@ function computeDesign(
 
 /**
  * Unified hook for profile data. Combines:
- * - The Oxy profile (React Query — the single in-memory actor cache).
+ * - The Oxy profile (the SDK's `User`, the actor cache of the signed-in account).
  * - The SESSION, when the handle asked for is the viewer's own: an account the
  *   app is already holding is never worth a skeleton (see `sessionProfile`).
  * - Appearance/customization settings (HTTP-backed appearance store, works web + native).
@@ -244,7 +233,7 @@ export function useProfileData(username?: string): {
    */
   const documentProfile = handle ? bootstrapProfileFor(handle) : null;
 
-  // Local profiles — SDK hook, shares the singleton React Query cache.
+  // Local profiles — SDK hook, a view of the account's `User`.
   const localQuery = useUserByUsername(!readUnrated || isFederated ? null : handle || null);
   const minimalQuery = useQuery({
     queryKey: viewerQueryKeys.minimalProfile(viewerId, normalizedHandle),
@@ -268,14 +257,12 @@ export function useProfileData(username?: string): {
 
   // Federated profiles — server-side WebFinger resolution.
   //
-  // `viewerId` is part of the key for the same reason as the local
-  // `useUserByUsername` hook: an authenticated profile fetch embeds the
-  // viewer-relative `relationship` (`followsYou`), while an anonymous cold-boot
-  // fetch omits it. Without the viewer in the key, react-query would freeze the
-  // first anonymous copy and never refetch when the session lands ~5-25s later,
-  // so the "Follows you" tag would flash then vanish forever. Adding the viewer
-  // makes anon vs authed distinct entries AND forces a refetch when the session
-  // resolves or the account switches — identical to the local path.
+  // `viewerId` is part of the key because an authenticated profile fetch embeds
+  // the viewer-relative `relationship` (`followsYou`), while an anonymous
+  // cold-boot fetch omits it. Without the viewer in the key, react-query would
+  // freeze the first anonymous copy and never refetch when the session lands
+  // ~5-25s later, so the "Follows you" tag would flash then vanish forever. (The
+  // local path gets the same separation from its store: one per account.)
   //
   // Keyed by the account's one spelling, so `/@Alice@Host` and `/@alice@host`
   // are one entry. A miss is never fresh: an account discovered a moment later
@@ -297,11 +284,37 @@ export function useProfileData(username?: string): {
       ? federatedQuery.data
       : null;
 
+  // The SDK finds a handle's record by the username the record carries. Oxy can
+  // answer under another one (a merged account resolves to the account it was
+  // merged into), and that answer is held but never found: read it directly.
+  const unmatched =
+    !isFederated && localQuery.status === 'success' && localQuery.value === undefined;
+  const unmatchedQuery = useQuery<User>({
+    queryKey: viewerQueryKeys.renamedProfile(viewerId, normalizedHandle),
+    queryFn: () => oxyServices.users.byUsername(normalizedHandle),
+    enabled: readUnrated && unmatched && normalizedHandle.length > 0,
+    staleTime: PROFILE_STALE_TIME,
+    gcTime: PROFILE_GC_TIME,
+  });
+  const localProfile = unmatched ? unmatchedQuery.data : localQuery.value;
+
   const profile =
-    (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile ?? documentProfile;
-  const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
-  const isError = isFederated ? federatedQuery.isError : localQuery.isError;
-  const queryError = isFederated ? federatedQuery.error : localQuery.error;
+    (isFederated ? federatedProfile : localProfile) ?? sessionProfile ?? documentProfile;
+  // Pending is "nothing to show yet": a read skipped for now, one on its way,
+  // and a retry of one that has only ever failed.
+  const localRetrying = localQuery.value === undefined && localQuery.isFetching;
+  const localPending = unmatched
+    ? unmatchedQuery.isPending
+    : localQuery.value === undefined &&
+      localQuery.status !== 'success' &&
+      (localQuery.status !== 'error' || localRetrying);
+  const isPending = isFederated ? federatedQuery.isPending : localPending;
+  const localError = unmatched
+    ? unmatchedQuery.isError
+    : localQuery.status === 'error' && !localRetrying;
+  const isError = isFederated ? federatedQuery.isError : localError;
+  const localFailure = unmatched ? unmatchedQuery.error : localQuery.error;
+  const queryError = isFederated ? federatedQuery.error : localFailure;
 
   // Appearance/customization (privacy, cover image, post count, color overrides).
   // Driven by React Query so it dedupes and avoids a manual effect — React Query
@@ -331,13 +344,16 @@ export function useProfileData(username?: string): {
       if (!sessionProfile && !isFederated) await minimalQuery.refetch();
       return;
     }
-    const profileRequest = isFederated ? federatedQuery.refetch() : localQuery.refetch();
+    const localRequest = unmatched ? unmatchedQuery.refetch() : localQuery.refresh();
+    const profileRequest = isFederated ? federatedQuery.refetch() : localRequest;
     await Promise.all([profileRequest, ...(userId ? [appearanceQuery.refetch()] : [])]);
   }, [
     appearanceQuery,
     federatedQuery,
     isFederated,
     localQuery,
+    unmatched,
+    unmatchedQuery,
     userId,
     allowUnrated,
     sessionProfile,

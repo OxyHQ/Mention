@@ -159,8 +159,7 @@ export default function WatchHomeRoute() {
           ) : filter === 'clips' && clips.isPending ? (
             <Skeleton.Region
               testID="watch-clips-skeleton"
-              className="flex-row overflow-hidden"
-              style={styles.clipTrack}
+              style={[{ flexDirection: 'row', overflow: 'hidden' }, styles.clipTrack]}
             >
               {[0, 1, 2, 3].map((key) => (
                 <View key={key} className="w-[138px] sm:w-[164px]">

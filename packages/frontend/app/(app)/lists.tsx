@@ -176,7 +176,12 @@ function ListsScreen() {
               'Lists group the accounts you want to read together. The ones you create or follow appear here.',
           })}
         >
-          <ScreenScrollView contentContainerClassName="px-3 pt-2.5">{content}</ScreenScrollView>
+          <ScreenScrollView
+            contentView
+            contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 10 }}
+          >
+            {content}
+          </ScreenScrollView>
         </SignInRequired>
       </Screen>
     </>

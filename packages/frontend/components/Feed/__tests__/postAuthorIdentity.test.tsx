@@ -24,14 +24,16 @@ import TestRenderer, { act } from 'react-test-renderer';
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
 jest.mock('@oxy.so/services/ui/client', () => ({
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
+  ...require('@/test-support/oxyUsers').oxyUsers,
 }));
 jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
-jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  ...require('@/test-support/bloomTokenStyles'),
+  useTheme: () => ({ colors: {} }),
+}));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
 jest.mock('@oxy.so/bloom/icons', () => ({
   RiChat3Fill: () => null,
@@ -136,6 +138,7 @@ jest.mock('@/components/Post/PostHeader', () => {
 import PostItem from '../PostItem';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import { noteIdentityChanged } from '@/lib/actorCache';
+import { openAccountStore, signOutForTests } from '@/test-support/accountScope';
 import { resetIdentityUpdates } from '@/stores/identityUpdates';
 
 const CHANNEL_ID = 'channel-1';
@@ -175,11 +178,16 @@ function probe(renderer: TestRenderer.ReactTestRenderer, testID: string): string
   return String(renderer.root.findByProps({ testID }).props.children);
 }
 
+beforeEach(() => {
+  openAccountStore();
+});
+
 afterEach(() => {
   const renderer = mounted;
   if (renderer) act(() => renderer.unmount());
   mounted = null;
   resetIdentityUpdates();
+  signOutForTests();
   jest.clearAllMocks();
 });
 

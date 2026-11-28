@@ -23,7 +23,7 @@ export function SupervisedFeatureGate({
           title: t('safety.checkFailed'),
           message: t('safety.retryDescription'),
           onRetry: async () => {
-            await state.refetch();
+            await state.refresh();
           },
         }}
       />

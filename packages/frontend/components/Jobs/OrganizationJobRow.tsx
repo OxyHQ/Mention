@@ -102,7 +102,7 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
     <Card
       radius="radius-16"
       onPress={open}
-      className="p-4"
+      style={{ padding: 16 }}
       accessibilityRole="button"
       accessibilityLabel={job.title}
       appearance="outline"
