@@ -358,6 +358,16 @@ describe('readPostChildTables', () => {
     for (const rows of Object.values(actual)) expect(rows).toEqual([]);
   });
 
+  it('takes a batch that would pass the bind-parameter ceiling as one list per table', async () => {
+    const [postId] = await seedBatch();
+    const absent = Array.from({ length: 7_000 }, (_, index) => `absent-post-${index}`);
+
+    const actual = await readPostChildTables(getDb(), [postId, ...absent]);
+
+    expect(actual.media.map((row) => row.postId)).toEqual([postId, postId]);
+    expect(actual.variantAltTexts).toHaveLength(4);
+  });
+
   it('works inside a transaction, as assembly after a write does', async () => {
     const [postId] = await seedBatch();
     const expected = await perTableReference(getDb(), [postId]);

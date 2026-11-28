@@ -386,16 +386,20 @@ const variantAltColumns = getTableColumns(postVariantAltTexts);
  */
 export async function readPostChildTables(db: DatabaseOrTransaction, postIds: readonly string[]) {
   const ids = [...postIds];
+  // The ids bind as ONE array per filter. As an `IN` list, ten filters over one
+  // statement would pass Postgres' 65,535-parameter ceiling at about 6,500
+  // posts, which a long drafts or scheduled queue reaches.
+  const ofPosts = (column: AnyPgColumn): SQL => sql`${column} = any(${sql.param(ids)}::text[])`;
   const variantIdsOfPosts = db
     .select({ id: postContentVariants.id })
     .from(postContentVariants)
-    .where(inArray(postContentVariants.postId, ids));
+    .where(ofPosts(postContentVariants.postId));
   const [row] = await db.execute<Record<string, unknown>>(sql`select
     ${childRowsJson(
       db,
       postAuthorships,
       authorshipColumns,
-      inArray(postAuthorships.postId, ids),
+      ofPosts(postAuthorships.postId),
       // Owner FIRST — the byline order `getHeaderAuthorshipEntries` renders and
       // the order `getOwner` finds. That half is guaranteed by the explicit rank,
       // not by the id: alphabetically 'collaborator' sorts BEFORE 'owner'.
@@ -412,49 +416,49 @@ export async function readPostChildTables(db: DatabaseOrTransaction, postIds: re
       db,
       postContentVariants,
       variantReadColumns,
-      inArray(postContentVariants.postId, ids),
+      ofPosts(postContentVariants.postId),
       sql`${childColumn('position')} asc`,
     )} as variants,
     ${childRowsJson(
       db,
       postMedia,
       mediaRowColumns,
-      inArray(postMedia.postId, ids),
+      ofPosts(postMedia.postId),
       sql`${childColumn('position')} asc`,
     )} as media,
     ${childRowsJson(
       db,
       postAttachments,
       attachmentColumns,
-      inArray(postAttachments.postId, ids),
+      ofPosts(postAttachments.postId),
       sql`${childColumn('position')} asc`,
     )} as attachments,
     ${childRowsJson(
       db,
       postSources,
       sourceColumns,
-      inArray(postSources.postId, ids),
+      ofPosts(postSources.postId),
       sql`${childColumn('position')} asc`,
     )} as sources,
     ${childRowsJson(
       db,
       postMentions,
       mentionColumns,
-      inArray(postMentions.postId, ids),
+      ofPosts(postMentions.postId),
       sql`${childColumn('id')} asc`,
     )} as mentions,
     ${childRowsJson(
       db,
       postRecipients,
       recipientColumns,
-      inArray(postRecipients.postId, ids),
+      ofPosts(postRecipients.postId),
       sql`${childColumn('oxyUserId')} asc`,
     )} as recipients,
     ${childRowsJson(
       db,
       postClassificationTopicRefs,
       topicRefColumns,
-      inArray(postClassificationTopicRefs.postId, ids),
+      ofPosts(postClassificationTopicRefs.postId),
       // The table has no `position` column for the order the classifier
       // emitted. `relevance DESC` recovers the MEANING of that order wherever the
       // classifier supplied one, with `name` as a deterministic tie-break so a
