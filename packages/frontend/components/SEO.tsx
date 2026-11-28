@@ -4,6 +4,7 @@ import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useFocusEffect, usePathname } from '@/lib/navigation/router';
 import { releaseServerSEO } from '@/lib/seoHandoff';
+import { releasePrerender } from '@/lib/prerender';
 import { WEB_BASE_URL } from '@/config';
 import ExpoHead from 'expo-router/head';
 import { useTranslation } from 'react-i18next';
@@ -184,6 +185,8 @@ export const SEO: React.FC<SEOProps> = ({
     useCallback(() => {
       if (!panel && Platform.OS === 'web' && ready && typeof document !== 'undefined') {
         releaseServerSEO(document);
+        // The route has committed its content: hand over from the first frame.
+        releasePrerender();
       }
     }, [ready, panel]),
   );

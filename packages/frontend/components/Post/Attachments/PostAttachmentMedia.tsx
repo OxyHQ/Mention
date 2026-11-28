@@ -12,6 +12,7 @@ import {
 import { Image, type ImageLoadEventData } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
+import { isPreloadedLcpImage } from '@/lib/lcpImage';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
@@ -378,6 +379,7 @@ const PostAttachmentImage: React.FC<{
   overlay,
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const wrapperRef = useRef<ViewInstance | null>(null);
   // The ratio is DERIVED while it is knowable synchronously — from the record,
   // else from the shared cache — and only a ratio that has to be measured goes
@@ -456,6 +458,8 @@ const PostAttachmentImage: React.FC<{
   }
 
   const hasAlt = typeof alt === 'string' && alt.trim().length > 0;
+  // The page's LCP image (the one the document preloaded) loads at once.
+  const lcp = isPreloadedLcpImage(src);
 
   // expo-image rather than RN's `Image`: a memory+disk cache that survives
   // relaunches, decoding off the JS thread, and `recyclingKey`, which clears the
@@ -473,8 +477,12 @@ const PostAttachmentImage: React.FC<{
         contentFit="cover"
         cachePolicy="memory-disk"
         transition={120}
-        accessibilityLabel={hasAlt ? alt : undefined}
+        // The author's own description, else a plain label: an image with no
+        // alt at all is read out as its URL.
+        accessibilityLabel={hasAlt ? alt : t('post.imageWithoutAlt', { defaultValue: 'Image' })}
         accessibilityRole="image"
+        loading={lcp ? 'eager' : undefined}
+        priority={lcp ? 'high' : undefined}
         onLoad={handleImageLoad}
         onError={handleImageError}
       />

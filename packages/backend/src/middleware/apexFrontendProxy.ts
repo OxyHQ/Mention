@@ -34,7 +34,9 @@ import { logger } from '../utils/logger';
 import { labelMiddlewareResponse } from './requestObservability';
 import {
   SHELL_ACCESS_HEADER,
+  authorizeInlineScripts,
   invalidateShellDocument,
+  shellInlineScriptHashes,
 } from '../services/webshell/webShellDocument';
 import { appRoutePolicy } from '../services/webshell/appRoutePolicy';
 
@@ -313,6 +315,11 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   }
   res.status(status);
   if (contentType) res.setHeader('Content-Type', contentType);
+  // The app's document carries the theme prepaint as an inline script: the
+  // same `index.html` the shell cache holds, so its hash authorizes it.
+  if (isHtmlContentType(contentType)) {
+    authorizeInlineScripts(res, shellInlineScriptHashes());
+  }
 
   // Relay the CDN's Content-Encoding + its matching Content-Length UNCHANGED: the
   // raw (still-compressed) bytes are streamed through as-is, so the browser

@@ -40,6 +40,11 @@ function pathKey(pathname: string): string {
   );
 }
 
+/** Whether two paths name the same route (decoded segments, trailing slash ignored). */
+export function samePath(a: string, b: string): boolean {
+  return pathKey(a) === pathKey(b);
+}
+
 export function matchesSEOPath(url: string, pathname: string): boolean {
   try {
     return pathKey(new URL(url).pathname) === pathKey(pathname);

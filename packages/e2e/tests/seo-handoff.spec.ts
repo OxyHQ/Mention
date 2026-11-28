@@ -6,6 +6,13 @@ import {
   renderShellWithOg,
   type OgData,
 } from '../../backend/src/services/webshell/webShellRenderer';
+import {
+  injectPrerender,
+  postPath,
+  prerenderPost,
+  prerenderStyle,
+  renderPrerenderPost,
+} from '../../backend/src/services/webshell/prerender';
 import { API_ORIGIN, APP_ORIGIN, CANDIDATE_ORIGIN, PROFILE_HANDLE } from '../environment';
 
 const profilePath = `/@${PROFILE_HANDLE}`;
@@ -56,7 +63,13 @@ const seoPost = {
   viewerState: { isOwner: false, isLiked: false, isBoosted: false, isSaved: false },
 };
 
-async function serveDocument(context: BrowserContext, path: string, og: OgData | null) {
+async function serveDocument(
+  context: BrowserContext,
+  path: string,
+  og: OgData | null,
+  /** The server's first-frame layer, as the web shell adds it to a post page. */
+  layer = '',
+) {
   unexpectedSeoRequests.set(context, await installContractApi(context));
   await context.route(`${API_ORIGIN}/feed/mtn?**`, (route) =>
     route.fulfill({ json: { items: [seoPost], hasMore: false } }),
@@ -83,7 +96,15 @@ async function serveDocument(context: BrowserContext, path: string, og: OgData |
         delete headers[header];
       const body =
         route.request().isNavigationRequest() && url.pathname === path
-          ? renderShellWithOg(await response.text(), og)
+          ? injectPrerender(
+              renderShellWithOg(
+                layer
+                  ? (await response.text()).replace('</head>', `${prerenderStyle()}</head>`)
+                  : await response.text(),
+                og,
+              ),
+              layer,
+            )
           : await response.body();
       await route.fulfill({ status: response.status(), headers, body });
     },
@@ -521,4 +542,62 @@ test('homepage raw head advertises a real JPEG and transfers ownership on profil
   );
   await expect(page.locator('[data-mention-seo="true"]')).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('a post page shows its first frame before the app, then hands over to the same screen', async ({
+  context,
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const path = `/p/${seoPost.id}`;
+  const layer = renderPrerenderPost(
+    prerenderPost(seoPost as unknown as Parameters<typeof prerenderPost>[0]),
+    postPath(seoPost.id),
+  );
+  await serveDocument(context, path, null, layer);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let blocked = false;
+  await page.route('**/_expo/static/js/**', async (route) => {
+    blocked = true;
+    await gate;
+    await route.fallback();
+  });
+  await page.goto(`${APP_ORIGIN}${path}`, { waitUntil: 'commit' });
+  await expect.poll(() => blocked).toBe(true);
+  // Before any application code: the post's own words, author and link.
+  const frame = page.locator('#mention-prerender');
+  await expect(frame).toBeVisible();
+  await expect(frame).toContainText('Public SEO navigation fixture');
+  await expect(frame.locator(`a[href="/@${PROFILE_HANDLE}"]`).first()).toBeVisible();
+  // The app's own root is never hidden.
+  await expect(page.locator('#root')).toHaveCSS('visibility', 'visible');
+  release();
+  // The route commits the same post, and the frame leaves.
+  await expect(page.locator('#root h1').first()).toBeVisible();
+  await expect(frame).toHaveCount(0);
+  await expect(page.locator('#mention-prerender-style')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('without JavaScript the first frame is the readable page', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const path = `/p/${seoPost.id}`;
+    const layer = renderPrerenderPost(
+      prerenderPost(seoPost as unknown as Parameters<typeof prerenderPost>[0]),
+      postPath(seoPost.id),
+    );
+    await serveDocument(context, path, null, layer);
+    const page = await context.newPage();
+    await page.goto(`${APP_ORIGIN}${path}`);
+    await expect(page.locator('#mention-prerender h1')).toHaveText('Nate');
+    await expect(page.locator('#mention-prerender')).toContainText('Public SEO navigation fixture');
+  } finally {
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
+    await context.close();
+  }
 });

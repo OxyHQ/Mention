@@ -752,7 +752,8 @@
       "label": "Job"
     },
     "inCommunity": "in !{{handle}}",
-    "sources": "Sources"
+    "sources": "Sources",
+    "imageWithoutAlt": "Image"
   },
   "navigation": {
     "menu": "Navigation menu",

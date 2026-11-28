@@ -11,6 +11,7 @@ import {
   renderShellWithOg,
   mapHomepageOg,
   mapProfileOg,
+  lcpPreloadHtml,
   mapPostOg,
   mapReplyComment,
   type OgData,
@@ -412,6 +413,50 @@ describe('mapPostOg for search', () => {
     );
     expect(og.title).toBe('Nate on Mention');
     expect(og.description).toBe('A post by Nate (@nate) on Mention.');
+  });
+
+  it("preloads the post's first image at the URL its media card requests", () => {
+    const og = mapPostOg(
+      post({
+        content: {
+          text: 'look',
+          media: [
+            {
+              id: 'm',
+              type: 'image',
+              url: 'https://cdn/p.jpg',
+              thumbUrl: 'https://cdn/p.jpg?variant=w320',
+            },
+          ],
+        },
+      }),
+      'p1',
+      SAFE,
+    );
+    expect(og.lcpImage).toBe('https://cdn/p.jpg?variant=w320');
+    expect(lcpPreloadHtml(og)).toBe(
+      '<link rel="preload" as="image" href="https://cdn/p.jpg?variant=w320" fetchpriority="high" data-mention-lcp>',
+    );
+  });
+
+  it('preloads nothing for a video, a text post or a gated post', () => {
+    const video = mapPostOg(
+      post({
+        content: { text: 'clip', media: [{ id: 'v', type: 'video', url: 'https://cdn/v.mp4' }] },
+      }),
+      'p1',
+      SAFE,
+    );
+    expect(lcpPreloadHtml(video)).toBe('');
+    expect(lcpPreloadHtml(mapPostOg(post({}), 'p1', SAFE))).toBe('');
+    const gated = mapPostOg(
+      post({
+        content: { text: 'x', media: [{ id: 'm', type: 'image', url: 'https://cdn/p.jpg' }] },
+      }),
+      'p1',
+      { requiresWarning: true },
+    );
+    expect(lcpPreloadHtml(gated)).toBe('');
   });
 
   it('marks up the post the way search engines read a social posting', () => {
