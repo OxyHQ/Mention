@@ -67,6 +67,7 @@ import {
   prerenderPost,
   prerenderStyle,
   renderPrerenderPost,
+  shellRemovesFirstFrame,
 } from '../services/webshell/prerender';
 import { normalizeHashtag } from '../utils/textProcessing';
 import { loadPublicProfileFacts } from '../services/accounts/publicProfileFacts';
@@ -393,8 +394,9 @@ async function serveShell(
   layer = '',
 ): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
-  // The first frame goes only on a page served as a success.
-  const frame = status === 200 ? layer : '';
+  // The first frame goes only on a page served as a success, in a release
+  // that removes it.
+  const frame = status === 200 && shellRemovesFirstFrame(shell) ? layer : '';
   res.status(status);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', status === 200 ? cacheControl : 'no-store');

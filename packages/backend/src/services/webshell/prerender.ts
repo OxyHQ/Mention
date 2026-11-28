@@ -264,6 +264,15 @@ export function firstPaintFontUrl(shell: string): string | undefined {
   return match?.[1];
 }
 
+/**
+ * Whether this shell's release removes the layer (`frontend/public/index.html`
+ * carries the marker). The frontend and the backend deploy separately; a layer
+ * over a release that cannot remove it would cover the app for good.
+ */
+export function shellRemovesFirstFrame(shell: string): boolean {
+  return /<meta name="mention-first-frame" content="1"/.test(shell);
+}
+
 /** Insert the layer as the body's first child, ahead of `#root`. */
 export function injectPrerender(html: string, layer: string): string {
   if (!layer) return html;

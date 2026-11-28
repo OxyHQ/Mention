@@ -6,6 +6,7 @@ import {
   prerenderPost,
   prerenderStyle,
   renderPrerenderPost,
+  shellRemovesFirstFrame,
 } from '../services/webshell/prerender';
 
 /**
@@ -104,5 +105,14 @@ describe('the words of the frame', () => {
       content: { text: 'Plain **strong words** end' },
     } as HydratedPost);
     expect(renderPrerenderPost(page, '/p/p1')).toContain('Plain <strong>strong words</strong> end');
+  });
+});
+
+describe('the rollout', () => {
+  it('adds the layer only to a release that removes it', () => {
+    expect(
+      shellRemovesFirstFrame('<head><meta name="mention-first-frame" content="1" /></head>'),
+    ).toBe(true);
+    expect(shellRemovesFirstFrame('<head><meta charset="utf-8"></head>')).toBe(false);
   });
 });

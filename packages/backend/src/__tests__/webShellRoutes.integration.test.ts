@@ -114,7 +114,7 @@ const scope = postScope('web-shell');
 const AUTHOR = scope.user('author');
 
 const SHELL =
-  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title></head>' +
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="mention-first-frame" content="1"><title>Mention</title></head>' +
   '<body><div id="root"></div><script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
 
 /** An id that matches no row — the "missing post" case, and a browser fast-path probe. */
