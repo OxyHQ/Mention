@@ -1,0 +1,167 @@
+// Printed by bloom migrate from components/Compose/SourcesSheet.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { EmptyState } from "@/components/common/EmptyState"
+import { RiAddLine } from "@oxy.so/bloom/icons/RiAddLine"
+import { RiLinkM } from "@oxy.so/bloom/icons/RiLinkM"
+import { ScrollView } from "react-native"
+
+public type SourceField = "title" | "url"
+
+public struct SourceItem {
+  let id: String
+  let title: String
+  let url: String
+}
+
+public struct SourcesSheet: View {
+  let sources: [SourceItem]
+  let onAdd: () -> Unit
+  let onUpdate: (String, SourceField, String) -> Unit
+  let onRemove: (String) -> Unit
+  let onClose: () -> Unit
+  let validateUrl: (String) -> Bool
+  var maxSources: Float = 5
+
+  let canAddMore = sources.count.toFloat() < maxSources
+  let hasInvalidSources = sources.any {
+    source in
+    source.url.trimmed().utf16.count > 0 && !validateUrl(source.url)
+  }
+
+  var body: some View {
+    VStack {
+      Header(String(localized: "compose.sources.heading"))
+      .titleAlign(.center)
+      .safeArea(false)
+      .toolbarLeading(
+        Button(Icon(.close))
+          .shape(.circle)
+          .style(.subtle)
+          .tint(.neutral)
+          .onPress(onClose)
+          .label(String(localized: "common.close")),
+      )
+      .inPage()
+      RawText(String(localized: "compose.sources.help"))
+      .font(.sm)
+      .foregroundStyle(.muted)
+      .margin(.top, .md)
+      .margin(.bottom, .md)
+      .padding(.horizontal, .lg)
+      .leading("18px")
+      if hasInvalidSources {
+        RawText(String(localized: "compose.sources.linksInvalid"))
+        .font(.xs)
+        .leading("16px")
+        .margin(.bottom, .md)
+        .padding(.horizontal, .lg)
+        .foregroundStyle(.error)
+      }
+      ScrollView(
+        contentContainerStyle: { paddingBottom: 32 },
+        showsVerticalScrollIndicator: false,
+      ) {
+        if sources.count == 0 {
+          EmptyState(
+            title: String(localized: "compose.sources.emptyTitle"),
+            subtitle: String(localized: "compose.sources.emptySubtitle"),
+            icon: RiLinkM,
+            action: canAddMore ? {
+              label: String(localized: "compose.sources.add"),
+              onPress: onAdd,
+              icon: RiAddLine,
+            } : none,
+          )
+        } else {
+          VStack {
+            for (index, source) in sources.enumerated() {
+              let isUrlInvalid = source.url.trimmed().utf16.count > 0 && !validateUrl(source.url)
+              // A source: its fields stacked in the card (`p-3 gap-2.5`), its outline the
+              // error colour while its URL is not one.
+              Card {
+                HStack(alignment: .center) {
+                  RawText(
+                    String(localized: "compose.sources.itemLabel", args: ["index": "\(index + 1)"]),
+                  )
+                  .font(.xs)
+                  .leading("16px")
+                  .weight(.semibold)
+                  .tracking(.wide)
+                  .textCase(.uppercase)
+                  .foreground(.muted)
+                  VStack { Icon(.close).size(.sm).foreground(.muted) }
+                  .padding(.xs)
+                  .onPress { onRemove(source.id) }
+                  .hitSlop(.md)
+                  .role(.button)
+                  .label(String(localized: "common.remove"))
+                  .pressFade()
+                }
+                .justify(.between)
+                TextField(
+                  Binding(get: source.title, set: { value in onUpdate(source.id, "title", value) }),
+                  String(localized: "compose.sources.titlePlaceholder"),
+                )
+                .maxLength(200)
+                .autocapitalize(.sentences)
+                .autocorrect(true)
+                Field(
+                  none,
+                  TextField(
+                    Binding(get: source.url, set: { value in onUpdate(source.id, "url", value) }),
+                    String(localized: "compose.sources.urlPlaceholder"),
+                  )
+                    .invalid(isUrlInvalid)
+                    .keyboard(.url)
+                    .autocapitalize(.none)
+                    .autocorrect(false)
+                    .textContentType("URL")
+                    .submitLabel(.done),
+                )
+                .error(isUrlInvalid ? String(localized: "compose.sources.invalidUrl") : none)
+              }
+              .style(.outline)
+              .elevation(.none)
+              .radius(.md)
+              .padding(.md)
+              .spacing("10")
+              .when(isUrlInvalid, { v in v.border("error") })
+              .id(source.id)
+            }
+          }
+          .padding(.horizontal, .lg)
+          .spacing(.md)
+        }
+      }
+      if sources.count > 0 {
+        Button {
+          Icon(.add)
+          Text(String(localized: "compose.sources.addAnother"))
+        }
+        .style(.subtle)
+        .tint(.neutral)
+        .size(.lg)
+        .onPress(onAdd)
+        .disabled(!canAddMore)
+        .margin(.horizontal, .lg)
+        // The web's button never drew its top margin; native's did.
+        .when(.native, { v in v.margin("top", "md") })
+      }
+      if !canAddMore {
+        RawText(String(localized: "compose.sources.limit"))
+        .padding(.horizontal, .lg)
+        .font(.xs)
+        .leading("16px")
+        .textAlign(.center)
+        .margin(.top, .sm)
+        .foregroundStyle(.textTertiary)
+      }
+    }
+    .padding(.bottom, .xxl)
+    .background(.background)
+    .flex("1")
+    .task(id: onClose) {
+      defer { onClose() }
+      await Task.cancellation
+    }
+  }
+}

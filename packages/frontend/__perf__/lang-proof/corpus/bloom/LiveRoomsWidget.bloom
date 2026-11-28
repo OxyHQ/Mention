@@ -25,7 +25,7 @@ private func buildRoomUrl(_ roomId: String) -> String { "\(WEB_BASE_URL)/live-ro
 private func getDisplayName(
   _ profile: Foreign<"ReturnType<typeof useUserById>">,
   _ userId: String,
-) -> String { profile?.name?.displayName || (profile?.username || userId.slice(0, 10)) }
+) -> String { profile?.name?.displayName || (profile?.username || userId.utf16.slice(0, 10)) }
 
 private struct RoomRow: View {
   let room: Room
@@ -167,6 +167,7 @@ public struct LiveRoomsWidget: View {
       if !isAuthenticated { return }
       let subscriptionId = startPolling()
       defer { stopPolling(subscriptionId) }
+      await Task.cancellation
     }
   }
 }

@@ -82,24 +82,49 @@ jest.mock('@/hooks/useSupervisionState', () => ({
 }));
 
 /** The mockWorld the hooks read; each case sets the part it needs before drawing. */
+/**
+ * The side effects the file's effects ran (setup and teardown, in order), with `<unmount>` where
+ * the tree was unmounted: the `.bloom` form must run the same, at the same moments (a cleanup
+ * that ran before `<unmount>` would have stopped what TS kept running).
+ */
+const mockEffects: string[] = [];
+
 const mockWorld: {
   podcast: { status: string; value?: unknown };
   rooms: unknown[];
   recommendations: unknown[];
   recommendationsLoading: boolean;
+  /** Whether `useAuth()` says a session is signed in. */
+  signedIn: boolean;
 } = {
   podcast: { status: 'loading' },
   rooms: [],
   recommendations: [],
   recommendationsLoading: false,
+  signedIn: false,
 };
+
+// A session as the cases need it: signed out (no user, no private API), or signed in (`signedIn`).
+jest.mock('@oxy.so/services/ui/client', () => ({
+  useAuth: () => ({
+    user: undefined,
+    isAuthenticated: mockWorld.signedIn,
+    canUsePrivateApi: false,
+    oxyServices: { http: { getSessionEpoch: () => 0 } },
+  }),
+}));
 
 jest.mock('@/hooks/useVisibleReference', () => ({
   useVisibleReference: () => mockWorld.podcast,
 }));
 jest.mock('@/stores/liveRoomsStore', () => {
-  const startPolling = () => 'sub';
-  const stopPolling = () => undefined;
+  const startPolling = () => {
+    mockEffects.push('startPolling');
+    return 'sub';
+  };
+  const stopPolling = (id: unknown) => {
+    mockEffects.push(`stopPolling(${String(id)})`);
+  };
   const hideRoom = () => undefined;
   return {
     useLiveRoomsStore: () => ({
@@ -147,7 +172,8 @@ interface Case {
   broken?: string;
   ts: () => Module;
   bloom: () => Module;
-  states: Record<string, { props: Props; before?: () => void }>;
+  /** `effects`: what the TypeScript's effects must run (so the comparison is not vacuous). */
+  states: Record<string, { props: Props; before?: () => void; effects?: string[] }>;
 }
 
 const room = (id: string, title: string, type: 'talk' | 'stage' | 'broadcast') => ({
@@ -326,6 +352,16 @@ const CASES: Case[] = [
           ];
         },
       },
+      // Signed in, the widget holds a polling lease while it is on screen and gives it back on
+      // unmount (a `.task` cleanup that ran at once would stop the polling before `<unmount>`).
+      signedIn: {
+        props: { divider: true },
+        before: () => {
+          mockWorld.signedIn = true;
+          mockWorld.rooms = [room('1', 'Morning talk', 'talk')];
+        },
+        effects: ['startPolling', '<unmount>', 'stopPolling(sub)'],
+      },
     },
   },
   {
@@ -401,7 +437,8 @@ function lines(node: Json | Json[] | string | null, depth = 0, out: string[] = [
   return out;
 }
 
-function draw(element: ReactElement): string[] {
+function draw(element: ReactElement): { drawn: string[]; effects: string[] } {
+  mockEffects.length = 0;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
@@ -416,8 +453,9 @@ function draw(element: ReactElement): string[] {
     );
   });
   const drawn = lines(renderer.toJSON());
+  mockEffects.push('<unmount>');
   act(() => renderer.unmount());
-  return drawn;
+  return { drawn, effects: [...mockEffects] };
 }
 
 /** The TypeScript form is a component; the `.bloom` form is a view, drawn as a node. */
@@ -456,15 +494,20 @@ describe.each(ROWS)('%s', (_key, c, s) => {
   (c.broken && !process.env.PROOF_BROKEN ? it.failing : it)(
     'draws the same host tree as the TypeScript',
     () => {
+      mockWorld.signedIn = false;
       s.before?.();
       mockPushes.length = 0;
-      const ts = draw(element('ts', c, s.props));
+      const { drawn: ts, effects: tsEffects } = draw(element('ts', c, s.props));
+      mockWorld.signedIn = false;
       s.before?.();
-      const bloom = draw(element('bloom', c, s.props));
+      const { drawn: bloom, effects: bloomEffects } = draw(element('bloom', c, s.props));
       if (process.env.PROOF_DUMP)
         console.log(`${c.name}\n${ts.join('\n')}\n=====\n${bloom.join('\n')}`);
       expect(ts.length).toBeGreaterThan(0);
       if (ts.join('\n') !== bloom.join('\n')) throw new Error(firstDifference(ts, bloom));
+      // …and runs the same effects, setup and teardown, at the same moments.
+      if (s.effects) expect(tsEffects).toEqual(s.effects);
+      expect(bloomEffects).toEqual(tsEffects);
     },
   );
 });

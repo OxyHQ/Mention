@@ -25,6 +25,13 @@ import en from '@/locales/en.json';
 
 const mockPushes: string[] = [];
 
+/**
+ * The side effects the file's effects ran (setup and teardown, in order), with `<unmount>` where
+ * the tree was unmounted: the `.bloom` form must run the same, at the same moments (a cleanup
+ * that ran before `<unmount>` would have stopped what TS kept running).
+ */
+const mockEffects: string[] = [];
+
 /** JSON of a stub's props: elements are drawn as its children, functions are left out. */
 function mockHint(props: Record<string, unknown>): string {
   return JSON.stringify(props, (_k, v) =>
@@ -258,7 +265,14 @@ jest.mock('@/services/insightsService', () => ({
   insightsService: { trackPostView: async () => ({ viewsCount: 1 }) },
 }));
 jest.mock('@/services/socketService', () => ({
-  socketService: { joinPost: () => undefined, leavePost: () => undefined },
+  socketService: {
+    joinPost: (id: string) => {
+      mockEffects.push(`joinPost(${id})`);
+    },
+    leavePost: (id: string) => {
+      mockEffects.push(`leavePost(${id})`);
+    },
+  },
 }));
 jest.mock('@/stores/postsStore', () => {
   const state = () => ({
@@ -507,6 +521,8 @@ interface Case {
       interact?: (r: TestRenderer.ReactTestRenderer) => void;
       /** The file draws nothing in this state (both forms must agree on that). */
       empty?: boolean;
+      /** What the TypeScript's effects must run (so the effects comparison is not vacuous). */
+      effects?: string[];
     }
   >;
 }
@@ -518,25 +534,24 @@ interface Case {
  */
 const BROKEN: Record<string, string> = {
   ...Object.fromEntries(
-    ['accessFailed', 'gated', 'notFound', 'fetched', 'reply'].map((state) => [
+    ['accessFailed', 'gated', 'notFound'].map((state) => [
       `components/Post/PostDetailScreen.tsx/${state}`,
-      "refused until Task.cancellation (mention15 task-defer-runs-at-once: the load's `cancelled = true`); the chrome from the drawn branch (core12)",
+      'the reply footer TS draws in every state is drawn only in the loaded one (lang-mention-16, not reduced)',
     ]),
   ),
-  'components/Compose/PodcastPickerSheet.tsx/results': 'closure-view-to-reactelement (renderItem)',
-  'components/payments/MerchantInstallmentSettings.tsx/closed': 'record-update-arrow-body',
-  'components/payments/MerchantInstallmentSettings.tsx/open': 'record-update-arrow-body',
-  'components/payments/MerchantInstallmentSettings.tsx/openDisabled': 'record-update-arrow-body',
+  ...Object.fromEntries(
+    ['fetched', 'reply'].map((state) => [
+      `components/Post/PostDetailScreen.tsx/${state}`,
+      "`.testID(\"post-screen\")` on the screen's chrome node is not on its host view (lang-mention-16, not reduced)",
+    ]),
+  ),
+  'components/Compose/SourcesSheet.tsx/empty':
+    "component-prop-wrapped-as-element: EmptyState's `icon` (a component) is handed `toElement(RiLinkM)`",
   'app/(app)/feeds.tsx/signedOut': 'the codemod: a screen() inside the route wrapper (refused now)',
   'app/(app)/feeds.tsx/populated':
     'the codemod: a screen() inside the route wrapper; foreign-enumerated',
   'app/(app)/feeds.tsx/protectedMinor':
     'the codemod: a screen() inside the route wrapper (refused now)',
-  'app/(app)/jobs/[id].tsx/notFound': "screen-group-root: each branch's .header under a Group root",
-  'app/(app)/jobs/[id].tsx/published':
-    "screen-group-root: each branch's .header under a Group root",
-  'app/(app)/jobs/[id].tsx/draftOnMention':
-    "screen-group-root: each branch's .header under a Group root",
 };
 
 const noop = () => undefined;
@@ -948,6 +963,9 @@ const CASES: Case[] = [
             continuations: [],
           };
         },
+        // Signed in on an allowed post: its socket room is joined while the screen is open and
+        // left on unmount, not at once.
+        effects: ['joinPost(p3)', '<unmount>', 'leavePost(p3)'],
       },
     },
   },
@@ -1019,6 +1037,44 @@ const CASES: Case[] = [
       },
     },
   },
+  {
+    file: 'components/Compose/SourcesSheet.tsx',
+    name: 'default',
+    bloomExport: 'SourcesSheet',
+    ts: () => require('@/components/Compose/SourcesSheet'),
+    bloom: () => require('./bloom/SourcesSheet.bloom'),
+    states: {
+      // The sheet's cleanup closes it when it unmounts (or `onClose` changes), not when it opens.
+      empty: {
+        props: {
+          sources: [],
+          onAdd: () => undefined,
+          onUpdate: () => undefined,
+          onRemove: () => undefined,
+          onClose: () => mockEffects.push('onClose'),
+          validateUrl: () => true,
+        },
+        before: () => undefined,
+        effects: ['<unmount>', 'onClose'],
+      },
+      sources: {
+        props: {
+          sources: [
+            { id: 's1', title: 'A source', url: 'https://example.com' },
+            { id: 's2', title: '', url: 'not a url' },
+          ],
+          onAdd: () => undefined,
+          onUpdate: () => undefined,
+          onRemove: () => undefined,
+          onClose: () => mockEffects.push('onClose'),
+          validateUrl: (url: string) => url.startsWith('https://'),
+          maxSources: 2,
+        },
+        before: () => undefined,
+        effects: ['<unmount>', 'onClose'],
+      },
+    },
+  },
 ];
 
 type Json = TestRenderer.ReactTestRendererJSON;
@@ -1057,8 +1113,8 @@ function lines(node: Json | Json[] | string | null, depth = 0, out: string[] = [
     if (typeof value === 'function' || value === undefined) continue;
     props[key] = key === 'style' ? StyleSheet.flatten(value) : value;
   }
-  // React's `useId` names (`…-r3-…`) count the renders before this one, not what is drawn.
-  out.push(`${pad}<${node.type} ${plain(props).replace(/-r[0-9a-z]+-/g, '-r·-')}>`);
+  // React's `useId` names (`…-r3-…`, `…-rl"`) count the renders before this one, not what is drawn.
+  out.push(`${pad}<${node.type} ${plain(props).replace(/-r[0-9a-z]+(?=[-"])/g, '-r·')}>`);
   // Adjacent strings are one text run (a fragment's `{a}{b}` and the string `a + b` draw the same).
   const children: (Json | string)[] = [];
   for (const child of (node.children ?? []) as (Json | string)[]) {
@@ -1075,7 +1131,8 @@ function lines(node: Json | Json[] | string | null, depth = 0, out: string[] = [
 async function draw(
   element: () => ReactElement,
   interact?: (r: TestRenderer.ReactTestRenderer) => void,
-): Promise<string[]> {
+): Promise<{ drawn: string[]; effects: string[] }> {
+  mockEffects.length = 0;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
@@ -1103,9 +1160,10 @@ async function draw(
     }
   }
   const drawn = lines(renderer.toJSON());
+  mockEffects.push('<unmount>');
   act(() => renderer.unmount());
   queryClient.clear();
-  return drawn;
+  return { drawn, effects: [...mockEffects] };
 }
 
 /** The TypeScript form is a component; the `.bloom` form is a view, drawn as a node. */
@@ -1152,14 +1210,23 @@ describe.each(ROWS)('%s', (key, c, s) => {
     async () => {
       s.before();
       mockPushes.length = 0;
-      const ts = await draw(() => element('ts', c, s.props), s.interact);
+      const { drawn: ts, effects: tsEffects } = await draw(
+        () => element('ts', c, s.props),
+        s.interact,
+      );
       s.before();
-      const bloom = await draw(() => element('bloom', c, s.props), s.interact);
+      const { drawn: bloom, effects: bloomEffects } = await draw(
+        () => element('bloom', c, s.props),
+        s.interact,
+      );
       if (process.env.PROOF_DUMP)
         console.log(`${c.file}\n${ts.join('\n')}\n=====\n${bloom.join('\n')}`);
       // Vacuity floor: the root, the providers' host view and something the file drew.
       expect(ts.length).toBeGreaterThan(s.empty ? 1 : 2);
       if (ts.join('\n') !== bloom.join('\n')) throw new Error(firstDifference(ts, bloom));
+      // …and runs the same effects, setup and teardown, at the same moments.
+      if (s.effects) expect(tsEffects).toEqual(s.effects);
+      expect(bloomEffects).toEqual(tsEffects);
     },
   );
 });

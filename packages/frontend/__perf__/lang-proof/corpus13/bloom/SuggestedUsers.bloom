@@ -40,7 +40,7 @@ public struct SuggestedUsers: View {
       // `getSimilarProfiles` returns the SDK `User` shape (optional id); narrow
       // through `unknown` to the looser `ProfileData`, the same erasure the
       // recommendations path produces.
-      let similar: Foreign<"unknown"> = await oxyServices.users.similar(src)?
+      let similar: JSONValue = await oxyServices.users.similar(src)?
       let list: [ProfileData] = similar is [Foreign] ? similar : []
       if list.count > 0 {
         actors.cacheActors(list)
