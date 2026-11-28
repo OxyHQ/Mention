@@ -3485,6 +3485,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Buat akun",
+      "valueProp": "Ikuti orang di Mention dan di seluruh fediverse dengan satu akun.",
       "subtitle": "Lihat apa yang sedang terjadi di dunia sekarang.",
       "title": "Masuk ke Mention",
       "withOxy": "Masuk dengan Oxy"

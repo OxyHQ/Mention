@@ -3485,6 +3485,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Konto erstellen",
+      "valueProp": "Folge mit einem einzigen Konto Menschen auf Mention und im gesamten Fediverse.",
       "subtitle": "Sieh, was gerade in der Welt passiert.",
       "title": "Bei Mention anmelden",
       "withOxy": "Mit Oxy anmelden"

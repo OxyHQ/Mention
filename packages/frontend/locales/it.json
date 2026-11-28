@@ -3516,6 +3516,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Crea account",
+      "valueProp": "Segui persone su Mention e in tutto il fediverso con un solo account.",
       "subtitle": "Guarda cosa sta succedendo nel mondo in questo momento.",
       "title": "Accedi a Mention",
       "withOxy": "Accedi con Oxy"

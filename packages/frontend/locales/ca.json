@@ -3516,6 +3516,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Crea un compte",
+      "valueProp": "Segueix gent a Mention i a tot el fedivers amb un sol compte.",
       "subtitle": "Mira què està passant al món ara mateix.",
       "title": "Inicia la sessió a Mention",
       "withOxy": "Inicia la sessió amb Oxy"
