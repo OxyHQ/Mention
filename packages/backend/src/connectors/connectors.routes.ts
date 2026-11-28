@@ -229,9 +229,9 @@ async function resolveActorProfilesByUri(
 }
 
 // --- Routes ---
-// Note: Local profile search/lookup is handled by OxyHQServices
-// (/profiles/search, /profiles/resolve). These routes handle cross-network
-// federation operations (resolve, follows, posts).
+// A profile by handle, federated ones included, is `GET /profile/by-handle`
+// (`routes/profileByHandle.routes.ts`), which asks Oxy server-to-server. These
+// routes handle cross-network federation operations (resolve, follows, posts).
 
 /**
  * GET /federation/blocked-domains
