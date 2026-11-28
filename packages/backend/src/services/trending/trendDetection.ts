@@ -675,15 +675,26 @@ function buildConceptPairs(candidates: readonly TermCandidate[]): TrendTermPair[
  * The candidate terms of a post with every clustered member rewritten to the
  * term its row is reported under.
  *
- * A `CASE` per merged member, applied to each element of the candidate union.
- * A post saying both `Ukraine` and `Kyiv` must not yield the representative
- * twice and get counted twice against the story; the `select distinct` inside
+ * One `jsonb` object, member → representative, looked up for each element of
+ * the candidate union (`->>`, falling back to the term itself). A post saying
+ * both `Ukraine` and `Kyiv` must not yield the representative twice and get
+ * counted twice against the story; the `select distinct` inside
  * `aggregateTermRows`'s lateral already carries that property, for this
  * expression and the unmapped one alike — one place, not two.
  *
- * Built with `sql.join` over bound parameters rather than interpolated text:
- * a term is arbitrary user-written content and reaches this function straight
- * from a post's own extracted vocabulary.
+ * Not a `CASE` with a branch per member. A `CASE` is evaluated branch by
+ * branch, a collation-aware text comparison each, for every term of every post
+ * in the window: with ~4.9k merged members (~9.8k bind parameters) each
+ * detection pass that used it ran 13–37 s of pure CPU on the database,
+ * ~230 s a run (PlanetScale, 2026-11-28). A `jsonb` object's keys are sorted,
+ * so a lookup is a binary search with byte comparisons — the same equality,
+ * since the database's collations are deterministic. Locally, 200k terms
+ * against 4.9k members: 15.7 s as a `CASE`, 42 ms as this, same output.
+ *
+ * Still ONE bound parameter, never interpolated text: a term is arbitrary
+ * user-written content and reaches this function straight from a post's own
+ * extracted vocabulary. `JSON.stringify` escapes it; the terms come from
+ * Postgres `text`, so they hold no NUL or lone surrogate `jsonb` would refuse.
  */
 function clusteredTermsSql(aliases: ReadonlyMap<string, string>): SQL {
   const merged = [...aliases.entries()].filter(
@@ -691,15 +702,12 @@ function clusteredTermsSql(aliases: ReadonlyMap<string, string>): SQL {
   );
   if (merged.length === 0) return trendCandidateUnionSql();
 
-  const branches = sql.join(
-    merged.map(([member, representative]) => sql`when ${member} then ${representative}`),
-    sql` `,
-  );
+  const representatives = JSON.stringify(Object.fromEntries(merged));
   // `array(select …)` rather than `coalesce(array_agg(…), …)`: it yields an
   // empty array for a post with no candidate terms instead of NULL, which is
   // what the caller's `unnest` needs to produce no rows rather than one.
   return sql`array(
-    select case t.term ${branches} else t.term end
+    select coalesce(${representatives}::jsonb ->> t.term, t.term)
     from unnest(${trendCandidateUnionSql()}) as t(term)
   )`;
 }
