@@ -42,9 +42,21 @@ Only a page the web shell already renders for anyone gets a frame: public,
 published, a visible author, no content warning, not a boost (whose frame would
 put the original's words under the booster's name). The frame is built from the
 same hydrated post as the card and cached with it (`post:semantic-v3`); the
-visibility verdicts are this request's own. Profiles have no frame yet: the app
-paints a profile in its owner's colour and banner, which the document cannot
-know before the app runs.
+visibility verdicts are this request's own. A local public profile gets a frame
+too (`packages/backend/src/services/webshell/prerenderProfile.ts`), painted the
+way the app paints it: in its owner's colour, resolved like Bloom's
+`resolveProfileColor` and drawn with that preset's tokens from the release's own
+palette file (`profile-palettes.json` in the web export, written by the theme prepaint
+script), with the design's banner cropped like the app's cover, the avatar,
+name, handle, bio, both rows of counts, the link chips, the join date and the tab
+strip. A profile whose colour is a free seed (`#rrggbb`, computed at run time by
+Bloom's colour engine), or whose palette the release does not serve, gets no
+frame rather than the wrong colour; so does a federated profile. The cover is
+the 640 px rendition at its CDN location (the `?variant=` 302 resolved once and
+held with the card cache), and the app's boot downloads go after it
+(`fetchpriority="low"`); the handover waits for the app's own images on screen,
+so its 1280 px cover never pops in. Measured the same way: a profile's LCP
+21.3–22.2 s → 2.37–2.49 s, CLS 0.017.
 
 The #1211 lesson stands: the frame must look like the app's screen, or the
 handover is the flash #1211 removed. Change the post screen's layout, and change

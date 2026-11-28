@@ -377,6 +377,9 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
  */
 export interface ProfileSeoFacts {
   postsCount?: number;
+  /** The reposts and replies counts the profile's header shows (its first frame). */
+  repostsCount?: number;
+  repliesCount?: number;
   remote?: RemoteProfileStats;
 }
 

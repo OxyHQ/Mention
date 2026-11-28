@@ -51,14 +51,14 @@ export interface PrerenderPost {
 
 const AVATAR_VARIANT = 'w96';
 
-/** An avatar reference as a small image URL on one of our origins. */
-function avatarUrl(avatar: unknown): string | undefined {
+/** An avatar reference as an image URL on one of our origins, at `variant`. */
+export function avatarUrl(avatar: unknown, variant = AVATAR_VARIANT): string | undefined {
   if (typeof avatar !== 'string' || !avatar) return undefined;
   const resolved = resolveMediaRef(avatar);
   const url = resolved.thumbUrl ?? resolved.url;
   if (!url) return undefined;
   // An Oxy file id resolves to the CDN; ask for the avatar rung.
-  return url.includes('variant=') ? url.replace(/variant=[^&]+/, `variant=${AVATAR_VARIANT}`) : url;
+  return url.includes('variant=') ? url.replace(/variant=[^&]+/, `variant=${variant}`) : url;
 }
 
 /** The first frame's data for a post, from the hydrated post the card is built from. */
@@ -114,7 +114,7 @@ export function prerenderPost(post: HydratedPost): PrerenderPost {
 const URL_OR_TAG_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?"')\]]|#[\p{L}\p{N}_]+)/gu;
 
 /** Reader text as HTML: escaped, with its links and hashtags as real anchors. */
-function richText(text: string): string {
+export function richText(text: string): string {
   let html = '';
   let last = 0;
   for (const match of text.matchAll(URL_OR_TAG_RE)) {
@@ -154,7 +154,7 @@ function postTime(iso: string): string {
   return `${TIME_FORMAT.format(date)} · ${DAY_FORMAT.format(date)}`;
 }
 
-function countLabel(value: number | undefined, one: string, many: string): string {
+export function countLabel(value: number | undefined, one: string, many: string): string {
   if (value === undefined) return '';
   return `<span><b>${value}</b> ${value === 1 ? one : many}</span>`;
 }
@@ -223,7 +223,7 @@ export function renderPrerenderPost(page: PrerenderPost, postPath: string): stri
  * `font-display: optional`: a font that arrives late is not swapped in under a
  * reader's eyes (a swap would shift the layer's text).
  */
-export function prerenderStyle(fontUrl?: string): string {
+export function prerenderStyle(fontUrl?: string, extra = ''): string {
   const L = `#${PRERENDER_ELEMENT_ID}`;
   const face = fontUrl
     ? `@font-face{font-family:"Mention Prerender";src:url("${escapeHtml(fontUrl)}") format("woff2");font-weight:100 900;font-display:optional}`
@@ -254,6 +254,7 @@ export function prerenderStyle(fontUrl?: string): string {
     // centre (its navigation rail is wider than its trends rail), measured at
     // 1440 px. The rails themselves appear with the app.
     `@media (min-width:1280px){${L} .mp-bar,${L} .mp-main{max-width:620px;margin-left:calc(50% - 359px)}${L} .mp-bar{height:68px}}` +
+    extra +
     `</style>`
   );
 }
@@ -283,4 +284,24 @@ export function injectPrerender(html: string, layer: string): string {
 /** The post's path on Mention, as the layer links it. */
 export function postPath(id: string): string {
   return `/p/${encodeURIComponent(id)}`;
+}
+
+/**
+ * The app's boot downloads after the frame's own image: `fetchpriority="low"`
+ * on the startup scripts, the route-layout preloads and the font preload. Used
+ * for a profile, whose frame paints a ~65 KB cover that otherwise shares a slow
+ * connection with the 1.5 MB app bundle (measured LCP 2.67–3.0 s → 2.36–2.64 s,
+ * Slow 4G applied). The reader is already looking at the page; the app still
+ * boots as soon as its bytes arrive.
+ */
+export function deprioritizeAppBoot(html: string): string {
+  return html
+    .replace(
+      /<script\b(?![^>]*\bfetchpriority=)([^>]*\bsrc="\/_expo\/static\/js\/[^"]+"[^>]*)>/g,
+      '<script fetchpriority="low"$1>',
+    )
+    .replace(
+      /<link\b(?![^>]*\bfetchpriority=)([^>]*\b(?:data-route-layout|data-first-paint-font)\b[^>]*)>/g,
+      '<link fetchpriority="low"$1>',
+    );
 }

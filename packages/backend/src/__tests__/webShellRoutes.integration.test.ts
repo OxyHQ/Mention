@@ -636,6 +636,29 @@ describe('webShell routes (integration)', () => {
     );
   });
 
+  it("serves a local profile's first frame, and none for a colour it cannot paint", async () => {
+    stubFetch({
+      ok: true,
+      body: { data: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' }, bio: 'Hola' } },
+    });
+    const plain = await request(makeApp()).get('/@nate');
+    expect(plain.status).toBe(200);
+    expect(plain.text).toContain('<div id="mention-prerender" data-mention-prerender>');
+    expect(plain.text).toContain('<h1 class="mp-pf-name"><a href="/@nate">Nate</a></h1>');
+    expect(plain.text).toContain('Hola</p>');
+
+    // A colour whose palette the release does not serve: no frame at all.
+    stubFetch({
+      ok: true,
+      body: {
+        data: { id: AUTHOR, username: 'nate2', name: { displayName: 'Nate' }, color: '#ff0088' },
+      },
+    });
+    const seeded = await request(makeApp()).get('/@nate2');
+    expect(seeded.status).toBe(200);
+    expect(seeded.text).not.toContain('mention-prerender');
+  });
+
   it("tells search engines a local profile's public post count", async () => {
     await seedOgPost();
     await seedOgPost();

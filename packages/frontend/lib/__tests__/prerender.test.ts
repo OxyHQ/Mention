@@ -42,7 +42,7 @@ test("the first frame stays until the route's own heading is on screen, then fad
 
 test('a route that never draws its heading still hands over', () => {
   releasePrerender();
-  jest.advanceTimersByTime(2500);
+  jest.advanceTimersByTime(4000);
   expect(document.getElementById('mention-prerender')).toBeNull();
 });
 
@@ -59,4 +59,20 @@ test('a document without a first frame is left alone', () => {
   expect(hasPrerender()).toBe(false);
   expect(() => releasePrerender()).not.toThrow();
   armPrerenderRelease()();
+});
+
+test('the frame waits for the images the app shows on screen', () => {
+  rootHeading();
+  const image = document.createElement('img');
+  Object.defineProperty(image, 'complete', { configurable: true, value: false });
+  image.getBoundingClientRect = () => ({ top: 0, bottom: 170, width: 412, height: 170 }) as DOMRect;
+  document.getElementById('root')!.appendChild(image);
+  releasePrerender();
+  jest.advanceTimersByTime(200);
+  expect(document.getElementById('mention-prerender')?.classList.contains('mp-leaving')).toBe(
+    false,
+  );
+  Object.defineProperty(image, 'complete', { configurable: true, value: true });
+  jest.advanceTimersByTime(200);
+  expect(document.getElementById('mention-prerender')?.classList.contains('mp-leaving')).toBe(true);
 });
