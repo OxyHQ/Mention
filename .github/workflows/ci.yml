@@ -179,7 +179,7 @@ jobs:
     # would otherwise skip the dependent too; it runs unless provenance
     # positively answered verified.
     if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
-    runs-on: &seldon-lane ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    runs-on: &seldon-lane ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
     outputs: &lane-outputs
       lane: ${{ steps.lane.outputs.lane }}
     permissions: &heavy-permissions
@@ -344,7 +344,7 @@ jobs:
   quality-rescue:
     name: Build, lint and typecheck
     needs: [provenance, quality]
-    if: ${{ !cancelled() && needs.quality.result == 'failure' && (needs.quality.outputs.lane == 'seldon' || (needs.quality.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
+    if: ${{ !cancelled() && needs.quality.result == 'failure' && (needs.quality.outputs.lane == 'seldon' || (needs.quality.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions: *heavy-permissions
@@ -357,7 +357,7 @@ jobs:
     # The seldon-lane condition, with the class per entry: shared-types and mcp
     # peaked at 1.4 GB on Seldon (2026-11-28) and takes a light 2 GiB VM; the
     # frontend suite (4.3 GB) takes a heavy one.
-    runs-on: ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (matrix.light && 'seldon-ci-light' || 'seldon-ci') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (matrix.light && 'seldon-ci-light' || 'seldon-ci') || 'ubuntu-latest' }}
     outputs: *lane-outputs
     permissions: *heavy-permissions
     timeout-minutes: 35
@@ -544,7 +544,7 @@ jobs:
   tests-rescue:
     name: Test ${{ matrix.package }}
     needs: [provenance, tests]
-    if: ${{ !cancelled() && needs.tests.result == 'failure' && (needs.tests.outputs.lane == 'seldon' || (needs.tests.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
+    if: ${{ !cancelled() && needs.tests.result == 'failure' && (needs.tests.outputs.lane == 'seldon' || (needs.tests.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions: *heavy-permissions
@@ -706,7 +706,7 @@ jobs:
   backend-test-rescue:
     name: Test backend (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [provenance, backend-test]
-    if: ${{ !cancelled() && needs.backend-test.result == 'failure' && (needs.backend-test.outputs.lane == 'seldon' || (needs.backend-test.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
+    if: ${{ !cancelled() && needs.backend-test.result == 'failure' && (needs.backend-test.outputs.lane == 'seldon' || (needs.backend-test.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions: *heavy-permissions
