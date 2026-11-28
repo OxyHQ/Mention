@@ -262,6 +262,43 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('Content-Signal: search=yes,ai-train=no,use=reference');
     expect(res.text).toContain('Allow: /');
     expect(res.text).toContain('Sitemap: https://mention.earth/sitemap.xml');
+    // Unbounded and signed-in URL spaces are not crawled.
+    expect(res.text).toContain('Disallow: /search\n');
+    expect(res.text).toContain('Disallow: /@*/followers\n');
+    expect(res.text).toContain('Disallow: /p/*/quotes\n');
+    // Federated copies stay crawlable until their `noindex` has been seen.
+    expect(res.text).not.toMatch(/Disallow: \/@\*@/);
+  });
+
+  it('sends a page with click-tracking parameters to the same URL without them', async () => {
+    stubPublicAuthor();
+    const host = new URL(config.web.origin).hostname;
+    const res = await request(makeApp())
+      .get('/@nate?utm_source=x&tab=media&fbclid=abc')
+      .set('Host', host);
+
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/@nate?tab=media');
+
+    const bare = await request(makeApp()).get('/p/1?utm_medium=social').set('Host', host);
+    expect(bare.status).toBe(301);
+    expect(bare.headers.location).toBe('/p/1');
+  });
+
+  it('never redirects an ActivityPub fetch or the API host for tracking parameters', async () => {
+    stubPublicAuthor();
+    const host = new URL(config.web.origin).hostname;
+    const ap = await request(makeApp())
+      .get('/@nate?utm_source=x')
+      .set('Host', host)
+      .set('Accept', 'application/activity+json');
+    expect(ap.status).toBe(302);
+    expect(ap.headers.location).toContain('/ap/users/nate');
+
+    const api = await request(makeApp())
+      .get('/@nate?utm_source=x')
+      .set('Host', new URL(config.web.apiOrigin).hostname);
+    expect(api.status).toBe(200);
   });
 
   it('retires old numeric sitemap shards without falling through to HTML', async () => {

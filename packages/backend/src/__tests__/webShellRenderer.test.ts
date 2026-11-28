@@ -421,6 +421,24 @@ describe('mapPostOg for search', () => {
       '@type': 'SocialMediaPosting',
       url: 'https://mention.earth/p/p1',
       identifier: 'p1',
+      // The trail Google shows above the result: the site, the author, the post.
+      mainEntityOfPage: {
+        '@type': 'WebPage',
+        '@id': 'https://mention.earth/p/p1',
+        breadcrumb: {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Mention', item: 'https://mention.earth/' },
+            { '@type': 'ListItem', position: 2, name: 'Nate', item: 'https://mention.earth/@nate' },
+            {
+              '@type': 'ListItem',
+              position: 3,
+              name: 'hello world',
+              item: 'https://mention.earth/p/p1',
+            },
+          ],
+        },
+      },
       // `text`, not `articleBody`: the property a SocialMediaPosting is read by.
       text: 'hello world',
       datePublished: '2026-10-01T10:00:00.000Z',

@@ -392,6 +392,48 @@ function noindexPage(url: string, title: string, description: string): OgData {
 
 const router = Router();
 
+/**
+ * Click-tracking parameters: they name the link someone followed, never a
+ * different page. Every one of them makes the same page a new URL to a crawler
+ * (99.9% of `/p/*` origin hits were distinct URLs, runbook 74) and a new key to
+ * the edge cache.
+ */
+const TRACKING_PARAM =
+  /^(?:utm_[a-z_]+|fbclid|gclid|gbraid|wbraid|dclid|msclkid|yclid|twclid|ttclid|igshid|mc_cid|mc_eid|_hsenc|_hsmi|mkt_tok|ref_src|ref_url)$/i;
+
+/**
+ * A page request carrying click-tracking parameters is sent once, permanently,
+ * to the same URL without them (every other parameter kept, in order). Apex
+ * page requests only: ActivityPub and API requests are never redirected.
+ */
+export function withoutTrackingParams(originalUrl: string): string | null {
+  const queryAt = originalUrl.indexOf('?');
+  if (queryAt < 0) return null;
+  const params = new URLSearchParams(originalUrl.slice(queryAt + 1));
+  const kept = [...params].filter(([key]) => !TRACKING_PARAM.test(key));
+  if (kept.length === [...params].length) return null;
+  const path = originalUrl.slice(0, queryAt);
+  return kept.length ? `${path}?${new URLSearchParams(kept).toString()}` : path;
+}
+
+router.use((req, res, next) => {
+  if (
+    (req.method !== 'GET' && req.method !== 'HEAD') ||
+    !isApexHost(req) ||
+    wantsActivityPub(req.headers.accept)
+  ) {
+    next();
+    return;
+  }
+  const clean = withoutTrackingParams(req.originalUrl);
+  if (!clean) {
+    next();
+    return;
+  }
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.redirect(301, clean);
+});
+
 // The single exported shell is also used by /explore and unknown paths. Keep
 // homepage canonical/indexing metadata here, never in that shared fallback.
 router.get('/', async (req, res, next) => {
@@ -409,9 +451,38 @@ router.get('/', async (req, res, next) => {
   await serveShell(res, mapHomepageOg(), 200, undefined, HOMEPAGE_CACHE);
 });
 
+/**
+ * The crawl rules. Every `Disallow` is an UNBOUNDED or signed-in URL space that
+ * holds nothing to index: search results (one URL per query), a post's lists of
+ * reposts, quotes, boosts and corrections, a profile's follower and following
+ * lists (each a crawl into thousands of federated profiles), and the signed-in
+ * tools. Each of these is already `noindex` (`appRoutePolicy`, the profile
+ * route); this stops crawlers spending their budget fetching them.
+ *
+ * Deliberately NOT disallowed: federated profiles (`/@*@*`) and posts. They are
+ * served `noindex` now, and a crawler that may not fetch a page cannot see its
+ * `noindex` and keeps it indexed without content. Block them once Search
+ * Console shows them dropped (docs/seo.md).
+ */
 const ROBOTS_TXT = `User-agent: *
 Content-Signal: search=yes,ai-train=no,use=reference
 Allow: /
+Disallow: /search
+Disallow: /p/*/reposts
+Disallow: /p/*/quotes
+Disallow: /p/*/boost
+Disallow: /p/*/corrections
+Disallow: /@*/followers
+Disallow: /@*/following
+Disallow: /@*/in-common
+Disallow: /@*/who-may-know
+Disallow: /@*/connections
+Disallow: /compose
+Disallow: /settings
+Disallow: /notifications
+Disallow: /saved
+Disallow: /deck
+Disallow: /insights
 
 User-agent: Amazonbot
 Disallow: /

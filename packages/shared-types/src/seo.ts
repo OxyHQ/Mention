@@ -51,6 +51,15 @@ export function siteStructuredData({
         alternateName: new URL(origin).hostname,
         url,
         publisher: { '@id': organizationId },
+        // The app's search page reads `?q=` (`app/(app)/search/index.tsx`).
+        // Google retired the sitelinks search box in November 2024, so this no
+        // longer draws a box in its results; it still states, in schema.org's
+        // own terms, how the site is searched, for every other reader.
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: { '@type': 'EntryPoint', urlTemplate: `${origin}/search?q={search_term_string}` },
+          'query-input': 'required name=search_term_string',
+        },
       },
     ],
   };

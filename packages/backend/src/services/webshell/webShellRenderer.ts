@@ -365,6 +365,35 @@ export interface ProfileSeoFacts {
   remote?: RemoteProfileStats;
 }
 
+/** One step of a page's breadcrumb trail. */
+interface Crumb {
+  name: string;
+  url: string;
+}
+
+/**
+ * A schema.org `BreadcrumbList` from the site's root to this page — the trail
+ * Google shows above a result in place of the bare URL. It rides on the page's
+ * own entity (`WebPage.breadcrumb`, or a post's `mainEntityOfPage`), so the one
+ * JSON-LD document the app adopts after it loads keeps it.
+ */
+export function breadcrumbList(crumbs: readonly Crumb[]): Record<string, unknown> {
+  return {
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((crumb, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: crumb.name,
+      item: crumb.url,
+    })),
+  };
+}
+
+/** The site's root, the first crumb of every trail. */
+function homeCrumb(): Crumb {
+  return { name: config.deployment?.branding.name ?? 'Mention', url: `${WEB_ORIGIN}/` };
+}
+
 /** A schema.org `InteractionCounter` for one action type, or nothing when the count is unknown. */
 function interactionCounter(action: 'FollowAction' | 'WriteAction', count: number | undefined) {
   return typeof count === 'number' && Number.isFinite(count) && count >= 0
@@ -455,6 +484,7 @@ export function mapProfileOg(
       '@context': 'https://schema.org',
       '@type': 'ProfilePage',
       url,
+      breadcrumb: breadcrumbList([homeCrumb(), { name, url }]),
       ...(createdAt ? { dateCreated: createdAt } : {}),
       ...(data.updatedAt ? { dateModified: data.updatedAt } : {}),
       mainEntity: {
@@ -492,6 +522,7 @@ export function mapHashtagOg(tag: string, hasListablePosts: boolean): OgData {
       '@type': 'CollectionPage',
       name: `#${tag}`,
       url,
+      breadcrumb: breadcrumbList([homeCrumb(), { name: `#${tag}`, url }]),
       isPartOf: { '@id': `${WEB_ORIGIN}/#website` },
     },
   };
@@ -640,6 +671,7 @@ export function mapPostOg(
       '@type': 'SocialMediaPosting',
       url,
       identifier: id,
+      ...postPage(url, author, handle, user, snippet),
       ...(bodyText ? { text: bodyText } : {}),
       ...(createdAt ? { datePublished: createdAt } : {}),
       ...(updatedAt ? { dateModified: updatedAt } : {}),
@@ -649,6 +681,39 @@ export function mapPostOg(
       author: authorJsonLd(user, author, handle, avatarImage),
       ...(interactionStatistic.length ? { interactionStatistic } : {}),
       ...(typeof replies === 'number' && replies >= 0 ? { commentCount: replies } : {}),
+    },
+  };
+}
+
+/**
+ * The page a post is the main entity of, with its trail: the site, the
+ * author's profile, the post. Without an author handle there is no profile to
+ * link, so the trail is the site and the post.
+ */
+function postPage(
+  url: string,
+  author: string,
+  handle: string | null,
+  user: HydratedPost['user'],
+  snippet: string,
+): Record<string, unknown> {
+  const profile = handle
+    ? [
+        {
+          name: author,
+          url: `${WEB_ORIGIN}${canonicalProfilePath({
+            username: handle,
+            kind: user.kind,
+            isFederated: user.isFederated,
+          })}`,
+        },
+      ]
+    : [];
+  return {
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': url,
+      breadcrumb: breadcrumbList([homeCrumb(), ...profile, { name: snippet || 'Post', url }]),
     },
   };
 }
