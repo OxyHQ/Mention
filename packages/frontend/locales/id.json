@@ -2066,6 +2066,9 @@
   },
   "feed": {
     "caughtUp": "Kamu sudah melihat semuanya.",
+    "newPosts_one": "{{count}} postingan baru",
+    "newPosts_other": "{{count}} postingan baru",
+    "newPostsOverflow": "{{count}}+ postingan baru",
     "empty": {
       "title": "Tidak bisa memuat postingan",
       "message": "Terjadi kesalahan saat memuat feed-mu. Tarik ke bawah untuk menyegarkan atau ketuk tombol di bawah untuk mencoba lagi."

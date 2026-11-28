@@ -2066,6 +2066,9 @@
   },
   "feed": {
     "caughtUp": "You're all caught up.",
+    "newPosts_one": "{{count}} new post",
+    "newPosts_other": "{{count}} new posts",
+    "newPostsOverflow": "{{count}}+ new posts",
     "empty": {
       "title": "Couldn't load posts",
       "message": "Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again."

@@ -1,6 +1,7 @@
 import { recoverChunkError } from '@/lib/chunkReload';
 import { useFeedVisibility } from '@/hooks/useFeedVisibility';
-import { useFeedLiveUpdates } from './FeedUpdatePolicy';
+import { useFeedLiveUpdates, useHasFeedUpdatePolicy } from './FeedUpdatePolicy';
+import { useNewPosts } from '@/hooks/useNewPosts';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import type { View } from 'react-native';
@@ -251,6 +252,22 @@ export function useFeedCore(props: FeedProps) {
 
   const receivesOwnNewPost = feedReceivesOwnNewPost({ type, userId, filters, currentUserId });
 
+  // The home Following timeline says when there is something new above. A Deck
+  // column has its own policy (`FeedUpdatePolicy`), and a reordered or narrowed
+  // feed is not the head the check reads.
+  const deckPolicy = useHasFeedUpdatePolicy();
+  const newPosts = useNewPosts({
+    enabled:
+      type === 'following' &&
+      !userId &&
+      !(filters && Object.keys(filters).length) &&
+      !deckPolicy &&
+      merged.scrollEnabled &&
+      canUsePrivateApi,
+    feedKey: feedState.feedScrollKey,
+    items: feedState.items,
+  });
+
   // While the pinned post holds the first presentation, the feed is still
   // "loading": no rows, no leading element, no footer.
   const presentedRows = holdForLeading ? EMPTY_ROWS : feedRows;
@@ -360,6 +377,7 @@ export function useFeedCore(props: FeedProps) {
     handleRetry,
     handleRefresh,
     refreshing,
+    newPosts,
     feedDescriptor,
     impressionTracker,
     receivesOwnNewPost,

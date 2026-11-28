@@ -2086,6 +2086,10 @@
   },
   "feed": {
     "caughtUp": "Hai visto tutto.",
+    "newPosts_one": "{{count}} nuovo post",
+    "newPosts_many": "{{count}} di nuovi post",
+    "newPosts_other": "{{count}} nuovi post",
+    "newPostsOverflow": "{{count}}+ nuovi post",
     "empty": {
       "title": "Impossibile caricare i post",
       "message": "Qualcosa è andato storto durante il caricamento del feed. Scorri verso il basso per aggiornare o tocca il pulsante qui sotto per riprovare."

@@ -2086,6 +2086,10 @@
   },
   "feed": {
     "caughtUp": "Vous êtes à jour.",
+    "newPosts_one": "{{count}} nouveau post",
+    "newPosts_many": "{{count}} de nouveaux posts",
+    "newPosts_other": "{{count}} nouveaux posts",
+    "newPostsOverflow": "{{count}}+ nouveaux posts",
     "empty": {
       "title": "Impossible de charger les posts",
       "message": "Une erreur est survenue pendant le chargement de ton fil. Tire vers le bas pour actualiser ou appuie sur le bouton ci-dessous pour réessayer."

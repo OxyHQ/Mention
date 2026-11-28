@@ -2086,6 +2086,10 @@
   },
   "feed": {
     "caughtUp": "Ja estàs al dia.",
+    "newPosts_one": "{{count}} publicació nova",
+    "newPosts_many": "{{count}} de publicacions noves",
+    "newPosts_other": "{{count}} publicacions noves",
+    "newPostsOverflow": "{{count}}+ publicacions noves",
     "empty": {
       "title": "No s'han pogut carregar les publicacions",
       "message": "Hi ha hagut un problema en carregar el teu flux. Estira cap avall per actualitzar-lo o toca el botó de sota per tornar-ho a provar."

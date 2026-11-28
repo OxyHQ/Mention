@@ -2146,6 +2146,13 @@
   },
   "feed": {
     "caughtUp": "لقد شاهدت كل شيء.",
+    "newPosts_zero": "لا منشورات جديدة",
+    "newPosts_one": "منشور جديد واحد",
+    "newPosts_two": "منشوران جديدان",
+    "newPosts_few": "{{count}} منشورات جديدة",
+    "newPosts_many": "{{count}} منشورًا جديدًا",
+    "newPosts_other": "{{count}} منشور جديد",
+    "newPostsOverflow": "أكثر من {{count}} منشورًا جديدًا",
     "empty": {
       "title": "تعذّر تحميل المنشورات",
       "message": "حدث خطأ أثناء تحميل خلاصتك. اسحب للأسفل للتحديث أو اضغط الزر أدناه لإعادة المحاولة."

@@ -2066,6 +2066,9 @@
   },
   "feed": {
     "caughtUp": "你已看完全部内容。",
+    "newPosts_one": "{{count}} 条新帖子",
+    "newPosts_other": "{{count}} 条新帖子",
+    "newPostsOverflow": "{{count}}+ 条新帖子",
     "empty": {
       "title": "无法加载帖子",
       "message": "加载信息流时出了点问题。下拉刷新，或点按下方按钮重试。"

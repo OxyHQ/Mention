@@ -2066,6 +2066,9 @@
   },
   "feed": {
     "caughtUp": "すべて確認済みです。",
+    "newPosts_one": "{{count}}件の新しい投稿",
+    "newPosts_other": "{{count}}件の新しい投稿",
+    "newPostsOverflow": "{{count}}件以上の新しい投稿",
     "empty": {
       "title": "投稿を読み込めませんでした",
       "message": "フィードの読み込み中に問題が発生しました。下に引いて更新するか、下のボタンからもう一度お試しください。"
