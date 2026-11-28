@@ -49,9 +49,9 @@ import { startHomeFeedBootRead } from '@/lib/bootFeedRead';
 // The web document's stylesheet: the element reset and the document font
 // (a no-op on native).
 import '../global.css';
-import { FeedIslandWarmup } from '@/components/Feed/island/FeedIslandList';
+import { FeedIslandRoot } from '@/components/Feed/island/FeedIslandList';
 
-/** The feed as a Compose island (Bloom ADR 0003, M1): its warm-up mounts at the root. */
+/** The feed as a Compose island (Bloom ADR 0003, M1): the home feed's island mounts at the root. */
 const ISLAND_FEED = process.env.EXPO_PUBLIC_BLOOM_ISLAND_FEED === '1';
 
 // Install the app's level + scrubbing sink on the shared SDK logger before any
@@ -165,7 +165,7 @@ export default function RootLayout() {
           children while fonts load, and the manifest must not wait for that. */}
       <PwaHead />
       <SEOHandoff />
-      {ISLAND_FEED ? <FeedIslandWarmup /> : null}
+      {ISLAND_FEED ? <FeedIslandRoot /> : null}
       {/* The single Bloom root — theme + haptics + image resolution + scroll
           restoration + tab-bar minimize progress. Everything Bloom renders must be
           under it: on web `useScrollRestoration()` throws outside its provider, so
