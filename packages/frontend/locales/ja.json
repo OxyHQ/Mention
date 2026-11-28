@@ -1316,6 +1316,11 @@
       "title": "外観"
     },
     "account": {
+      "exportData": "データをエクスポート",
+      "exportDescription": "Mentionの投稿、ブックマーク、いいね、設定をまとめたファイルです。",
+      "exportAction": "エクスポート",
+      "exportSaved": "データを保存しました",
+      "exportFailed": "データをエクスポートできませんでした",
       "manageAccount": "アカウントを管理",
       "manageYourAccount": "アカウントを管理",
       "signedOutSubtitle": "ログインすると、プライバシー、通知、フィード、パーソナライズの設定を利用できます。",

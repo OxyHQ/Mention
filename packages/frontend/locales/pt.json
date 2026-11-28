@@ -1334,6 +1334,11 @@
       "title": "Aspeto"
     },
     "account": {
+      "exportData": "Exportar seus dados",
+      "exportDescription": "Um arquivo com suas publicações, itens salvos, curtidas e configurações do Mention.",
+      "exportAction": "Exportar",
+      "exportSaved": "Seus dados foram salvos",
+      "exportFailed": "Não foi possível exportar seus dados",
       "manageAccount": "Gerir conta",
       "manageYourAccount": "Gerenciar sua conta",
       "signedOutSubtitle": "Inicia sessão para acederes às definições de privacidade, notificações, feed e personalização.",

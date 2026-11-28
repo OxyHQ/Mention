@@ -1316,6 +1316,11 @@
       "title": "外观"
     },
     "account": {
+      "exportData": "导出你的数据",
+      "exportDescription": "包含你在 Mention 上的帖子、书签、点赞和设置的文件。",
+      "exportAction": "导出",
+      "exportSaved": "你的数据已保存",
+      "exportFailed": "无法导出你的数据",
       "manageAccount": "管理账号",
       "manageYourAccount": "管理你的账户",
       "signedOutSubtitle": "登录后即可使用隐私、通知、信息流和个性化设置。",

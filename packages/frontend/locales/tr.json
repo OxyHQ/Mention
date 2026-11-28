@@ -1316,6 +1316,11 @@
       "title": "Görünüm"
     },
     "account": {
+      "exportData": "Verilerini dışa aktar",
+      "exportDescription": "Mention gönderilerini, yer imlerini, beğenilerini ve ayarlarını içeren bir dosya.",
+      "exportAction": "Dışa aktar",
+      "exportSaved": "Verilerin kaydedildi",
+      "exportFailed": "Verilerin dışa aktarılamadı",
       "manageAccount": "Hesabı yönet",
       "manageYourAccount": "Hesabını yönet",
       "signedOutSubtitle": "Gizlilik, bildirim, akış ve kişiselleştirme ayarlarına erişmek için giriş yap.",

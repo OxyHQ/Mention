@@ -1334,6 +1334,11 @@
       "title": "Aspetto"
     },
     "account": {
+      "exportData": "Esporta i tuoi dati",
+      "exportDescription": "Un file con i tuoi post, segnalibri, Mi piace e impostazioni di Mention.",
+      "exportAction": "Esporta",
+      "exportSaved": "I tuoi dati sono stati salvati",
+      "exportFailed": "Impossibile esportare i tuoi dati",
       "manageAccount": "Gestisci account",
       "manageYourAccount": "Gestisci il tuo account",
       "signedOutSubtitle": "Accedi per gestire le impostazioni di privacy, notifiche, feed e personalizzazione.",

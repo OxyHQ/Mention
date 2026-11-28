@@ -1334,6 +1334,11 @@
       "title": "Apparence"
     },
     "account": {
+      "exportData": "Exporter vos données",
+      "exportDescription": "Un fichier avec vos posts, signets, j'aime et réglages Mention.",
+      "exportAction": "Exporter",
+      "exportSaved": "Vos données ont été enregistrées",
+      "exportFailed": "Impossible d'exporter vos données",
       "manageAccount": "Gérer le compte",
       "manageYourAccount": "Gérer votre compte",
       "signedOutSubtitle": "Connecte-toi pour accéder à tes réglages de confidentialité, de notifications, de fil et de personnalisation.",

@@ -1,4 +1,5 @@
 import { SettingsSkeleton } from '@/components/loading/ContentSkeleton';
+import { DataExportButton } from '@/components/settings/DataExportButton';
 import { useOxyIdentityRows } from '@/components/settings/useOxyIdentityRows';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useProfileData } from '@/hooks/useProfileData';
@@ -127,6 +128,12 @@ export default function AccountSettingsContent() {
                   {t('common.manage', { defaultValue: 'Manage' })}
                 </Button>
               ),
+            },
+            {
+              key: 'export',
+              label: t('settings.account.exportData'),
+              description: t('settings.account.exportDescription'),
+              control: <DataExportButton />,
             },
             {
               key: 'signout',
