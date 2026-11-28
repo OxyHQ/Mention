@@ -161,6 +161,13 @@ const HomeScreen = screen(function HomeScreen() {
       .frame({ height: '38' }),
   );
 
+  // The same tabs as data, for the feed drawn as a Compose island (EXPO_PUBLIC_BLOOM_ISLAND_FEED).
+  const islandTabs = {
+    tabs: homeTabs.map((tab) => ({ key: tab.key, label: tab.label })),
+    active: activeTab,
+    onSelect: (key: string) => setActiveTab(key as HomeTab),
+  };
+
   const renderTabFeed = (tab: HomeTabModel) =>
     tab.kind === 'custom' ? (
       <Feed
@@ -169,6 +176,7 @@ const HomeScreen = screen(function HomeScreen() {
         filters={{ customFeedId: tab.feedId }}
         reloadKey={reloadKeyFor(tab.key)}
         listTopComponent={tabBar}
+        islandTabs={islandTabs}
         {...composeProps}
       />
     ) : (
@@ -177,6 +185,7 @@ const HomeScreen = screen(function HomeScreen() {
         type={tab.type}
         reloadKey={reloadKeyFor(tab.key)}
         listTopComponent={tabBar}
+        islandTabs={islandTabs}
         {...composeProps}
       />
     );

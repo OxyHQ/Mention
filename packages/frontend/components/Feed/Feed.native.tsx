@@ -312,6 +312,9 @@ const Feed = (props: FeedProps) => {
       contentContainerStyle,
       listContentHeaderComponent,
       listStickyHeaderComponent,
+      islandTabs,
+      showComposeButton,
+      onComposePress,
     },
     theme,
     router,
@@ -709,6 +712,9 @@ const Feed = (props: FeedProps) => {
             onLoadMore={handleLoadMore}
             topInset={ownsScroll ? screenScroll.contentInsets.top : 0}
             bottomInset={ownsScroll ? screenScroll.contentInsets.bottom : 0}
+            tabs={islandTabs}
+            composer={showComposeButton === true}
+            onComposePress={onComposePress}
           />
         </View>
       </FeedErrorBoundary>

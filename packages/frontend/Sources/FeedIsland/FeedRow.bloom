@@ -20,6 +20,12 @@ let PAIR_BACK = -5.4
 let PAIR_BOX = 36.0
 /// A link card's cover height (Bloom's `LinkPreviewCard`).
 let LINK_COVER = 160.0
+/// Home's feed tabs: the label's row, the active tab's bar under it, and a tab's least width.
+let TAB_LABEL = 36.0
+let TAB_BAR = 2.0
+let TAB_MIN = 76.0
+/// The compose prompt's least height.
+let COMPOSER_HEIGHT = 56.0
 
 /// "1.5K": Mention's `formatCompactNumber`, cut to a tenth and never rounded up.
 public func compactCount(_ n: Int) -> String {
@@ -74,7 +80,17 @@ struct Body: View, Equatable {
   let onLink: (FeedRun) -> Void
 
   var body: some View {
-    Text(..runs.map { r in r.kind == "" ? Text(r.text) : Text(r.text).foregroundStyle(.primary).onPress { onLink(r) } })
+    Text(..runs.map { r in
+      r.underline
+        ? Text(r.text).foregroundStyle(.primary).underline().onPress { onLink(r) }
+        : r.kind != ""
+          ? Text(r.text).foregroundStyle(.primary).onPress { onLink(r) }
+          : r.style == "bold"
+          ? Text(r.text).weight(.semibold)
+          : r.style == "italic"
+            ? Text(r.text).italic()
+            : r.style == "strike" ? Text(r.text).strikethrough() : Text(r.text)
+    })
       .font(.md)
   }
 
@@ -248,9 +264,8 @@ public struct FeedRow: View, Equatable {
         }
         ActionBar {
           Action(.like, "Like").count(post.likes).active(post.isLiked).tint(.error).onPress { send("like") }
-          if post.canReply {
-            Action(.reply, "Reply").count(post.replies).onPress { send("reply") }
-          }
+          // Shown with its count when replies are closed too, as PostItem does; it opens the post.
+          Action(.reply, "Reply").count(post.replies).onPress { send(post.canReply ? "reply" : "open") }
           Action(.repost, "Repost").count(post.reposts).active(post.isReposted).tint(.success).onPress { send("repost") }
           Action(.sendPlane, "Send in Allo").onPress { send("send") }
           Action(.share, "Share").onPress { send("share") }
@@ -273,4 +288,54 @@ public struct FeedRow: View, Equatable {
   }
 
   static func == (a: Self, b: Self) -> Bool { a.post == b.post }
+}
+
+/// The rows above the first post: Home's feed tabs (an underline under the active one, a hairline
+/// under them all, 38 tall) and the compose prompt, a glass capsule (BloomMaterial) with the
+/// reader's avatar, the prompt, the camera and the media buttons.
+struct FeedHeaderRows: View, Equatable {
+  let header: FeedHeader
+  let onIntent: (FeedIntent) -> Void
+
+  func send(_ kind: String, _ href: String) {
+    onIntent(FeedIntent(kind: kind, postId: "", href: href))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: .none) {
+      if header.tabs.count > 0 {
+        HStack(alignment: .bottom, spacing: .none) {
+          for tab in header.tabs {
+            VStack(spacing: .none) {
+              Text(tab.label)
+                .font(.md)
+                .weight(tab.key == header.active ? .bold : .medium)
+                .foregroundStyle(tab.key == header.active ? .primary : .foreground)
+                .padding(.horizontal, .md)
+                .frame(height: TAB_LABEL)
+              VStack(spacing: .none) {}
+                .frame(width: .full, height: TAB_BAR)
+                .background(tab.key == header.active ? .primary : .transparent)
+            }
+            .frame(minWidth: TAB_MIN)
+            .onPress { send("tab", tab.key) }
+          }
+        }
+        .border(.border, .hairline, .bottom)
+      }
+      if header.composer {
+        HStack(spacing: .md) {
+          Avatar(header.avatar ?? "").size(.md)
+          Text(header.prompt).font(.md).foregroundStyle(.muted).lineLimit(1).grow()
+          Icon(.camera).size(.md).foregroundStyle(.muted).onPress { send("camera", "") }
+          Icon(.mediaAttachment).size(.md).foregroundStyle(.muted).onPress { send("compose", "") }
+        }
+        .padding(.md)
+        .frame(minHeight: COMPOSER_HEIGHT)
+        .glass()
+        .onPress { send("compose", "") }
+        .padding(.md)
+      }
+    }
+  }
 }

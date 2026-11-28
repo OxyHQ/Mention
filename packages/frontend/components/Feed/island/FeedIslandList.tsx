@@ -27,11 +27,19 @@ import {
 } from 'react-native';
 import { useBloomTheme, useTheme } from '@oxy.so/bloom/theme';
 import { benchMark } from '@/lib/bench';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { useTranslation } from 'react-i18next';
+import type { FeedProps } from '../useFeedCore';
 import { usePostInteractions } from '../postInteractions';
 import type { FeedRow } from '../feedRows';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { feedIslandPostById, feedIslandPosts, type FeedIslandIntent } from './feedIslandData';
+import {
+  feedIslandAvatar,
+  feedIslandPostById,
+  feedIslandPosts,
+  type FeedIslandIntent,
+} from './feedIslandData';
 
 interface IslandEvent {
   key: string;
@@ -91,6 +99,11 @@ interface Router {
 
 export interface FeedIslandListProps {
   rows: readonly FeedRow[];
+  /** The screen's feed tabs (Home's), drawn by the island above its first row. */
+  tabs?: FeedProps['islandTabs'];
+  /** The compose prompt above the first row (signed in only), and what it opens. */
+  composer?: boolean;
+  onComposePress?: () => void;
   router: unknown;
   feedDescriptor?: string;
   onLoadMore: () => void;
@@ -100,6 +113,9 @@ export interface FeedIslandListProps {
 
 export function FeedIslandList({
   rows,
+  tabs,
+  composer,
+  onComposePress,
   router,
   feedDescriptor,
   onLoadMore,
@@ -110,6 +126,19 @@ export function FeedIslandList({
   const { colorPreset } = useBloomTheme();
   const theme = useTheme();
   const posts = useMemo(() => feedIslandPosts(rows), [rows]);
+  const { user } = useAuth();
+  const { t } = useTranslation();
+  // The rows above the first post, as Feed's own list draws them: the tabs, then the composer.
+  const header = useMemo(
+    () => ({
+      tabs: tabs?.tabs ?? [],
+      active: tabs?.active ?? '',
+      composer: composer === true && user != null,
+      avatar: feedIslandAvatar(user?.avatar),
+      prompt: t('compose.placeholder'),
+    }),
+    [tabs?.tabs, tabs?.active, composer, user, t],
+  );
   // The first screen's rows go first, alone: the island decodes and draws them while the rest of
   // the page follows a frame later.
   const [streamed, setStreamed] = useState(false);
@@ -125,14 +154,14 @@ export function FeedIslandList({
   useMemo(() => islands?.setTheme(key, colorPreset ?? null, scheme), [key, colorPreset, scheme]);
   const json = useMemo(() => {
     const shown = firstScreen ? posts.slice(0, FIRST_SCREEN) : posts;
-    const text = JSON.stringify({ posts: shown, topInset, bottomInset });
+    const text = JSON.stringify({ posts: shown, topInset, bottomInset, header });
     if (shown.length > 0) {
       // Bench: the first time the feed hands the island posts.
       benchMark('island-props');
       islands?.setProps(key, text);
     }
     return text;
-  }, [key, posts, firstScreen, topInset, bottomInset]);
+  }, [key, posts, firstScreen, topInset, bottomInset, header]);
 
   // The island's intents, read through a ref: the listener is added once per key.
   const onEvent = useRef<(event: IslandEvent) => void>(() => {});
@@ -160,6 +189,20 @@ export function FeedIslandList({
       return;
     }
     // A link in a body or a card: a route of the app, or an address opened outside it.
+    // The rows above the posts: a tab, the composer and its camera.
+    if (intent.kind === 'tab') {
+      tabs?.onSelect(intent.href);
+      return;
+    }
+    if (intent.kind === 'compose') {
+      if (onComposePress) onComposePress();
+      else (router as Router).push('/compose' as never);
+      return;
+    }
+    if (intent.kind === 'camera') {
+      (router as Router).push('/camera' as never);
+      return;
+    }
     if (intent.kind === 'link') {
       if (intent.href.startsWith('/')) (router as Router).push(intent.href as never);
       else if (intent.href) openExternalLink(intent.href);

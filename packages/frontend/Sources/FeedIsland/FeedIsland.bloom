@@ -8,6 +8,7 @@ public struct FeedIsland: View {
   let posts: [FeedPost]
   var topInset: Double = 0.0
   var bottomInset: Double = 0.0
+  var header: FeedHeader? = none
   let onIntent: (FeedIntent) -> Void
 
   /// The reader's likes the props have not caught up with, by post.
@@ -41,6 +42,7 @@ public struct FeedIsland: View {
         count: posts.count,
         top: row.index == 0 ? topInset : 0.0,
         bottom: row.index + 1 == posts.count ? bottomInset : 0.0,
+        header: row.index == 0 ? header : none,
         onIntent: { intent in handle(intent) },
       )
     })
@@ -59,12 +61,14 @@ struct FeedCell: View {
   let count: Int
   let top: Double
   let bottom: Double
+  var header: FeedHeader? = none
   let onIntent: (FeedIntent) -> Void
 
   var body: some View {
     VStack(spacing: .none) {
       // The screen chrome's room (a fixed box: a `Spacer` would take the room left).
       if top > 0.0 { VStack(spacing: .none) {}.frame(height: top) }
+      if let rows = header { FeedHeaderRows(header: rows, onIntent: onIntent) }
       FeedRow(post: post, onIntent: onIntent)
       if bottom > 0.0 { VStack(spacing: .none) {}.frame(height: bottom) }
     }

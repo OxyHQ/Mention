@@ -15,6 +15,9 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { toOpenableUrl, trimUrlTrailingPunctuation } from '@mention/shared-types/textEntities';
 import { scanLinkifyEntities } from '@/utils/linkifyPattern';
 import { documentByline, postLinkCards, withoutCardLinks } from '@/utils/postLinkCards';
+import { parsePostInlineMarkdown } from '@/utils/postInlineMarkdown';
+import { truncateInlineMarkdown } from '@oxy.so/bloom/markdown/inline';
+import type { MarkdownInline } from '@oxy.so/bloom/markdown';
 import type { FeedRow } from '../feedRows';
 
 export interface FeedIslandAuthor {
@@ -37,6 +40,9 @@ export interface FeedIslandRun {
   text: string;
   kind: '' | 'url' | 'route' | 'more';
   href: string;
+  /** Inline markdown's style (`**`, `*`, `~~`): the outermost wins; a markdown link is underlined. */
+  style: '' | 'bold' | 'italic' | 'strike';
+  underline: boolean;
 }
 
 /** A link's preview card (Bloom's `LinkPreviewCard`, from the post's Clarity document). */
@@ -100,6 +106,11 @@ export interface FeedIslandIntent {
 /** Mention's body cut (`PostContentText`'s default): the first 280 characters. */
 const BODY_LIMIT = 280;
 
+/** An avatar's URL at the row's variant (the composer's avatar too). */
+export function feedIslandAvatar(avatar: string | null | undefined): string | undefined {
+  return avatarUrl(avatar);
+}
+
 function avatarUrl(avatar: string | null | undefined): string | undefined {
   if (!avatar) return undefined;
   if (/^https?:\/\//i.test(avatar)) return avatar;
@@ -132,20 +143,19 @@ function author(user: PostUser | undefined): FeedIslandAuthor {
   };
 }
 
-/** The body's runs (`LinkifiedText`'s segmentation): its links, mentions, tags and cashtags. */
-function runs(text: string, more: boolean): FeedIslandRun[] {
-  const out: FeedIslandRun[] = [];
-  const plain = (t: string) => {
-    if (t) out.push({ text: t, kind: '', href: '' });
+/** A plain run, linkified as `LinkifiedText` segments it: its links, mentions, tags and cashtags. */
+function linkified(text: string, style: FeedIslandRun['style'], out: FeedIslandRun[]): void {
+  const push = (t: string, kind: FeedIslandRun['kind'], href: string) => {
+    if (t) out.push({ text: t, kind, href, style, underline: false });
   };
   let last = 0;
   for (const entity of scanLinkifyEntities(text)) {
-    plain(text.slice(last, entity.start));
+    push(text.slice(last, entity.start), '', '');
     last = entity.end;
     if (entity.kind === 'url') {
       const { url, trailing } = trimUrlTrailingPunctuation(entity.value);
-      out.push({ text: url, kind: 'url', href: toOpenableUrl(url) });
-      plain(trailing);
+      push(url, 'url', toOpenableUrl(url));
+      push(trailing, '', '');
     } else if (entity.kind === 'mentionDisplay') {
       const source = /^https?:\/\//i.test(entity.value);
       const handle = source ? undefined : getNormalizedUserHandle({ username: entity.value });
@@ -154,27 +164,49 @@ function runs(text: string, more: boolean): FeedIslandRun[] {
         : handle
           ? `/@${handle}`
           : '';
-      out.push({ text: String(entity.label ?? entity.raw), kind: href ? 'route' : '', href });
+      push(String(entity.label ?? entity.raw), href ? 'route' : '', href);
     } else if (entity.kind === 'federatedHandle') {
-      out.push({ text: entity.raw, kind: 'route', href: `/@${entity.value}` });
+      push(entity.raw, 'route', `/@${entity.value}`);
     } else if (entity.kind === 'hashtag') {
-      out.push({
-        text: entity.raw,
-        kind: 'route',
-        href: `/hashtag/${encodeURIComponent(entity.value)}`,
-      });
+      push(entity.raw, 'route', `/hashtag/${encodeURIComponent(entity.value)}`);
     } else if (entity.kind === 'cashtag') {
-      out.push({
-        text: entity.raw,
-        kind: 'route',
-        href: `/search/${encodeURIComponent(`$${entity.value}`)}`,
-      });
+      push(entity.raw, 'route', `/search/${encodeURIComponent(`$${entity.value}`)}`);
     } else {
-      plain(entity.raw);
+      push(entity.raw, '', '');
     }
   }
-  plain(text.slice(last));
-  if (more) out.push({ text: ' Read more', kind: 'more', href: '' });
+  push(text.slice(last), '', '');
+}
+
+/**
+ * The body's runs as `PostContentText` draws it: its inline markdown (strong, emphasis,
+ * strikethrough, `[label](url)` links underlined), each plain run linkified, cut where the feed
+ * cuts it (280 characters), and "Read more" after a cut body.
+ */
+function runs(source: string): FeedIslandRun[] {
+  const parsed = parsePostInlineMarkdown(source);
+  const preview = truncateInlineMarkdown(parsed.nodes, BODY_LIMIT);
+  const out: FeedIslandRun[] = [];
+  const walk = (nodes: readonly MarkdownInline[], style: FeedIslandRun['style']) => {
+    for (const node of nodes) {
+      if (node.type === 'text' || node.type === 'code') {
+        linkified(node.value, style, out);
+      } else if (node.type === 'break') {
+        out.push({ text: '\n', kind: '', href: '', style, underline: false });
+      } else if (node.type === 'link') {
+        const text = node.children.map((c) => ('value' in c ? c.value : '')).join('');
+        out.push({ text, kind: 'url', href: toOpenableUrl(node.url), style, underline: true });
+      } else {
+        const own =
+          node.type === 'strong' ? 'bold' : node.type === 'emphasis' ? 'italic' : 'strike';
+        walk(node.children, style || own);
+      }
+    }
+  };
+  walk(preview.nodes, '');
+  if (preview.isTruncated) {
+    out.push({ text: ' Read more', kind: 'more', href: '', style: '', underline: false });
+  }
   return out;
 }
 
@@ -232,11 +264,12 @@ function body(post: HydratedPostSummary): string {
 
 /** The body without the links its card shows, cut as `PostContentText` cuts it, as runs. */
 function bodyRuns(post: HydratedPostSummary, cards: boolean): FeedIslandRun[] {
-  let text = post.content?.text ?? '';
-  if (cards)
-    text = withoutCardLinks(text, postLinkCards(text, (post as { documents?: never }).documents));
-  const more = text.length > BODY_LIMIT;
-  return runs(more ? `${text.slice(0, BODY_LIMIT).trimEnd()}…` : text, more);
+  const text = post.content?.text ?? '';
+  return runs(
+    cards
+      ? withoutCardLinks(text, postLinkCards(text, (post as { documents?: never }).documents))
+      : text,
+  );
 }
 
 function time(post: HydratedPostSummary): string {

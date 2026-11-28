@@ -66,6 +66,15 @@ export interface FeedProps {
    * staying pinned over it.
    */
   listTopComponent?: React.ReactElement | null;
+  /**
+   * The screen's feed tabs as data, for a feed drawn natively (the Compose island, Bloom ADR 0003),
+   * which draws its own tabs where `listTopComponent` would be.
+   */
+  islandTabs?: {
+    tabs: readonly { key: string; label: string }[];
+    active: string;
+    onSelect: (key: string) => void;
+  };
   /** A normal row rendered before the sticky row. */
   listContentHeaderComponent?: React.ReactElement | null;
   /**

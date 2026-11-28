@@ -24,6 +24,10 @@ public struct FeedRun: Codable, Equatable {
   public let text: String
   public var kind: String = ""
   public var href: String = ""
+  /// Inline markdown's style: `bold`, `italic`, `strike` or none.
+  public var style: String = ""
+  /// A markdown link is underlined.
+  public var underline: Bool = false
 }
 
 /// A link's preview card (Bloom's `LinkPreviewCard`).
@@ -85,12 +89,29 @@ public struct FeedPost: Codable, Identifiable, Equatable {
   public var canReply: Bool = true
 }
 
+/// One of the screen's feed tabs (Home's): its key and its label.
+public struct FeedTab: Codable, Equatable {
+  public let key: String
+  public let label: String
+}
+
+/// The rows above the first post, as Feed's own list draws them: the screen's tabs, then the
+/// compose prompt (signed in only), with the reader's avatar and the prompt's text.
+public struct FeedHeader: Codable, Equatable {
+  public var tabs: [FeedTab] = []
+  public var active: String = ""
+  public var composer: Bool = false
+  public var avatar: String? = none
+  public var prompt: String = ""
+}
+
 /// What the island is drawn from.
 public struct FeedIslandProps: Codable, Equatable {
   public let posts: [FeedPost]
   /// The room the screen's chrome takes over the list: its header and its bottom bar.
   public var topInset: Double = 0.0
   public var bottomInset: Double = 0.0
+  public var header: FeedHeader? = none
 }
 
 /// What a reader did in the island, for React Native to carry out: `like`, `repost`, `reply`,
