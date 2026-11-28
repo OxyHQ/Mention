@@ -23,6 +23,7 @@ import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCata
 import { createLogger } from '@oxy.so/core/logger';
 import { formatDuration } from '@/utils/formatDuration';
 import { SongPreviewButton } from './SongPreviewButton';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 const logger = createLogger('MediaPickerSheet');
 
@@ -117,6 +118,7 @@ const SongResultRow = memo(function SongResultRow({
   isSelected: boolean;
   onSelect: (result: SongSearchResult) => void;
 }) {
+  const imageFade = useImageTransition(120);
   const { t } = useTranslation();
   const { colors } = useTheme();
   const preview = useProfileSongPreview(result.previewUrl);
@@ -138,7 +140,7 @@ const SongResultRow = memo(function SongResultRow({
             source={{ uri: result.artworkUrl }}
             style={{ width: 40, height: 40, borderRadius: 6 }}
             contentFit="cover"
-            transition={120}
+            transition={imageFade}
           />
         ) : (
           <View
@@ -176,6 +178,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
   isSelected: boolean;
   onSelect: (result: PodcastSearchResult) => void;
 }) {
+  const imageFade = useImageTransition(120);
   const { colors } = useTheme();
 
   const handlePress = useCallback(() => {
@@ -194,7 +197,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
             source={{ uri: result.artworkUrl }}
             style={{ width: 40, height: 40, borderRadius: 6 }}
             contentFit="cover"
-            transition={120}
+            transition={imageFade}
           />
         ) : (
           <View
@@ -222,6 +225,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
   currentMedia,
   onClose,
 }: MediaPickerSheetProps) {
+  const imageFade = useImageTransition(120);
   const { t } = useTranslation();
   const { colors } = useTheme();
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
@@ -499,7 +503,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                 source={{ uri: selectedSong.artworkUrl }}
                 style={{ width: 40, height: 40, borderRadius: 6 }}
                 contentFit="cover"
-                transition={120}
+                transition={imageFade}
               />
             ) : (
               <View
@@ -585,7 +589,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                 source={{ uri: selectedPodcast.artworkUrl }}
                 style={{ width: 40, height: 40, borderRadius: 6 }}
                 contentFit="cover"
-                transition={120}
+                transition={imageFade}
               />
             ) : (
               <View

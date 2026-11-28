@@ -658,6 +658,7 @@
     "expand": "全画面のエディターを開く"
   },
   "post": {
+    "restrictedNotice": "この投稿はモデレーションにより制限されています。他のユーザーには表示されません。",
     "threadPosition": "スレッド内の投稿 {{index}} / {{total}}",
     "viewConversation": "会話を見る",
     "threadContinuation": "スレッドの続き（{{count}}）",

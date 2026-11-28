@@ -663,6 +663,7 @@
     "expand": "Abrir el editor completo"
   },
   "post": {
+    "restrictedNotice": "La moderación ha restringido esta publicación. Otras personas no pueden verla.",
     "threadPosition": "Publicación {{index}} de {{total}} del hilo",
     "viewConversation": "Ver conversación",
     "threadContinuation": "Continuación del hilo ({{count}})",

@@ -48,6 +48,7 @@ import { WEB_BASE_URL } from '@/config';
 import { readServerSEO } from '@/lib/seoHandoff';
 import { isPrivateMention, postAcceptsReplies } from '@/utils/postReplies';
 import { Admonition } from '@oxy.so/bloom/admonition';
+import { RestrictedPostNotice } from '@/components/Post/RestrictedPostNotice';
 import { createLogger } from '@oxy.so/core/logger';
 import { getFollowingCachedPost } from '@/modules/mention-widgets';
 
@@ -462,6 +463,7 @@ export default function PostDetailScreen({ postId: id, onBack }: PostDetailScree
     const hasContinuations = continuations.length > 0;
     return (
       <View>
+        <RestrictedPostNotice status={post.metadata?.status} />
         {/* A private mention says who can see it before anything else in the
             thread; replies here stay inside the conversation (server-enforced). */}
         {isPrivateMention(post) ? (

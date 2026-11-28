@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
+import { focusAdjacentPost } from '@/utils/focusAdjacentPost';
 
 const COMBO_TIMEOUT = 1000; // 1 second to press second key after 'g'
 
@@ -15,6 +16,8 @@ export const SHORTCUTS = [
   { keys: ['n'], description: 'New post' },
   { keys: ['Ctrl', 'n'], description: 'New post' },
   { keys: ['/'], description: 'Search' },
+  { keys: ['j'], description: 'Next post' },
+  { keys: ['k'], description: 'Previous post' },
   { keys: ['g', 'h'], description: 'Go home' },
   { keys: ['g', 'n'], description: 'Go to notifications' },
   { keys: ['g', 'e'], description: 'Go to explore' },
@@ -113,6 +116,12 @@ export function useKeyboardShortcuts(): KeyboardShortcutsState {
         } else {
           signIn().catch(() => {});
         }
+        return;
+      }
+
+      // j / k -> next / previous post
+      if ((key === 'j' || key === 'k') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (focusAdjacentPost(key === 'j' ? 1 : -1)) event.preventDefault();
         return;
       }
 

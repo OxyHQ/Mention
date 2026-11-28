@@ -29,6 +29,7 @@ import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
 import { formatDuration } from '@/utils/formatDuration';
 import { videoSourceFor } from '@/utils/videoSource';
 import { findVideoElement } from './videoElementSize';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 interface VideoPlayerProps {
   src: string;
@@ -192,6 +193,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   player: externalPlayer,
   flightHostId,
 }) => {
+  const imageFade = useImageTransition(150);
   const { t } = useTranslation();
   const isPreviewMode = onPress !== undefined && !gif;
   // Only the full controls overlay draws the playhead. A feed preview or a GIF
@@ -564,7 +566,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           style={styles.posterLayer}
           contentFit={contentFit}
           cachePolicy="memory-disk"
-          transition={150}
+          transition={imageFade}
           pointerEvents="none"
           onError={handlePosterError}
         />

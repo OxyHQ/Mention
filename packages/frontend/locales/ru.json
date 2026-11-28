@@ -668,6 +668,7 @@
     "expand": "Открыть полный редактор"
   },
   "post": {
+    "restrictedNotice": "Модерация ограничила этот пост. Другие люди его не видят.",
     "threadPosition": "Публикация {{index}} из {{total}} в ветке",
     "viewConversation": "Посмотреть обсуждение",
     "threadContinuation": "Продолжение ветки ({{count}})",

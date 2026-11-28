@@ -658,6 +658,7 @@
     "expand": "Buka editor lengkap"
   },
   "post": {
+    "restrictedNotice": "Postingan ini dibatasi oleh moderasi. Orang lain tidak dapat melihatnya.",
     "threadPosition": "Postingan {{index}} dari {{total}} dalam utas",
     "viewConversation": "Lihat percakapan",
     "threadContinuation": "Lanjutan utas ({{count}})",

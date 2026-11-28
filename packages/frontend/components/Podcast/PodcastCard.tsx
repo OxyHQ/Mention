@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
+import { useImageTransition } from '@/hooks/useImageTransition';
 
 export type PodcastCardVariant = 'full' | 'card' | 'video';
 
@@ -126,10 +127,11 @@ const ProviderRow = ({ provider, className }: { provider: Provider; className?: 
  * `strip` (48px, under a video). Fixed per size, never scaled with the card.
  */
 const Artwork = ({ uri, size }: { uri?: string; size: 'card' | 'strip' }) => {
+  const imageFade = useImageTransition(120);
   const box = size === 'card' ? 'size-24 rounded-[10px]' : 'size-12 rounded-lg';
   return uri ? (
     <View className={cn(box, 'overflow-hidden')}>
-      <Image source={{ uri }} style={styles.fill} contentFit="cover" transition={120} />
+      <Image source={{ uri }} style={styles.fill} contentFit="cover" transition={imageFade} />
       {/* Hairline so a cover the colour of the card still reads as its own square. */}
       <View pointerEvents="none" className={cn(box, 'absolute inset-0 border border-white/20')} />
     </View>
@@ -171,6 +173,7 @@ export const PodcastCard = memo(function PodcastCard({
   className,
   style,
 }: PodcastCardProps) {
+  const imageFade = useImageTransition(120);
   const { t } = useTranslation();
   const { colors } = useTheme();
   const accent = useArtworkAccent(variant === 'full' ? undefined : artworkUrl, accentColor, title);
@@ -208,7 +211,7 @@ export const PodcastCard = memo(function PodcastCard({
                 source={{ uri: artworkUrl }}
                 style={styles.fill}
                 contentFit="cover"
-                transition={120}
+                transition={imageFade}
               />
             </View>
           ) : (

@@ -658,6 +658,7 @@
     "expand": "Open full composer"
   },
   "post": {
+    "restrictedNotice": "This post was restricted by moderation. Other people can’t see it.",
     "threadPosition": "Post {{index}} of {{total}} in thread",
     "viewConversation": "View conversation",
     "threadContinuation": "Thread continuation ({{count}})",

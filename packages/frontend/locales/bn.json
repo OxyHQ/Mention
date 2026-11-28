@@ -658,6 +658,7 @@
     "expand": "সম্পূর্ণ সম্পাদক খুলুন"
   },
   "post": {
+    "restrictedNotice": "মডারেশন এই পোস্টটি সীমাবদ্ধ করেছে। অন্যরা এটি দেখতে পায় না।",
     "threadPosition": "থ্রেডের {{total}}টির মধ্যে {{index}} নম্বর পোস্ট",
     "viewConversation": "কথোপকথন দেখুন",
     "threadContinuation": "থ্রেডের পরবর্তী অংশ ({{count}})",

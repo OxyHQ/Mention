@@ -663,6 +663,7 @@
     "expand": "Apri l’editor completo"
   },
   "post": {
+    "restrictedNotice": "La moderazione ha limitato questo post. Le altre persone non possono vederlo.",
     "threadPosition": "Post {{index}} di {{total}} del thread",
     "viewConversation": "Mostra conversazione",
     "threadContinuation": "Continuazione del thread ({{count}})",

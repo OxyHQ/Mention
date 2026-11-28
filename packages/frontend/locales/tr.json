@@ -658,6 +658,7 @@
     "expand": "Tam düzenleyiciyi aç"
   },
   "post": {
+    "restrictedNotice": "Bu gönderi moderasyon tarafından kısıtlandı. Diğer kişiler göremez.",
     "threadPosition": "Dizideki {{total}} gönderiden {{index}}. gönderi",
     "viewConversation": "Sohbeti görüntüle",
     "threadContinuation": "Dizinin devamı ({{count}})",

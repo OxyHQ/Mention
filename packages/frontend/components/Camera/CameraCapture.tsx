@@ -8,7 +8,12 @@ import {
   type CameraType,
 } from 'expo-camera';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+  ReduceMotion,
+} from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
@@ -287,7 +292,12 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
       setRemaining(MAX_VIDEO_SECONDS);
       return;
     }
-    ringProgress.value = withTiming(1, { duration: MAX_VIDEO_SECONDS * 1000 });
+    // The ring is information (time left), not decoration: under reduced motion
+    // it would jump straight to full.
+    ringProgress.value = withTiming(1, {
+      duration: MAX_VIDEO_SECONDS * 1000,
+      reduceMotion: ReduceMotion.Never,
+    });
     const began = startedAt;
     const id = setInterval(() => {
       const elapsed = Math.floor((Date.now() - began) / 1000);
