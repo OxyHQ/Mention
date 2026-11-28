@@ -471,6 +471,92 @@ profile):
 | Crawl budget | 99.9 % of `/p/<id>` origin hits are distinct URLs requested once, mostly headless crawlers on hosting ASNs (runbook 74) | the disallows above; tracking parameters stripped at the edge (redirect `?utm_*`, `fbclid`, `gclid` to the clean URL); unknown IDs answer 404/410 with `no-store`; Cloudflare's verified-bot allowance kept for search engines |
 | Change of Address | not applicable | the same day as the 301 (step 6). Expect rankings to settle in weeks. Keep both properties |
 
+## Phase 3: fediverse handles on mention.org (approved 2026-11-28, after Phase 2 is stable)
+
+Goal: people are `@user@mention.org` everywhere. Actor and object IDs stay
+`https://mention.earth/ap/...` for good, so no follow, follower, post, like or boost moves. This is
+Mastodon's `LOCAL_DOMAIN` (handle) and `WEB_DOMAIN` (IDs) split, applied to an instance that
+already has federated history.
+
+### Design
+
+- **Configuration.** A new `FEDERATION_HANDLE_DOMAIN` (default: `FEDERATION_DOMAIN`, so nothing
+  changes until it is set) names the domain of the `acct:`. `FEDERATION_DOMAIN` and `ACTOR_DOMAIN`
+  stay `mention.earth`. During the QA step, a rollout list (`FEDERATION_HANDLE_DOMAIN_ACCOUNTS`,
+  usernames or `all`) limits which accounts answer with the new handle.
+- **WebFinger on both hosts, one answer per account.** Any of `acct:u@mention.org`,
+  `acct:u@mention.earth` or the actor URL, asked on either host, returns:
+  ```json
+  {
+    "subject": "acct:u@mention.org",
+    "aliases": ["https://mention.earth/ap/users/u", "https://mention.org/@u", "acct:u@mention.earth"],
+    "links": [
+      { "rel": "self", "type": "application/activity+json", "href": "https://mention.earth/ap/users/u" },
+      { "rel": "http://webfinger.net/rel/profile-page", "type": "text/html", "href": "https://mention.org/@u" }
+    ]
+  }
+  ```
+  The engine (`@oxy.so/federation` `createWebfingerRouter`) takes one domain today. The change is
+  either a handle-domain option upstream in oxy, or a Mention wrapper like #2111's
+  `webfingerAliasDomains.ts` that rewrites `subject` and `aliases` on the way out. Upstream is
+  preferred, since other Oxy apps federate too.
+- **Actor document.** Add the FEP-2c59 `webfinger: "u@mention.org"` property (Mastodon ≥ 4.6 reads
+  it before WebFinger). Change `url` and `profile-page` to `https://mention.org/@u` (needs the
+  web-domain input in `@oxy.so/federation`'s actor builder). `preferredUsername`, `id`, inbox, keys
+  and `alsoKnownAs` are unchanged.
+- **Telling followers.** Send one `Update(Person)` to every follower's inbox when an account
+  switches (the same path as `aliasPublication.ts`), rate-limited like any delivery. A remote server
+  refetches the actor, sees the new `webfinger` property or re-runs WebFinger, and renames the
+  account in place.
+- **Mention UI, share links and emails.** Display the local handle as `@u@mention.org`: the
+  settings handle from `EXPO_PUBLIC_FEDERATION_DOMAIN`, which becomes the handle domain (a second
+  variable if the two must diverge). The composer, link cards and linkify already accept both hosts
+  (#2113). Mention sends no email; Oxy's emails do not name the fediverse handle.
+- **Incoming mentions of `@u@mention.earth`** keep resolving: WebFinger on mention.earth stays,
+  forever.
+
+### How remote servers pick it up (expected; to be proven in the sandbox)
+
+| Server | New lookups (`@u@mention.org`) | Existing followers |
+| --- | --- | --- |
+| Mastodon | WebFinger on mention.org, then the actor, then `acct:u@mention.earth` on the actor's host. Its subject points back to `u@mention.org`, whose self link matches the actor, so it is verified (`ResolveAccountService`). With FEP-2c59 (≥ 4.6) the actor's `webfinger` property short-cuts this | on `Update(Person)` or the periodic refresh (about a day), `ProcessAccountService` re-verifies the handle and renames the same account row in place (`rename_account!`): follows, posts and notes stay |
+| GoToSocial | WebFinger, then the actor. It supports split domains (`account-domain`/`host`) | refreshes the actor on `Update`; the handle-change behaviour is to be measured |
+| Misskey family | WebFinger, then the actor | may keep showing `@u@mention.earth`: it derives the host from the actor's URL in places. Cosmetic; federation is unaffected |
+| Lemmy, PeerTube, Pixelfed | resolve by actor URL; the handle is display only | unchanged |
+
+### Test plan (sandbox first, never real users' accounts)
+
+1. **Sandbox instances** we run and delete afterwards: Mastodon (current release) and GoToSocial,
+   and Misskey if time allows.
+   - Each runs in a container behind a temporary public HTTPS hostname, a Cloudflare quick tunnel,
+     so production mention.earth can fetch its actors and keys.
+   - Each sandbox has one test account.
+2. **QA account on Mention** (`oxyqa…`), followed from each sandbox account *before* the switch;
+   the QA account posts, likes and boosts across.
+3. **Switch only the QA account** (`FEDERATION_HANDLE_DOMAIN_ACCOUNTS=<qa>`).
+   - Measure: WebFinger on both hosts for all three resource forms; the actor JSON; the
+     `Update(Person)` delivery logs.
+   - On each sandbox: the displayed handle, the follow still present in both directions, old and
+     new posts still threaded and liked, a new search for `@qa@mention.org` landing on the same
+     account (not a duplicate), and a new mention of `@qa@mention.earth` still delivered.
+4. **Pass criteria:** no duplicate account on any sandbox; zero lost follows, followers, posts or
+   likes (counted before and after); Mastodon shows `@qa@mention.org` within one refresh.
+5. **Then everyone:** `FEDERATION_HANDLE_DOMAIN_ACCOUNTS=all`, with `Update(Person)` fanned out in
+   background batches under the delivery rate limits.
+6. **Rollback:** unset `FEDERATION_HANDLE_DOMAIN` (or empty the list). WebFinger answers
+   `@mention.earth` again. Send `Update(Person)` once more so renamed remote accounts are renamed
+   back. No ID ever changed, so nothing else needs repair.
+
+### AT Protocol / Bluesky (proposal only, nothing changed)
+
+- Mention reads AT Protocol and does not host identities: no PDS, no `did:web`, no `*.mention.earth`
+  handles. So nothing breaks, and nothing has to move.
+- If Mention later gives people Bluesky handles, `user.mention.org` is the natural form. That means
+  a `_atproto.user.mention.org` TXT record, or `https://user.mention.org/.well-known/atproto-did`
+  (a wildcard served by the backend), naming the person's `did:plc`. A handle is a DNS name and
+  changes freely; a `did:plc` stays.
+- Avoid `did:web:mention.*`: it is tied to its host forever.
+
 ## Owner steps (en castellano claro)
 
 Hazlos cuando puedas. Los que dicen "ya" se pueden hacer ahora mismo.
