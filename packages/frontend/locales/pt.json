@@ -1665,6 +1665,7 @@
     }
   },
   "sidebar": {
+    "watch": "Assistir",
     "home": "Início",
     "profile": "Perfil",
     "explore": "Explorar",

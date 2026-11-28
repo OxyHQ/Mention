@@ -1665,6 +1665,7 @@
     }
   },
   "sidebar": {
+    "watch": "Guarda",
     "home": "Pagina Iniziale",
     "profile": "Profilo",
     "explore": "Esplora",

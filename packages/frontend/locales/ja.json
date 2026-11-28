@@ -1645,6 +1645,7 @@
     }
   },
   "sidebar": {
+    "watch": "動画を見る",
     "home": "ホーム",
     "profile": "プロフィール",
     "explore": "見つける",

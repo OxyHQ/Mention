@@ -1645,6 +1645,7 @@
     }
   },
   "sidebar": {
+    "watch": "Ansehen",
     "home": "Startseite",
     "profile": "Profil",
     "explore": "Entdecken",

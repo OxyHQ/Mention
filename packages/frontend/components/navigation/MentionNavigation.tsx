@@ -6,6 +6,7 @@ import { useHaptics } from '@oxy.so/bloom/hooks';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
@@ -93,10 +94,11 @@ export function useMentionDestinations(): AppDestination[] {
         href: '/videos',
         bar: true,
         preload: true,
-        label: t('sidebar.videos'),
+        label: t('videos.clips'),
         icon: RiVideoLine,
         activeIcon: RiVideoFill,
       },
+      { name: 'watch', href: '/watch', label: t('sidebar.watch'), icon: RiFilmLine },
       {
         name: 'notifications',
         href: '/notifications',

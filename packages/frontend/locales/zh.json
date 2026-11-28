@@ -1645,6 +1645,7 @@
     }
   },
   "sidebar": {
+    "watch": "观看",
     "home": "首页",
     "profile": "个人主页",
     "explore": "探索",

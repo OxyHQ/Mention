@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
@@ -13,6 +14,8 @@ import { portraitVideo, watchVideo } from '@/components/videos/watchVideo';
 import { useRouter } from '@/lib/navigation/router';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { feedService } from '@/services/feedService';
+
+const WATCH_INSET = 16;
 
 type WatchFilter = 'all' | 'videos' | 'clips';
 
@@ -84,37 +87,38 @@ export default function WatchHomeRoute() {
       }
     >
       <SEO title={t('videos.browse')} robots="index,follow" />
-      <ScreenScrollView contentContainerClassName="px-3 pb-8 pt-3 sm:px-5">
+      <ScreenScrollView contentContainerClassName="pb-8 pt-3">
         <View
-          className="gap-6"
+          className="min-w-0 gap-6"
           onLayout={({
             nativeEvent: {
               layout: { width },
             },
           }) => {
-            setColumns(width >= 1120 ? 4 : width >= 720 ? 3 : width >= 460 ? 2 : 1);
+            const available = width - WATCH_INSET * 2;
+            setColumns(available >= 1120 ? 4 : available >= 720 ? 3 : available >= 460 ? 2 : 1);
           }}
         >
-          <View className="flex-row flex-wrap gap-2">
+          <ChipRow contentInset={WATCH_INSET} accessibilityLabel={t('search.filters.label')}>
             {(Object.keys(FILTER_KEYS) as WatchFilter[]).map((option) => (
-              <Button
+              <Chip
                 key={option}
-                size="sm"
-                tone={filter === option ? 'accent' : 'neutral'}
-                appearance={filter === option ? 'solid' : 'subtle'}
-                accessibilityState={{ selected: filter === option }}
+                variant="subtle"
+                selected={filter === option}
                 onPress={() => setFilter(option)}
               >
                 {t(FILTER_KEYS[option])}
-              </Button>
+              </Chip>
             ))}
-          </View>
+          </ChipRow>
           {featuredCount > 0 && (
-            <VideoPreviewGrid cards={cards.slice(0, featuredCount)} columns={columns} />
+            <View style={styles.inset}>
+              <VideoPreviewGrid cards={cards.slice(0, featuredCount)} columns={columns} />
+            </View>
           )}
           {hasShelf ? (
             <View className="gap-3" testID="watch-clips">
-              <View className="flex-row items-center justify-between gap-3">
+              <View className="flex-row items-center justify-between gap-3" style={styles.inset}>
                 <View className="flex-row items-center gap-2">
                   <RiPlayFill size="lg" className="text-primary" />
                   <Text accessibilityRole="header" className="text-lg font-bold text-foreground">
@@ -126,9 +130,11 @@ export default function WatchHomeRoute() {
                 </Button>
               </View>
               <ScrollView
+                testID="watch-clips-track"
                 horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12 }}
+                accessibilityLabel={t('videos.clips')}
+                className="w-full min-w-0"
+                contentContainerStyle={styles.clipTrack}
               >
                 {clipPreviews.map((video) => (
                   <View key={video.post.id} className="w-[138px] sm:w-[164px]">
@@ -138,7 +144,7 @@ export default function WatchHomeRoute() {
               </ScrollView>
             </View>
           ) : filter === 'clips' ? (
-            <View className="items-start gap-3">
+            <View className="items-start gap-3" style={styles.inset}>
               <Text className="text-muted-foreground">
                 {t(
                   clips.isPending
@@ -158,7 +164,7 @@ export default function WatchHomeRoute() {
             </View>
           ) : null}
           {filter !== 'clips' && (
-            <>
+            <View className="gap-6" style={styles.inset}>
               {cards.length ? (
                 <VideoPreviewGrid cards={cards.slice(featuredCount)} columns={columns} />
               ) : (
@@ -192,10 +198,15 @@ export default function WatchHomeRoute() {
                   </Button>
                 </View>
               ) : null}
-            </>
+            </View>
           )}
         </View>
       </ScreenScrollView>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  inset: { paddingHorizontal: WATCH_INSET },
+  clipTrack: { gap: 12, paddingHorizontal: WATCH_INSET },
+});
