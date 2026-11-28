@@ -90,7 +90,7 @@ public struct JobDetailScreen: Screen {
     QueryOptions(
       queryKey: viewerQueryKeys.jobEmployerProfile(user?.id, job?.employerOxyUserId),
       queryFn: { try await oxyServices.users.get(job!.employerOxyUserId) },
-      enabled: job?.employerOxyUserId,
+      enabled: !!job?.employerOxyUserId,
     ),
   )
 

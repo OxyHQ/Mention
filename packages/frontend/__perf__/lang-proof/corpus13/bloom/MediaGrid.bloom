@@ -164,11 +164,10 @@ public struct MediaGrid: View {
         router.push("/p/\(item.postId)")
       }
     }
-    // bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
     VStack {
       if item.isVideo {
         LiveVideoPosterCell(
-          posterUri: item.uri,
+          posterUri: (!item.uri.isEmpty ? item.uri : none),
           size: itemSize,
           placeholderColor: theme.colors.textSecondary,
           viewsPostId: item.viewsPostId,

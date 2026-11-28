@@ -196,6 +196,14 @@ jest.mock('@/components/suggestions/SuggestedUsers', () => ({
   SuggestedUsers: mockStub('SuggestedUsers'),
 }));
 jest.mock('@/components/Error', () => ({ Error: mockStub('Error') }));
+jest.mock('@/components/suggestions/SuggestedUserCard', () => ({
+  SuggestedUserCard: mockStub('SuggestedUserCard'),
+}));
+jest.mock('@/hooks/useRecommendations', () => ({
+  useRecommendations: () => ({ recommendations: mockWorld.recommendations }),
+}));
+jest.mock('@/lib/actorCache', () => ({ actorWriter: () => ({ cacheActors: () => undefined }) }));
+jest.mock('@/utils/userEnrichment', () => ({ enrichMissingAvatars: async () => undefined }));
 jest.mock('@/hooks/useSupervisionState', () => ({
   useSupervisionState: () => ({ isSupervised: false, restrictions: {} }),
 }));
@@ -224,6 +232,8 @@ const mockWorld = {
   myFeeds: [] as unknown[],
   publicFeeds: [] as unknown[],
   job: (() => ({ job: null })) as () => unknown,
+  recommendations: [] as unknown[],
+  similar: [] as unknown[],
   pokes: {
     received: (() => ({ pokes: [] })) as () => unknown,
     sent: [] as unknown[],
@@ -240,6 +250,8 @@ const signedIn = () => ({
   oxyServices: {
     users: {
       get: async (id: string) => ({ id, username: `emp${id}`, name: { displayName: 'Acme Corp' } }),
+      similar: async () => mockWorld.similar,
+      getMany: async () => [],
     },
     assets: { renderUrl: (id: string, variant: string) => `https://cdn.test/${id}?v=${variant}` },
   },
@@ -392,9 +404,20 @@ interface Case {
   bloomExport?: string;
   /** The `.bloom` export is a component (a `Screen`), drawn as `<X />`, not called as a view. */
   bloomComponent?: boolean;
+  /** Both forms are functions of one value (`postLocation(location)`), called and drawn. */
+  call?: boolean;
   ts: () => Module;
   bloom: () => Module;
-  states: Record<string, { props: Props; before: () => void }>;
+  states: Record<
+    string,
+    {
+      props: Props;
+      before: () => void;
+      interact?: (r: TestRenderer.ReactTestRenderer) => void;
+      /** The file draws nothing in this state (both forms must agree on that). */
+      empty?: boolean;
+    }
+  >;
 }
 
 /**
@@ -403,26 +426,123 @@ interface Case {
  * `it.failing`, so a fix shows up here as a failure to remove; `PROOF_BROKEN=1` runs them as tests.
  */
 const BROKEN: Record<string, string> = {
-  'components/insights/WeeklyRecapContent.tsx/populated': 'view-alias-call',
-  'components/Profile/MediaGrid.tsx/emptyOwnsScroll': 'generic-ts-component-node-props',
-  'components/Profile/MediaGrid.tsx/cells': 'generic-ts-component-node-props',
-  'components/Profile/VideosGrid.tsx/cells': 'generic-ts-component-node-props',
-  'components/Compose/EmojiPickerSheet.tsx/recent': 'hoisted-closure-state-write',
-  'components/Compose/PodcastPickerSheet.tsx/results': 'generic-ts-component-node-props',
+  'components/Compose/PodcastPickerSheet.tsx/results': 'closure-view-to-reactelement (renderItem)',
+  'components/payments/MerchantInstallmentSettings.tsx/closed': 'record-update-arrow-body',
+  'components/payments/MerchantInstallmentSettings.tsx/open': 'record-update-arrow-body',
+  'components/payments/MerchantInstallmentSettings.tsx/openDisabled': 'record-update-arrow-body',
   'app/(app)/feeds.tsx/signedOut': 'the codemod: a screen() inside the route wrapper (refused now)',
   'app/(app)/feeds.tsx/populated':
     'the codemod: a screen() inside the route wrapper; foreign-enumerated',
   'app/(app)/feeds.tsx/protectedMinor':
     'the codemod: a screen() inside the route wrapper (refused now)',
-  'app/(app)/jobs/[id].tsx/notFound': 'memo-dep-guarded-read, lazy-component-called',
-  'app/(app)/jobs/[id].tsx/published': 'memo-dep-guarded-read, lazy-component-called',
-  'app/(app)/jobs/[id].tsx/draftOnMention': 'memo-dep-guarded-read, lazy-component-called',
-  'app/(app)/notifications/pokes.tsx/populated': 'optional-view-to-reactnode',
+  'app/(app)/jobs/[id].tsx/notFound': "screen-group-root: each branch's .header under a Group root",
+  'app/(app)/jobs/[id].tsx/published':
+    "screen-group-root: each branch's .header under a Group root",
+  'app/(app)/jobs/[id].tsx/draftOnMention':
+    "screen-group-root: each branch's .header under a Group root",
+  'app/(app)/notifications/pokes.tsx/populated':
+    'fragment-text-run: a run of strings as one RawText (the same text, one nested Text)',
 };
 
 const noop = () => undefined;
 
+/** Presses the first button the screen draws (a Bloom `Button`: its pressable's `onPress`). */
+function pressFirstButton(r: TestRenderer.ReactTestRenderer) {
+  const host = r.root.findAll(
+    (n) => typeof n.type === 'string' && n.props.accessibilityRole === 'button',
+  )[0];
+  let at: TestRenderer.ReactTestInstance | null = host ?? null;
+  while (at && typeof at.props.onPress !== 'function') at = at.parent;
+  if (!at) throw new Error('no button to press');
+  at.props.onPress({ nativeEvent: {}, preventDefault: noop, stopPropagation: noop });
+}
+
+const suggested = (id: string) => ({ id, username: `u${id}`, name: { displayName: `User ${id}` } });
+const installments = {
+  enabled: true,
+  families: ['pay_in_4', 'pay_later'],
+  minMinorUnits: 5000,
+  maxMinorUnits: 100000,
+  countries: ['ES'],
+  currencies: ['EUR'],
+  purchaseKinds: ['one_time'],
+  message: 'Split it in four.',
+  terms: '',
+};
+
 const CASES: Case[] = [
+  {
+    file: 'components/suggestions/SuggestedUsers.tsx',
+    name: 'SuggestedUsers',
+    ts: () => jest.requireActual('@/components/suggestions/SuggestedUsers'),
+    bloom: () => require('./bloom/SuggestedUsers.bloom'),
+    states: {
+      recommended: {
+        props: { maxCards: 2 },
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.recommendations = [suggested('1'), suggested('2'), suggested('3')];
+        },
+      },
+      similar: {
+        props: { sourceUserId: '2', title: 'Similar', hideDismiss: true },
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.recommendations = [];
+          mockWorld.similar = [suggested('2'), suggested('4')];
+        },
+      },
+      hidden: {
+        props: { visible: false },
+        empty: true,
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.recommendations = [suggested('1')];
+        },
+      },
+      none: {
+        props: {},
+        empty: true,
+        before: () => {
+          mockWorld.auth = signedIn();
+          mockWorld.recommendations = [];
+        },
+      },
+    },
+  },
+  {
+    file: 'components/payments/MerchantInstallmentSettings.tsx',
+    name: 'MerchantInstallmentSettings',
+    ts: () => require('@/components/payments/MerchantInstallmentSettings'),
+    bloom: () => require('./bloom/MerchantInstallmentSettings.bloom'),
+    states: {
+      closed: { props: { value: installments, onChange: noop }, before: noop },
+      open: {
+        props: { value: installments, onChange: noop },
+        before: noop,
+        interact: pressFirstButton,
+      },
+      openDisabled: {
+        props: { value: { ...installments, enabled: false, families: [] }, onChange: noop },
+        before: noop,
+        interact: pressFirstButton,
+      },
+    },
+  },
+  {
+    file: 'components/Post/PostLocation.tsx',
+    name: 'postLocation',
+    call: true,
+    ts: () => require('./ts/PostLocation'),
+    bloom: () => require('@/components/Post/PostLocation.bloom'),
+    states: {
+      address: {
+        props: { type: 'Point', coordinates: [2.1734, 41.3851], address: 'Barcelona' },
+        before: noop,
+      },
+      coordinates: { props: { type: 'Point', coordinates: [2.1734, 41.3851] }, before: noop },
+    },
+  },
   {
     file: 'components/insights/WeeklyRecapContent.tsx',
     name: 'WeeklyRecapContent',
@@ -789,7 +909,10 @@ function lines(node: Json | Json[] | string | null, depth = 0, out: string[] = [
 }
 
 /** Drawn under the app's providers, after its effects, queries and storage reads settle. */
-async function draw(element: () => ReactElement): Promise<string[]> {
+async function draw(
+  element: () => ReactElement,
+  interact?: (r: TestRenderer.ReactTestRenderer) => void,
+): Promise<string[]> {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
@@ -808,6 +931,14 @@ async function draw(element: () => ReactElement): Promise<string[]> {
       await new Promise((resolve) => setTimeout(resolve, 10));
     });
   }
+  if (interact) {
+    await act(async () => interact(renderer));
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    }
+  }
   const drawn = lines(renderer.toJSON());
   act(() => renderer.unmount());
   queryClient.clear();
@@ -821,6 +952,10 @@ function element(form: 'ts' | 'bloom', c: Case, props: Props): ReactElement {
     props: Props,
   ) => unknown;
   if (exported === undefined) throw new Error(`${c.file}: no export in the ${form} form`);
+  if (c.call) {
+    const node = exported(props);
+    return isValidElement(node) ? node : (toElement(node as never) as ReactElement);
+  }
   if (form === 'ts' || c.bloomComponent) return createElement(exported as never, props);
   const node = exported(props);
   return isValidElement(node) ? node : (toElement(node as never) as ReactElement);
@@ -851,13 +986,13 @@ describe.each(ROWS)('%s', (key, c, s) => {
     async () => {
       s.before();
       mockPushes.length = 0;
-      const ts = await draw(() => element('ts', c, s.props));
+      const ts = await draw(() => element('ts', c, s.props), s.interact);
       s.before();
-      const bloom = await draw(() => element('bloom', c, s.props));
+      const bloom = await draw(() => element('bloom', c, s.props), s.interact);
       if (process.env.PROOF_DUMP)
         console.log(`${c.file}\n${ts.join('\n')}\n=====\n${bloom.join('\n')}`);
       // Vacuity floor: the root, the providers' host view and something the file drew.
-      expect(ts.length).toBeGreaterThan(2);
+      expect(ts.length).toBeGreaterThan(s.empty ? 1 : 2);
       if (ts.join('\n') !== bloom.join('\n')) throw new Error(firstDifference(ts, bloom));
     },
   );

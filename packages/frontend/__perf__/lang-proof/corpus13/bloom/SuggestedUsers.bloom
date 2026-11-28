@@ -1,0 +1,119 @@
+// Printed by bloom migrate from components/suggestions/SuggestedUsers.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { SuggestedUserCard, type SuggestedUserData } from "@/components/suggestions/SuggestedUserCard"
+import { useRecommendations } from "@/hooks/useRecommendations"
+import { actorWriter } from "@/lib/actorCache"
+import { type ProfileData } from "@/lib/recommendations"
+import { viewerQueryKeys } from "@/lib/viewerQueryKeys"
+import { enrichMissingAvatars } from "@/utils/userEnrichment"
+import { logger } from "@oxy.so/core/logger"
+import { useAuth } from "@oxy.so/services/ui/client"
+import { useQuery } from "@tanstack/react-query"
+
+private let DEFAULT_MAX_CARDS = 10
+
+/// Similar-profiles stay fresh for 5 minutes (mirrors the recommendations cache).
+private let SIMILAR_PROFILES_STALE_TIME_MS = 5 * 60000
+
+public struct SuggestedUsers: View {
+  var visible: Bool = true
+  var sourceUserId: String? = none
+  var title: String? = none
+  var maxCards: Float = DEFAULT_MAX_CARDS
+  var hideDismiss: Bool? = none
+  let { oxyServices, user } = useAuth()
+
+  @State private var dismissedIds: Set<String> = Set()
+
+  let hasSource = (sourceUserId != none && !sourceUserId.isEmpty)
+
+  // Similarity path: when a `sourceUserId` is given, suggest profiles similar to
+  // it. Keyed on the source + viewer so it stays deduped/cached and reloads when
+  // the session lands. Falls back to shared recommendations on error (below).
+  let similarQuery = useQuery(
+    queryKey: viewerQueryKeys.similarProfiles(user?.id, sourceUserId),
+    queryFn: {
+      // bloom: review: type arguments `<ProfileData[]>` dropped from `useQuery(…)`: annotate the binding if tsc needs them
+      let src = sourceUserId
+      if src == none || src.isEmpty { return [] }
+      let actors = actorWriter()
+
+      // `getSimilarProfiles` returns the SDK `User` shape (optional id); narrow
+      // through `unknown` to the looser `ProfileData`, the same erasure the
+      // recommendations path produces.
+      let similar: Foreign = await oxyServices.users.similar(src)?
+      let list: [ProfileData] = similar is [Foreign] ? similar : []
+      if list.count > 0 {
+        actors.cacheActors(list)
+        task {
+          await enrichMissingAvatars(
+            list.slice(0, maxCards.truncated()),
+            { ids in oxyServices.users.getMany(ids) },
+          )
+        }
+      }
+      return list
+    },
+    enabled: visible && hasSource,
+    staleTime: SIMILAR_PROFILES_STALE_TIME_MS,
+  )
+
+  // bloom: review: TS did this on every render while the test held; here after the render it turns true in
+
+  // Shared recommendations: the default source (no `sourceUserId`) AND the
+  // fallback when the similarity lookup errors. Disabled otherwise so a
+  // successful similarity result doesn't trigger an extra recommendations fetch.
+  let { recommendations } = useRecommendations(
+    enabled: visible && (!hasSource || similarQuery.isError),
+  )
+
+  let sourceUsers = (hasSource && !similarQuery.isError ? (similarQuery.data ??
+    []) : recommendations)
+
+  func handleDismiss(_ userId: String) {
+    var next = dismissedIds
+    next = next.inserting(userId)
+    dismissedIds = next
+  }
+
+  let displayedUsers = {
+    var result: [SuggestedUserData] = []
+    for candidate in sourceUsers {
+      if result.count.toFloat() >= maxCards { break }
+      if !dismissedIds.contains(candidate.id) {
+        if !(sourceUserId != none && !sourceUserId.isEmpty && candidate.id == sourceUserId) {
+          result = [..result, candidate]
+        }
+      }
+    }
+    result
+  }()
+
+  var body: some View {
+    Group {
+      if !(!visible || displayedUsers.count == 0) {
+        VStack {
+          Text(title || String(localized: "suggestions.title"))
+          .padding(.horizontal, .lg)
+          .foregroundStyle(.foreground)
+          .font(.md)
+          .weight(.bold)
+          .margin(.bottom, .xs)
+          for suggested in displayedUsers {
+            SuggestedUserCard(user: suggested, onDismiss: handleDismiss, hideDismiss: hideDismiss)
+            .id(suggested.id)
+          }
+        }
+        .padding(.top, .md)
+      }
+    }
+    .task(id: similarQuery.isError) {
+      if similarQuery.isError {
+        logger
+        .warn(
+          "SuggestedUsers: getSimilarProfiles failed, falling back to recommendations",
+          error: similarQuery.error,
+        )
+      }
+    }
+  }
+}
