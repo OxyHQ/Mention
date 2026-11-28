@@ -34,11 +34,7 @@ import {
   materializeEngagementRelationship,
   materializeEngagementTombstone,
 } from '../../../services/engagement/PostEngagementCommandService';
-import {
-  BRIDGY_FED_BSKY_HOST,
-  bridgyActorUriForDid,
-  didFromBridgyActorUri,
-} from '../../shared/bridgyActor';
+import { bridgyActorUriForDid, didFromBridgyActorUri } from '../../shared/bridgyActor';
 import { findPostsByFederatedObjects } from '../../shared/upstreamPostKey';
 import { isDid } from '../constants';
 import { adoptRepostSighting } from '../engagementImport';
@@ -63,8 +59,7 @@ export type KnownBlueskyAccounts = () => Promise<ReadonlyMap<string, string>>;
  * person is one entry whichever way they reached us.
  */
 export function createKnownBlueskyAccounts(
-  load: () => Promise<Array<{ uri: string; oxyUserId: string }>> = () =>
-    findKnownBlueskyAccounts(BRIDGY_FED_BSKY_HOST),
+  load: () => Promise<Array<{ uri: string; oxyUserId: string }>> = () => findKnownBlueskyAccounts(),
 ): KnownBlueskyAccounts {
   let accounts: ReadonlyMap<string, string> = new Map();
   let loadedAt = 0;

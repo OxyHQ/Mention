@@ -20,6 +20,7 @@
  *    (`com.atproto.sync.getRepo`): see `docs/bluesky-ingestion.md`.
  */
 
+import { ATPROTO_CHEAP_HISTORY_POSTS } from '../../db/schema/federation';
 import {
   claimOutboxBackfill,
   findAtprotoFollowedSyncCandidates,
@@ -64,7 +65,7 @@ export const HISTORY_ACCOUNTS_PER_RUN = 10;
  * An account nobody follows still has its whole history read when it is this
  * small (two pages) and someone has opened it — cheap enough to do on discovery.
  */
-export const HISTORY_CHEAP_POSTS = 200;
+export const HISTORY_CHEAP_POSTS = ATPROTO_CHEAP_HISTORY_POSTS;
 
 /** How long one run holds an account's backfill lease. */
 const HISTORY_LEASE_MS = 10 * 60 * 1000;

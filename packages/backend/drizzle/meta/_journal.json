@@ -988,6 +988,20 @@
       "when": 1795573385870,
       "tag": "0140_posts_triggers_ignore_repost_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1795878111382,
+      "tag": "0141_federated_actors_sweep_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1795878309840,
+      "tag": "0142_federated_actors_autovacuum",
+      "breakpoints": true
     }
   ]
 }

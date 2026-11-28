@@ -53,7 +53,15 @@ import {
 } from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import { federatedActorFields, federatedActors, federatedFollows } from '../schema/federation';
+import {
+  ATPROTO_CHEAP_HISTORY_POSTS,
+  atprotoCheapHistorySql,
+  atprotoHistoryDueSql,
+  federatedActorFields,
+  federatedActors,
+  federatedFollows,
+  knownBlueskyActorSql,
+} from '../schema/federation';
 import type {
   FederatedActorField,
   FederatedActorRecord,
@@ -236,24 +244,25 @@ export interface KnownBlueskyAccountRow {
 /**
  * Every Bluesky account known here — linked to an Oxy user and not suspended —
  * stored natively (`protocol = 'atproto'`, uri = DID) or through Bridgy Fed
- * (`domain = bridgyDomain`, uri = `https://bsky.brid.gy/ap/<did>`). Two index
- * scans (`federated_actors_protocol_idx`, `federated_actors_domain_idx`), so the
+ * (`domain = bsky.brid.gy`, uri = `https://bsky.brid.gy/ap/<did>`), so the
  * Jetstream handlers can hold the set in memory instead of asking per event.
+ *
+ * Served by `federated_actors_known_bluesky_idx`, whose predicate is exactly
+ * {@link knownBlueskyActorSql} and whose keys are the two columns read: an
+ * index-only scan. It was a bitmap heap scan of the whole table — every one of
+ * its ~117k pages read every five minutes, and written back dirty, which pushed
+ * the rest of Mention's working set out of the buffer cache.
+ *
+ * The bridge host is the index's literal, so a caller can no longer pass
+ * another; {@link BRIDGY_FED_BSKY_DOMAIN} is the only bridge there is.
  */
 export async function findKnownBlueskyAccounts(
-  bridgyDomain: string,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<KnownBlueskyAccountRow[]> {
   const rows = await db
     .select({ uri: federatedActors.uri, oxyUserId: federatedActors.oxyUserId })
     .from(federatedActors)
-    .where(
-      and(
-        or(eq(federatedActors.protocol, 'atproto'), eq(federatedActors.domain, bridgyDomain)),
-        isNotNull(federatedActors.oxyUserId),
-        eq(federatedActors.suspended, false),
-      ),
-    );
+    .where(knownBlueskyActorSql(federatedActors));
   return rows.flatMap((row) => (row.oxyUserId ? [{ uri: row.uri, oxyUserId: row.oxyUserId }] : []));
 }
 
@@ -1501,6 +1510,22 @@ export interface AtprotoHistoryCandidate extends AtprotoSyncCandidate {
  * Only atproto rows: the ActivityPub walk ({@link findOutboxBackfillCandidates})
  * requires an `outbox_url`, which an atproto actor never has, so the two never
  * pick each other's actors.
+ *
+ * ## Why two arms
+ *
+ * Written as one `followed OR cheap` filter, no index can serve it: the planner
+ * read every atproto row (~117k heap pages on production, 2026-11-28, 1.1 s and
+ * 104k blocks a call) to keep a few thousand and sort them. Each half has an
+ * index of its own — the followed accounts are the ~100 URIs local accounts
+ * follow, reached through `federated_actors_uri_key`; the cheap ones are
+ * `federated_actors_atproto_cheap_history_idx`, already in this order — so each
+ * arm takes its own first `limit` ids, and the outer read orders their union
+ * and cuts it to `limit` again, in the database, under its own collation.
+ *
+ * The result is the same set in the same order: `(last_run_at nulls first, id)`
+ * is a total order (`id` is unique), and the first `limit` rows of a union are
+ * among the first `limit` of either arm. An account that is both followed and
+ * cheap appears in both arms and is kept once.
  */
 export async function findAtprotoHistoryBackfillCandidates(
   now: Date,
@@ -1508,36 +1533,46 @@ export async function findAtprotoHistoryBackfillCandidates(
   limit: number,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<AtprotoHistoryCandidate[]> {
+  const unlocked = or(
+    isNull(federatedActors.outboxBackfillLockedUntil),
+    lte(federatedActors.outboxBackfillLockedUntil, now),
+  );
+  const order = [
+    sql`${federatedActors.outboxBackfillLastRunAt} asc nulls first`,
+    asc(federatedActors.id),
+  ];
+  // The cheap arm's bound is the index's literal; any other bound keeps the
+  // single filter, which answers the same question without the index.
+  const where =
+    cheapPostsCount === ATPROTO_CHEAP_HISTORY_POSTS
+      ? sql`${federatedActors.id} in ((${db
+          .select({ id: federatedActors.id })
+          .from(federatedActors)
+          .where(and(atprotoCheapHistorySql(federatedActors), unlocked))
+          .orderBy(...order)
+          .limit(limit)}) union (${db
+          .select({ id: federatedActors.id })
+          .from(federatedActors)
+          .where(and(atprotoHistoryDueSql(federatedActors), unlocked, followedLocallySql()))
+          .orderBy(...order)
+          .limit(limit)}))`
+      : and(
+          atprotoHistoryDueSql(federatedActors),
+          unlocked,
+          or(
+            followedLocallySql(),
+            and(
+              isNotNull(federatedActors.lastOutboxSyncAt),
+              gt(federatedActors.postsCount, 0),
+              lte(federatedActors.postsCount, cheapPostsCount),
+            ),
+          ),
+        );
   const rows = await db
     .select()
     .from(federatedActors)
-    .where(
-      and(
-        eq(federatedActors.protocol, 'atproto'),
-        isNotNull(federatedActors.oxyUserId),
-        eq(federatedActors.suspended, false),
-        or(
-          isNull(federatedActors.outboxBackfillStatus),
-          inArray(federatedActors.outboxBackfillStatus, ['pending', 'failed']),
-        ),
-        or(
-          isNull(federatedActors.outboxBackfillLockedUntil),
-          lte(federatedActors.outboxBackfillLockedUntil, now),
-        ),
-        or(
-          followedLocallySql(),
-          and(
-            isNotNull(federatedActors.lastOutboxSyncAt),
-            gt(federatedActors.postsCount, 0),
-            lte(federatedActors.postsCount, cheapPostsCount),
-          ),
-        ),
-      ),
-    )
-    .orderBy(
-      sql`${federatedActors.outboxBackfillLastRunAt} asc nulls first`,
-      asc(federatedActors.id),
-    )
+    .where(where)
+    .orderBy(...order)
     .limit(limit);
   return rows.map((row) => ({
     id: row.id,

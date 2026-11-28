@@ -1,3 +1,4 @@
+import { BRIDGY_FED_BSKY_DOMAIN } from '../../db/schema/federation';
 import { ANY_DID_RE } from '../atproto/constants';
 
 /**
@@ -10,8 +11,12 @@ import { ANY_DID_RE } from '../atproto/constants';
  * (the DID) and matches either spelling of a known account.
  */
 
-/** Bridgy Fed's Bluesky↔fediverse bridge host (where the `/ap/<did>` scheme lives). */
-export const BRIDGY_FED_BSKY_HOST = 'bsky.brid.gy';
+/**
+ * Bridgy Fed's Bluesky↔fediverse bridge host (where the `/ap/<did>` scheme lives).
+ * Declared beside `federated_actors`, whose `federated_actors_known_bluesky_idx`
+ * predicate names it as a literal.
+ */
+export const BRIDGY_FED_BSKY_HOST = BRIDGY_FED_BSKY_DOMAIN;
 
 /** Every bridged Bluesky actor URI is this prefix followed by the DID. */
 export const BRIDGY_BSKY_ACTOR_PREFIX = `https://${BRIDGY_FED_BSKY_HOST}/ap/`;
