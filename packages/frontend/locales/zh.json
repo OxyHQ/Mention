@@ -3470,6 +3470,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "创建账号",
+      "valueProp": "用一个账号关注 Mention 和整个联邦宇宙中的人。",
       "subtitle": "看看此刻世界正在发生什么。",
       "title": "登录 Mention",
       "withOxy": "使用 Oxy 登录"

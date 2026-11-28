@@ -3470,6 +3470,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Hesap oluştur",
+      "valueProp": "Tek hesapla Mention'daki ve tüm fediverse'teki kişileri takip edin.",
       "subtitle": "Dünyada şu anda neler olduğunu gör.",
       "title": "Mention'a giriş yap",
       "withOxy": "Oxy ile giriş yap"

@@ -1,13 +1,42 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { LogoIcon } from '@/assets/logo';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 
-export default function AuthScreen() {
+/** Sign in, and the way in for somebody who has no account yet. */
+function AuthActions() {
   const { signIn } = useAuth();
+  const { openAccountDialog } = useOxy();
+  const { t } = useTranslation();
+
+  return (
+    <View className="w-full gap-3">
+      <Button
+        appearance="solid"
+        tone="accent"
+        size="lg"
+        style={styles.action}
+        onPress={() => openAccountDialog('signup')}
+      >
+        {t('auth.signIn.createAccount')}
+      </Button>
+      <Button
+        appearance="outline"
+        tone="neutral"
+        size="lg"
+        style={styles.action}
+        onPress={() => signIn().catch(() => {})}
+      >
+        {t('auth.signIn.withOxy')}
+      </Button>
+    </View>
+  );
+}
+
+export default function AuthScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
 
@@ -23,20 +52,13 @@ export default function AuthScreen() {
             <LogoIcon size={56} color="#fff" />
             <Text className="text-[42px] font-bold text-white mt-2">Mention</Text>
             <Text className="text-xl text-white/85 leading-7">{t('auth.signIn.subtitle')}</Text>
+            <Text className="text-base text-white/75 leading-6">{t('auth.signIn.valueProp')}</Text>
           </View>
         </View>
         <View className="flex-1 justify-center items-center p-12">
           <View className="w-full max-w-[360px] gap-6">
             <Text className="text-2xl font-bold text-foreground">{t('auth.signIn.title')}</Text>
-            <Button
-              appearance="solid"
-              tone="accent"
-              size="lg"
-              style={styles.signInButton}
-              onPress={() => signIn().catch(() => {})}
-            >
-              {t('auth.signIn.withOxy')}
-            </Button>
+            <AuthActions />
           </View>
         </View>
       </View>
@@ -49,17 +71,12 @@ export default function AuthScreen() {
           <Text className="text-base text-center max-w-[280px] leading-[22px] text-muted-foreground">
             {t('auth.signIn.subtitle')}
           </Text>
+          <Text className="text-sm text-center max-w-[280px] leading-5 text-muted-foreground">
+            {t('auth.signIn.valueProp')}
+          </Text>
         </View>
         <View className="w-full max-w-[320px] pb-8">
-          <Button
-            appearance="solid"
-            tone="accent"
-            size="lg"
-            style={styles.signInButton}
-            onPress={() => signIn().catch(() => {})}
-          >
-            {t('auth.signIn.withOxy')}
-          </Button>
+          <AuthActions />
         </View>
       </View>
     </>
@@ -67,7 +84,7 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  signInButton: {
+  action: {
     width: '100%',
   },
 });

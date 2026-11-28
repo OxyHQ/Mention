@@ -3470,6 +3470,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Create account",
+      "valueProp": "Follow people on Mention and across the fediverse, from one account.",
       "subtitle": "See what’s happening in the world right now.",
       "title": "Log into Mention",
       "withOxy": "Sign In with Oxy"

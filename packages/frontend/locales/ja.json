@@ -3470,6 +3470,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "アカウントを作成",
+      "valueProp": "ひとつのアカウントで、Mentionとフェディバース全体の人をフォローできます。",
       "subtitle": "いま世界で起きていることをのぞいてみましょう。",
       "title": "Mentionにログイン",
       "withOxy": "Oxyでログイン"

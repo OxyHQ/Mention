@@ -3500,6 +3500,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Criar conta",
+      "valueProp": "Siga pessoas no Mention e em todo o fediverso com uma única conta.",
       "subtitle": "Vê o que se passa no mundo neste momento.",
       "title": "Entrar no Mention",
       "withOxy": "Iniciar sessão com Oxy"

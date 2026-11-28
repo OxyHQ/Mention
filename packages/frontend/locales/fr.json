@@ -3500,6 +3500,8 @@
   },
   "auth": {
     "signIn": {
+      "createAccount": "Créer un compte",
+      "valueProp": "Suivez des personnes sur Mention et dans tout le fédivers avec un seul compte.",
       "subtitle": "Vois ce qui se passe dans le monde en ce moment.",
       "title": "Se connecter à Mention",
       "withOxy": "Se connecter avec Oxy"
