@@ -6,13 +6,13 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
-import VideoPlayer from '@/components/common/VideoPlayer';
 import { WatchVideoSkeleton } from '@/components/loading/ContentSkeleton';
 import { VideoRecommendations } from '@/components/videos/VideoSuggestions';
+import { WatchPlayerSurface } from '@/components/videos/WatchPlayerSurface';
 import { WatchVideoDetails, usePublishWatchDetails } from '@/components/videos/WatchVideoDetails';
 import { watchVideo } from '@/components/videos/watchVideo';
 import { usePostReadAccess } from '@/hooks/usePostReadAccess';
-import { useLocalSearchParams, useRouter } from '@/lib/navigation/router';
+import { useIsFocused, useLocalSearchParams, useRouter } from '@/lib/navigation/router';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -21,6 +21,7 @@ export default function WatchRoute() {
   const { t, i18n } = useTranslation();
   const { user, oxyServices, isAuthResolved } = useAuth();
   const router = useRouter();
+  const focused = useIsFocused();
   const access = usePostReadAccess(id ?? '');
   const getPostById = usePostsStore((state) => state.getPostById);
   const width = useWindowDimensions().width;
@@ -33,10 +34,11 @@ export default function WatchRoute() {
   const post = access.allowed ? postRead.data : undefined;
   const requestedIndex = mediaIndex && /^\d+$/.test(mediaIndex) ? Number(mediaIndex) : undefined;
   const video = post ? watchVideo(post, oxyServices, requestedIndex) : null;
-  usePublishWatchDetails(video ? post : undefined, hasSidebar);
+  usePublishWatchDetails(video ? post : undefined, hasSidebar && focused);
   const [revealed, setRevealed] = useState<string>();
   const pending = Boolean(id) && !access.failed && (!access.allowed || postRead.isPending);
   const videoKey = `${id}:${mediaIndex ?? ''}`;
+  const concealed = Boolean(post?.metadata.isSensitive && revealed !== videoKey);
 
   return (
     <Screen
@@ -52,24 +54,27 @@ export default function WatchRoute() {
       {video && post ? (
         <View className="gap-4 px-3 pb-8 pt-2">
           <View className="min-w-0 flex-1 gap-4">
-            <View className="aspect-video w-full items-center justify-center overflow-hidden rounded-2xl bg-black">
-              {post.metadata.isSensitive && revealed !== videoKey ? (
-                <Button onPress={() => setRevealed(videoKey)}>
-                  {t('post.sensitiveContentTap')}
-                </Button>
-              ) : (
-                <VideoPlayer
-                  key={videoKey}
-                  src={video.source}
-                  fallbackSrc={video.fallbackSource}
-                  poster={video.poster}
-                  contentFit="contain"
-                  controlsLayout="watch"
-                  autoPlay
-                  style={{ width: '100%', height: '100%' }}
-                />
-              )}
-            </View>
+            <WatchPlayerSurface
+              video={video}
+              focused={focused}
+              dockable={hasSidebar}
+              concealed={concealed}
+              canContinue={
+                !access.supervised &&
+                !post.metadata.isSensitive &&
+                !post.metadata.spoilerText &&
+                !post.metadata.recipients?.length &&
+                !('visibility' in post.metadata && post.metadata.visibility !== 'public')
+              }
+            >
+              {concealed ? (
+                <View className="h-full w-full items-center justify-center">
+                  <Button onPress={() => setRevealed(videoKey)}>
+                    {t('post.sensitiveContentTap')}
+                  </Button>
+                </View>
+              ) : null}
+            </WatchPlayerSurface>
           </View>
           {hasSidebar ? null : <WatchVideoDetails key={post.id} post={post} />}
           <VideoRecommendations current={post} columns={width >= 600 ? 3 : 2} />

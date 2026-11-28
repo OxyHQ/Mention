@@ -18,6 +18,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Link, useRouter } from '@/lib/navigation/router';
 import { usePostSelector } from '@/stores/postsStore';
+import { WatchVideoRailFrame } from './WatchPlayerSurface';
 import { videoPublicationDate, videoTitleText, videoViewCount } from './videoMetadata';
 import { postAcceptsReplies } from '@/utils/postReplies';
 
@@ -36,9 +37,9 @@ export function usePublishWatchDetails(post: HydratedPost | null | undefined, en
 export function WatchVideoRail() {
   const post = useWatchDetails((state) => state.post);
   return post ? (
-    <View className="px-4 pb-6 pt-3">
+    <WatchVideoRailFrame postId={post.id}>
       <WatchVideoDetails key={post.id} post={post} />
-    </View>
+    </WatchVideoRailFrame>
   ) : null;
 }
 

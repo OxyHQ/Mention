@@ -47,6 +47,7 @@ jest.mock('@oxy.so/bloom/skeleton', () => ({
   Region: ({ children }: { children: ReactNode }) => children,
 }));
 jest.mock('@/lib/navigation/router', () => ({
+  useIsFocused: () => true,
   useLocalSearchParams: () => ({ id: 'video-1' }),
   useRouter: () => ({}),
 }));

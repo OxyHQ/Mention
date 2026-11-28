@@ -34,6 +34,7 @@ import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
 import { RightBar } from '@/components/RightBar';
 import { VideoSuggestions } from '@/components/videos/VideoSuggestions';
 import { WatchVideoRail } from '@/components/videos/WatchVideoDetails';
+import { WatchBrowseRail, WatchPlaybackProvider } from '@/components/videos/WatchPlayerSurface';
 import { useMentionSidebar } from '@/components/navigation/useMentionSidebar';
 import { SignInBanner } from '@/components/SignInBanner';
 import { WelcomeRedirectGate } from '@/components/WelcomeRedirectGate';
@@ -207,7 +208,7 @@ export default function AppLayout() {
   // sheets and bloom's native portal outlet render their content above this
   // route, so anything mounted at this depth is invisible to them.
   return (
-    <>
+    <WatchPlaybackProvider pathname={pathname}>
       {/* Connection loss shows as a Bloom toast — see @oxy.so/bloom/connection-status.
           It replaced an app-local banner that pushed the whole screen down. */}
       <ConnectionStatusToasts />
@@ -309,7 +310,9 @@ export default function AppLayout() {
                 ) : onVideosRoute ? (
                   <VideoSuggestions />
                 ) : (
-                  <RightBar />
+                  <WatchBrowseRail>
+                    <RightBar />
+                  </WatchBrowseRail>
                 ),
               },
               ...deckOrder
@@ -386,6 +389,6 @@ export default function AppLayout() {
       <BootMilestone name="route-mounted" />
       <WelcomeRedirectGate />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}
-    </>
+    </WatchPlaybackProvider>
   );
 }

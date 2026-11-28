@@ -20,6 +20,60 @@ async function observeFrames(page: Page, index = 0) {
   return page.locator('video[data-playback-subject="true"]');
 }
 
+test('Watch keeps its decoder in the right column while browsing the app', async ({
+  page,
+  candidate,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const requests = await arrangeVideoPost(page, 'hls');
+  await page.goto(`/watch/${POST_ID}?mediaIndex=0`);
+  const video = await observeFrames(page);
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime))
+    .toBeGreaterThan(0.4);
+  const before = await video.evaluate((element: HTMLVideoElement) => element.currentTime);
+
+  await page.getByRole('link', { name: 'Explore', exact: true }).click();
+  await expect(page).toHaveURL(/\/explore$/);
+  const dock = page.getByTestId('watch-browse-player-dock');
+  const original = dock.locator('video[data-playback-subject="true"]');
+  await expect(original).toBeVisible();
+  expect(await dock.evaluate((element) => getComputedStyle(element).position)).toBe('static');
+  const bounds = await dock.boundingBox();
+  expect(bounds?.x).toBeGreaterThan(900);
+  await expect
+    .poll(() => original.evaluate((element: HTMLVideoElement) => element.currentTime))
+    .toBeGreaterThan(before + 0.4);
+
+  await page.getByRole('link', { name: 'Home', exact: true }).click();
+  await expect(original).toBeVisible();
+  await dock.hover();
+  await expect(dock.getByRole('slider', { name: 'Playback position' })).toBeVisible();
+  await dock.getByRole('button', { name: 'Pause', exact: true }).click();
+  const pausedAt = await original.evaluate((element: HTMLVideoElement) => element.currentTime);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/explore$/);
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/watch/${POST_ID}\\?mediaIndex=0$`));
+  await expect(
+    page.getByTestId('watch-player-inline').locator('video[data-playback-subject]'),
+  ).toBeVisible();
+  expect(await video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(true);
+  expect(await video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeCloseTo(
+    pausedAt,
+    1,
+  );
+  expect(requests.filter((name) => name.endsWith('.m3u8'))).toEqual(['clip.m3u8']);
+
+  await page.getByRole('link', { name: 'Explore', exact: true }).click();
+  await expect(dock).toBeVisible();
+  await page.getByRole('link', { name: 'Clips', exact: true }).click();
+  await expect(page).toHaveURL(/\/videos(?:\?|$)/);
+  await expect(dock).toHaveCount(0);
+  await expect(video).toHaveCount(0);
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
 for (const format of ['mp4', 'hls'] as const) {
   for (const origin of ['post', 'feed'] as const) {
     test(`${format} keeps its decoder, frames and position from ${origin} to videos`, async ({

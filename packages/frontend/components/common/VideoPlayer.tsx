@@ -37,6 +37,8 @@ import { useImageTransition } from '@/hooks/useImageTransition';
 interface VideoPlayerProps {
   src: string;
   controlsLayout?: 'default' | 'watch';
+  /** Begins a persistent Watch session after the video actually plays. */
+  onPlaybackStart?: () => void;
   /**
    * Played once if `src` fails to load — the original upload behind an adaptive
    * stream, so a ladder that turns out to be broken degrades to the file
@@ -184,6 +186,7 @@ const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
   src,
   controlsLayout = 'default',
+  onPlaybackStart,
   fallbackSrc,
   concealed = false,
   style,
@@ -344,6 +347,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
     if (playing) {
+      if (onPlaybackStart) {
+        claimActive();
+        onPlaybackStart();
+      }
       scheduleHideControls();
     }
   });
@@ -398,7 +405,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [previousMayPlay, setPreviousMayPlay] = useState(mayPlay);
   if (previousMayPlay !== mayPlay) {
     setPreviousMayPlay(mayPlay);
-    if (!mayPlay) setManualPlayback(null);
+    if (!mayPlay && !watch) setManualPlayback(null);
   }
   const hasRenderedFrame = useVideoPlaybackControl(
     player,
