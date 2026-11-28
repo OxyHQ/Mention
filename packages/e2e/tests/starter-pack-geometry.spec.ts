@@ -1,4 +1,4 @@
-import { APP_ORIGIN } from '../environment';
+import { API_ORIGIN, APP_ORIGIN } from '../environment';
 import { expect, test } from '../fixtures';
 import { installNotificationFixture } from '../notificationFixture';
 
@@ -20,7 +20,7 @@ for (const width of [390, 1440]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     await installNotificationFixture(context);
-    await page.route('https://api.mention.earth/starter-packs**', (route) =>
+    await page.route(`${API_ORIGIN}/starter-packs**`, (route) =>
       route.fulfill({
         headers: {
           'access-control-allow-origin': APP_ORIGIN,
@@ -66,7 +66,7 @@ test('search starter-pack skeleton cards retain their inset while results load',
   const requested = new Promise<void>((resolve) => {
     markRequested = resolve;
   });
-  await page.route('https://api.mention.earth/starter-packs?**', async (route) => {
+  await page.route(`${API_ORIGIN}/starter-packs?**`, async (route) => {
     markRequested();
     await waitForRelease;
     await route.fulfill({

@@ -797,7 +797,11 @@ jobs:
         env:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
-          EXPO_PUBLIC_API_URL: https://api.mention.earth
+          # The production web build's origins (deploy-frontends.yml,
+          # docs/mention-org-domain-move.md); the fediverse identity stays mention.earth.
+          EXPO_PUBLIC_API_URL: https://api.mention.org
+          EXPO_PUBLIC_WEB_BASE_URL: https://mention.org
+          EXPO_PUBLIC_FEDERATION_DOMAIN: mention.earth
       - name: Validate static hosting contract
         if: ${{ !steps.restore_baseline.outputs.cache-hit && !steps.inherit_baseline.outputs.cache-hit }}
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
@@ -912,7 +916,11 @@ jobs:
         env:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
-          EXPO_PUBLIC_API_URL: https://api.mention.earth
+          # The production web build's origins (deploy-frontends.yml,
+          # docs/mention-org-domain-move.md); the fediverse identity stays mention.earth.
+          EXPO_PUBLIC_API_URL: https://api.mention.org
+          EXPO_PUBLIC_WEB_BASE_URL: https://mention.org
+          EXPO_PUBLIC_FEDERATION_DOMAIN: mention.earth
       - name: Validate static hosting contract
         if: steps.scope.outputs.run == 'true'
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
@@ -961,7 +969,7 @@ jobs:
   #
   # Same suite, same pinned Playwright and Chromium, same production build env
   # as deploy-frontends.yml, same candidate mechanism: the browser runs at
-  # https://mention.earth against the LIVE API, and fixtures.ts answers every
+  # https://mention.org against the LIVE API, and fixtures.ts answers every
   # same-origin request from the candidate. Only the candidate's HOST differs —
   # the export served locally by `wrangler pages dev` (the wrangler the deploy
   # pins) instead of an uploaded Pages preview, because a pull request, and a
@@ -1023,7 +1031,11 @@ jobs:
         env:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
-          EXPO_PUBLIC_API_URL: https://api.mention.earth
+          # The production web build's origins (deploy-frontends.yml,
+          # docs/mention-org-domain-move.md); the fediverse identity stays mention.earth.
+          EXPO_PUBLIC_API_URL: https://api.mention.org
+          EXPO_PUBLIC_WEB_BASE_URL: https://mention.org
+          EXPO_PUBLIC_FEDERATION_DOMAIN: mention.earth
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
           # Match the production export: catalogue bindings are inlined by Expo.
           EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID: ${{ vars.EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID }}
@@ -1063,6 +1075,10 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         env:
           MENTION_E2E_CANDIDATE_ORIGIN: http://127.0.0.1:4110
+          # The origins the build above was made for; the gate must route and
+          # assert on the same ones (packages/e2e/environment.ts).
+          MENTION_E2E_APP_ORIGIN: https://mention.org
+          MENTION_E2E_API_ORIGIN: https://api.mention.org
         run: bun run --cwd packages/e2e test
       - name: Upload the browser gate report
         if: always() && steps.scope.outputs.run == 'true'

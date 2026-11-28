@@ -4,7 +4,7 @@
  * The `candidate` fixture does two things every flow needs:
  *
  *  1. Serves the candidate deployment's bytes AT the production origin. The
- *     browser's document URL stays `https://mention.earth`, so the page is
+ *     browser's document URL stays `APP_ORIGIN` (`https://mention.org`), so the page is
  *     subject to the real CORS contract, the real CSP and the real per-origin
  *     storage — while the HTML, the Expo chunks and every other same-origin
  *     asset come from the immutable Pages deployment under test. See
@@ -52,7 +52,7 @@ export const test = base.extend<{ candidate: CandidateBuild }>({
     const scriptErrors: string[] = [];
 
     // Matching on the parsed origin rather than a glob keeps this exact: only
-    // the app's own origin is rerouted. Calls to api.mention.earth and the media
+    // the app's own origin is rerouted. Calls to the API (`API_ORIGIN`) and the media
     // CDN go to the real network untouched, which is the entire point.
     await context.route(
       (url) => url.origin === APP_ORIGIN,

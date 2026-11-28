@@ -14,7 +14,7 @@
  * of the same URL catches it.
  */
 
-import { API_ORIGIN, APP_ORIGIN, PROFILE_HANDLE } from '../environment';
+import { ACTOR_ORIGIN, APP_ORIGIN, PROFILE_HANDLE } from '../environment';
 import { expect, test } from '../fixtures';
 
 test('a local profile URL renders as a page', async ({ page, candidate }) => {
@@ -39,5 +39,5 @@ test('a local profile URL negotiates ActivityPub to the canonical actor', async 
   });
 
   expect(response.status()).toBe(302);
-  expect(response.headers().location).toBe(`${API_ORIGIN}/ap/users/${PROFILE_HANDLE}`);
+  expect(response.headers().location).toBe(`${ACTOR_ORIGIN}/ap/users/${PROFILE_HANDLE}`);
 });

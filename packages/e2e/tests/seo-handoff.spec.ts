@@ -481,7 +481,7 @@ test('homepage raw head advertises a real JPEG and transfers ownership on profil
   const html = renderShellWithOg(shell, mapHomepageOg());
   expect(html.slice(html.indexOf('<body'))).toBe(shell.slice(shell.indexOf('<body')));
   const head = html.split('</head>')[0];
-  expect(head).toContain('property="og:image" content="https://mention.earth/og-image.jpg"');
+  expect(head).toContain(`property="og:image" content="${APP_ORIGIN}/og-image.jpg"`);
   expect(head).toContain('property="og:image:width" content="1280"');
   expect(head).toContain('property="og:image:height" content="720"');
   expect(head).toContain('property="og:image:type" content="image/jpeg"');

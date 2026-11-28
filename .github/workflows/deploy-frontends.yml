@@ -289,6 +289,13 @@ jobs:
         if: steps.current_changes.outputs.current == 'true'
         env:
           MENTION_E2E_CANDIDATE_ORIGIN: ${{ steps.preview.outputs.deployment-url }}
+          # The production build calls https://api.mention.org from https://mention.org
+          # (docs/mention-org-domain-move.md): the gate must park the browser and
+          # route the API on the same origins the build was made for. The
+          # canonical ActivityPub actors stay on api.mention.earth.
+          MENTION_E2E_APP_ORIGIN: https://mention.org
+          MENTION_E2E_API_ORIGIN: https://api.mention.org
+          MENTION_E2E_ACTOR_ORIGIN: https://api.mention.earth
         run: bun run --cwd packages/e2e test
 
       - name: Upload the browser gate report
