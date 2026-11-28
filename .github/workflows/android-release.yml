@@ -21,3 +21,7 @@ jobs:
     uses: OxyHQ/oxy/.github/workflows/android-release.yml@main
     with:
       app-dir: packages/frontend
+      # The binary is Bloom's hybrid build (packages/frontend/Package.bloom: `bloom build android
+      # --store`, no expo prebuild), with its own OTA runtime (<version>-bloom). Going back to the
+      # Expo build is reverting this commit: the Expo build's config is untouched.
+      builder: bloom
