@@ -1,0 +1,325 @@
+name: Prune old federated copies from Mention
+
+# Runs `pruneFederatedRetention` (see its header for every keep rule) as an ECS
+# one-shot from `main`, on the live service's role, secrets and network.
+#
+# Phase `posts` DELETES federated posts older than the chosen age that nobody
+# here engaged with or depends on. Phase `follow-edges` expires mirrored follow
+# edges whose other end never became an account. Deleted rows come back only
+# from a database backup.
+#
+# ALWAYS PLAN FIRST (`dry_run`, the default: a sample, writes nothing), then a
+# canary (`retention_limit`), then full passes. A run keeps its cursor after
+# every batch, so one that ends on the time bound or on the off-peak window
+# (exit 75) resumes where it stopped: run it again until the log says
+# `passCompleted: true`. Nothing schedules this workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what WOULD be deleted, delete nothing'
+        required: true
+        type: boolean
+        default: true
+      confirm_write:
+        description: 'For a real deletion, enter: PRUNE FEDERATED COPIES'
+        required: false
+        type: string
+      phases:
+        description: 'Which phases to run'
+        required: true
+        type: choice
+        default: 'posts,follow-edges'
+        options:
+          - 'posts,follow-edges'
+          - 'posts'
+          - 'follow-edges'
+      post_age_days:
+        description: 'Delete posts older than this many days (30 or more)'
+        required: true
+        type: string
+        default: '90'
+      retention_limit:
+        description: 'Cap on posts scanned this run: a canary or a sample. Blank = script default'
+        required: false
+        type: string
+      window_utc:
+        description: 'Off-peak window, HH-HH in UTC, or always'
+        required: true
+        type: string
+        default: '01-07'
+
+concurrency:
+  # Never let two prunes walk the same cursor at once.
+  group: prune-federated-retention
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: mention
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DEPLOY_SHA: ${{ github.sha }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  prune:
+    if: github.ref == 'refs/heads/main'
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+
+      - name: Verify current main before building
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Production builds only what the owner reviewed: the Dockerfile, context,
+      # target and both .dockerignore files must match the ONE pin in
+      # .github/scripts/reviewed-images.json, or nothing is built or pushed.
+      # The build takes its Dockerfile, context and labels from these outputs.
+      # CI runs the same check on every pull request and merge group
+      # (`reviewed-image.py check`, ci.yml job "Build, lint and typecheck").
+      - name: Refuse unreviewed image build inputs
+        id: reviewed
+        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
+        with:
+          phase: guard
+          recipe: mention
+      - name: Build and push the retention image (its own tag; never `latest`)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ steps.reviewed.outputs.context }}
+          file: ${{ steps.reviewed.outputs.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}:federated-retention-${{ env.DEPLOY_SHA }}
+          cache-from: type=gha,scope=mention-backend
+          provenance: true
+          sbom: true
+          labels: |-
+            org.opencontainers.image.revision=${{ env.DEPLOY_SHA }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            io.oxy.source.tree=${{ steps.reviewed.outputs.source_tree }}
+            io.oxy.build-inputs.sha256=${{ steps.reviewed.outputs.build_inputs_sha256 }}
+
+      - name: Audit final retention runtime image
+        env:
+          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          EXPECTED_RUNTIME_ENTRY: packages/backend/dist/server.js
+          EXPECTED_WORKSPACE_PACKAGES: '@mention/backend,@mention/shared-types,@oxy.so/mention-contracts'
+          EXPECTED_RUNTIME_COMMANDS: 'bun,busybox'
+        run: bash .github/scripts/audit-runtime-image.sh
+
+      - name: Re-verify current main before the production one-shot
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Run the retention prune as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          PHASES: ${{ inputs.phases }}
+          POST_AGE_DAYS: ${{ inputs.post_age_days }}
+          RETENTION_LIMIT: ${{ inputs.retention_limit }}
+          WINDOW_UTC: ${{ inputs.window_utc }}
+        run: |
+          set -euo pipefail
+          PRUNE_TASK_DEF=""
+          TASK_ARN=""
+          TASK_STOPPED=true
+
+          cleanup() {
+            local exit_status=$?
+            trap - EXIT
+            if [[ "$TASK_STOPPED" != "true" && -n "$TASK_ARN" ]]; then
+              echo "::warning::Retention task $TASK_ARN may still be running; the deploy role cannot call ecs:StopTask. Verify it in ECS."
+            fi
+            if [[ -n "$PRUNE_TASK_DEF" ]]; then
+              aws ecs deregister-task-definition \
+                --task-definition "$PRUNE_TASK_DEF" \
+                >/dev/null 2>&1 || true
+            fi
+            exit "$exit_status"
+          }
+          trap cleanup EXIT
+
+          if [[ "$DRY_RUN" != "true" && "$DRY_RUN" != "false" ]]; then
+            echo "::error::dry_run must be exactly true or false (got: ${DRY_RUN:-<empty>})."
+            exit 1
+          fi
+
+          if [[ "$DRY_RUN" != "true" &&
+                "$CONFIRM_WRITE" != "PRUNE FEDERATED COPIES" ]]; then
+            echo "::error::A deletion run requires the exact confirmation phrase."
+            exit 1
+          fi
+
+          if [[ ! "$POST_AGE_DAYS" =~ ^[1-9][0-9]*$ ]] || (( POST_AGE_DAYS < 30 )); then
+            echo "::error::post_age_days must be an integer of 30 or more."
+            exit 1
+          fi
+
+          if [[ -n "$RETENTION_LIMIT" && ! "$RETENTION_LIMIT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::retention_limit must be a positive integer, or blank."
+            exit 1
+          fi
+
+          if [[ ! "$WINDOW_UTC" =~ ^([0-9]{1,2}-[0-9]{1,2}|always)$ ]]; then
+            echo "::error::window_utc must be HH-HH or always."
+            exit 1
+          fi
+
+          # Take the task definition and network config from the LIVE service, so
+          # the one-shot runs with the same secrets, roles, subnets and security
+          # groups the backend already runs with. Nothing is hardcoded, and nothing
+          # drifts when the service is redeployed.
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [[ "$(jq -r '.status // "NONE"' <<<"$SERVICE_JSON")" != "ACTIVE" ]]; then
+            echo "::error::The production ECS service is not active."
+            exit 1
+          fi
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot
+          # even pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          # A throwaway revision that differs from the live one ONLY by the image.
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > prune-taskdef.json
+
+          PRUNE_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://prune-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "retention task definition: $PRUNE_TASK_DEF"
+
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg dry "$DRY_RUN" \
+            --arg phases "$PHASES" \
+            --arg age "$POST_AGE_DAYS" \
+            --arg limit "$RETENTION_LIMIT" \
+            --arg window "$WINDOW_UTC" \
+            '{containerOverrides:[{
+               name: $name,
+               command: [
+                 "busybox","timeout","-s","TERM","-k","30","2700",
+                 "bun","packages/backend/dist/src/scripts/pruneFederatedRetention.js"
+               ],
+               environment: (
+                 [
+                   {name:"DRY_RUN", value:$dry},
+                   {name:"CONFIRM_ADMIN_MUTATION", value:"pruneFederatedRetention"},
+                   {name:"RETENTION_PHASES", value:$phases},
+                   {name:"RETENTION_POST_MAX_AGE_DAYS", value:$age},
+                   {name:"RETENTION_WINDOW_UTC", value:$window}
+                 ]
+                 + (if $limit == "" then [] else [{name:"RETENTION_LIMIT", value:$limit}] end)
+               )
+             }]}')
+
+          # Where the service runs: its capacity provider strategy when it has
+          # one (the oxy-ec2 capacity, whose revisions are EC2-only), otherwise
+          # its launch type. A hard-coded FARGATE refuses an EC2-only revision.
+          PLACEMENT_STRATEGY=$(jq -c '.capacityProviderStrategy // []' <<<"$SERVICE_JSON")
+          if [[ "$PLACEMENT_STRATEGY" != "[]" ]]; then
+            PLACEMENT=(--capacity-provider-strategy "$PLACEMENT_STRATEGY")
+          else
+            PLACEMENT=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$SERVICE_JSON")")
+          fi
+          RUN_TASK_JSON=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$PRUNE_TASK_DEF" \
+            "${PLACEMENT[@]}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+            --overrides "$OVERRIDES" \
+            --started-by "gh-federated-retention")
+
+          if [[ "$(jq '.failures | length' <<<"$RUN_TASK_JSON")" != "0" ]]; then
+            echo "::error::ECS refused to start the retention task."
+            jq '.failures' <<<"$RUN_TASK_JSON"
+            exit 1
+          fi
+          TASK_ARN=$(jq -r '.tasks[0].taskArn // empty' <<<"$RUN_TASK_JSON")
+          if [[ -z "$TASK_ARN" ]]; then
+            echo "::error::ECS returned no retention task ARN."
+            exit 1
+          fi
+          TASK_STOPPED=false
+
+          echo "task: $TASK_ARN"
+          echo "Waiting for the task to stop…"
+          # Two deadlines, provisioning and the container's own bound from its
+          # start (.github/scripts/wait-one-shot-task.sh).
+          if bash .github/scripts/wait-one-shot-task.sh "$CLUSTER" "$TASK_ARN"; then
+            TASK_STOPPED=true
+          else
+            exit 1
+          fi
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+
+          echo "──────── retention output ────────"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" \
+            --start-from-head \
+            --query 'events[].message' --output text || echo "(no logs retrieved)"
+          echo "──────────────────────────────"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # 75: the batch gate stopped the run; 124 or 143: the time bound did. Both
+          # leave the cursor where the next run resumes.
+          if [[ "$EXIT_CODE" == "75" || "$EXIT_CODE" == "124" || "$EXIT_CODE" == "143" ]]; then
+            echo "::warning::Stopped with work left (exit $EXIT_CODE). Run again to resume from the cursor."
+          elif [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Retention task exited with $EXIT_CODE"
+            exit 1
+          fi
