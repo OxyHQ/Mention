@@ -27,7 +27,13 @@ vi.mock('../../config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../config')>();
   return {
     ...actual,
-    config: { ...actual.config, edgePurge: { enabled: true, zoneId: '0'.repeat(32) } },
+    config: {
+      ...actual.config,
+      edgePurge: {
+        enabled: true,
+        zones: [{ host: new URL(actual.config.web.origin).hostname, zoneId: '0'.repeat(32) }],
+      },
+    },
     getCloudflarePurgeToken: () => 'test-purge-token',
   };
 });

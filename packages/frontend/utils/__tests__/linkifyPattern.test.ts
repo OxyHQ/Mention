@@ -121,6 +121,18 @@ describe('LinkifiedText scan — a profile link on our own instance', () => {
   it('reads the scheme-less www form the scanner also accepts as a link', () => {
     expect(scanOne('www.mention.earth/@alice').value).toBe('alice');
   });
+
+  // mention.org serves the same app (docs/mention-org-domain-move.md): its
+  // profile URLs are ours too, before and after it becomes the canonical host.
+  it.each([
+    'https://mention.org/@alice',
+    'www.mention.org/@alice',
+    'https://mention.org/ap/users/alice',
+  ])('reads %s on the alias host as the same mention', (url) => {
+    const entity = scanOne(`hola ${url} que tal`);
+    expect(entity.kind).toBe('mentionDisplay');
+    expect(entity.value).toBe('alice');
+  });
 });
 
 describe('LinkifiedText scan — a link that is NOT resolvable stays a link', () => {
@@ -132,6 +144,7 @@ describe('LinkifiedText scan — a link that is NOT resolvable stays a link', ()
     ['an upstream network', 'https://x.com/elonmusk'],
     ['a bridged network', 'https://bsky.app/profile/alice.bsky.social'],
     ['a host that merely ends with ours', 'https://notmention.earth/@alice'],
+    ['a host that merely ends with the alias', 'https://notmention.org/@alice'],
     ['a sub-page of one of our profiles', 'https://mention.earth/@alice/followers'],
     ['one of our non-profile pages', 'https://mention.earth/p/abc123'],
     ['an ordinary link', 'https://example.com/some/article'],

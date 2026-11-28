@@ -33,6 +33,7 @@ import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { shareLink } from '@/utils/shareLink';
+import { webUrl } from '@/utils/webUrl';
 import { SEO } from '@/components/SEO';
 import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
@@ -369,7 +370,7 @@ export function usePersonProfileView({
 
   const handleShare = useCallback(async () => {
     if (!profileData) return;
-    const shareUrl = `https://mention.earth/@${handle}`;
+    const shareUrl = webUrl(`/@${handle}`);
     const shareMessage = t('profile.share.message', {
       name: profileData.design.displayName,
       defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,

@@ -9,6 +9,7 @@ import type {
 } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { presentSheet } from '@/utils/sheet';
+import { webUrl } from '@/utils/webUrl';
 import type { CommunityNoteDraft } from './WriteNoteSheet';
 
 // Loaded when a sheet first opens, never with the post row: every feed row
@@ -31,7 +32,7 @@ const AboutNoteSheet = lazy(() =>
 );
 
 /** Where "Learn more" goes: the public explainer for how notes work. */
-export const COMMUNITY_NOTES_HELP_URL = 'https://mention.earth/help/community-notes';
+export const COMMUNITY_NOTES_HELP_URL = webUrl('/help/community-notes');
 /** The notes hub: rate notes, your ratings, your notes. */
 export const COMMUNITY_NOTES_ROUTE = '/community-notes';
 

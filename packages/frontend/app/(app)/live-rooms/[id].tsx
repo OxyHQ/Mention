@@ -46,6 +46,7 @@ import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { presentSheet } from '@/utils/sheet';
 import { shareLink } from '@/utils/shareLink';
+import { webUrl } from '@/utils/webUrl';
 import { confirmDialog } from '@/utils/alerts';
 import { reportService } from '@/services/reportService';
 import { ReportModal } from '@/components/report/ReportModal';
@@ -193,7 +194,7 @@ const RoomDetailScreen = () => {
 
   const handleShareRoom = useCallback(async () => {
     if (!room) return;
-    const url = `https://mention.earth/live-rooms/${id}`;
+    const url = webUrl(`/live-rooms/${id}`);
     await shareLink({
       title: room.title,
       url,

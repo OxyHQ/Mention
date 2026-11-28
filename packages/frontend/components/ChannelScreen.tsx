@@ -31,6 +31,7 @@ import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
 import { WEB_BASE_URL } from '@/config';
 import { galleryProfilePermalink } from '@/utils/gallerySharePermalink';
 import { shareLink } from '@/utils/shareLink';
+import { webUrl } from '@/utils/webUrl';
 import { profileRouteFamily } from '@/components/Profile/profileRoute';
 
 // Profile primitives
@@ -255,7 +256,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 
   const handleShare = useCallback(async () => {
     if (!profileData) return;
-    const shareUrl = `https://mention.earth/c/${handle}`;
+    const shareUrl = webUrl(`/c/${handle}`);
     const shareMessage = t('profile.share.message', {
       name: profileData.design.displayName,
       defaultValue: `Check out ${profileData.design.displayName}'s profile on Mention!`,

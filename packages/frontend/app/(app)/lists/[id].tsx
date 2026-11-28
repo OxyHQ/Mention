@@ -33,6 +33,7 @@ import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { shareLink } from '@/utils/shareLink';
+import { webUrl } from '@/utils/webUrl';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
@@ -130,7 +131,10 @@ function ListDetailScreen() {
   const listId = String(list?._id || list?.id || id);
 
   const handleShare = useCallback(async () => {
-    const url = `${Platform.OS === 'web' ? window.location.origin : 'https://mention.earth'}/lists/${listId}`;
+    const url =
+      Platform.OS === 'web'
+        ? `${window.location.origin}/lists/${listId}`
+        : webUrl(`/lists/${listId}`);
     await shareLink({
       title: list?.title || 'Check out this list',
       url,

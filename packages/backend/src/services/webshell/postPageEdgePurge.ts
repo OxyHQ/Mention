@@ -35,6 +35,13 @@
  * OFF unless `config.edgePurge.enabled` (the flag, ON in production, AND the
  * token): every entry point is then a no-op.
  *
+ * EVERY WEB HOST — the same page is served on the canonical origin and on each
+ * alias (`MENTION_WEB_ALIAS_ORIGINS`, mention.org), and each host's edge holds
+ * its own copy. Each host is purged in its own zone (`config.edgePurge.zones`,
+ * `CLOUDFLARE_PURGE_ZONES`); a host without a zone is skipped and logged once
+ * per process. By default only the canonical host has a zone, which is the one
+ * purge made before there were aliases (docs/mention-org-domain-move.md).
+ *
  * NOT COVERED — a URL with a query string (`/p/<id>?utm_source=x`) is its own
  * cache entry, and purge-by-URL removes only the URLs it names. Those entries
  * still expire after `s-maxage`.
@@ -83,12 +90,43 @@ export function isPostPageEdgePurgeEnabled(): boolean {
 }
 
 /**
- * The URLs the Cache Rule may hold for one post: the handler's route is
- * `/^\/p\/([^/]+)\/?$/`, so the page is cached with and without the slash.
+ * The URLs the Cache Rule may hold for one post on one web origin (the
+ * canonical one unless named): the handler's route is `/^\/p\/([^/]+)\/?$/`,
+ * so the page is cached with and without the slash.
  */
-export function postPageUrls(postId: string): string[] {
-  const base = `${config.web.origin}/p/${encodeURIComponent(postId)}`;
+export function postPageUrls(postId: string, origin: string = config.web.origin): string[] {
+  const base = `${origin}/p/${encodeURIComponent(postId)}`;
   return [base, `${base}/`];
+}
+
+/** One web origin and the Cloudflare zone its pages are cached in. */
+export interface PostPagePurgeTarget {
+  origin: string;
+  zoneId: string;
+}
+
+/** Web hosts already reported as having no zone, so each is logged once per process. */
+const hostsReportedWithoutZone = new Set<string>();
+
+/**
+ * Every web origin (canonical first, then the aliases) paired with its zone.
+ * An origin whose host has no zone is left out and logged once.
+ */
+export function postPagePurgeTargets(): PostPagePurgeTarget[] {
+  const targets: PostPagePurgeTarget[] = [];
+  for (const origin of [config.web.origin, ...config.web.aliasOrigins]) {
+    const host = new URL(origin).hostname.toLowerCase();
+    const zone = config.edgePurge.zones.find((candidate) => candidate.host === host);
+    if (zone) {
+      targets.push({ origin, zoneId: zone.zoneId });
+    } else if (!hostsReportedWithoutZone.has(host)) {
+      hostsReportedWithoutZone.add(host);
+      logger.warn('[EdgePurge] web host has no Cloudflare zone; its post pages are not purged', {
+        host,
+      });
+    }
+  }
+  return targets;
 }
 
 function uniqueIds(postIds: readonly string[]): string[] {
@@ -282,9 +320,19 @@ export async function runPostPagePurge(
   if (ids.length === 0) return;
 
   await evictOriginCaches(ids);
-  await purgeCloudflareUrls(ids.flatMap(postPageUrls), {
-    zoneId: config.edgePurge.zoneId,
-    token,
-  });
+  // Every host is attempted even when one fails; the first failure is then
+  // rethrown, so BullMQ retries the job (purging an already-purged URL is harmless).
+  let failure: unknown;
+  for (const target of postPagePurgeTargets()) {
+    try {
+      await purgeCloudflareUrls(
+        ids.flatMap((id) => postPageUrls(id, target.origin)),
+        { zoneId: target.zoneId, token },
+      );
+    } catch (error) {
+      failure ??= error;
+    }
+  }
+  if (failure !== undefined) throw failure;
   metrics.incrementCounter(POST_PAGE_PURGED_METRIC, ids.length, { reason });
 }

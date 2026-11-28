@@ -52,6 +52,49 @@ describe('dedicated deployment configuration', () => {
     }
   });
 
+  it('keeps the federation domain on the public host unless the manifest names one', () => {
+    // Today's behaviour, unchanged: one host for web, federation and actors.
+    const resolved = withManagedDeploymentEnvironment(environment(alpha));
+    expect(resolved.FEDERATION_DOMAIN).toBe('social.alpha.example');
+    expect(publicDeploymentInfo(alpha).federationDomain).toBe('social.alpha.example');
+    expect(frontendDeploymentEnvironment(alpha).EXPO_PUBLIC_FEDERATION_DOMAIN).toBe(
+      'social.alpha.example',
+    );
+
+    // The web moves; the accounts stay on their domain.
+    const moved = managedMentionDeploymentSchema.parse({
+      ...example,
+      publicBaseUrl: 'https://social.alpha.org',
+      federationDomain: 'Social.Alpha.Example',
+    });
+    const movedEnvironment = withManagedDeploymentEnvironment(environment(moved));
+    expect(movedEnvironment.MENTION_WEB_ORIGIN).toBe('https://social.alpha.org');
+    expect(movedEnvironment.FRONTEND_URL).toBe('https://social.alpha.org');
+    expect(movedEnvironment.FEDERATION_DOMAIN).toBe('social.alpha.example');
+    expect(movedEnvironment.ACTOR_DOMAIN).toBe('social.alpha.example');
+    expect(publicDeploymentInfo(moved).federationDomain).toBe('social.alpha.example');
+    expect(frontendDeploymentEnvironment(moved)).toMatchObject({
+      EXPO_PUBLIC_WEB_BASE_URL: 'https://social.alpha.org',
+      EXPO_PUBLIC_FEDERATION_DOMAIN: 'social.alpha.example',
+    });
+    // An explicit FEDERATION_DOMAIN must agree with the manifest, as before.
+    expect(() =>
+      withManagedDeploymentEnvironment({
+        ...environment(moved),
+        FEDERATION_DOMAIN: 'social.alpha.org',
+      }),
+    ).toThrow('FEDERATION_DOMAIN');
+  });
+
+  it.each(['https://alpha.example', 'alpha.example:443', 'alpha.example/x', 'localhost', ''])(
+    'rejects federation domain %p',
+    (federationDomain) => {
+      expect(
+        managedMentionDeploymentSchema.safeParse({ ...example, federationDomain }).success,
+      ).toBe(false);
+    },
+  );
+
   it('rejects every conflicting canonical environment override', () => {
     const resolved = withManagedDeploymentEnvironment(environment(alpha));
     for (const key of Object.keys(resolved).filter((key) => key !== 'MENTION_DEPLOYMENT_CONFIG')) {
@@ -167,6 +210,7 @@ describe('deployment admission and exposure', () => {
     expect(frontend.EXPO_PUBLIC_API_URL_SOCKET).toBe('wss://api.alpha.example');
     expect(frontend.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI).toBe(alpha.publicBaseUrl);
     expect(frontend.EXPO_PUBLIC_INSTANCE_NAME).toBe(alpha.branding.name);
+    expect(frontend.EXPO_PUBLIC_WEB_ALIAS_HOSTS).toBe('none');
     expect(JSON.stringify(frontend)).not.toContain('admin-alpha');
     expect(JSON.stringify(frontend)).not.toContain('member-alpha');
   });

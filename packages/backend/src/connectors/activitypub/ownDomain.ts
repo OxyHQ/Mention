@@ -49,8 +49,14 @@ export const OXY_IDENTITY_APEX = (
 ).toLowerCase();
 
 /**
- * Every host that is US: the federation domain, the actor domain, and the Oxy
- * identity apex. A profile URL on any of them names one of our own users.
+ * Every host that is US: the federation domain, the actor domain, every web host
+ * (`config.web.hosts`: `MENTION_WEB_ORIGIN` plus `MENTION_WEB_ALIAS_ORIGINS`, so
+ * mention.earth and mention.org on the public instance), and the Oxy identity
+ * apex. A profile URL or an `acct:` on any of them names one of our own users, so
+ * a pasted `https://mention.org/@alice` or `alice@mention.org` resolves locally and
+ * is never fetched as a remote instance (docs/mention-org-domain-move.md). The web
+ * hosts are only recognised here: the federation and actor domains, which every
+ * outward identifier is built from, are unchanged.
  *
  * Read straight from `config` rather than from {@link ./constants}'s exported
  * constants, because it is the same configuration and this module is a level
@@ -74,9 +80,12 @@ export const OXY_IDENTITY_APEX = (
  * renderer still shows a link for.
  */
 export const OWN_DOMAINS: readonly string[] = [
-  config.federation.domain,
-  config.federation.actorDomain,
-  OXY_IDENTITY_APEX,
+  ...new Set([
+    config.federation.domain,
+    config.federation.actorDomain,
+    ...config.web.hosts,
+    OXY_IDENTITY_APEX,
+  ]),
 ];
 
 /**
