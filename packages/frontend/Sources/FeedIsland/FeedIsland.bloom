@@ -69,7 +69,8 @@ struct FeedCell: View {
       if bottom > 0.0 { VStack(spacing: .none) {}.frame(height: bottom) }
     }
     .onAppear {
-      if index == 0 { print("BLOOM_BENCH island-first-row") }
+      // (The warm-up island's row, `warm`, is not the feed's.)
+      if index == 0 && post.id != "warm" { print("BLOOM_BENCH island-first-row") }
       if index + 8 == count { onIntent(FeedIntent(kind: "more", postId: post.id)) }
     }
   }

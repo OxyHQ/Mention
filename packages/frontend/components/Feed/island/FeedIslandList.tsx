@@ -10,7 +10,7 @@
  * library), named here directly: Mention's `.bloom` files are on the 1.x language, whose
  * pipeline has no `extern native`, so the standard library's `Island` is not reachable yet.
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   requireNativeComponent,
   StyleSheet,
@@ -40,6 +40,37 @@ interface NativeIslandProps extends ViewProps {
 const BloomIsland = requireNativeComponent<NativeIslandProps>('BloomIsland');
 
 const BENCH = process.env.EXPO_PUBLIC_BLOOM_BENCH === '1';
+/** How many rows the first props carry: more than a screen of the shortest rows. */
+const FIRST_SCREEN = 6;
+
+/** One row, never drawn on screen: what the warm-up island composes and lays out. */
+const WARM_PROPS = JSON.stringify({
+  posts: [
+    {
+      id: 'warm',
+      author: { id: 'warm', name: 'Bloom', handle: 'bloom', isVerified: true },
+      text: 'Warm',
+      time: 'now',
+      likes: 1,
+    },
+  ],
+});
+
+/**
+ * The island composed once, out of sight, as the app starts (the root layout mounts it): Compose,
+ * the island's decoder, its text and its fonts are warm before the feed's data arrives, so the
+ * feed's own island draws its first rows at once. Mounted with `EXPO_PUBLIC_BLOOM_ISLAND_FEED=1`.
+ */
+export function FeedIslandWarmup() {
+  return (
+    <BloomIsland
+      island="FeedIsland"
+      props={WARM_PROPS}
+      pointerEvents="none"
+      style={styles.warmup}
+    />
+  );
+}
 /** The intents that write to the account. */
 const WRITES = new Set(['like', 'repost', 'save', 'reply', 'send']);
 
@@ -67,12 +98,22 @@ export function FeedIslandList({
   const interactions = usePostInteractions();
   const { colorPreset } = useBloomTheme();
   const theme = useTheme();
+  const posts = useMemo(() => feedIslandPosts(rows), [rows]);
+  // The first screen's rows go first, alone: the island decodes and draws them while the rest of
+  // the page follows a frame later.
+  const [streamed, setStreamed] = useState(false);
+  const firstScreen = !streamed && posts.length > FIRST_SCREEN;
+  useEffect(() => {
+    if (!firstScreen) return;
+    const frame = requestAnimationFrame(() => setStreamed(true));
+    return () => cancelAnimationFrame(frame);
+  }, [firstScreen]);
   const json = useMemo(() => {
-    const posts = feedIslandPosts(rows);
+    const shown = firstScreen ? posts.slice(0, FIRST_SCREEN) : posts;
     // Bench: the first time the feed hands the island posts.
-    if (posts.length > 0) benchMark('island-props');
-    return JSON.stringify({ posts, topInset, bottomInset });
-  }, [rows, topInset, bottomInset]);
+    if (shown.length > 0) benchMark('island-props');
+    return JSON.stringify({ posts: shown, topInset, bottomInset });
+  }, [posts, firstScreen, topInset, bottomInset]);
 
   const onIslandEvent = useCallback(
     (event: NativeSyntheticEvent<IslandEvent>) => {
@@ -148,4 +189,5 @@ export function FeedIslandList({
 
 const styles = StyleSheet.create({
   island: { flex: 1 },
+  warmup: { position: 'absolute', width: 1, height: 1, opacity: 0 },
 });
