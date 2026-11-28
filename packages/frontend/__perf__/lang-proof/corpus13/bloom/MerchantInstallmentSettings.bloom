@@ -14,7 +14,7 @@ private func toggle<T: Equatable>(_ values: [T], _ value: T, _ enabled: Bool) ->
 }
 
 private func parseAmount(_ value: String) -> Float {
-  if !RegExp("^\\d+(?:\\.\\d{1,2})?\$").test(value) { return Number.NaN }
+  if !RegExp("^\\d+(?:\\.\\d{1,2})?\$").test(value) { return Double.nan }
   let wholeFractionParts = value.split(".")
   let whole = wholeFractionParts.at(0) ?? "0"
   let fraction = wholeFractionParts.at(1) ?? ""

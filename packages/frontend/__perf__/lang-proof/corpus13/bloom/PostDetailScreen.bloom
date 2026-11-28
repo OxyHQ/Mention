@@ -1,4 +1,4 @@
-// Printed by bloom migrate from components/Post/PostDetailScreen.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+// Printed by bloom migrate from components/Post/PostDetailScreen.tsx (refused); relative imports as @/ paths. DEV ONLY.
 import { CompactReplyComposer } from "@/components/Post/CompactReplyComposer"
 import { PostReplyFooter } from "@/components/Post/PostReplyFooter"
 import { usePostOwnsNavigation } from "@/components/Post/PostReplyNavigationContext"
@@ -46,37 +46,36 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@oxy.so/bloom/accordion"
+import { RiAlertLine } from "@oxy.so/bloom/icons/RiAlertLine"
+import { RiEqualizerLine } from "@oxy.so/bloom/icons/RiEqualizerLine"
 import { useScreenBack, useScreenEntered } from "@oxy.so/bloom/screen"
 import { useTheme } from "@oxy.so/bloom/theme"
 import { createLogger } from "@oxy.so/core/logger"
 import { useAuth } from "@oxy.so/services/ui/client"
-import { JSON, document, window } from "js"
+import { JSON, document, encodeURIComponent, window } from "js"
 import { useTranslation } from "react-i18next"
 import { Platform, StyleSheet } from "react-native"
 
 // The thread's continuation section: no rule of its own, the post's side
 // padding on its trigger, and its posts edge to edge. The accordion node takes
 // no style for its item, trigger or body, so the section keeps Bloom's JSX.
-private let continuationStyles = StyleSheet.create(
+let continuationStyles = StyleSheet.create(
   item: { borderWidth: 0 },
   trigger: { paddingHorizontal: 12, paddingVertical: 12 },
   triggerText: { fontSize: 13 },
   content: { padding: 0 },
 )
 
-private type PostDetailEntity = Foreign<"HydratedPost | Reply | Boost">
+type PostDetailEntity = Foreign<"HydratedPost | Reply | Boost">
 
-private let postDetailLogger = createLogger("PostDetail")
+let postDetailLogger = createLogger("PostDetail")
 
 /// Breathing room (px) below the last reply, before the pinned composer / screen edge.
-private let FEED_BOTTOM_PADDING = 16
+let FEED_BOTTOM_PADDING = 16
 
 /// `next`, or `current` when it holds the same entities in the same order, so a
 /// state update with an equal chain renders nothing.
-private func sameEntities(
-  _ current: [PostDetailEntity],
-  _ next: [PostDetailEntity],
-) -> [PostDetailEntity] {
+func sameEntities(_ current: [PostDetailEntity], _ next: [PostDetailEntity]) -> [PostDetailEntity] {
   current.count == next.count &&
     current.enumerated().all({ (i, entity) in entity == next[i] }) ? current : next
 }
@@ -85,9 +84,7 @@ private func sameEntities(
 /// content; its title, Back, thread preferences and the reply prompt floating
 /// over the thread are the screen's chrome (Bloom's PageHeader; on iOS, in the
 /// app's stack, the system navigation bar).
-public struct PostDetailScreen: Screen {
-  let postId: String
-  var onBack: (() -> Unit)? = none
+public screen PostDetailScreen(postId: String, onBack: (() -> Unit)? = none) {
   let openPostEngagement = useOpenPostEngagement()
 
   // The post draws first; its replies and the reply prompt mount once the push
@@ -124,6 +121,34 @@ public struct PostDetailScreen: Screen {
   let viewerReady = isAuthResolved &&
     (isAuthenticated ? canUsePrivateApi && prefetchRepliesViewerId : true)
 
+  effect(id: (
+    prefetchRepliesPostId,
+    viewerReady,
+    sortLoaded,
+    prefetchRepliesSortOrder,
+    prefetchRepliesTreeView,
+    prefetchRepliesViewerId,
+  )) {
+    if (prefetchRepliesPostId.isEmpty || !viewerReady) || !sortLoaded { return }
+
+    // A boost's replies are its original's; a cached boost names it.
+    let boosted = usePostsStore
+      .getState()
+      .getPostFromDb(prefetchRepliesPostId)?.boost?.originalPost?.id
+    let target = boosted ? "\(boosted)" : prefetchRepliesPostId
+    // bloom: review: `as FeedType` dropped: annotate where the value lands if tsc needs it
+    prefetchFeed(
+      type: "replies",
+      filters: {
+        postId: target,
+        parentPostId: target,
+        sort: SORT_TO_API[prefetchRepliesSortOrder],
+        includeNestedReplies: prefetchRepliesTreeView,
+      },
+      viewerId: prefetchRepliesViewerId,
+    )
+  }
+
   let router = useRouter()
   let back = useScreenBack()
   let getPostById = usePostsStore { state in state.getPostById }
@@ -145,16 +170,21 @@ public struct PostDetailScreen: Screen {
   // (cache miss). When the cache has the post, it is the source of truth and
   // stays in sync via `cachedPost`; on a cache miss we fall back to the fetched
   // value held in `fetchedPost`.
-  @State private var fetchedPost: PostDetailEntity? = none
+  @state fetchedPost: PostDetailEntity? = none
   let post = cachedPost ?? fetchedPost
-  @State private var commerceOpenRecorded: Ref<String?> = Ref(none)
+  @ref commerceOpenRecorded: String? = none
   let hasCommerce = (post?.content?.attachments?.some { item in item.type == "commerce" })
+  effect(id: (postId, hasCommerce)) {
+    if (postId.isEmpty || !hasCommerce) || commerceOpenRecorded == "\(postId)" { return }
+    commerceOpenRecorded = "\(postId)"
+    task { await commerceService.recordMetric("posts", "\(postId)", "open").catch {} }
+  }
 
   // The full ancestor chain above the focused post, ordered ROOT FIRST … the
   // immediate parent LAST. Rendered as one connected thread above the focused
   // post (Bluesky-style). Empty for a root post (no parent).
   // bloom: review: `as PostDetailEntity[]` dropped: annotate where the value lands if tsc needs it
-  @State private var ancestors: [PostDetailEntity] = requiresFreshReads ? [] : (getCachedAncestorChain(
+  @state ancestors: [PostDetailEntity] = requiresFreshReads ? [] : (getCachedAncestorChain(
     !postId.isEmpty ? "\(postId)" : "",
     cachedPost?.parentPostId,
   ))
@@ -163,16 +193,16 @@ public struct PostDetailScreen: Screen {
   // root-first (c1 … cN). Populated only when the focused post is a self-thread
   // root (the backend returns [] otherwise), so a non-thread post is unchanged.
   // Its own connected group, below the focused post and its metadata.
-  @State private var continuations: [PostDetailEntity] = []
-  @State private var threadPositions: Map<String, { index: Float, total: Float }> = Map()
-  @State private var collapsedThreadId: String? = none
+  @state continuations: [PostDetailEntity] = []
+  @state threadPositions: Map<String, { index: Float, total: Float }> = Map()
+  @state collapsedThreadId: String? = none
   let continuationsExpanded = collapsedThreadId != postId
 
   // Only block first paint when there is no cached post to render. A cache hit
   // paints immediately and revalidates in the background (stale-while-revalidate).
-  @State private var loading = cachedPost == none
-  @State private var error: String? = none
-  @State private var repliesReloadKey = 0
+  @state loading = cachedPost == none
+  @state error: String? = none
+  @state repliesReloadKey = 0
 
   // The TAIL of the OP's self-thread — the last continuation (cN). Undefined for
   // a non-thread post (no continuation spine).
@@ -231,27 +261,210 @@ public struct PostDetailScreen: Screen {
   // in the URL grants nothing on its own; like everything the reader sees, it
   // waits for the access gate.
   let accessAllowed = access.allowed
+  effect(id: (postId, viewerId, accessAllowed)) {
+    let postId = "\(postId)"
+    if (postId.isEmpty || !viewerId) || !accessAllowed { return }
+
+    socketService.joinPost(postId)
+    defer { socketService.leavePost(postId) }
+  }
 
   // Track the view once the reader is shown the post. The ack carries the
   // post's fresh total — the server reads it back specifically to return it —
   // so it goes into the shared cache rather than being dropped: this screen
   // renders that number, and the view it just recorded is precisely the one it
   // would otherwise be missing.
+  effect(id: (postId, viewerId, accessAllowed)) {
+    let postId = "\(postId)"
+    if (postId.isEmpty || !viewerId) || !accessAllowed { return }
+    insightsService
+    .trackPostView(postId)
+    .then { ack in applyServerViewCounts([postId: ack.viewsCount]) }
+    .catch { error in postDetailLogger.debug("Post view tracking failed", error: error) }
+  }
 
   // Load the post. When the feed already cached it, the post is rendered
   // synchronously above (`cachedPost`) and this effect only revalidates it in
   // the background (stale-while-revalidate) — no spinner, no blocking fetch.
   // On a true cache miss it does a single blocking fetch.
+  effect(id: (postId, getPostById, revalidatePostById, requiresFreshReads, t)) {
+    if postId.isEmpty {
+      error = "Post ID is required"
+      loading = false
+      return
+    }
+
+    var cancelled = false
+    let postId = "\(postId)"
+
+    // Drop any ancestor chain belonging to a previously-viewed post so the new
+    // focused post never momentarily renders under stale parents on navigation.
+    // Reset to THIS post's cached prefix rather than to nothing: on mount the
+    // state initializer already put it there, and resetting to `[]` here would
+    // blank it for a frame before the async walk put the same rows back.
+    // Each reset keeps the state it already holds when nothing changed, so
+    // opening a post does not re-render it three times while it slides in.
+    // bloom: review: `as PostDetailEntity[]` dropped: annotate where the value lands if tsc needs it
+    ancestors = sameEntities(
+      ancestors,
+      requiresFreshReads ? [] : (getCachedAncestorChain(
+        postId,
+        usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
+      )),
+    )
+
+    // Likewise drop the previous post's continuation spine and numbering.
+    continuations = (continuations.count == 0 ? continuations : [])
+    threadPositions = (threadPositions.count == 0 ? threadPositions : Map())
+
+    // Read the complete author spine even when opening one of its continuations,
+    // so "2/3" does not become "1/2" when the focused post changes. Only the root
+    // renders the continuation group; reply targets and ancestor loading stay the same.
+    let loadContinuations = { target: PostDetailEntity? in
+      if !(target?.metadata?.isThread) { return }
+      let rootId = target!.context?.parentThreadId ?? postId
+      feedService
+      .getThreadContinuations(rootId)
+      .then { spine: [Foreign] in
+        if cancelled { return }
+        continuations = rootId == postId ? spine : []
+
+        let ids = [rootId, ..spine.map { part in "\(part.id)" }]
+        if spine.count > 0 &&
+          spine.enumerated().all({ (index, part) in part.parentPostId == ids[index] }) {
+          threadPositions = Map(
+            ids
+              .enumerated()
+              .map { (index, partId) in (partId, { index: index + 1, total: ids.count }) },
+          )
+        }
+      }
+      .catch {
+        if !cancelled {
+          continuations = []
+          threadPositions = Map()
+        }
+      }
+    }
+
+    // The reply chain above the focused post, root first. The cached prefix is
+    // already on screen (initial state above); `loadPostAncestors` answers the
+    // rest in at most one request, and none when the cache reaches the root. An
+    // ancestor the viewer may not read ends the chain (render what loaded).
+    // Boosts have no `parentPostId`, so they yield an empty chain — the boost
+    // renders standalone with its original embedded (reply targets resolve to
+    // the original via `boostOriginalId`, unchanged).
+    let loadAncestors = { startParentId: String? in
+      // bloom: review: a rejection of the awaited call stops the block here (TS: an unhandled rejection)
+      switch await usePostsStore
+        .getState()
+        .loadPostAncestors(postId, startParentId, fresh: requiresFreshReads) {
+      case let .ok(chain):
+        // bloom: review: `as PostDetailEntity[]` dropped: annotate where the value lands if tsc needs it
+        if !cancelled { ancestors = sameEntities(ancestors, chain) }
+      case .err(_):
+        break
+      }
+    }
+
+    let run = {
+      error = none
+
+      // A post not held in memory may be on disk from an earlier session: read
+      // it now, when the screen opens, and paint it while it is read again.
+      await Post.load([postId])
+      if cancelled { return }
+      let hadCache = usePostsStore.getState().getPostFromDb(postId)
+      if hadCache {
+        // Instant paint already happened from `cachedPost`. Revalidate in
+        // the background so engagement/viewer state is fresh; the reactive
+        // store read (`cachedPost`) picks up the refreshed post.
+        let cached = usePostsStore.getState().getPostFromDb(postId)
+        loadContinuations(cached)
+        task { await loadAncestors(cached?.parentPostId) }
+
+        // The supervised entry gate has already read this post with current authority.
+        if requiresFreshReads { return }
+        revalidatePostById(postId)
+        .then { fresh in
+          if cancelled { return }
+          if !fresh && !usePostsStore.getState().getPostFromDb(postId) {
+            fetchedPost = none
+            ancestors = []
+            continuations = []
+            error = t("safety.contentUnavailable")
+            return
+          }
+
+          if cancelled || !(fresh?.parentPostId) { return }
+          if fresh.parentPostId == cached?.parentPostId { return }
+          task { await loadAncestors(fresh.parentPostId) }
+        }
+        return
+      }
+
+      // Cache miss — first consult the Android widget's account-scoped,
+      // persistent copy. A cold app launched from a card has no JS/SQLite
+      // feed cache yet, but the widget necessarily has this exact hydrated
+      // post already; painting it before revalidation avoids a redundant
+      // blocking round trip on the tap path.
+      defer {
+        // True cache miss: perform the normal blocking fetch.
+        if !cancelled { loading = false }
+      }
+      do {
+        loading = true
+        let widgetJson = try await getFollowingCachedPost(postId)
+        if cancelled { return }
+        if widgetJson != none && !widgetJson.isEmpty {
+          do {
+            // bloom: review: `as HydratedPost` dropped: annotate where the value lands if tsc needs it
+            let widgetPost = JSON.parse(widgetJson)
+            if "\(widgetPost.id)" == postId {
+              usePostsStore.getState().cachePosts([widgetPost])
+              fetchedPost = widgetPost
+              loading = false
+              loadContinuations(widgetPost)
+              task { await loadAncestors(widgetPost.parentPostId) }
+              task {
+                await revalidatePostById(postId).then { fresh in
+                  if cancelled { return }
+                  if !fresh && !usePostsStore.getState().getPostFromDb(postId) {
+                    fetchedPost = none
+                    ancestors = []
+                    continuations = []
+                    error = t("safety.contentUnavailable")
+                  }
+                }
+              }
+              return
+            }
+          } catch let caught {
+            postDetailLogger.debug("Ignoring unreadable widget post cache", error: caught)
+          }
+        }
+
+        let response = try await getPostById(postId)
+        if cancelled { return }
+        fetchedPost = response
+        loadContinuations(response)
+        task { await loadAncestors(response?.parentPostId) }
+      } catch let caught { if !cancelled { error = "Failed to load post" } }
+    }
+
+    task { await run() }
+    defer { cancelled = true }
+  }
 
   func handleBack() { if let onBack = onBack { onBack() } else { back?.() } }
 
   // Server discovery policy includes author privacy, boost origins and remote
   // safety flags absent from this DTO. Never infer indexing from visibility alone.
-  @State private var initialSEO = Platform.OS == "web" && document != none ? readServerSEO(
+  @state initialSEO = Platform.OS == "web" && document != none ? readServerSEO(
     document,
     window.location.pathname,
   ) : none
-  let postUrl = "\(WEB_BASE_URL)/p/\(percentEncoded("\(postId)"))"
+  let postUrl = "\(WEB_BASE_URL)/p/\(encodeURIComponent("\(postId)"))"
   // bloom: review: `"visibility" in …` is whether `.visibility` is there (JS also counts a key set to `undefined`)
   // bloom: review: `"status" in …` is whether `.status` is there (JS also counts a key set to `undefined`)
   // bloom: review: `"visibility" in …` is whether `.visibility` is there (JS also counts a key set to `undefined`)
@@ -292,11 +505,11 @@ public struct PostDetailScreen: Screen {
               ),
             ),
           )
-          .style(.info)
+          .style("info")
         }
-        .padding(.horizontal, .lg)
-        .padding(.top, .md)
-        .padding(.bottom, .xs)
+        .padding("horizontal", "lg")
+        .padding("top", "md")
+        .padding("bottom", "xs")
         .testID("private-mention-hint")
       }
       // Ancestor chain rendered top-to-bottom (root first) as ONE
@@ -392,10 +605,10 @@ public struct PostDetailScreen: Screen {
       .backLabel(t("common.back", defaultValue: "Back"))
       .replacesBottomBar(ownsNavigation)
       .toolbar(
-        post != none ? Button(Icon(.equalizer))
-          .style(.subtle)
-          .tint(.neutral)
-          .shape(.circle)
+        post != none ? Button(Icon(RiEqualizerLine))
+          .style("subtle")
+          .tint("neutral")
+          .shape("circle")
           .label(t("settings.threadPreferences.title", defaultValue: "Thread preferences"))
           .onPress(openReplyPreferences) : none,
       )
@@ -407,308 +620,86 @@ public struct PostDetailScreen: Screen {
     ) : screenNode
   }
 
-  var body: some View {
-    Group {
-      if access.failed {
-        chrome(
-          EmptyState(
-            error: {
-              title: t("safety.contentUnavailable"),
-              message: t("safety.retryDescription"),
-              onRetry: access.retry,
-            },
-          ),
-        )
-      } else if !access.allowed {
-        chrome(FeedSkeleton())
-      } else if !loading && (error != none && !error.isEmpty || post == none) {
-        chrome(
-          Group {
-            SEO(
-              title: t("seo.post.notFound"),
-              description: t("seo.post.notFoundDescription"),
-              robots: "noindex,nofollow",
-            )
-            VStack {
-              Icon(.alert).size(.xxxl).foregroundStyle(.error)
-              RawText("Post Not Found")
-              .font(.xl)
-              .leading("28px")
-              .weight(.semibold)
-              .margin(.top, .lg)
-              .margin(.bottom, .sm)
-              .foregroundStyle(.foreground)
-              RawText(error || "The post you're looking for doesn't exist or has been deleted.")
-              .font("16")
-              .textAlign(.center)
-              .leading("22px")
-              .margin(.bottom, .xxl)
-              .foregroundStyle(.muted)
-              Button(Text("Go Back")).size(.lg).onPress(handleBack)
-            }
-            .padding(.horizontal, .xxxl)
-            .flex("1")
-            .align(.center)
-            .justify(.center)
+  body {
+    if access.failed {
+      chrome(
+        EmptyState(
+          error: {
+            title: t("safety.contentUnavailable"),
+            message: t("safety.retryDescription"),
+            onRetry: access.retry,
           },
-        )
-      } else {
-        // bloom: review: `"metadata" in …` is whether `.metadata` is there (JS also counts a key set to `undefined`)
-        // bloom: review: `"metadata" in …` is whether `.metadata` is there (JS also counts a key set to `undefined`)
-        // bloom: review: `as FeedType` dropped: annotate where the value lands if tsc needs it
-        chrome(
-          Group {
-            SEO(
-              title: postTitle,
-              description: postDescription,
-              image: postImage,
-              type: "article",
-              ready: post != none,
-              robots: authoritativeSEO?.robots || "noindex,nofollow",
-              jsonLd: authoritativeSEO?.jsonLd,
-              author: postAuthor,
-              publishedTime: post != none &&
-                post.metadata != none ? post.metadata?.createdAt : none,
-              modifiedTime: post != none && post.metadata != none ? post.metadata?.updatedAt : none,
-            )
-            if loading && post == none {
-              FeedSkeleton()
-            } else {
-              Feed(
-                type: "replies",
-                filters: feedFilters,
-                reloadKey: repliesReloadKey,
-                listHeaderComponent: listHeader,
-                hideHeader: true,
-                threaded: treeView,
-                threadPostId: repliesQueryTargetId,
-                contentContainerStyle: feedContentStyle,
-                rowsDeferred: !restReady,
-              )
-            }
-          },
-        )
-        .testID("post-screen")
-      }
-    }
-    .task(
-      id: (
-        prefetchRepliesPostId,
-        viewerReady,
-        sortLoaded,
-        prefetchRepliesSortOrder,
-        prefetchRepliesTreeView,
-        prefetchRepliesViewerId,
-      ),
-    ) {
-      if (prefetchRepliesPostId.isEmpty || !viewerReady) || !sortLoaded { return }
-
-      // A boost's replies are its original's; a cached boost names it.
-      let boosted = usePostsStore
-        .getState()
-        .getPostFromDb(prefetchRepliesPostId)?.boost?.originalPost?.id
-      let target = boosted ? "\(boosted)" : prefetchRepliesPostId
-      // bloom: review: `as FeedType` dropped: annotate where the value lands if tsc needs it
-      prefetchFeed(
-        type: "replies",
-        filters: {
-          postId: target,
-          parentPostId: target,
-          sort: SORT_TO_API[prefetchRepliesSortOrder],
-          includeNestedReplies: prefetchRepliesTreeView,
+        ),
+      )
+    } else if !access.allowed {
+      chrome(FeedSkeleton())
+    } else if !loading && (error != none && !error.isEmpty || post == none) {
+      chrome(
+        Group {
+          SEO(
+            title: t("seo.post.notFound"),
+            description: t("seo.post.notFoundDescription"),
+            robots: "noindex,nofollow",
+          )
+          VStack {
+            Icon(RiAlertLine).size("3xl").foreground("error")
+            RawText("Post Not Found")
+            .font("xl")
+            .leading("28px")
+            .weight("semibold")
+            .margin("top", "lg")
+            .margin("bottom", "sm")
+            .foreground("foreground")
+            RawText(error || "The post you're looking for doesn't exist or has been deleted.")
+            .font("16")
+            .textAlign("center")
+            .leading("22px")
+            .margin("bottom", "2xl")
+            .foreground("muted")
+            Button(Text("Go Back")).size("lg").onPress(handleBack)
+          }
+          .padding("horizontal", "3xl")
+          .flex("1")
+          .align("center")
+          .justify("center")
         },
-        viewerId: prefetchRepliesViewerId,
       )
-    }
-    .task(id: (postId, hasCommerce)) {
-      if (postId.isEmpty || !hasCommerce) || commerceOpenRecorded.value == "\(postId)" { return }
-      commerceOpenRecorded.value = "\(postId)"
-      task { await commerceService.recordMetric("posts", "\(postId)", "open").catch {} }
-    }
-    .task(id: (postId, viewerId, accessAllowed)) {
-      let postId = "\(postId)"
-      if (postId.isEmpty || !viewerId) || !accessAllowed { return }
-
-      socketService.joinPost(postId)
-      defer { socketService.leavePost(postId) }
-    }
-    .task(id: (postId, viewerId, accessAllowed)) {
-      let postId = "\(postId)"
-      if (postId.isEmpty || !viewerId) || !accessAllowed { return }
-      insightsService
-      .trackPostView(postId)
-      .then { ack in applyServerViewCounts([postId: ack.viewsCount]) }
-      .catch { error in postDetailLogger.debug("Post view tracking failed", error: error) }
-    }
-    .task(id: (postId, getPostById, revalidatePostById, requiresFreshReads, t)) {
-      if postId.isEmpty {
-        error = "Post ID is required"
-        loading = false
-        return
-      }
-
-      var cancelled = false
-      let postId = "\(postId)"
-
-      // Drop any ancestor chain belonging to a previously-viewed post so the new
-      // focused post never momentarily renders under stale parents on navigation.
-      // Reset to THIS post's cached prefix rather than to nothing: on mount the
-      // state initializer already put it there, and resetting to `[]` here would
-      // blank it for a frame before the async walk put the same rows back.
-      // Each reset keeps the state it already holds when nothing changed, so
-      // opening a post does not re-render it three times while it slides in.
-      // bloom: review: `as PostDetailEntity[]` dropped: annotate where the value lands if tsc needs it
-      ancestors = sameEntities(
-        ancestors,
-        requiresFreshReads ? [] : (getCachedAncestorChain(
-          postId,
-          usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
-        )),
-      )
-
-      // Likewise drop the previous post's continuation spine and numbering.
-      continuations = (continuations.count == 0 ? continuations : [])
-      threadPositions = (threadPositions.count == 0 ? threadPositions : Map())
-
-      // Read the complete author spine even when opening one of its continuations,
-      // so "2/3" does not become "1/2" when the focused post changes. Only the root
-      // renders the continuation group; reply targets and ancestor loading stay the same.
-      let loadContinuations = { target: PostDetailEntity? in
-        if !(target?.metadata?.isThread) { return }
-        let rootId = target!.context?.parentThreadId ?? postId
-        feedService
-        .getThreadContinuations(rootId)
-        .then { spine: [Foreign] in
-          if cancelled { return }
-          continuations = rootId == postId ? spine : []
-
-          let ids = [rootId, ..spine.map { part in "\(part.id)" }]
-          if spine.count > 0 &&
-            spine.enumerated().all({ (index, part) in part.parentPostId == ids[index] }) {
-            threadPositions = Map(
-              ids
-                .enumerated()
-                .map { (index, partId) in (partId, { index: index + 1, total: ids.count }) },
+    } else {
+      // bloom: review: `"metadata" in …` is whether `.metadata` is there (JS also counts a key set to `undefined`)
+      // bloom: review: `"metadata" in …` is whether `.metadata` is there (JS also counts a key set to `undefined`)
+      // bloom: review: `as FeedType` dropped: annotate where the value lands if tsc needs it
+      chrome(
+        Group {
+          SEO(
+            title: postTitle,
+            description: postDescription,
+            image: postImage,
+            type: "article",
+            ready: post != none,
+            robots: authoritativeSEO?.robots || "noindex,nofollow",
+            jsonLd: authoritativeSEO?.jsonLd,
+            author: postAuthor,
+            publishedTime: post != none && post.metadata != none ? post.metadata?.createdAt : none,
+            modifiedTime: post != none && post.metadata != none ? post.metadata?.updatedAt : none,
+          )
+          if loading && post == none {
+            FeedSkeleton()
+          } else {
+            Feed(
+              type: "replies",
+              filters: feedFilters,
+              reloadKey: repliesReloadKey,
+              listHeaderComponent: listHeader,
+              hideHeader: true,
+              threaded: treeView,
+              threadPostId: repliesQueryTargetId,
+              contentContainerStyle: feedContentStyle,
+              rowsDeferred: !restReady,
             )
           }
-        }
-        .catch {
-          if !cancelled {
-            continuations = []
-            threadPositions = Map()
-          }
-        }
-      }
-
-      // The reply chain above the focused post, root first. The cached prefix is
-      // already on screen (initial state above); `loadPostAncestors` answers the
-      // rest in at most one request, and none when the cache reaches the root. An
-      // ancestor the viewer may not read ends the chain (render what loaded).
-      // Boosts have no `parentPostId`, so they yield an empty chain — the boost
-      // renders standalone with its original embedded (reply targets resolve to
-      // the original via `boostOriginalId`, unchanged).
-      let loadAncestors = { startParentId: String? in
-        // bloom: review: a rejection of the awaited call stops the block here (TS: an unhandled rejection)
-        switch await usePostsStore
-          .getState()
-          .loadPostAncestors(postId, startParentId, fresh: requiresFreshReads) {
-        case let .ok(chain):
-          if !cancelled {
-            // bloom: review: `as PostDetailEntity[]` dropped: annotate where the value lands if tsc needs it
-            ancestors = sameEntities(ancestors, chain)
-          }
-        case .err(_):
-          break
-        }
-      }
-
-      let run = {
-        error = none
-
-        // A post not held in memory may be on disk from an earlier session: read
-        // it now, when the screen opens, and paint it while it is read again.
-        await Post.load([postId])
-        if cancelled { return }
-        let hadCache = usePostsStore.getState().getPostFromDb(postId)
-        if hadCache {
-          // Instant paint already happened from `cachedPost`. Revalidate in
-          // the background so engagement/viewer state is fresh; the reactive
-          // store read (`cachedPost`) picks up the refreshed post.
-          let cached = usePostsStore.getState().getPostFromDb(postId)
-          loadContinuations(cached)
-          task { await loadAncestors(cached?.parentPostId) }
-
-          // The supervised entry gate has already read this post with current authority.
-          if requiresFreshReads { return }
-          revalidatePostById(postId)
-          .then { fresh in
-            if cancelled { return }
-            if !fresh && !usePostsStore.getState().getPostFromDb(postId) {
-              fetchedPost = none
-              ancestors = []
-              continuations = []
-              error = t("safety.contentUnavailable")
-              return
-            }
-
-            if cancelled || !(fresh?.parentPostId) { return }
-            if fresh.parentPostId == cached?.parentPostId { return }
-            task { await loadAncestors(fresh.parentPostId) }
-          }
-          return
-        }
-
-        // Cache miss — first consult the Android widget's account-scoped,
-        // persistent copy. A cold app launched from a card has no JS/SQLite
-        // feed cache yet, but the widget necessarily has this exact hydrated
-        // post already; painting it before revalidation avoids a redundant
-        // blocking round trip on the tap path.
-        defer {
-          // True cache miss: perform the normal blocking fetch.
-          if !cancelled { loading = false }
-        }
-        do {
-          loading = true
-          let widgetJson = try await getFollowingCachedPost(postId)
-          if cancelled { return }
-          if widgetJson != none && !widgetJson.isEmpty {
-            do {
-              // bloom: review: `as HydratedPost` dropped: annotate where the value lands if tsc needs it
-              let widgetPost = JSON.parse(widgetJson)
-              if "\(widgetPost.id)" == postId {
-                usePostsStore.getState().cachePosts([widgetPost])
-                fetchedPost = widgetPost
-                loading = false
-                loadContinuations(widgetPost)
-                task { await loadAncestors(widgetPost.parentPostId) }
-                task {
-                  await revalidatePostById(postId).then { fresh in
-                    if cancelled { return }
-                    if !fresh && !usePostsStore.getState().getPostFromDb(postId) {
-                      fetchedPost = none
-                      ancestors = []
-                      continuations = []
-                      error = t("safety.contentUnavailable")
-                    }
-                  }
-                }
-                return
-              }
-            } catch let caught {
-              postDetailLogger.debug("Ignoring unreadable widget post cache", error: caught)
-            }
-          }
-
-          let response = try await getPostById(postId)
-          if cancelled { return }
-          fetchedPost = response
-          loadContinuations(response)
-          task { await loadAncestors(response?.parentPostId) }
-        } catch let caught { if !cancelled { error = "Failed to load post" } }
-      }
-
-      task { await run() }
-      defer { cancelled = true }
+        },
+      )
+      .testID("post-screen")
     }
   }
 }

@@ -520,7 +520,7 @@ const BROKEN: Record<string, string> = {
   ...Object.fromEntries(
     ['accessFailed', 'gated', 'notFound', 'fetched', 'reply'].map((state) => [
       `components/Post/PostDetailScreen.tsx/${state}`,
-      "task-defer-runs-at-once (mention15: the load's `cancelled = true` runs at once); the chrome from the drawn branch (core12)",
+      "refused until Task.cancellation (mention15 task-defer-runs-at-once: the load's `cancelled = true`); the chrome from the drawn branch (core12)",
     ]),
   ),
   'components/Compose/PodcastPickerSheet.tsx/results': 'closure-view-to-reactelement (renderItem)',
