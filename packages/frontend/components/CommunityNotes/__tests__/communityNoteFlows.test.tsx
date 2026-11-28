@@ -58,7 +58,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
   useIsFocused: () => true,
 }));
-jest.mock('@/components/Feed/PostItem', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Feed/PostItem.bloom', () => ({ __esModule: true, PostItem: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => {
   const R = jest.requireActual<typeof import('react')>('react');
   const RN = jest.requireActual<typeof import('react-native')>('react-native');

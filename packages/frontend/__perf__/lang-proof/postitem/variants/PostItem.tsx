@@ -67,28 +67,31 @@ import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTranslation } from 'react-i18next';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 
-import { usePostSelector } from '../../stores/postsStore';
-import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/postContextRowLayout';
-import { ProfileHoverCard } from '../ProfileHoverCard';
-import PostContentText from '../Post/PostContentText';
-import PostLaneChip from '../Post/PostLaneChip';
-import PostCrosspostRow from '../Post/PostCrosspostRow';
-import PostCommunityRow from '../Post/PostCommunityRow';
-import ContentWarning from '../Post/ContentWarning';
+import { usePostSelector } from '@/stores/postsStore';
+import {
+  HEADER_CONTENT_GAP,
+  POST_CONTEXT_ROW_HEIGHT,
+} from '@/components/Post/postContextRowLayout';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
+import PostContentText from '@/components/Post/PostContentText';
+import { PostLaneChip } from '@/components/Post/PostLaneChip.bloom';
+import PostCrosspostRow from '@/components/Post/PostCrosspostRow';
+import { PostCommunityRow } from '@/components/Post/PostCommunityRow.bloom';
+import { ContentWarning } from '@/components/Post/ContentWarning.bloom';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
-import PostCorrectionNotice from '../Post/PostCorrectionNotice';
-import PostDetailStats from '../Post/PostDetailStats';
-import { postLocation } from '../Post/PostLocation';
-import PostAttachmentsRow from '../Post/PostAttachmentsRow';
-import type { NestedPostRenderer } from '../Post/Attachments/PostAttachmentNested';
-import UserName from '../UserName';
+import { PostCorrectionNotice } from '@/components/Post/PostCorrectionNotice.bloom';
+import PostDetailStats from '@/components/Post/PostDetailStats';
+import { postLocation } from '@/components/Post/PostLocation.bloom';
+import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
+import type { NestedPostRenderer } from '@/components/Post/Attachments/PostAttachmentNested';
+import UserName from '@/components/UserName';
 import { AccountBadge } from '@/components/AccountBadge';
 import { AccountAvatarGroup } from '@/components/ui/AccountAvatarGroup';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
-import { usePostInteractions } from './postInteractions';
-import { showRepostMenu } from './showRepostMenu';
-import { describePostMenu, PostMenuActions } from './PostMenu';
-import type { PostMenuContentProps } from './postMenuGroups';
+import { usePostInteractions } from '@/components/Feed/postInteractions';
+import { showRepostMenu } from '@/components/Feed/showRepostMenu';
+import { describePostMenu, PostMenuActions } from '@/components/Feed/PostMenu';
+import type { PostMenuContentProps } from '@/components/Feed/postMenuGroups';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { useTimeAgo } from '@/hooks/useTimeAgo';
@@ -100,7 +103,7 @@ import { THREAD_LINE_WIDTH } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING, POST_AVATAR_SIZE, REPLY_BRANCH_INDENT } from '@/styles/shared';
 import { enterThreadHover, leaveThreadHover } from '@/stores/threadHoverStore';
 import { patchPostReader, usePostReader } from '@/stores/readerStateStore';
-import { ThreadHoverOverlay } from './ThreadHoverOverlay';
+import { ThreadHoverOverlay } from '@/components/Feed/ThreadHoverOverlay';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
@@ -114,7 +117,7 @@ import {
 } from '@/utils/postReplies';
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { postItemPropsEqual, type PostItemProps } from './postItemProps';
+import { postItemPropsEqual, type PostItemProps } from '@/components/Feed/postItemProps';
 
 /**
  * The post row, in the Bloom language: every row of the app (feed, detail,
@@ -268,7 +271,7 @@ const PostMenuButton = view(function PostMenuButton({
     .label(label);
 });
 
-interface PostActionsProps {
+interface PostRowActionsProps {
   t: TFunction;
   replies: number;
   boosts: number;
@@ -294,11 +297,11 @@ interface PostActionsProps {
 }
 
 /**
- * `PostActions` (the post presentation) in the language: Bloom's engagement
+ * `PostRowActions` (the post presentation) in the language: Bloom's engagement
  * bar, one action per glyph. Its own view, compared prop by prop, so a row
  * re-render that leaves the bar's inputs alone does not redraw it.
  */
-const PostActions = view(function PostActions(props: PostActionsProps) {
+const PostRowActions = view(function PostRowActions(props: PostRowActionsProps) {
   const voteStyle = useVoteStyle();
   const { t } = props;
   const { onTranslate, onTranslateLongPress, onDownvote } = props;
@@ -1367,7 +1370,9 @@ function PostRow(props: PostItemProps): Child {
   // A reply belongs to its thread's community, so only a post that starts one says it.
   if (communityHandle && !viewPost.replyContext) {
     contextRows.push(
-      Embed(<PostCommunityRow handle={communityHandle} href={communityHref} />).id('community'),
+      PostCommunityRow({ handle: communityHandle, href: communityHref ?? undefined }).id(
+        'community',
+      ),
     );
   }
   if (viewPost.crosspost) {
@@ -1593,13 +1598,11 @@ function PostRow(props: PostItemProps): Child {
   );
   const postBody: Child[] = [
     spoilerText
-      ? Embed(
-          <ContentWarning
-            text={spoilerText}
-            revealed={isContentWarningOpen}
-            onToggle={toggleContentWarning}
-          />,
-        )
+      ? ContentWarning({
+          text: spoilerText,
+          revealed: isContentWarningOpen,
+          onToggle: toggleContentWarning,
+        })
       : null,
     content.title && !isContentGated
       ? Embed(
@@ -1646,7 +1649,7 @@ function PostRow(props: PostItemProps): Child {
         )
       : null,
     corrections && viewPostId && !isContentGated
-      ? Embed(<PostCorrectionNotice postId={viewPostId} count={corrections.count} />)
+      ? PostCorrectionNotice({ postId: viewPostId, count: corrections.count })
       : null,
   ];
 
@@ -1745,7 +1748,7 @@ function PostRow(props: PostItemProps): Child {
           isNested
             ? null
             : inset(
-                PostActions({
+                PostRowActions({
                   t,
                   replies: actionsEngagement.replies,
                   boosts: actionsEngagement.boosts,

@@ -1,0 +1,90 @@
+// Printed by bloom migrate from components/CommunityNotes/WriteNoteSheet.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { NoteSheetHeader } from "@/components/CommunityNotes/NoteSheetHeader"
+import { PostItem } from "@/components/Feed/PostItem.bloom"
+import { type HydratedPostSummary } from "@mention/shared-types"
+import { TextFieldHint } from "@oxy.so/bloom/text-field"
+import { RegExp } from "js"
+import { ScrollView, type ViewStyle } from "react-native"
+
+// The scroll's classes as plain objects (inline, as the classes were).
+private let FILL_STYLE: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: "0%" }
+
+private let CONTENT_STYLE: ViewStyle = { gap: 16, paddingInline: 16, paddingBottom: 16 }
+
+/// The longest note CrowdSource accepts.
+private let COMMUNITY_NOTE_MAX_LENGTH = 500
+
+public struct CommunityNoteDraft {
+  let text: String
+  let sourceUrl: String
+}
+
+private let isHttpUrl = {
+  value: String in
+  RegExp("^https?:\\/\\/\\S+\\.\\S+", "i").test(value.trimmed())
+}
+
+/// The note form: the context, a source, and the post it is about — so the
+/// writer re-reads what they are annotating. A note cannot be edited once sent,
+/// which the footer says before they send it.
+public struct WriteNoteSheet: View {
+  let post: HydratedPostSummary
+  let onSubmit: (CommunityNoteDraft) -> Unit
+  let onClose: () -> Unit
+  @State private var text = ""
+  @State private var sourceUrl = ""
+  let sourceInvalid = sourceUrl.trimmed().count > 0 && !isHttpUrl(sourceUrl)
+  let canSubmit = text.trimmed().count > 0 && !sourceInvalid
+
+  var body: some View {
+    VStack {
+      NoteSheetHeader(title: String(localized: "communityNotes.write.title"), onClose: onClose)
+      ScrollView(
+        style: FILL_STYLE,
+        contentContainerStyle: CONTENT_STYLE,
+        keyboardShouldPersistTaps: "handled",
+      ) {
+        TextEditor($text, String(localized: "communityNotes.write.noteLabel"))
+        .placeholder(String(localized: "communityNotes.write.notePlaceholder"))
+        .description(String(localized: "communityNotes.write.noteHint"))
+        .rows(4)
+        .autoResize(10)
+        .maxLength(COMMUNITY_NOTE_MAX_LENGTH)
+        .showCount()
+        VStack(spacing: .xs) {
+          TextField($sourceUrl, String(localized: "communityNotes.write.sourceLabel"))
+          .placeholder("https://")
+          .invalid(sourceInvalid)
+          .autocapitalize(.none)
+          .autocorrect(false)
+          .keyboard(.url)
+          TextFieldHint(isInvalid: sourceInvalid) {
+            sourceInvalid ? String(localized: "communityNotes.write.sourceInvalid") : String(
+              localized: "communityNotes.write.sourceHint",
+            )
+          }
+        }
+        VStack { PostItem(post: post, isNested: true) }.allowsHitTesting(false)
+      }
+      VStack {
+        Button(Text(String(localized: "communityNotes.write.submit")))
+        .style(.solid)
+        .tint(.accent)
+        .size(.lg)
+        .disabled(!canSubmit)
+        .onPress { onSubmit({ text: text.trimmed(), sourceUrl: sourceUrl.trimmed() }) }
+        RawText(String(localized: "communityNotes.write.footer"))
+        .foregroundStyle(.muted)
+        .textAlign(.center)
+        .font(.xs)
+      }
+      .padding(.horizontal, .lg)
+      .padding(.bottom, .xxl)
+      .padding(.top, .md)
+      .border(.border, .thin, .top)
+      .spacing(.sm)
+    }
+    .background(.background)
+    .flex("1")
+  }
+}

@@ -1,0 +1,311 @@
+// Printed by bloom migrate from components/Profile/ExperienceEmployerField.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { ListSkeleton } from "@/components/loading/ContentSkeleton"
+import { useSupervisionState } from "@/hooks/useSupervisionState"
+import { organizationDirectoryQueryKeys } from "@/lib/viewerQueryKeys"
+import { useDebouncedValue } from "@oxy.so/bloom/hooks"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from "@oxy.so/bloom/select"
+import { TextFieldLabel } from "@oxy.so/bloom/text-field"
+import {
+  type CreateOrganization,
+  type Organization,
+  type SafetyOrganizationIdentity,
+  type OrganizationType,
+} from "@oxy.so/contracts"
+import { ORGANIZATION_NAME_MAX_LENGTH, ORGANIZATION_TYPES } from "@oxy.so/contracts/client"
+import { parseOrganizationDraft } from "@oxy.so/services/organization-draft"
+import { useAuth } from "@oxy.so/services/ui/client"
+import { nextUnvisitedCursor } from "@oxy.so/utils/paging"
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { Boolean, Error } from "js"
+
+/// A field's error, announced as an alert. 14/20 in the inherited ink: its class named the app's
+/// `text-error-primary`, which no stylesheet defines, so it was never drawn red.
+public func alertText(_ message: String) -> View {
+  RawText(message).font("14").leading("20px").role(.alert)
+}
+
+/// Selection and neutral creation both address Oxy's one organization directory.
+public struct ExperienceEmployerField: View {
+  let value: String
+  var initialEmployer: Foreign<"Organization | SafetyOrganizationIdentity">? = none
+  let disabled: Bool
+  let invalid: Bool
+  let onChange: (Foreign<"Organization | SafetyOrganizationIdentity">?) -> Unit
+  let { user, isAuthenticated, canUsePrivateApi, oxyServices } = useAuth()
+  @State private var ownerSessionEpoch = oxyServices.http.getSessionEpoch()
+  let queryClient = useQueryClient()
+  let supervision = useSupervisionState()
+  @State private var selected: Foreign<"Organization | SafetyOrganizationIdentity">? = initialEmployer
+  @State private var query = initialEmployer?.name ?? ""
+  @State private var creating = false
+  @State private var website = ""
+  @State private var country = ""
+  @State private var organizationType: OrganizationType = "business"
+  @State private var createInvalid = false
+  let debounced = useDebouncedValue(query.trimmed(), 300)
+  // bloom: review: `as string | undefined` dropped: annotate where the value lands if tsc needs it
+  let results = useInfiniteQuery(
+    queryKey: supervision.supervised ? organizationDirectoryQueryKeys.minimalSearch(
+      debounced,
+      user?.id,
+      canUsePrivateApi,
+    ) : organizationDirectoryQueryKeys.search(debounced, user?.id, isAuthenticated),
+    queryFn: { arg in
+      let { pageParam } = arg
+      if supervision.supervised {
+        let result = await oxyServices.safety.organizations(query: debounced, limit: 20)?
+        return { items: result.items.map { item in item.organization }, nextCursor: none }
+      }
+      return oxyServices.organizations.search(
+        { query: debounced, limit: 20, cursor: pageParam ? pageParam : none },
+      )
+    },
+    initialPageParam: none,
+    getNextPageParam: {
+      page, _pages, _lastPageParam, pageParams in
+      nextUnvisitedCursor(page.nextCursor, pageParams)
+    },
+    enabled: value.isEmpty &&
+      debounced.count >= 2 &&
+      !disabled &&
+      supervision.ready &&
+      (!supervision.supervised || canUsePrivateApi),
+    gcTime: 0,
+  )
+  func select(_ organization: Foreign<"Organization | SafetyOrganizationIdentity">) {
+    selected = organization
+    query = organization.name
+    creating = false
+    onChange(organization)
+  }
+  let create = useMutation(
+    mutationFn: { organization: CreateOrganization in
+      if (((!canUsePrivateApi || disabled) || !supervision.ready) || !!supervision.supervised) ||
+        oxyServices.http.getSessionEpoch() != ownerSessionEpoch {
+        fail(Error("A personal session is required"))
+      }
+      return oxyServices.organizations.create(organization)
+    },
+    onSuccess: { organization in
+      if oxyServices.http.getSessionEpoch() != ownerSessionEpoch { return }
+      select(organization)
+      task { await queryClient.invalidateQueries(queryKey: organizationDirectoryQueryKeys.all()) }
+    },
+  )
+  let employer = selected ?? initialEmployer
+  let label = String(localized: "profile.experience.fields.employerOxyAccountId")
+  let options = ORGANIZATION_TYPES.map {
+    value in
+    ({ value: value, label: String(localized: "profile.experience.organizationTypes.\(value)") })
+  }
+
+  var body: some View {
+    VStack(spacing: .sm) {
+      TextFieldLabel() { label }
+      if !value.isEmpty {
+        VStack {
+          Row(employer?.name ?? String(localized: "profile.experience.unavailableEmployer"))
+          .leadingView(
+            Avatar(
+              ((!supervision.supervised && employer != none) && employer.avatar != none) &&
+                employer.avatar is String ? employer.avatar : none,
+              {
+                name: employer?.name ?? String(localized: "profile.experience.unavailableEmployer"),
+              },
+            ).size(.md),
+          )
+          .subtitle(
+            ((!supervision.supervised && employer != none) && employer.websiteUrl != none) &&
+              employer.websiteUrl is String ? (employer.websiteUrl) : none,
+          )
+          Button(Text(String(localized: "profile.experience.changeEmployer")))
+          .style(.plain)
+          .tint(.neutral)
+          .size(.sm)
+          .disabled(disabled)
+          .onPress {
+            // bloom: review: `"avatar" in …` is whether `.avatar` is there (JS also counts a key set to `undefined`)
+            // bloom: review: `"websiteUrl" in …` is whether `.websiteUrl` is there (JS also counts a key set to `undefined`)
+            onChange(none)
+            selected = none
+            query = ""
+          }
+        }
+        .spacing(.xs)
+      } else {
+        Group {
+          TextField(
+            Binding(
+              get: query,
+              set: { text in
+                query = text
+                creating = false
+                create.reset()
+              },
+            ),
+            label,
+          )
+          .maxLength(supervision.supervised ? 100 : ORGANIZATION_NAME_MAX_LENGTH)
+          .invalid(invalid)
+          .disabled(disabled || create.isPending)
+          RawText(String(localized: "profile.experience.companyHint"))
+          .foreground(.muted)
+          .font("14")
+          .leading("20px")
+          if (debounced.count >= 2 && debounced == query.trimmed()) && !creating {
+            VStack {
+              if results.isPending {
+                ListSkeleton(count: 2)
+              } else if results.isError {
+                VStack {
+                  RawText(String(localized: "profile.experience.companySearchError"))
+                  .foreground(.muted)
+                  .font("14")
+                  .leading("20px")
+                  Button(Text(String(localized: "common.retry")))
+                  .style(.plain)
+                  .tint(.neutral)
+                  .size(.sm)
+                  .onPress { task { await results.refetch() } }
+                }
+                .spacing(.sm)
+              } else {
+                Group {
+                  results.data?.pages
+                  ?.flatMap { page in page.items }
+                  ?.map {
+                    organization in
+                    Row(organization.name)
+                    .disabled(disabled)
+                    .leadingView(
+                      Avatar(
+                        !supervision.supervised &&
+                          organization.avatar != none ? organization.avatar : none,
+                        { name: organization.name },
+                      ).size(.md),
+                    )
+                    .subtitle(
+                      !supervision.supervised && organization.websiteUrl != none ? [
+                        organization.websiteUrl,
+                        organization.countryCode,
+                      ]
+                        .filter(Boolean)
+                        .joined(" · ") : none,
+                    )
+                    .onPress { select(organization) }
+                    .id(organization.accountId)
+                  }
+                  if results.hasNextPage {
+                    Button(Text(String(localized: "common.loadMore")))
+                    .style(.plain)
+                    .tint(.neutral)
+                    .size(.sm)
+                    .loading(results.isFetchingNextPage)
+                    .onPress { task { await results.fetchNextPage() } }
+                  }
+                  if !supervision.supervised {
+                    Button(Text(String(localized: "profile.experience.addOrganization")))
+                    .style(.plain)
+                    .tint(.neutral)
+                    .size(.sm)
+                    .disabled(!canUsePrivateApi || disabled)
+                    .onPress { creating = true }
+                  }
+                }
+              }
+            }
+          }
+          if creating && !supervision.supervised {
+            VStack {
+              RawText(query.trimmed()).foreground(.foreground).weight(.semibold)
+              RawText(String(localized: "profile.experience.neutralOrganizationHint"))
+              .foreground(.muted)
+              .font("14")
+              .leading("20px")
+              Select(
+                value: organizationType,
+                disabled: create.isPending,
+                onValueChange: { value in
+                  // bloom: review: `"avatar" in …` is whether `.avatar` is there (JS also counts a key set to `undefined`)
+                  // bloom: review: `"websiteUrl" in …` is whether `.websiteUrl` is there (JS also counts a key set to `undefined`)
+                  // bloom: review: `"avatar" in …` is whether `.avatar` is there (JS also counts a key set to `undefined`)
+                  // bloom: review: `"websiteUrl" in …` is whether `.websiteUrl` is there (JS also counts a key set to `undefined`)
+                  let type_ = ORGANIZATION_TYPES.find { candidate in candidate == value }
+                  if type_ { organizationType = type_ }
+                },
+              ) {
+                SelectTrigger(label: String(localized: "profile.experience.organizationType")) {
+                  SelectValue()
+                }
+                SelectContent(
+                  items: options,
+                  renderItem: {
+                    option in
+                    (SelectItem(value: option.value, label: option.label) {
+                      SelectItemText() { option.label }
+                    })
+                  },
+                )
+              }
+              TextField($website, String(localized: "profile.experience.website"))
+              .autocapitalize(.none)
+              .keyboard(.url)
+              .editable(!create.isPending)
+              TextField($country, String(localized: "profile.experience.country"))
+              .maxLength(2)
+              .autocapitalize(.characters)
+              .editable(!create.isPending)
+              if createInvalid {
+                alertText(String(localized: "profile.experience.organizationInvalid"))
+              }
+              if create.isError {
+                alertText(String(localized: "profile.experience.organizationCreateError"))
+              }
+              HStack {
+                Button(Text(String(localized: "common.cancel")))
+                .style(.plain)
+                .tint(.neutral)
+                .size(.sm)
+                .disabled(create.isPending)
+                .onPress { creating = false }
+                Button(Text(String(localized: "profile.experience.createOrganization")))
+                .size(.sm)
+                .disabled(disabled || (create.isPending || !canUsePrivateApi))
+                .loading(create.isPending)
+                .onPress {
+                  // The client twin of the contract's schema: the same verdict,
+                  // without loading Zod into the app.
+                  let organization = parseOrganizationDraft(
+                    name: query,
+                    organizationType: organizationType,
+                    websiteUrl: website,
+                    countryCode: country,
+                  )
+                  createInvalid = organization == none
+                  if organization { create.mutate(organization) }
+                }
+              }
+              .wrap()
+              .justify(.end)
+              .spacing(.sm)
+            }
+            .padding(.all, .md)
+            .border(.border, .thin)
+            .corner(.md)
+            .spacing(.md)
+          }
+        }
+      }
+      if invalid {
+        alertText(String(localized: "profile.experience.validation.employerOxyAccountId"))
+      }
+    }
+  }
+}

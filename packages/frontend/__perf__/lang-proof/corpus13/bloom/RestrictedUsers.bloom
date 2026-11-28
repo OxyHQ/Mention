@@ -1,0 +1,426 @@
+// Printed by bloom migrate from components/settings/pages/privacy/restricted.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { EmptyState } from "@/components/common/EmptyState"
+import { ListSkeleton, SettingsSkeleton } from "@/components/loading/ContentSkeleton"
+import { setPrivacyListMembership } from "@/hooks/usePrivacyControls"
+import { actorWriter } from "@/lib/actorCache"
+import { refreshPrivacyLists } from "@/services/privacyService"
+import { searchService } from "@/services/searchService"
+import {
+  confirm as confirmSettingsAction,
+  alert as showSettingsAlert,
+} from "@oxy.so/bloom/surfaces"
+import { type User } from "@oxy.so/core"
+import { createLogger } from "@oxy.so/core/logger"
+import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client"
+import { AbortController, clearTimeout, setTimeout } from "js"
+
+private let restrictedLogger = createLogger("RestrictedUsers")
+
+private struct RestrictedUser {
+  var id: String? = none
+  var _id: String? = none
+  var name: Foreign<"User['name']">? = none
+  var username: String? = none
+  var handle: String? = none
+  // Populated from the SDK `User`/`SearchUserResult` (avatar is `string | null`).
+  var avatar: String? = none
+}
+
+private func getUserId(_ user: RestrictedUser) -> String? { user.id || user._id }
+
+public struct RestrictedUsersScreen: View {
+  let { user: currentUser, isAuthResolved, canUsePrivateApi, isPrivateApiPending, oxyServices } = useAuth()
+
+  @State private var restrictedUserIds: [String] = []
+  @State private var restrictedUsers: [RestrictedUser] = []
+  @State private var loading = true
+  @State private var searchQuery = ""
+  @State private var searchResults: [RestrictedUser] = []
+  @State private var searching = false
+  @State private var restricting: String? = none
+
+  @State private var searchTimeoutRef: Ref<Foreign<"ReturnType<typeof setTimeout>">?> = Ref(none)
+  @State private var searchAbortControllerRef: Ref<Foreign<"AbortController">?> = Ref(none)
+  let restrictedUserIdsSet = Set(restrictedUserIds)
+
+  func loadRestrictedUsers() async {
+    if !canUsePrivateApi {
+      restrictedLogger.debug("Not authenticated, skipping load")
+      loading = false
+      return
+    }
+
+    defer {
+      // Bound to the account asking, before the first request leaves.
+      // Single bulk fetch for all restricted profiles (no per-id N+1, no
+      // manual batching — the SDK chunks 100/req internally). Results are
+      // primed into the SDK's `User` for downstream reads.
+      // Preserve order; drop ids the bulk fetch couldn't resolve.
+      loading = false
+    }
+    do {
+      loading = true
+      restrictedLogger.debug("Loading restricted users...")
+
+      let actors = actorWriter()
+      let restrictedUsersList = try await oxyServices.privacy.restricted()
+      restrictedLogger.debug("Oxy response", count: restrictedUsersList?.length)
+      var userIds = (restrictedUsersList.map { user in
+        // bloom: review: `as string | { _id?: string } | undefined` dropped: annotate where the value lands if tsc needs it
+        let restrictedId = user.restrictedId
+        if restrictedId { return restrictedId is String ? restrictedId : restrictedId._id }
+        // bloom: review: `as string | undefined` dropped: annotate where the value lands if tsc needs it
+        return (user.id || (user._id || user.userId))
+      }).filter { id in !!id }
+
+      let currentUserId = currentUser?.id
+      if currentUserId { userIds = userIds.filter { id: String in id != currentUserId } }
+
+      restrictedLogger.debug("Restricted user IDs filtered", count: userIds.length)
+      restrictedUserIds = userIds
+
+      if userIds.length == 0 {
+        restrictedUsers = []
+        loading = false
+        return
+      }
+
+      let fetched = try await oxyServices.users.getMany(userIds)
+      actors.cacheActors(fetched.filter { user in !!user?.id })
+
+      let byId = Map(fetched.map { user in (user.id, user) })
+      let users = (userIds.map { id in byId.get(id) }).filter { user in !!user }
+      restrictedLogger.debug("Loaded \(users.length) users")
+      restrictedUsers = users
+    } catch {
+      let err = error.jsValue
+      restrictedLogger
+      .error("Error loading restricted users", error, responseData: err?["response"]?["data"])
+      showSettingsAlert(
+        String(localized: "common.error"),
+        String(localized: "settings.privacy.failedToLoadRestrictedUsers"),
+      )
+    }
+  }
+
+  func performSearch(_ query: String) async {
+    if let searchAbortControllerRef = searchAbortControllerRef.value {
+      searchAbortControllerRef.abort()
+    }
+
+    if (query.trimmed()).isEmpty {
+      searchResults = []
+      searching = false
+      return
+    }
+
+    let abortController = AbortController()
+    searchAbortControllerRef.value = abortController
+
+    defer { if !abortController.signal.aborted { searching = false } }
+    do {
+      searching = true
+      var results: [RestrictedUser] = []
+      if oxyServices {
+        do {
+          let { data } = try await oxyServices.users.search(query, limit: 20)
+          results = data is [Foreign] ? data : []
+        } catch let oxyError {
+          restrictedLogger.warn("oxyServices.users.search failed, falling back", error: oxyError)
+          let fallbackResults = try await searchService.searchUsers(query)
+          results = fallbackResults.filter { user in !!user.name }
+        }
+      } else {
+        let fallbackResults = try await searchService.searchUsers(query)
+        results = fallbackResults.filter { user in !!user.name }
+      }
+
+      if abortController.signal.aborted { return }
+
+      let filtered = results.filter { user in
+        let userId = getUserId(user)
+        return userId != none &&
+          !userId.isEmpty &&
+          !restrictedUserIdsSet.contains(userId) &&
+          userId != currentUser?.id
+      }
+      searchResults = filtered
+    } catch {
+      // bloom: review: `as { name?: string }` dropped: annotate where the value lands if tsc needs it
+      let err = error
+      if err.name != "AbortError" { restrictedLogger.error("Error searching users", error) }
+    }
+  }
+
+  func handleSearch(_ query: String) {
+    searchQuery = query
+
+    if let searchTimeoutRef = searchTimeoutRef.value { clearTimeout(searchTimeoutRef) }
+
+    if (query.trimmed()).isEmpty {
+      searchResults = []
+      searching = false
+      return
+    }
+
+    searchTimeoutRef.value = setTimeout({ task { await performSearch(query) } }, 300)
+  }
+
+  func handleRestrict(_ user: RestrictedUser) async {
+    let restrictedUsersBefore = restrictedUsers
+    let restrictedUserIdsBefore = restrictedUserIds
+    let userId = getUserId(user)
+    if userId == none || userId.isEmpty { return }
+
+    if currentUser?.id == userId {
+      showSettingsAlert(
+        String(localized: "common.error"),
+        String(localized: "settings.privacy.cannotRestrictYourself"),
+      )
+      return
+    }
+
+    defer {
+      // Same as a block: Mention caches the viewer's restricted list per
+      // request window, so it has to be told. Best-effort.
+      restricting = none
+    }
+    do {
+      restricting = userId
+
+      restrictedUserIds = [..restrictedUserIds, userId]
+      restrictedUsers = [..restrictedUsers, user]
+
+      searchResults = searchResults.filter { u in getUserId(u) != userId }
+      try await oxyServices.privacy.restrict(userId)
+      restrictedLogger.debug("User restricted successfully")
+
+      try await refreshPrivacyLists()
+
+      setPrivacyListMembership(currentUser?.id, "restricted", userId, true)
+
+      await loadRestrictedUsers()
+
+      searchQuery = ""
+      showSettingsAlert(
+        String(localized: "common.success"),
+        String(localized: "settings.privacy.userRestricted"),
+      )
+    } catch {
+      let err = error.jsValue
+      restrictedLogger.error("Error restricting user", error)
+      restrictedUserIds = restrictedUserIdsBefore.filter { id in id != userId }
+      restrictedUsers = restrictedUsersBefore.filter { u in getUserId(u) != userId }
+      let errorMessage = err?["response"]?["data"]?["error"]?.string ||
+        String(localized: "settings.privacy.failedToRestrictUser")
+      showSettingsAlert(String(localized: "common.error"), errorMessage)
+    }
+  }
+
+  func handleUnrestrict(_ userId: String) async {
+    let restrictedUsersBefore = restrictedUsers
+    let restrictedUserIdsBefore = restrictedUserIds
+    let userToRemove = restrictedUsers.find { u in getUserId(u) == userId }
+
+    let performUnrestrict = {
+      do {
+        restrictedLogger.debug("Unrestricting user: \(userId)")
+
+        restrictedUserIds = restrictedUserIds.filter { id in id != userId }
+        restrictedUsers = restrictedUsers.filter { u in getUserId(u) != userId }
+
+        try await oxyServices.privacy.unrestrict(userId)
+        restrictedLogger.debug("User unrestricted successfully")
+
+        try await refreshPrivacyLists()
+
+        setPrivacyListMembership(currentUser?.id, "restricted", userId, false)
+
+        await loadRestrictedUsers()
+
+        showSettingsAlert(
+          String(localized: "common.success"),
+          String(localized: "settings.privacy.userUnrestricted"),
+        )
+      } catch {
+        let err = error.jsValue
+        restrictedLogger
+        .error("Error unrestricting user", error, responseData: err?["response"]?["data"])
+        if let userToRemove = userToRemove {
+          restrictedUserIds = [..restrictedUserIdsBefore, userId]
+          restrictedUsers = [..restrictedUsersBefore, userToRemove]
+        }
+        let errorMessage = err?["response"]?["data"]?["error"]?.string ||
+          String(localized: "settings.privacy.failedToUnrestrictUser")
+        showSettingsAlert(String(localized: "common.error"), errorMessage)
+      }
+    }
+
+    task {
+      do {
+        let confirmed = try await confirmSettingsAction(
+          title: String(localized: "settings.privacy.unrestrictUser"),
+          description: String(localized: "settings.privacy.unrestrictUserConfirm"),
+          confirmLabel: String(localized: "settings.privacy.unrestrict"),
+          cancelLabel: String(localized: "common.cancel"),
+          destructive: true,
+        )
+        if confirmed { task { await performUnrestrict() } }
+      } catch {}
+    }
+  }
+
+  var body: some View {
+    Group {
+      if !isAuthResolved || isPrivateApiPending {
+        VStack(spacing: .lg) { SettingsSkeleton() }
+      } else if !canUsePrivateApi {
+        VStack(spacing: .lg) {
+          OxyAuthPrompt(
+            label: String(localized: "settings.privacy.restricted.signInRequired"),
+            description: String(localized: "settings.privacy.restricted.signInRequiredDesc"),
+          )
+        }
+      } else {
+        VStack(spacing: .lg) {
+          VStack {
+            SettingsSection(
+              none,
+              GroupedSection(
+                HStack {
+                  Icon(.informationFill).size(.md).foreground(.primary)
+                  RawText(String(localized: "settings.privacy.restrictedUsersDescription"))
+                  .flex("1")
+                  .font(.sm)
+                  .foreground(.foreground)
+                }
+                  .padding(.horizontal, .lg)
+                  .padding(.vertical, "14")
+                  .align(.center)
+                  .spacing(.md),
+              ),
+            )
+            SettingsSection(
+              String(localized: "settings.privacy.searchUsersToRestrict"),
+              GroupedSection(
+                HStack {
+                  Icon(.search).size(.md).foreground(.muted)
+                  Search(Binding(get: searchQuery, set: handleSearch))
+                  .autocapitalize(.none)
+                  .autocorrect(false)
+                  .placeholder(String(localized: "settings.privacy.searchUsersToRestrict"))
+                  .label(String(localized: "settings.privacy.searchUsersToRestrict"))
+                  .onClearText { handleSearch("") }
+                  if searching { ListSkeleton(count: 2) }
+                }
+                  .padding(.horizontal, .lg)
+                  .padding(.vertical, .md)
+                  .align(.center)
+                  .spacing(.md),
+              ),
+            )
+            if searchQuery.utf16.count > 0 && searchResults.count > 0 {
+              SettingsSection(
+                none,
+                GroupedSection(
+                  searchResults.map { user in
+                    let userId = getUserId(user)
+                    let handle = user.username || user.handle ?? ""
+                    let isRestricting = restricting == userId
+                    if userId == none || userId.isEmpty || !(user.name?.displayName) { return none }
+
+                    return GroupedSectionItem(user.name!.displayName)
+                      .wrapControl()
+                      .description("@\(handle)")
+                      .trailing(
+                        Button {
+                          if isRestricting {
+                            Loading().style(.inline).size(.sm)
+                          } else {
+                            Group { Icon(.addCircle).size("22").foreground(.primary) }
+                          }
+                        }
+                          .size(.sm)
+                          .style(.subtle)
+                          .tint(.neutral)
+                          .onPress { if !isRestricting { task { await handleRestrict(user) } } }
+                          .disabled(isRestricting)
+                          .label(user.name!.displayName),
+                      )
+                      .id(userId)
+                  },
+                ),
+              )
+            }
+            if (searchQuery.utf16.count > 0 && !searching) && searchResults.count == 0 {
+              VStack {
+                RawText(String(localized: "settings.privacy.noUsersFound"))
+                .font("14")
+                .leading("20px")
+                .foreground(.muted)
+              }
+              .padding(.vertical, .lg)
+              .align(.center)
+            }
+            SettingsSection(
+              String(localized: "settings.privacy.restrictedUsers"),
+              GroupedSection(
+                if loading {
+                  ListSkeleton()
+                } else if restrictedUsers.count == 0 {
+                  VStack {
+                    EmptyState(
+                      title: String(localized: "settings.privacy.noRestrictedUsers"),
+                      sticker: "restrictedAccounts",
+                    )
+                  }
+                  .padding(.vertical, .lg)
+                } else {
+                  Group {
+                    for user in restrictedUsers {
+                      let userId = getUserId(user)
+                      let handle = user.username || user.handle ?? ""
+                      if !(userId == none || userId.isEmpty || !(user.name?.displayName)) {
+                        GroupedSectionItem(user.name!.displayName)
+                        .wrapControl()
+                        .description("@\(handle)")
+                        .trailing(
+                          Button(Text(String(localized: "settings.privacy.unrestrict")))
+                            .size(.sm)
+                            .style(.subtle)
+                            .tint(.danger)
+                            .onPress {
+                              if userId != none && !userId.isEmpty {
+                                task { await handleUnrestrict(userId) }
+                              } else {
+                                restrictedLogger.error("No userId found for user", none, user: user)
+                                showSettingsAlert(
+                                  String(localized: "common.error"),
+                                  "Invalid user ID",
+                                )
+                              }
+                            },
+                        )
+                        .id(userId)
+                      }
+                    }
+                  }
+                },
+              ),
+            )
+          }
+          .spacing(.lg)
+        }
+      }
+    }
+    .task(id: (canUsePrivateApi, loadRestrictedUsers)) {
+      if canUsePrivateApi { task { await loadRestrictedUsers() } }
+    }
+    .onDisappear {
+      if let searchTimeoutRef = searchTimeoutRef.value { clearTimeout(searchTimeoutRef) }
+      if let searchAbortControllerRef = searchAbortControllerRef.value {
+        searchAbortControllerRef.abort()
+      }
+    }
+  }
+}

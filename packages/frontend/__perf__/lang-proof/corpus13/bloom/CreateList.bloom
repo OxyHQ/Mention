@@ -1,0 +1,187 @@
+// Printed by bloom migrate from app/(app)/lists/create.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { SupervisedFeatureGate } from "@/components/SupervisedFeatureGate.bloom"
+import { SignInRequired } from "@/components/common/SignInRequired"
+import { useRouter } from "@/lib/navigation/router"
+import { listsService } from "@/services/listsService"
+import { toast } from "@oxy.so/bloom/toast"
+import { type User } from "@oxy.so/core"
+import { logger } from "@oxy.so/core/logger"
+import { useAuth } from "@oxy.so/services/ui/client"
+import { clearTimeout, setTimeout } from "js"
+
+private type MinimalUser = Foreign<"Pick<User, 'id' | 'username' | 'name' | 'avatar'>">
+
+public struct CreateListScreen: Screen {
+  let router = useRouter()
+  let { oxyServices } = useAuth()
+  @State private var title = ""
+  @State private var description = ""
+  @State private var isPublic = true
+  @State private var search = ""
+  @State private var results: [MinimalUser] = []
+  @State private var members: [MinimalUser] = []
+  @State private var saving = false
+
+  @State private var searchTimer: Ref<Foreign<"ReturnType<typeof setTimeout>">?> = Ref(none)
+
+  func doSearch(_ q: String) {
+    search = q
+    if let searchTimer = searchTimer.value { clearTimeout(searchTimer) }
+    if (q.trimmed()).isEmpty {
+      results = []
+      return
+    }
+    searchTimer.value = setTimeout(
+      {
+        do {
+          let { data } = try await oxyServices.users.search(q.trimmed(), limit: 8)
+          results = data
+        } catch let e { logger.warn("searchProfiles failed", error: e) }
+      },
+      300,
+    )
+  }
+
+  func addMember(_ u: MinimalUser) {
+    if members.find({ m in m.id == u.id }) != none { return }
+    members = [..members, u]
+  }
+  func removeMember(_ id: String) { members = members.filter { m in m.id != id } }
+
+  func onCreate() async {
+    if (title.trimmed()).isEmpty { return }
+    saving = true
+    defer { saving = false }
+    do {
+      // bloom: review: `|| undefined` dropped: a falsy value (`""`, `0`) is kept, not `none`
+      try await listsService.create(
+        title: title.trimmed(),
+        description: description.trimmed(),
+        isPublic: isPublic,
+        memberOxyUserIds: members.map { m in m.id },
+      )
+      router.replace("/lists")
+    } catch {
+      logger.error("Create list failed", error)
+      toast.error(String(localized: "lists.create.failed"))
+    }
+  }
+
+  var body: some View {
+    SignInRequired(
+      label: String(localized: "lists.signInRequired"),
+      description: String(localized: "lists.signInRequiredDesc"),
+    ) {
+      ScrollView {
+        VStack(spacing: .md) {
+          Field(
+            String(localized: "lists.create.titleLabel"),
+            TextField($title, String(localized: "lists.create.titleLabel")).placeholder(
+              String(localized: "lists.create.titlePlaceholder"),
+            ),
+          )
+          Field(
+            String(localized: "lists.create.descriptionLabel"),
+            TextEditor($description)
+              .placeholder(String(localized: "lists.create.descriptionPlaceholder"))
+              .rows(3),
+          )
+          HStack {
+            RawText(String(localized: "lists.create.publicLabel"))
+            .font("14")
+            .leading("20px")
+            .foreground(.muted)
+            Toggle($isPublic).label(String(localized: "lists.create.publicLabel"))
+          }
+          .align(.center)
+          .justify(.between)
+          Field(
+            String(localized: "lists.create.addMembers"),
+            Search(Binding(get: search, set: doSearch))
+              .label(String(localized: "lists.create.searchUsersPlaceholder"))
+              .onClearText { doSearch("") },
+          )
+          .margin(.top, .md)
+        }
+        .margin(.bottom, "10")
+        if results.count > 0 {
+          Card(
+            results
+              .enumerated()
+              .map {
+                (index, u) in
+                (Group {
+                  if index > 0 { Divider() }
+                  HStack {
+                    RawText("@", u.username, " • ", u.name.displayName).foregroundStyle(.foreground)
+                    RawText(String(localized: "lists.create.add"))
+                    .foregroundStyle(.primary)
+                    .weight(.semibold)
+                  }
+                  .justify(.between)
+                  .align(.center)
+                  .padding(.horizontal, .md)
+                  .padding(.vertical, "10")
+                  .onPress { addMember(u) }
+                  .pressFade()
+                }.id(u.id))
+              },
+          )
+          .style(.outline)
+          .radius(.md)
+        }
+        if members.count > 0 {
+          VStack {
+            RawText(String(localized: "lists.create.members"))
+            .font("14")
+            .leading("20px")
+            .foregroundStyle(.muted)
+            .margin(.bottom, "6")
+            for m in members {
+              HStack {
+                RawText("@", m.username).foregroundStyle(.foreground)
+                VStack {
+                  RawText(String(localized: "lists.create.remove"))
+                  .foregroundStyle(.destructive)
+                  .margin(.left, "10")
+                }
+                .onPress { removeMember(m.id) }
+                .pressFade()
+              }
+              .padding(.vertical, "6")
+              .align(.center)
+              .id(m.id)
+            }
+          }
+          .margin(.top, "10")
+        }
+        VStack {
+          RawText(
+            saving ? String(localized: "lists.create.saving") : String(
+              localized: "lists.create.createButton",
+            ),
+          )
+          .foregroundStyle(.onPrimary)
+          .weight(.bold)
+        }
+        .margin(.top, .xl)
+        .padding(.vertical, .md)
+        .align(.center)
+        .background(.primary)
+        .corner("10")
+        .when((title.trimmed()).isEmpty, { v in v.opacity("60") })
+        .disabled(saving || (title.trimmed()).isEmpty)
+        .onPress(onCreate)
+        .pressFade()
+      }
+      .contentMargins(.lg)
+    }
+    .header(
+      Header(String(localized: "lists.create.title"))
+        .backLabel(String(localized: "common.back"))
+        .inPage(),
+    )
+    .modifier(SupervisedFeatureGate())
+    .onDisappear { if let searchTimer = searchTimer.value { clearTimeout(searchTimer) } }
+  }
+}

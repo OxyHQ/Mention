@@ -11,7 +11,7 @@ import { Feed } from '@/components/Feed/index';
 // Static on purpose: the feed below renders every row with this same component,
 // so it is always already loaded. A `lazy()` here saved nothing and painted the
 // tab with no pinned post first, then pushed the whole feed down under it (#1216).
-import PinnedPostItem from '@/components/Feed/PostItem';
+import { PostItem as PinnedPostItem } from '@/components/Feed/PostItem.bloom';
 import { ProfileWriters } from './ProfileWriters';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
@@ -260,7 +260,9 @@ export const ProfileTabs = memo(function ProfileTabs({
   // count remains bounded. The legacy non-scrolling Feed fallback stays only for
   // callers that have not opted into feed ownership.
   const pinnedPostElement =
-    tab === 'posts' && pinnedPost ? <PinnedPostItem post={pinnedPost} showPinned /> : null;
+    tab === 'posts' && pinnedPost
+      ? toElement(PinnedPostItem({ post: pinnedPost, showPinned: true }))
+      : null;
 
   // A lane tab is served by the lane's OWN descriptor (`lane|<id>`), which
   // already knows its publisher — so it goes out as a filter with NO `userId`.

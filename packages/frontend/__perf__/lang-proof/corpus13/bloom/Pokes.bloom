@@ -1,0 +1,319 @@
+// Printed by bloom migrate from app/(app)/notifications/pokes.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { Error as ErrorComponent } from "@/components/Error"
+import { ProfileCard } from "@/components/ProfileCard"
+import { SEO } from "@/components/SEO"
+import { EmptyState } from "@/components/common/EmptyState"
+import { ListSkeleton } from "@/components/loading/ContentSkeleton"
+import { SuggestedUsers } from "@/components/suggestions/SuggestedUsers"
+import { viewerQueryKeys } from "@/lib/viewerQueryKeys"
+import { pokeService, type PokeUser } from "@/services/pokeService"
+import { defineTokens } from "@oxy.so/bloom-language"
+import { RiHand } from "@oxy.so/bloom/icons/RiHand"
+import { formatRelativeTime, useBloomLocale } from "@oxy.so/bloom/locale"
+import { useTheme } from "@oxy.so/bloom/theme"
+import { toast } from "@oxy.so/bloom/toast"
+import { useAuth } from "@oxy.so/services/ui/client"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { Promise } from "js"
+import { useTranslation } from "react-i18next"
+
+private let appColors = defineTokens(color: { hexfff: "#fff" })
+
+private let SENT_PREVIEW_COUNT = 3
+
+private let SUGGESTED_PREVIEW_COUNT = 5
+
+public struct PokesScreen: Screen {
+  let { user, isAuthenticated, canUsePrivateApi } = useAuth()
+  let queryClient = useQueryClient()
+  let { t } = useTranslation()
+  let locale = useBloomLocale()
+  let theme = useTheme()
+  @State private var refreshing = false
+  @State private var showAllSent = false
+  @State private var showAllSuggested = false
+
+  let { data: receivedData, isLoading: loadingReceived, error: errorReceived, refetch: refetchReceived } = useQuery(
+    queryKey: viewerQueryKeys.pokes(user?.id, "received"),
+    queryFn: { pokeService.getReceivedPokes() },
+    enabled: canUsePrivateApi,
+  )
+
+  let { data: sentData, isLoading: loadingSent, refetch: refetchSent } = useQuery(
+    queryKey: viewerQueryKeys.pokes(user?.id, "sent"),
+    queryFn: { pokeService.getSentPokes() },
+    enabled: canUsePrivateApi,
+  )
+
+  let { data: suggestedData, isLoading: loadingSuggested, refetch: refetchSuggested } = useQuery(
+    queryKey: viewerQueryKeys.pokes(user?.id, "suggested"),
+    queryFn: { pokeService.getSuggested() },
+    enabled: canUsePrivateApi,
+  )
+
+  func invalidatePokeQueries() {
+    queryClient.invalidateQueries(queryKey: viewerQueryKeys.pokes(user?.id, "received"))
+    queryClient.invalidateQueries(queryKey: viewerQueryKeys.pokes(user?.id, "sent"))
+  }
+
+  let pokeMutation = useMutation(
+    mutationFn: { userId: String in pokeService.poke(userId) },
+    onSuccess: {
+      invalidatePokeQueries()
+      toast(t("poke.sent", defaultValue: "Poked!"), type: "success")
+    },
+    onError: { toast(t("poke.error", defaultValue: "Failed to poke"), type: "error") },
+  )
+
+  let unpokeMutation = useMutation(
+    mutationFn: { userId: String in pokeService.unpoke(userId) },
+    onSuccess: {
+      invalidatePokeQueries()
+      toast(t("poke.undone", defaultValue: "Poke undone"), type: "success")
+    },
+    onError: { toast(t("poke.undoError", defaultValue: "Failed to undo poke"), type: "error") },
+  )
+
+  func handleRefresh() async {
+    refreshing = true
+    await Promise.all([refetchReceived(), refetchSent(), refetchSuggested()])
+    refreshing = false
+  }
+
+  let receivedPokes = receivedData?.pokes ?? []
+  let sentPokes = sentData?.pokes ?? []
+  let suggestions = suggestedData?.suggestions ?? []
+
+  let visibleSent = showAllSent ? sentPokes : sentPokes.slice(0, SENT_PREVIEW_COUNT)
+  let visibleSuggested = showAllSuggested ? suggestions : suggestions.slice(
+    0,
+    SUGGESTED_PREVIEW_COUNT,
+  )
+
+  let isLoading = loadingReceived || (loadingSent || loadingSuggested)
+
+  let handlePoke = pokeMutation.mutate
+  let handleUnpoke = unpokeMutation.mutate
+  let isMutating = pokeMutation.isPending || unpokeMutation.isPending
+
+  func renderPokeButton(_ userId: String, _ variant: "poke" | "pokeBack" | "undo") -> View {
+    let filled = variant != "poke"
+    VStack {
+      Icon(RiHand).size("18").foregroundStyle(filled ? appColors.color.hexfff : .foreground)
+    }
+    .frame(width: .xxxxl, height: .xxxxl)
+    .when(filled, { v in v.background("primary") })
+    .border(filled ? .primary : .border, .thin)
+    .corner(.full)
+    .align(.center)
+    .justify(.center)
+    .pressFade("70")
+    .onPress { (variant == "undo" ? handleUnpoke(userId) : handlePoke(userId)) }
+    .disabled(isMutating)
+    .label(variant == "undo" ? "Unpoke" : "Poke")
+  }
+
+  // The shared user row; `meta` carries the poke-specific line (when the poke
+  // happened) and the poke button rides along as the row's trailing accessory.
+  func renderUserRow(
+    _ key: String,
+    _ user: PokeUser,
+    _ meta: String?,
+    _ buttonVariant: "poke" | "pokeBack" | "undo",
+  ) -> View {
+    ProfileCard(
+      profile: { id: user.id, username: user.username, name: user.name, avatar: user.avatar },
+      meta: meta,
+      accessory: renderPokeButton(user.id, buttonVariant),
+    )
+    .id(key)
+  }
+
+  func renderSectionHeader(
+    _ title: String,
+    _ count: Float? = none,
+    _ showAll: Bool? = none,
+    _ onToggle: (() -> Unit)? = none,
+  ) -> View {
+    HStack {
+      Text(title) {
+        if count != none && count > 0 {
+          Text(" ", "(", count, ")").foregroundStyle(.muted).font(.md).weight(.regular)
+        }
+      }
+      .foregroundStyle(.foreground)
+      .font(.md)
+      .weight(.bold)
+      if let onToggle = onToggle {
+        VStack {
+          Text(
+            showAll == true ? t("pokes.showLess", defaultValue: "Show less") : t(
+              "pokes.seeAll",
+              defaultValue: "See all",
+            ),
+          )
+          .weight(.semibold)
+          .font(.sm)
+          .foregroundStyle(.primary)
+        }
+        .onPress(onToggle)
+        .pressFade("70")
+      }
+    }
+    .padding(.horizontal, .lg)
+    .padding(.top, .md)
+    .padding(.bottom, .xs)
+    .justify(.between)
+    .align(.center)
+  }
+
+  func renderContent() -> View {
+    if !isAuthenticated {
+      VStack {
+        Text(t("state.no_session"))
+        .font("16")
+        .leading("24px")
+        .textAlign(.center)
+        .foregroundStyle(.muted)
+      }
+      .padding(.horizontal, .xl)
+      .flex("1")
+      .justify(.center)
+      .align(.center)
+    } else if isLoading && !refreshing {
+      ListSkeleton()
+    } else if errorReceived {
+      ErrorComponent(
+        title: t("pokes.error.load", defaultValue: "Failed to load pokes"),
+        message: t(
+          "pokes.error.message",
+          defaultValue: "Unable to fetch your pokes. Please try again.",
+        ),
+        onRetry: handleRefresh,
+        hideBackButton: true,
+        style: { flex: 1 },
+      )
+    } else {
+      let isEmpty = receivedPokes.count == 0 && sentPokes.count == 0 && suggestions.count == 0
+      if isEmpty && !isLoading {
+        Group {
+          EmptyState(
+            title: t("pokes.empty.title", defaultValue: "No pokes yet"),
+            subtitle: t(
+              "pokes.empty.subtitle",
+              defaultValue: "When someone pokes you, it will show up here. Poke your followers to get started!",
+            ),
+            sticker: "notificationsPokes",
+          )
+          SuggestedUsers(
+            title: t("pokes.peopleToFollow", defaultValue: "People you may know"),
+            maxCards: 10,
+            hideDismiss: true,
+          )
+        }
+      } else {
+        Group {
+          if receivedPokes.count > 0 {
+            VStack {
+              Embed(
+                renderSectionHeader(
+                  t("pokes.receivedTitle", defaultValue: "Followers who poked you"),
+                ),
+              )
+              Embed(
+                receivedPokes.map {
+                  item in
+                  renderUserRow(
+                    item.id,
+                    item.user,
+                    "\(formatRelativeTime(((try? Date(item.createdAt, strategy: .iso8601)) ?? Date(millisecondsSince1970: .nan)), locale, style: "short"))\(item.pokeCount > 1 ? " · \(item.pokeCount) \(t("pokes.count", defaultValue: "pokes"))" : "")",
+                    item.pokedBack ? "undo" : "pokeBack",
+                  )
+                },
+              )
+            }
+          }
+          if sentPokes.count > 0 {
+            VStack {
+              Embed(
+                renderSectionHeader(
+                  t("pokes.sentTitle", defaultValue: "Followers you poked"),
+                  sentPokes.count,
+                  showAllSent,
+                  sentPokes.count > SENT_PREVIEW_COUNT ? { showAllSent = !showAllSent } : none,
+                ),
+              )
+              Embed(
+                visibleSent.map {
+                  item in
+                  renderUserRow(
+                    item.id,
+                    item.user,
+                    formatRelativeTime(
+                      ((try? Date(item.createdAt, strategy: .iso8601)) ??
+                        Date(millisecondsSince1970: .nan)),
+                      locale,
+                      style: "short",
+                    ),
+                    "undo",
+                  )
+                },
+              )
+            }
+          }
+          if suggestions.count > 0 {
+            VStack {
+              Embed(
+                renderSectionHeader(
+                  t("pokes.suggestedTitle", defaultValue: "Suggested"),
+                  none,
+                  showAllSuggested,
+                  suggestions.count > SUGGESTED_PREVIEW_COUNT ? {
+                    showAllSuggested = !showAllSuggested
+                  } : none,
+                ),
+              )
+              // No meta line: the row already shows the suggestion's @handle.
+              Embed(
+                visibleSuggested.map {
+                  item in
+                  renderUserRow(item.user.id, item.user, none, "poke")
+                },
+              )
+            }
+          }
+          SuggestedUsers(
+            title: t("pokes.peopleToFollow", defaultValue: "People you may know"),
+            maxCards: 10,
+          )
+        }
+      }
+    }
+  }
+
+  // Only a signed-in reader pulls to refresh.
+  let scroll = ScrollView { Embed(renderContent()) }.contentGrows().contentMargins(.bottom, .xxxxl)
+
+  var body: some View {
+    // The SEO tags draw nothing in place (the document's head on the web).
+    Group {
+      SEO(
+        title: t("pokes.seo.title", defaultValue: "Pokes"),
+        description: t(
+          "pokes.seo.description",
+          defaultValue: "See who poked you and poke them back",
+        ),
+      )
+      if isAuthenticated {
+        scroll.refreshable({ refreshing: refreshing, onRefresh: handleRefresh }, "primary")
+      } else {
+        scroll
+      }
+    }
+    .header(
+      Header(t("pokes.title", defaultValue: "Pokes"))
+        .backLabel(t("common.back", defaultValue: "Back"))
+        .inPage(),
+    )
+  }
+}

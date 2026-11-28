@@ -1,0 +1,173 @@
+// Printed by bloom migrate from components/widgets/LiveRoomsWidget.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { BaseWidget } from "@/components/widgets/BaseWidget"
+import { WidgetItemMenu, type WidgetItemMenuActions } from "@/components/widgets/WidgetItemMenu"
+import { WEB_BASE_URL } from "@/config"
+import { useUserById } from "@/hooks/useCachedUser"
+import { useRouter } from "@/lib/navigation/router"
+import { type Room } from "@/lib/syraApi"
+import { useLiveRoomsStore } from "@/stores/liveRoomsStore"
+import { LIVE_INDICATOR_COLOR } from "@/styles/colors"
+import { shareLink } from "@/utils/shareLink"
+import { defineTokens } from "@oxy.so/bloom-language"
+import * as Skeleton from "@oxy.so/bloom/skeleton"
+import { useTheme } from "@oxy.so/bloom/theme"
+import { toast } from "@oxy.so/bloom/toast"
+import { useAuth } from "@oxy.so/services/ui/client"
+
+private let liveColors = defineTokens(color: { LIVE_INDICATOR_COLOR: LIVE_INDICATOR_COLOR })
+
+private let MAX_ROOMS_DISPLAYED = 3
+
+private let LIVE_ROOMS_ROUTE = "/live-rooms"
+
+private func buildRoomUrl(_ roomId: String) -> String { "\(WEB_BASE_URL)/live-rooms/\(roomId)" }
+
+private func getDisplayName(
+  _ profile: Foreign<"ReturnType<typeof useUserById>">,
+  _ userId: String,
+) -> String { profile?.name?.displayName || (profile?.username || userId.utf16.slice(0, 10)) }
+
+private struct RoomRow: View {
+  let room: Room
+  let isLast: Bool
+  let onPress: () -> Unit
+  let getMenuActions: (Room) -> WidgetItemMenuActions
+  let hostProfile = useUserById(room.host)
+  let hostName = hostProfile?.username ? "@\(hostProfile.username)" : getDisplayName(
+    hostProfile,
+    room.host,
+  )
+  let listenerCount = room.participants?.count ?? 0
+
+  var body: some View {
+    HStack(alignment: .center) {
+      HStack {
+        VStack()
+        .frame(width: "6", height: "6")
+        .background(liveColors.color.LIVE_INDICATOR_COLOR)
+        .corner(.infinite)
+        VStack {
+          Text(room.title).font(.body2).weight(.bold).lines(1)
+          HStack {
+            Icon(.customerService).size("11").foreground(.muted)
+            Text(listenerCount, " listening · ", hostName)
+            .grow()
+            .foreground(.muted)
+            .font(.caption2)
+            .lines(1)
+          }
+          .align(.center)
+          .spacing(.xs)
+          .margin(.top, "1")
+        }
+        .flex("1")
+      }
+      .flex("1")
+      .align(.center)
+      .spacing(.sm)
+      WidgetItemMenu(label: room.title, ..getMenuActions(room))
+    }
+    .padding(.vertical, "6")
+    .when(!isLast, { v in v.border("border", "0.5", "bottom") })
+    .onPress(onPress)
+    .pressFade("70")
+  }
+}
+
+public struct LiveRoomsWidget: View {
+  var divider: Bool? = none
+  let { isAuthenticated } = useAuth()
+  let router = useRouter()
+  let theme = useTheme()
+
+  let { rooms, hasFetched, error, hiddenRoomIds, startPolling, stopPolling, hideRoom } = useLiveRoomsStore()
+
+  let visibleRooms = rooms.filter { room in !hiddenRoomIds.includes(room._id) }
+
+  let displayedRooms: [Foreign] = visibleRooms.slice(0, MAX_ROOMS_DISPLAYED)
+
+  func handleShowMore() { router.push(LIVE_ROOMS_ROUTE) }
+
+  let getMenuActions = {
+    room: Room in
+    {
+      onNotInterested: {
+        hideRoom(room._id)
+        toast(String(localized: "widgetMenu.roomHidden"), type: "success")
+      },
+      onShare: {
+        task {
+          await shareLink(
+            title: room.title,
+            url: buildRoomUrl(room._id),
+            copiedToast: String(localized: "widgetMenu.linkCopied"),
+            errorToast: String(localized: "widgetMenu.shareFailed"),
+          )
+        }
+      },
+    }
+  }
+
+  // Same settling rule as `TrendsWidget`.
+  let hasSettled = hasFetched || error != none
+
+  var body: some View {
+    Group {
+      if isAuthenticated {
+        if !(hasSettled && visibleRooms.length == 0) {
+          BaseWidget(
+            title: "Live Rooms",
+            icon: Icon(.broadcast).size(.sm).foregroundStyle(.foreground),
+            divider: divider,
+          ) {
+            if !hasSettled {
+              VStack {
+                for (i, _) in (0..<3).enumerated() {
+                  Skeleton
+                  .Row(style: { alignItems: "center", gap: 8 }) {
+                    Skeleton.Circle(size: 6)
+                    Skeleton
+                    .Col() {
+                      Skeleton.Text(style: { fontSize: 13, lineHeight: 15, width: 180 })
+                      Skeleton.Text(style: { fontSize: 11, lineHeight: 13, width: 140 })
+                    }
+                  }
+                  .id(i)
+                }
+              }
+              .padding(.vertical, .xs)
+              .spacing("10")
+            } else {
+              VStack(spacing: .sm) {
+                VStack {
+                  for (index, room) in displayedRooms.enumerated() {
+                    RoomRow(
+                      room: room,
+                      isLast: index == displayedRooms.count - 1,
+                      onPress: {
+                        router.push(pathname: "/live-rooms/live/[id]", params: { id: room._id })
+                      },
+                      getMenuActions: getMenuActions,
+                    )
+                    .id(room._id)
+                  }
+                }
+                Button(Text(String(localized: "common.showMore")))
+                .style(.plain)
+                .size(.sm)
+                .onPress(handleShowMore)
+                .alignSelf(.start)
+              }
+            }
+          }
+        }
+      }
+    }
+    .task(id: (isAuthenticated, startPolling, stopPolling)) {
+      if !isAuthenticated { return }
+      let subscriptionId = startPolling()
+      defer { stopPolling(subscriptionId) }
+      await Task.cancellation
+    }
+  }
+}

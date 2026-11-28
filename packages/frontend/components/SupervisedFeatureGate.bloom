@@ -1,0 +1,37 @@
+import { EmptyState } from "@/components/common/EmptyState"
+import { DetailSkeleton } from "@/components/loading/ContentSkeleton"
+import { useSupervisionState } from "@/hooks/useSupervisionState"
+import { RiLockLine } from "@oxy.so/bloom/icons/RiLockLine"
+
+/// Unreviewed product surfaces are unavailable, not a request to weaken protection. Applied to a
+/// screen (`Screen().modifier(SupervisedFeatureGate())`), a state it holds the screen back for is
+/// drawn as a surface of its own (`.ownScreen()`), without the screen or its chrome, as the TS gate drew it in place of the screen.
+public struct SupervisedFeatureGate: ViewModifier {
+  /// Only for a reviewed surface; this never replaces the live server decision.
+  var allowSupervised: Bool = false
+  let state = useSupervisionState()
+
+  func body(content: Content) -> some View {
+    if state.isError {
+      EmptyState(
+        error: {
+          title: String(localized: "safety.checkFailed"),
+          message: String(localized: "safety.retryDescription"),
+          onRetry: { await state.refetch() },
+        },
+      )
+      .ownScreen()
+    } else if !state.ready {
+      DetailSkeleton().ownScreen()
+    } else if state.supervised && !allowSupervised {
+      EmptyState(
+        icon: RiLockLine,
+        title: String(localized: "safety.unavailableTitle"),
+        subtitle: String(localized: "safety.unavailableDescription"),
+      )
+      .ownScreen()
+    } else {
+      content
+    }
+  }
+}

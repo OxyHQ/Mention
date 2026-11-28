@@ -1,0 +1,300 @@
+// Printed by bloom migrate from app/(app)/jobs/[id].tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { DetailSkeleton } from "@/components/loading/ContentSkeleton"
+import { useRouter, useLocalSearchParams } from "@/lib/navigation/router"
+import { viewerQueryKeys } from "@/lib/viewerQueryKeys"
+import { jobsService, recordJobMetric } from "@/services/jobsService"
+import { reportService } from "@/services/reportService"
+import { displayNameOrHandle } from "@/utils/displayName"
+import { useJobVocabulary } from "@/utils/jobVocabulary"
+import { openExternalLink } from "@/utils/openExternalLink"
+import { shareLink } from "@/utils/shareLink"
+import { presentSheet } from "@/utils/sheet"
+import { type MentionJobStatus } from "@mention/shared-types"
+import { MEDIA_VARIANT_AVATAR } from "@mention/shared-types/post"
+import { defineTokens } from "@oxy.so/bloom-language"
+import { toast } from "@oxy.so/bloom/toast"
+import { getNormalizedUserHandle } from "@oxy.so/core"
+import { useAuth } from "@oxy.so/services/ui/client"
+import TanStackQuery
+import { Suspense, lazy } from "react"
+
+/// The employer's avatar beside its name, 28pt, off the avatar scale.
+private let jobTokens = defineTokens(avatarSize: { employer: 28 })
+
+private let ReportModal = lazy {
+  import("@/components/report/ReportModal").then { m in ({ default: m.ReportModal }) }
+}
+
+private let WORKPLACE_LABELS: [String: String] = [
+  "onsite": "On-site",
+  "hybrid": "Hybrid",
+  "remote": "Remote",
+]
+
+private let EMPLOYMENT_LABELS: [String: String] = [
+  "full_time": "Full-time",
+  "part_time": "Part-time",
+  "contract": "Contract",
+  "temporary": "Temporary",
+  "internship": "Internship",
+  "other": "Other",
+]
+
+// bloom: review: `Record< MentionJobStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info' >` is a `[String: "default" | "primary" | "success" | "warning" | "error" | "info"]`: its keys are no longer checked
+private let STATUS_TONE: [String: "default" | "primary" | "success" | "warning" | "error" | "info"] = [
+  "draft": "default",
+  "published": "success",
+  "paused": "warning",
+  "closed": "error",
+  "expired": "error",
+]
+
+private func formatSalary(
+  _ salary: { min: Float?, max: Float?, currency: String, interval: String }?,
+) -> String? {
+  if salary == none { return none }
+  let amount = salary.min != none &&
+    salary.max !=
+      none ? "\(salary.min.formatted(fractionDigits: 0...3))–\(salary.max.formatted(fractionDigits: 0...3))" : salary.min !=
+    none ? "\(salary.min.formatted(fractionDigits: 0...3))+" : salary.max !=
+    none ? "Up to \(salary.max.formatted(fractionDigits: 0...3))" : none
+  if amount == none || amount.isEmpty { return none }
+  "\(salary.currency) \(amount) / \(salary.interval)"
+}
+
+/// The canonical public job page (`GET /jobs/:id`, id or slug). Accessible to
+/// anyone — the backend gates what a non-operator may see, this screen just
+/// renders what it gets back.
+public struct JobDetailScreen: Screen {
+  let router = useRouter()
+  let { id }: { id: String } = useLocalSearchParams()
+  let idOrSlug = "\(id)"
+  let { user, oxyServices } = useAuth()
+  let vocabulary = useJobVocabulary()
+
+  let jobQuery = useQuery(
+    QueryOptions(
+      queryKey: viewerQueryKeys.jobDetail(user?.id, idOrSlug),
+      queryFn: { try await jobsService.get(idOrSlug) },
+      enabled: !idOrSlug.isEmpty,
+    ),
+  )
+
+  let job = jobQuery.data?.job
+
+  // One `view` per job actually shown, not per render/re-fetch — the ref
+  // tracks which job id this mount has already recorded.
+  @State private var viewedJobIdRef: Ref<String?> = Ref(none)
+
+  let employerQuery = useQuery(
+    QueryOptions(
+      queryKey: viewerQueryKeys.jobEmployerProfile(user?.id, job?.employerOxyUserId),
+      queryFn: { try await oxyServices.users.get(job!.employerOxyUserId) },
+      enabled: !!job?.employerOxyUserId,
+    ),
+  )
+
+  func openEmployer() {
+    let handle = employerQuery.data != none ? getNormalizedUserHandle(employerQuery.data) : none
+    if handle != none && !handle.isEmpty { router.push("/@\(handle)") }
+  }
+
+  func applyExternally() {
+    if !(job?.externalApplyUrl) { return }
+    recordJobMetric(job.id, "external_apply_click")
+    task { await openExternalLink(job.externalApplyUrl) }
+  }
+
+  func share() {
+    if !job { return }
+
+    // TODO(#952): once the composer exposes a job-attachment entry point,
+    // route here instead (`/compose?attachJobId=${job.id}`) so sharing a job
+    // posts it as a native Mention job attachment rather than a plain link.
+    task {
+      await shareLink(
+        title: job.title,
+        url: job.canonicalUrl,
+        copiedToast: String(localized: "jobs.detail.linkCopied"),
+        errorToast: String(localized: "jobs.detail.shareFailed"),
+      )
+    }
+  }
+
+  // This page renders only a Mention-OWNED job, so its report affordance goes
+  // through the app's EXISTING generic report mechanism
+  // (`reportedType: 'job'`, `reportedId: <mention job id>`) — the same
+  // `ReportModal` a post/user/room already uses — rather than a new UI.
+  // `jobApplicationsService.reportExternalJob` is a DIFFERENT endpoint for a
+  // DIFFERENT case: a Clarity-only listing that is not this app's own
+  // (`components/Jobs/JobDiscoveryResultCard.tsx`'s report action).
+  func openReport() {
+    if !job { return }
+    task {
+      await presentSheet { surface in
+        (Suspense(fallback: none) {
+          ReportModal(
+            visible: true,
+            onClose: { surface.dismiss() },
+            onSubmit: { categories, details in
+              // bloom: review: a rejection of the awaited call stops the block here (TS: an unhandled rejection)
+              switch await reportService.reportJob(job.id, categories, details) {
+              case let .ok(success):
+                toast(
+                  success ? String(localized: "jobs.detail.reportSubmitted") : String(
+                    localized: "jobs.detail.reportFailed",
+                  ),
+                  type: success ? "success" : "error",
+                )
+              case .err(_):
+                break
+              }
+            },
+          )
+        })
+      }
+    }
+  }
+
+  let header = Header(String(localized: "jobs.detail.title"))
+    .backLabel(String(localized: "common.back"))
+    .inPage()
+
+  var body: some View {
+    Group {
+      if jobQuery.isLoading {
+        ScrollView { DetailSkeleton() }.header(header)
+      } else if jobQuery.isError || !job {
+        VStack {
+          RawText(String(localized: "jobs.detail.notFound"))
+          .foregroundStyle(.muted)
+          .font("16")
+          .leading(.normal)
+          .textAlign(.center)
+        }
+        .padding(.horizontal, .xxxl)
+        .flex("1")
+        .align(.center)
+        .justify(.center)
+        .spacing(.md)
+        .header(header)
+      } else {
+        let isPublished = job.status == "published"
+        let employerName = employerQuery.data != none ? displayNameOrHandle(
+          employerQuery.data.name?.displayName,
+          employerQuery.data.username,
+        ) : job.employerOxyUserId
+        let salaryLabel = formatSalary(job.salary)
+        let badges = ([
+          job.location ? vocabulary.formatJobLocation(job.location) : none,
+          job.workplaceType ? WORKPLACE_LABELS[job.workplaceType] : none,
+          job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : none,
+        ]).compactMap { value in (value != none && !value.isEmpty) ? value : none }
+        ScrollView {
+          if job.status != "published" {
+            HStack(alignment: .center) {
+              Badge(job.status).style(.subtle).color(STATUS_TONE[job.status]!).size(.sm)
+            }
+          }
+          RawText(job.title)
+          .foregroundStyle(.foreground)
+          .font("24")
+          .leading("32px")
+          .weight(.bold)
+          .margin(.top, .sm)
+          HStack(alignment: .center) {
+            Avatar(employerQuery.data?.avatar, { variant: MEDIA_VARIANT_AVATAR })
+            .size(jobTokens.avatarSize.employer)
+            RawText(employerName)
+            .foreground(.primary)
+            .font(.md)
+            .weight(.semibold)
+            .onPress(openEmployer)
+          }
+          .spacing(.sm)
+          .margin(.top, .sm)
+          if badges.count > 0 {
+            HStack {
+              for label in badges {
+                Badge(label).color(.default).style(.outlined).size(.sm).id(label)
+              }
+            }
+            .wrap()
+            .spacing(.sm)
+            .margin(.top, .md)
+          }
+          if salaryLabel != none && !salaryLabel.isEmpty {
+            RawText(salaryLabel)
+            .foregroundStyle(.foreground)
+            .font("16")
+            .leading(.normal)
+            .weight(.semibold)
+            .margin(.top, .md)
+          }
+          RawText(job.description)
+          .foregroundStyle(.foreground)
+          .font(.md)
+          .leading("24px")
+          .margin(.top, .lg)
+          if job.skills.length > 0 {
+            VStack {
+              RawText(String(localized: "jobs.detail.skills"))
+              .font("14")
+              .leading("20px")
+              .foregroundStyle(.muted)
+              .margin(.bottom, "6")
+              HStack { for skill in job.skills { Chip(Text(skill)).id(skill) } }.wrap().spacing(.sm)
+            }
+            .margin(.top, .lg)
+          }
+          HStack(spacing: .md) {
+            if job.applicationMode == "external" {
+              Button(Text(String(localized: "jobs.detail.apply")))
+              .style(.solid)
+              .tint(.accent)
+              .size(.lg)
+              .grow()
+              .onPress(applyExternally)
+              .disabled(!job.externalApplyUrl)
+            } else {
+              Button(Text(String(localized: "jobs.detail.applyOnMention")))
+              .style(.solid)
+              .tint(.accent)
+              .size(.lg)
+              .grow()
+              .disabled(!isPublished)
+              .onPress { router.push("/jobs/\(job.id)/apply") }
+            }
+            Button(Text(String(localized: "jobs.detail.share")))
+            .style(.subtle)
+            .tint(.neutral)
+            .size(.lg)
+            .onPress(share)
+          }
+          .margin(.top, .xxl)
+          VStack {
+            RawText(String(localized: "jobs.detail.report"))
+            .foregroundStyle(.muted)
+            .font(.xs)
+            .leading("16px")
+          }
+          .margin(.top, .lg)
+          .alignSelf(.center)
+          .onPress(openReport)
+          .hitSlop(.md)
+          .pressFade()
+        }
+        .contentView {
+          v in
+          v.padding("horizontal", "lg").padding("bottom", "64").padding("top", "sm")
+        }
+        .header(header)
+      }
+    }
+    .task(id: job) {
+      if !job || viewedJobIdRef.value == job.id { return }
+      viewedJobIdRef.value = job.id
+      recordJobMetric(job.id, "view")
+    }
+  }
+}

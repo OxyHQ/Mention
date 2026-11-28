@@ -13,6 +13,8 @@ import { initReactI18next } from 'react-i18next';
 
 import enUS from '@/locales/en.json';
 
+import { catalogLocale, toBloomCatalog } from './bloomCatalog';
+import { preferBloomLocale, registerBloomCatalog } from './bloomLocalization.bloom';
 import { DEFAULT_LANGUAGE } from './constants';
 import { logger } from '@oxy.so/core/logger';
 
@@ -94,6 +96,27 @@ export async function setLanguage(language: string): Promise<void> {
     document.documentElement.lang = i18n.resolvedLanguage ?? language;
   }
 }
+
+/**
+ * Bloom's `String(localized:)` reads the same strings: the one place they are registered with
+ * Bloom's runtime. Each translation i18next holds (the boot bundles, then each language
+ * `setLanguage` loads) is registered once, in Bloom's form (`./bloomCatalog`, the converter
+ * that also writes `Resources/Localizable`), and Bloom follows i18next's language.
+ */
+const bloomRegistered = new Set<string>();
+function syncBloomStrings(): void {
+  for (const language of Object.keys(i18n.store?.data ?? {})) {
+    const locale = catalogLocale(language);
+    const translation = i18n.store.data[language]?.translation;
+    if (!translation || bloomRegistered.has(locale)) continue;
+    registerBloomCatalog(locale, toBloomCatalog(translation));
+    bloomRegistered.add(locale);
+  }
+  if (i18n.language) preferBloomLocale(i18n.resolvedLanguage ?? i18n.language);
+}
+i18n.on('initialized', syncBloomStrings);
+i18n.on('added', syncBloomStrings);
+i18n.on('languageChanged', syncBloomStrings);
 
 /** The provider owns locale selection; boot reads wait for its catalog. */
 let resolveLanguageReady: () => void;

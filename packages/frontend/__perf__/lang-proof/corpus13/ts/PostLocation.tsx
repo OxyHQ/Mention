@@ -1,3 +1,5 @@
+// DEV ONLY. The TypeScript PostLocation as it was before its migration (Mention #2049), the render check's reference.
+
 import type { GeoJSONPoint } from '@mention/shared-types';
 import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 

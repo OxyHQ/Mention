@@ -185,11 +185,11 @@ jest.mock('@/components/trending/TrendItemRow', () => ({ TrendItemRow: mockStub(
 jest.mock('@/components/search/ExternalActorFollowButton', () => ({
   ExternalActorFollowButton: mockStub('follow'),
 }));
-jest.mock('@/components/Feed/PostItem', () => {
+jest.mock('@/components/Feed/PostItem.bloom', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     __esModule: true,
-    default: ({ post }: { post: { id: string } }) => (
+    PostItem: ({ post }: { post: { id: string } }) => (
       <RNText testID={`post-${post.id}`}>{post.id}</RNText>
     ),
   };

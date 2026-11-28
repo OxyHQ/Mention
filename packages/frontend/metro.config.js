@@ -121,6 +121,10 @@ if (process.env.OXY_LOCAL_CHECKOUT_SOURCES === '1') {
 if (process.env.BLOOM_LANG_PROOF === '1') {
   require('./__perf__/lang-proof/metro').withProofStandIns(config, __dirname);
 }
+// DEV ONLY: `BLOOM_PROOF_POSTITEM=ts` draws PostItem's TypeScript form for the bytes proof.
+if (process.env.BLOOM_PROOF_POSTITEM === 'ts') {
+  require('./__perf__/lang-proof/metro').withTsPostItem(config);
+}
 
 // The Bloom language compiler (`@oxy.so/bloom-language-compiler`): a pre-pass in
 // front of the transform worker above (react-native-css's, which wraps Expo's),
@@ -128,4 +132,9 @@ if (process.env.BLOOM_LANG_PROOF === '1') {
 // still apply. It hoists static language chains, marks `view()` bodies
 // `"use memo"` and checks chains against the language spec. An optimisation
 // only: the runtime renders the same tree without it.
-module.exports = require('@oxy.so/bloom-language-compiler/metro').withBloomLanguage(config);
+//
+// The migration mode (`allowTsImports`, ADR 0002 section 4): Mention is part-way through its
+// port, so its `.bloom` modules (a `Package.bloom` app) still import TS files by path.
+module.exports = require('@oxy.so/bloom-language-compiler/metro').withBloomLanguage(config, {
+  allowTsImports: true,
+});

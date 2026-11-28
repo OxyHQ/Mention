@@ -2,8 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { Link, type Href } from '@/lib/navigation/router';
-import { ProfileHoverCard } from '../ProfileHoverCard';
-import { contextGlyphInk, contextRowTokens } from './postContextRowLayout';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
+import { contextGlyphInk, contextRowTokens } from '@/components/Post/postContextRowLayout';
 import { Embed, HStack, Icon, Text as LText, VStack, toElement } from '@oxy.so/bloom-language';
 
 /**

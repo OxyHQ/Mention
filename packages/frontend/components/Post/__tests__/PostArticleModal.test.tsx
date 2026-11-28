@@ -26,11 +26,9 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 12, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock('react-native-gesture-handler', () => ({ GestureHandlerRootView: 'AuditGestureRoot' }));
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (_: string, options?: { defaultValue?: string }) => options?.defaultValue ?? '',
-  }),
-}));
+// One `t` for every render, as i18next's is: the article effect depends on it.
+const mockT = (_: string, options?: { defaultValue?: string }) => options?.defaultValue ?? '';
+jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: mockT }) }));
 jest.mock('@/components/loading/ContentSkeleton', () => ({ DetailSkeleton: 'AuditSkeleton' }));
 jest.mock('@/components/common/LinkifiedText', () => ({ LinkifiedText: 'AuditText' }));
 jest.mock('@/services/articleService', () => ({ articleService: { getArticle: jest.fn() } }));
@@ -89,6 +87,30 @@ describe.each(['ios', 'android'] as const)('article modal candidate on %s', (os)
     expect(onClose).toHaveBeenCalledTimes(3);
     act(() => renderer.unmount());
   });
+  it('loads the article by its id and shows it while open', async () => {
+    const { articleService } = jest.requireMock('@/services/articleService') as {
+      articleService: { getArticle: jest.Mock };
+    };
+    articleService.getArticle.mockReset();
+    articleService.getArticle.mockResolvedValue({ title: 'Loaded title', body: 'Loaded body' });
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        themed(<PostArticleModal visible articleId="a1" onClose={() => {}} />),
+      );
+    });
+    // The request resolves, then its `.then` and `.finally` run: a few microtask turns.
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        await new Promise((resolve) => setImmediate(resolve));
+      });
+    }
+    expect(articleService.getArticle).toHaveBeenCalledTimes(1);
+    expect(articleService.getArticle).toHaveBeenCalledWith('a1');
+    const texts = renderer.root.findAllByType('AuditText' as never).map((n) => n.props.text);
+    expect(texts).toEqual(['Loaded title', 'Loaded body']);
+    act(() => renderer.unmount());
+  }, 15_000);
   it('renders no modal when hidden', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => {

@@ -1,0 +1,151 @@
+// Printed by bloom migrate from components/Profile/VideosGrid.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { default as LiveVideoPosterCell } from "@/components/Profile/LiveVideoPosterCell"
+import { ProfileGridList } from "@/components/Profile/ProfileGridList"
+import { useProfileMediaFeed } from "@/components/Profile/useProfileMediaFeed"
+import { EmptyState } from "@/components/common/EmptyState"
+import { MediaGridSkeleton } from "@/components/loading/ContentSkeleton"
+import { useRouter } from "@/lib/navigation/router"
+import { isVideoMediaRef, readMediaDurationSec } from "@/utils/mediaTypes"
+import { videoPosterUrl } from "@/utils/mediaUrls"
+import { type HydratedPostSummary, type MediaItem } from "@mention/shared-types"
+import { useTheme } from "@oxy.so/bloom/theme"
+import { useAuth } from "@oxy.so/services/ui/client"
+
+private struct VideoGridEntry {
+  let postId: String
+  let mediaIndex: Float
+  // Static poster URL: Oxy `thumb` variant for native assets, or the backend
+  // `/media/poster` frame for federated videos. Undefined only when no sensible
+  // poster exists; the cell falls back to a video-icon placeholder on
+  // 404/load error too.
+  var posterUri: String? = none
+  // Play count of the post this cell's video came from, as it stood when the
+  // page was fetched. Per-POST, so two videos in one post repeat it. The cell
+  // subscribes to the post itself and prefers the live count; this is what it
+  // shows until (and unless) that post is in the shared cache.
+  var views: Float? = none
+  // Duration of THIS item's video, in seconds. Per-item, so per-cell correct.
+  var durationSec: Float? = none
+}
+
+public struct VideosGrid: View {
+  var userId: String? = none
+  var isPrivate: Bool? = none
+  var isOwnProfile: Bool? = none
+  var ownsScroll: Bool? = none
+  var listHeaderComponent: View? = none
+  var listContentHeaderComponent: View? = none
+  var listStickyHeaderComponent: View? = none
+  let { oxyServices } = useAuth()
+  let router = useRouter()
+  let theme = useTheme()
+  let { primaryFeed, postsFeed, items, loadMore, restorationKey } = useProfileMediaFeed(
+    userId: userId,
+    isPrivate: isPrivate,
+    isOwnProfile: isOwnProfile,
+    filter: "videos",
+  )
+
+  // Resolve a static video still. Prefer the server-resolved `thumbUrl` — this
+  // is a grid cell, and `posterUrl` is sized for a full-width player — falling
+  // back to `posterUrl` and then to the legacy client resolver keyed on the
+  // id/url (backend `/media/poster`). Both server fields are a still image for
+  // a video of either origin, so preferring the smaller one is safe.
+  // Undefined → icon placeholder. A 404/error from the URL is handled by the
+  // cell's own image-error fallback.
+  func resolvePosterUri(_ ref: MediaItem) -> String? {
+    let serverUrl = ref.thumbUrl || ref.posterUrl
+    if serverUrl != none && !serverUrl.isEmpty { return serverUrl }
+    videoPosterUrl((ref.id.isEmpty ? ref.url : ref.id) ?? "", oxyServices)
+  }
+
+  let videoItems = {
+    var out: [VideoGridEntry] = []
+
+    let extractFrom = { post: HydratedPostSummary, targetId: String in
+      let media = post.content?.media
+      if media == none || media.count == 0 { return }
+
+      var seen = Set<String>()
+      for (idx, ref) in media.enumerated() {
+        let key = (ref.id.isEmpty ? ref.url : ref.id)
+        if key == none || key.isEmpty { continue }
+
+        // Still per-ITEM even though the `videos` descriptor already
+        // filtered server-side: that filter keeps POSTS, so a post mixing
+        // one photo with one video is a legitimate result whose photo this
+        // grid must drop — and the empty-primary posts fallback below is
+        // unfiltered entirely.
+        if !isVideoMediaRef(key!, mediaType: ref.type) { continue }
+        if seen.contains(key!) { continue }
+        seen = seen.inserting(key!)
+        out = [
+          ..out,
+          {
+            postId: targetId,
+            posterUri: resolvePosterUri(ref),
+            mediaIndex: idx,
+            views: post.engagement?.views,
+            durationSec: readMediaDurationSec(ref),
+          },
+        ]
+      }
+    }
+
+    for post in items {
+      if !post.id { continue }
+      extractFrom(post, "\(post.id)")
+    }
+
+    out
+  }()
+
+  let isLoading = ((false && false) ||
+    (primaryFeed?.isLoading ? primaryFeed?.isLoading : (postsFeed?.isLoading == true))) &&
+    videoItems.count == 0
+
+  func renderCell(_ item: VideoGridEntry, _ itemSize: Float) -> View {
+    let handlePress = { router.push("/videos?postId=\(item.postId)") }
+    // Every entry here is built from the post it navigates to, so the post to
+    // subscribe to and the post to open are the same one — unlike the media
+    // grid, where an embedded original splits them.
+    VStack {
+      LiveVideoPosterCell(
+        posterUri: item.posterUri,
+        size: itemSize,
+        placeholderColor: theme.colors.textSecondary,
+        viewsPostId: item.postId,
+        fallbackViews: item.views,
+        durationSec: item.durationSec,
+      )
+    }
+    .frame(width: itemSize, height: itemSize)
+    .onPress(handlePress)
+    .pressFade("80")
+  }
+
+  let emptyContent = isLoading ? (MediaGridSkeleton()) : videoItems.count == 0 ? (EmptyState(
+    title: String(localized: "profile.videos.empty.title"),
+    sticker: "profileVideos",
+    containerStyle: { flex: 1 },
+  )) : none
+
+  var body: some View {
+    if ownsScroll != true && emptyContent != none {
+      emptyContent
+    } else {
+      ProfileGridList(
+        restorationKey: restorationKey,
+        data: videoItems,
+        renderCell: renderCell,
+        fullWidth: true,
+        ownsScroll: ownsScroll,
+        listHeaderComponent: listHeaderComponent,
+        listContentHeaderComponent: listContentHeaderComponent,
+        listStickyHeaderComponent: listStickyHeaderComponent,
+        emptyComponent: emptyContent,
+        onEndReached: loadMore,
+      )
+    }
+  }
+}

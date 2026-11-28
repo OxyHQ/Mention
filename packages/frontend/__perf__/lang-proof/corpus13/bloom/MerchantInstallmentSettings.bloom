@@ -1,0 +1,213 @@
+// Printed by bloom migrate from components/payments/MerchantInstallmentSettings.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import {
+  INSTALLMENT_CAPABILITY_FIXTURES,
+  validMerchantInstallmentPreferences,
+  type MerchantInstallmentPreferences,
+} from "@/lib/payments/merchantInstallmentPreview"
+import { Number } from "js"
+
+private func toggle<T: Equatable>(_ values: [T], _ value: T, _ enabled: Bool) -> [T] {
+  enabled ? [..values.filter { item in item != value }, value] : values.filter {
+    item in
+    item != value
+  }
+}
+
+private func parseAmount(_ value: String) -> Float {
+  if !(value.firstMatch(of: try! Regex("^\\d+(?:\\.\\d{1,2})?\$")) != none) { return Double.nan }
+  let wholeFractionParts = value.split(".")
+  let whole = wholeFractionParts.at(0) ?? "0"
+  let fraction = wholeFractionParts.at(1) ?? ""
+  Number(whole) * 100 + Number(fraction.utf16.paddingEnd(to: 2, with: "0"))
+}
+
+private let ONE_TIME_SUBSCRIPTION = ["one_time", "subscription"]
+
+/// Merchant persona controls only local preferences; provider terms and approval are not editable.
+public struct MerchantInstallmentSettings: View {
+  let value: MerchantInstallmentPreferences
+  let onChange: (MerchantInstallmentPreferences) -> Unit
+  let label = { key: String in String(localized: "plus.merchantInstallments.\(key)") }
+  @State private var open = false
+  @State private var draft = value
+  @State private var minimum = ""
+  @State private var maximum = ""
+  let next = { ..draft, minMinorUnits: parseAmount(minimum), maxMinorUnits: parseAmount(maximum) }
+  let valid = validMerchantInstallmentPreferences(next)
+
+  var body: some View {
+    Group {
+      Button(Text(label("open")))
+      .style(.outline)
+      .onPress {
+        draft = value
+        minimum = (value.minMinorUnits / 100).formatted(fractionDigits: 2)
+        maximum = (value.maxMinorUnits / 100).formatted(fractionDigits: 2)
+        open = true
+      }
+      if open {
+        Dialog(
+          VStack {
+            GroupedSection(
+              GroupedSectionItem(label("enabled")).trailing(
+                Toggle(
+                  Binding(
+                    get: draft.enabled,
+                    set: { enabled in draft = { ..draft, enabled: enabled } },
+                  ),
+                ).label(label("enabled")),
+              ),
+            )
+            .caption(label("providerBoundary"))
+            GroupedSection(
+              INSTALLMENT_CAPABILITY_FIXTURES.map {
+                capability in
+                (capability.available ? GroupedSectionItem(
+                  label(capability.family),
+                ) : GroupedSectionItem(label(capability.family)).description(
+                  label("providerUnavailable"),
+                ))
+                .trailing(
+                  Toggle(
+                    Binding(
+                      get: draft.families.contains(capability.family),
+                      set: {
+                        enabled in
+                        draft = {
+                          ..draft,
+                          families: toggle(draft.families, capability.family, enabled),
+                        }
+                      },
+                    ),
+                  )
+                    .label(label("offer.\(capability.family)"))
+                    .disabled(!capability.available),
+                )
+                .id(capability.id)
+              },
+            )
+            .title(label("families"))
+            Text(label("limits"))
+            Field(
+              label("minimum"),
+              TextField($minimum, label("minimum"))
+                .placeholder(label("minimum"))
+                .keyboard(.decimalPad),
+            )
+            Field(
+              label("maximum"),
+              TextField($maximum, label("maximum"))
+                .placeholder(label("maximum"))
+                .keyboard(.decimalPad),
+            )
+            if !valid { Text(label("invalidLimits")).role(.alert) }
+            GroupedSection(
+              ["US", "CA"].map {
+                country in
+                GroupedSectionItem(label(country))
+                .trailing(
+                  Toggle(
+                    Binding(
+                      get: draft.countries.contains(country),
+                      set: {
+                        enabled in
+                        draft = { ..draft, countries: toggle(draft.countries, country, enabled) }
+                      },
+                    ),
+                  ).label(label("allow.\(country)")),
+                )
+                .id(country)
+              },
+            )
+            .title(label("countries"))
+            GroupedSection(
+              ["USD", "EUR"].map {
+                currency in
+                (currency == "EUR" ? GroupedSectionItem(currency).description(
+                  label("providerUnavailable"),
+                ) : GroupedSectionItem(currency))
+                .trailing(
+                  Toggle(
+                    Binding(
+                      get: draft.currencies.contains(currency),
+                      set: {
+                        enabled in
+                        draft = { ..draft, currencies: toggle(draft.currencies, currency, enabled) }
+                      },
+                    ),
+                  )
+                    .label(label("allow.\(currency)"))
+                    .disabled(currency == "EUR"),
+                )
+                .id(currency)
+              },
+            )
+            .title(label("currencies"))
+            GroupedSection(
+              ONE_TIME_SUBSCRIPTION.map {
+                kind in
+                GroupedSectionItem(label(kind))
+                .trailing(
+                  Toggle(
+                    Binding(
+                      get: draft.purchaseKinds.contains(kind),
+                      set: {
+                        enabled in
+                        draft = {
+                          ..draft,
+                          purchaseKinds: toggle(draft.purchaseKinds, kind, enabled),
+                        }
+                      },
+                    ),
+                  ).label(label("allow.\(kind)")),
+                )
+                .id(kind)
+              },
+            )
+            .title(label("purchaseKinds"))
+            .caption(label("capabilityPerPlan"))
+            Field(
+              label("message"),
+              TextField(
+                Binding(
+                  get: draft.message,
+                  set: { message in draft = { ..draft, message: message } },
+                ),
+                label("message"),
+              )
+                .placeholder(label("message"))
+                .maxLength(160),
+            )
+            Field(
+              label("terms"),
+              TextField(
+                Binding(get: draft.terms, set: { terms in draft = { ..draft, terms: terms } }),
+                label("terms"),
+              )
+                .placeholder(label("terms"))
+                .maxLength(2000)
+                .multiline(),
+            )
+            Text(label("termsBoundary"))
+            Button(Text(label("save")))
+            .size(.lg)
+            .disabled(!valid)
+            .onPress {
+              onChange(next)
+              open = false
+            }
+          }
+            .padding(.horizontal, .xl)
+            .padding(.bottom, .xl)
+            .spacing(.lg),
+        )
+        .presentAt(.bottom)
+        .detached()
+        .padding(.none)
+        .panelFrame(maxWidth: "540")
+        .header({ title: label("title"), showClose: true, largeTitle: false })
+        .presented(Binding(get: true, set: { _ in open = false }))
+      }
+    }
+  }
+}

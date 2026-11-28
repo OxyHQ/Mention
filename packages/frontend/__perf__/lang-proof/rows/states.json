@@ -1,0 +1,13 @@
+{
+  "$comment": "DEV ONLY: the row states the rows proof measures and captures (../README.md). Each row is drawn the way PostItem draws it, in each state.",
+  "states": [
+    { "row": "ContentWarning", "state": "closed", "props": { "text": "Spoilers for the finale", "revealed": false } },
+    { "row": "ContentWarning", "state": "open", "props": { "text": "Spoilers for the finale", "revealed": true } },
+    { "row": "PostCommunityRow", "state": "link", "props": { "handle": "technology@lemmy.world", "href": "/@technology@lemmy.world" } },
+    { "row": "PostCommunityRow", "state": "plain", "props": { "handle": "technology@lemmy.world", "href": null } },
+    { "row": "PostCorrectionNotice", "state": "once", "props": { "postId": "p1", "count": 1 } },
+    { "row": "PostCorrectionNotice", "state": "thrice", "props": { "postId": "p1", "count": 3 } },
+    { "row": "PostLaneChip", "state": "tab", "props": { "lane": { "id": "l1", "name": "Field notes", "displayMode": "tab" }, "authorHandle": "nate", "feedDescriptor": "for_you" } },
+    { "row": "PostLaneChip", "state": "mixed", "props": { "lane": { "id": "l1", "name": "Field notes", "displayMode": "mixed" }, "authorHandle": "nate", "feedDescriptor": "for_you" } }
+  ]
+}

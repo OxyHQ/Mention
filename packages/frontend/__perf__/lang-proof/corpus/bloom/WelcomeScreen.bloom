@@ -1,0 +1,136 @@
+// Printed by bloom migrate from components/welcome/WelcomeScreen.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { WelcomeStarterPacks } from "@/components/welcome/WelcomeStarterPacks"
+import { TopicPicker } from "@/components/interests/TopicPicker"
+import { requestSettings } from "@/components/settings/settingsRoutes"
+import { LazyWhoToFollowTab } from "@/components/sharedRouteScreens"
+import { useCompleteWelcome } from "@/hooks/useWelcome"
+import { useLocalSearchParams, useRouter, type Href } from "@/lib/navigation/router"
+import { Button as TSButton } from "@oxy.so/bloom/button"
+import { CardBody, CardDescription, CardHeader } from "@oxy.so/bloom/card"
+import { WizardProgress, type WizardStep } from "@oxy.so/bloom/wizard"
+
+/// Where to go once the flow is done: the in-app path the person was opening
+/// when `WelcomeRedirectGate` sent them here, or home. Only an app-relative path
+/// is honoured, so `next` can never send anyone off-site.
+private func destination(_ next: String?) -> Href {
+  // bloom: review: `as Href` dropped: annotate where the value lands if tsc needs it
+  (next?.startsWith("/")) == true && !next!.startsWith("//") ? next : "/"
+}
+
+/// A step's heading: its title, and the line under it, in Bloom's card header.
+private struct StepHeading: View {
+  let title: String
+  var description: String? = none
+  var body: some View {
+    CardHeader() {
+      Text(title).textStyle(.title).font(.display3).weight(.semibold)
+      if let description = description {
+        if !description.isEmpty { CardDescription() { description } }
+      }
+    }
+  }
+}
+
+/// `/welcome` — the first run for a new account: pick interests, follow some
+/// people, set up the profile. Every step is optional, and finishing or skipping
+/// is recorded once on the server, so the flow never comes back.
+public struct WelcomeScreen: Screen {
+  let router = useRouter()
+  let { next }: { next: String? } = useLocalSearchParams()
+  let complete = useCompleteWelcome()
+  @State private var step = 0
+
+  let steps: [WizardStep] = [
+    {
+      key: "interests",
+      title: String(localized: "welcome.interests.title"),
+      description: String(localized: "welcome.interests.description"),
+    },
+    {
+      key: "people",
+      title: String(localized: "welcome.people.title"),
+      description: String(localized: "welcome.people.description"),
+    },
+    {
+      key: "profile",
+      title: String(localized: "welcome.profile.title"),
+      description: String(localized: "welcome.profile.description"),
+    },
+  ]
+  let isLast = step == steps.count - 1
+
+  func finish() { complete.mutate(none, onSettled: { router.replace(destination(next)) }) }
+
+  let primaryAction = Button(
+    Text(isLast ? String(localized: "welcome.finish") : String(localized: "welcome.next")),
+  )
+    .size(.lg)
+    .onPress(isLast ? finish : { step = step + 1 })
+    .loading(complete.isPending)
+
+  var body: some View {
+    Group {
+      if step == 0 {
+        ScrollView {
+          StepHeading(title: steps[0].title, description: steps[0].description)
+          TopicPicker(query: "")
+        }
+      } else if step == 1 {
+        LazyWhoToFollowTab(
+          showInviteBanner: false,
+          listHeaderComponent: Group {
+            StepHeading(title: steps[1].title, description: steps[1].description)
+            WelcomeStarterPacks()
+          },
+        )
+      } else {
+        ScrollView {
+          StepHeading(title: steps[2].title, description: steps[2].description)
+          CardBody() {
+            Text(String(localized: "welcome.profile.body")).textStyle(.muted)
+            Button(Text(String(localized: "welcome.profile.edit")))
+            .onPress { requestSettings("/settings/edit-profile") }
+          }
+        }
+      }
+    }
+    .header(
+      Header()
+        .onBack(none)
+        .toolbar(
+          Button(Text(String(localized: "welcome.skip")))
+            .style(.subtle)
+            .tint(.neutral)
+            .onPress(finish),
+        )
+        .accessory(
+          WizardProgress(
+            steps: steps,
+            current: step,
+            hideTitle: true,
+            formatStepCount: {
+              position, total in
+              String(
+                localized: "welcome.stepCount",
+                args: ["position": "\(position)", "total": "\(total)"],
+              )
+            },
+          ),
+        )
+        .inPage(),
+    )
+    .footer(
+      PageFooter(
+        // Always present, so the primary action stays on the right on every step.
+        TSButton.Group(separated: true) {
+          if step > 0 {
+            Button(Text(String(localized: "welcome.back"))).onPress { step = step - 1 }
+          }
+        },
+      )
+        .scrollEdge(.always)
+        .toolbar(primaryAction),
+      { placement: "overlay" },
+    )
+  }
+}

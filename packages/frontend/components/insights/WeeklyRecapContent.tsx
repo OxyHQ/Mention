@@ -11,7 +11,7 @@ import {
 } from '@oxy.so/bloom/chart-cards';
 import type { HydratedPost } from '@mention/shared-types';
 import type { AccountInsights } from '@/services/insightsService';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { buildInsightsSeries, buildPublishingSummary } from './insightsSeries';
 
@@ -275,7 +275,7 @@ export function WeeklyRecapContent({ stats, summary, topPosts }: WeeklyRecapCont
             topPosts.length
               ? topPosts.map((post, index) => (
                   <Fragment key={post.id}>
-                    <PostItem post={post} openPostEngagement={openPostEngagement} />
+                    {toElement(PostItem({ post, openPostEngagement }))}
                     {index < topPosts.length - 1 && toElement(LDivider())}
                   </Fragment>
                 ))

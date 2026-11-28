@@ -4,10 +4,11 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost, PostUser } from '@mention/shared-types';
 
-import PostItem from '../PostItem';
+import { PostItem } from '../PostItem.bloom';
 import type { NestedPostRenderer } from '../../Post/Attachments/PostAttachmentNested';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { toElement } from '@oxy.so/bloom-language';
 
 /**
  * `PostItem` decides two things about authorship that only it can see:
@@ -121,11 +122,14 @@ jest.mock('@oxy.so/bloom/subtle-hover', () => ({
 }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: 'PostContentText' }));
-jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: 'PostActions' }));
+jest.mock('../../Post/PostLaneChip.bloom', () => ({ __esModule: true, PostLaneChip: () => null }));
+jest.mock('../../Post/ContentWarning.bloom', () => ({
+  __esModule: true,
+  ContentWarning: () => null,
+}));
+jest.mock('../../Post/PostActions.bloom', () => ({ __esModule: true, PostActions: 'PostActions' }));
 jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: 'PostDetailStats' }));
-jest.mock('../../Post/PostLocation', () => ({ __esModule: true, postLocation: () => null }));
+jest.mock('../../Post/PostLocation.bloom', () => ({ __esModule: true, postLocation: () => null }));
 jest.mock('../../Post/PostAttachmentsRow', () => ({
   __esModule: true,
   default: ({
@@ -315,7 +319,7 @@ describe('PostItem author dialog heading', () => {
   });
 
   it('says "Published by" when the byline names a writer — nobody co-authored anything', () => {
-    const renderer = render(<PostItem post={postWith([channel, writer])} />);
+    const renderer = render(toElement(PostItem({ post: postWith([channel, writer]) })));
     expect(openAuthorDialog(renderer)).toEqual({
       label: 'Published by',
       panelTitle: 'Published by',
@@ -323,7 +327,7 @@ describe('PostItem author dialog heading', () => {
   });
 
   it('says "Collaborators" for a genuine collaboration', () => {
-    const renderer = render(<PostItem post={postWith([owner, collaborator])} />);
+    const renderer = render(toElement(PostItem({ post: postWith([owner, collaborator]) })));
     expect(openAuthorDialog(renderer)).toEqual({
       label: 'Collaborators',
       panelTitle: 'Collaborators',
@@ -331,7 +335,7 @@ describe('PostItem author dialog heading', () => {
   });
 
   it('does not open at all for a solo post', () => {
-    const renderer = render(<PostItem post={postWith([owner])} />);
+    const renderer = render(toElement(PostItem({ post: postWith([owner]) })));
     expect(collaboratorsControl(renderer)).toBeUndefined();
   });
 });
@@ -348,17 +352,17 @@ describe('PostItem boost wiring', () => {
     // actor), and both that actor and every `authors[]` entry are the canonical
     // Oxy `PostUser` keyed by Oxy user id — so the row's `id` comparison finds
     // a match when there is one, and moves the booster to the lead.
-    render(<PostItem post={postWith([channel, writer])} repostedBy={writer} />);
+    render(toElement(PostItem({ post: postWith([channel, writer]), repostedBy: writer })));
     expect(lastCluster()).toEqual([writer.id, channel.id]);
   });
 
   it('draws an outside booster beside a solo author', () => {
-    render(<PostItem post={postWith([owner])} repostedBy={boosterUser} />);
+    render(toElement(PostItem({ post: postWith([owner]), repostedBy: boosterUser })));
     expect(lastCluster()).toEqual([owner.id, boosterUser.id]);
   });
 
   it('leaves the byline in its order when no boost surfaced the row', () => {
-    render(<PostItem post={postWith([channel, writer])} />);
+    render(toElement(PostItem({ post: postWith([channel, writer]) })));
     expect(lastCluster()).toEqual([channel.id, writer.id]);
   });
 });
@@ -366,7 +370,7 @@ describe('PostItem boost wiring', () => {
 it('renders a hydrated quote in the same commit as its parent, without an empty suspense frame', () => {
   mockAvatars.length = 0;
   const quote = { ...postWith([writer]), id: 'quoted-post' };
-  render(<PostItem post={{ ...postWith([owner]), quotedPost: quote }} />);
+  render(toElement(PostItem({ post: { ...postWith([owner]), quotedPost: quote } })));
   // One commit drew both rows' avatars: the parent's author, then the quote's.
   expect(mockAvatars.map((avatar) => avatar.userId)).toEqual([owner.id, writer.id]);
 });
@@ -384,7 +388,7 @@ it.each([false, true])(
     act(() => {
       renderer = TestRenderer.create(
         <BloomThemeProvider fonts={false}>
-          {<PostItem post={parent} isPostDetail={isPostDetail} />}
+          {toElement(PostItem({ post: parent, isPostDetail }))}
         </BloomThemeProvider>,
       );
     });
@@ -395,7 +399,7 @@ it.each([false, true])(
     act(() =>
       tree.update(
         <BloomThemeProvider fonts={false}>
-          {<PostItem post={{ ...parent, quotedPost: quote }} isPostDetail={isPostDetail} />}
+          {toElement(PostItem({ post: { ...parent, quotedPost: quote }, isPostDetail }))}
         </BloomThemeProvider>,
       ),
     );
@@ -403,7 +407,7 @@ it.each([false, true])(
     act(() =>
       tree.update(
         <BloomThemeProvider fonts={false}>
-          {<PostItem post={{ ...parent, quotedPost: null }} isPostDetail={isPostDetail} />}
+          {toElement(PostItem({ post: { ...parent, quotedPost: null }, isPostDetail }))}
         </BloomThemeProvider>,
       ),
     );
@@ -418,12 +422,12 @@ it('aligns focused actions with the full-width text and keeps them before metada
   act(() => {
     feed = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={postWith([owner])} />}
+        {toElement(PostItem({ post: postWith([owner]) }))}
       </BloomThemeProvider>,
     );
     detail = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={postWith([owner])} isPostDetail />}
+        {toElement(PostItem({ post: postWith([owner]), isPostDetail: true }))}
       </BloomThemeProvider>,
     );
   });
@@ -478,7 +482,7 @@ it('shows only the supplied social reason, updates recycled rows and opens the l
   act(() => {
     renderer = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={parent} socialContext={socialContext} />}
+        {toElement(PostItem({ post: parent, socialContext }))}
       </BloomThemeProvider>,
     );
   });
@@ -501,12 +505,12 @@ it('shows only the supplied social reason, updates recycled rows and opens the l
   act(() =>
     tree.update(
       <BloomThemeProvider fonts={false}>
-        {
-          <PostItem
-            post={parent}
-            socialContext={{ ...socialContext, actors: [writer], total: 1 }}
-          />
-        }
+        {toElement(
+          PostItem({
+            post: parent,
+            socialContext: { ...socialContext, actors: [writer], total: 1 },
+          }),
+        )}
       </BloomThemeProvider>,
     ),
   );
@@ -514,7 +518,9 @@ it('shows only the supplied social reason, updates recycled rows and opens the l
   expect(JSON.stringify(tree.toJSON())).not.toContain('2 others');
   act(() =>
     tree.update(
-      <BloomThemeProvider fonts={false}>{<PostItem post={parent} />}</BloomThemeProvider>,
+      <BloomThemeProvider fonts={false}>
+        {toElement(PostItem({ post: parent }))}
+      </BloomThemeProvider>,
     ),
   );
   expect(JSON.stringify(tree.toJSON())).not.toContain('Liked by');
@@ -532,7 +538,7 @@ it('does not infer likes from counts or apply another post’s social context', 
     act(() => {
       renderer = TestRenderer.create(
         <BloomThemeProvider fonts={false}>
-          {<PostItem post={parent} socialContext={context} />}
+          {toElement(PostItem({ post: parent, socialContext: context }))}
         </BloomThemeProvider>,
       );
     });
@@ -551,7 +557,9 @@ it('keeps quote commentary with a generic unavailable subject, then replaces the
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     renderer = TestRenderer.create(
-      <BloomThemeProvider fonts={false}>{<PostItem post={parent} />}</BloomThemeProvider>,
+      <BloomThemeProvider fonts={false}>
+        {toElement(PostItem({ post: parent }))}
+      </BloomThemeProvider>,
     );
   });
   if (!renderer) throw new Error('Post render did not complete');
@@ -561,15 +569,15 @@ it('keeps quote commentary with a generic unavailable subject, then replaces the
   act(() =>
     tree.update(
       <BloomThemeProvider fonts={false}>
-        {
-          <PostItem
-            post={{
+        {toElement(
+          PostItem({
+            post: {
               ...parent,
               quotedPostUnavailable: undefined,
               quotedPost: { ...postWith([writer]), id: 'original' },
-            }}
-          />
-        }
+            },
+          }),
+        )}
       </BloomThemeProvider>,
     ),
   );
@@ -584,7 +592,7 @@ it('opens repost evidence as reposts and does not repeat the same structural boo
   act(() => {
     renderer = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={parent} socialContext={context} />}
+        {toElement(PostItem({ post: parent, socialContext: context }))}
       </BloomThemeProvider>,
     );
   });
@@ -606,7 +614,7 @@ it('opens repost evidence as reposts and does not repeat the same structural boo
   act(() =>
     tree.update(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={parent} repostedBy={writer} socialContext={context} />}
+        {toElement(PostItem({ post: parent, repostedBy: writer, socialContext: context }))}
       </BloomThemeProvider>,
     ),
   );
@@ -636,14 +644,14 @@ it.each([
     act(() => {
       renderer = TestRenderer.create(
         <BloomThemeProvider fonts={false}>
-          {
-            <PostItem
-              post={post}
-              isPostDetail={detail}
-              isNested={nested}
-              openPostEngagement={openPanel}
-            />
-          }
+          {toElement(
+            PostItem({
+              post,
+              isPostDetail: detail,
+              isNested: nested,
+              openPostEngagement: openPanel,
+            }),
+          )}
         </BloomThemeProvider>,
       );
     });

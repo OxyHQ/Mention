@@ -136,7 +136,7 @@ interface PostMenuSubmenu {
 
 export type PostMenuEntry = PostMenuAction | PostMenuSubmenu;
 
-export interface PostMenuActions {
+export interface PostMenuActionGroups {
   insightsAction: PostMenuAction[];
   saveActionGroup: PostMenuEntry[];
   addToListAction: PostMenuAction[];
@@ -164,7 +164,7 @@ export function buildPostMenuActions(
     onInsights,
   }: PostMenuParams,
   { t, viewerId, canUsePrivateApi, router, back, queryClient }: PostMenuDeps,
-): PostMenuActions {
+): PostMenuActionGroups {
   const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
   {
     const postId = viewPost?.id;

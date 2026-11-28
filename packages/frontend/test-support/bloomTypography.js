@@ -36,6 +36,9 @@ module.exports = {
   __esModule: true,
   Text,
   Span: Text,
+  // The Bloom language draws `.textStyle(.title)`/`.subtitle` with these (its TEXT_HOSTS).
+  Title: textComponent('Title'),
+  Subtitle: textComponent('Subtitle'),
   H1: textComponent('H1'),
   H2: textComponent('H2'),
   H3: textComponent('H3'),

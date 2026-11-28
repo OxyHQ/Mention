@@ -235,6 +235,41 @@ it('starts a separate cursor history when the product search changes', async () 
   expect(service.products).toHaveBeenLastCalledWith({ query: 'chairs', cursor: 'shared-cursor' });
 });
 
+it('debounces the product search: one request for the last term, none after unmount', async () => {
+  service.products.mockResolvedValue({ items: [], nextCursor: null } as never);
+  act(() => {
+    renderer = TestRenderer.create(
+      <BloomThemeProvider fonts={false}>
+        <QueryClientProvider client={client}>
+          <CommercePickerSheet selected={[]} onSelect={jest.fn()} onClose={jest.fn()} />
+        </QueryClientProvider>
+      </BloomThemeProvider>,
+    );
+  });
+  await waitUntil(() => service.products.mock.calls.length === 1, 'initial products');
+  const search = () => renderer.root.findByProps({ testID: 'picker-search' }).props;
+  act(() => search().onValueChange('c'));
+  act(() => search().onValueChange('ch'));
+  act(() => search().onValueChange('chairs'));
+  await waitUntil(() => service.products.mock.calls.length === 2, 'the debounced search');
+  // A typed term waits for the debounce; only the last one is searched, once.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  });
+  expect(service.products.mock.calls.map(([options]) => options?.query)).toEqual([
+    undefined,
+    'chairs',
+  ]);
+  // A term typed just before the sheet closes is never searched.
+  act(() => search().onValueChange('tables'));
+  act(() => renderer.unmount());
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  });
+  expect(service.products).toHaveBeenCalledTimes(2);
+  renderer = undefined as never;
+});
+
 it('starts a separate collection cursor history for each account and viewer', async () => {
   service.products.mockResolvedValue({ items: [], nextCursor: null } as never);
   service.storeCollections.mockImplementation(

@@ -1,0 +1,95 @@
+// Printed by bloom migrate from components/rooms/RoomsListSkeleton.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import * as Skeleton from "@oxy.so/bloom/skeleton"
+
+/// Placeholder for the initial live-rooms load. The SDK `RoomCard` renders TWO
+/// shapes depending on `room.status`, so the skeleton mirrors BOTH — otherwise the
+/// real cards land somewhere other than where the placeholder painted:
+///
+///  - LIVE rooms -> a featured card (status pill + listener count, title, speaker
+///    avatars, host byline + Join CTA) inside a rounded surface.
+///  - everything else -> a compact full-width row (host avatar, title + date),
+///    flush with a hairline divider.
+///
+/// Same treatment the feed and notifications use instead of a blank screen.
+private let FEATURED_PLACEHOLDERS = 2
+
+private let ROW_PLACEHOLDERS = 3
+
+private let SPEAKER_PLACEHOLDERS = 3
+
+/// Mirrors the featured (live) card: rounded surface, chip, title, speakers, byline + CTA.
+private struct FeaturedRoomSkeleton: View {
+  var body: some View {
+    VStack {
+      // LIVE chip + "· N listening"
+      Skeleton
+      .Row(style: { alignItems: "center", gap: 6 }) {
+        Skeleton.Pill(size: 18, style: { width: 48 })
+        Skeleton.Text(style: { fontSize: 13, lineHeight: 18, width: 96 })
+      }
+      // Title (17px / 22px)
+      Skeleton.Text(style: { fontSize: 17, lineHeight: 22, width: "80%" })
+      // Overlapping speaker avatars
+      Skeleton
+      .Row(style: { alignItems: "center" }) {
+        for (index, _) in (0..<SPEAKER_PLACEHOLDERS).enumerated() {
+          VStack { Skeleton.Circle(size: 36) }
+          .when((index != 0), { v in v.margin("left", "-md") })
+          .id(index)
+        }
+      }
+      // Host byline + Join CTA
+      Skeleton
+      .Row(style: { alignItems: "center", gap: 8 }) {
+        Skeleton.Circle(size: 20)
+        Skeleton.Text(style: { fontSize: 13, lineHeight: 18, width: 120 })
+        VStack().flex("1")
+        Skeleton.Pill(size: 28, style: { width: 64 })
+      }
+    }
+    .padding(.all, .md)
+    .frame(width: .full)
+    .background(.surface)
+    .border(.border, .thin)
+    .corner(.lg)
+    .margin(.bottom, .md)
+    .spacing("10")
+  }
+}
+
+/// Mirrors the compact (scheduled/ended) row: host avatar + title/date, hairline divider.
+private struct RoomRowSkeleton: View {
+  var body: some View {
+    HStack {
+      Skeleton.Circle(size: 40)
+      VStack {
+        Skeleton.Text(style: { fontSize: 15, lineHeight: 20, width: "65%" })
+        Skeleton.Text(style: { fontSize: 13, lineHeight: 18, width: "40%" })
+      }
+      .flex("1")
+      .spacing(.xs)
+    }
+    .padding(.horizontal, .md)
+    .padding(.vertical, .md)
+    .frame(width: .full)
+    .border(.border, .thin, .bottom)
+    .align(.center)
+    .spacing(.md)
+  }
+}
+
+public struct RoomsListSkeleton: View {
+  var body: some View {
+    SkeletonGroup {
+      VStack {
+        for (index, _) in (0..<FEATURED_PLACEHOLDERS).enumerated() {
+          FeaturedRoomSkeleton().id("featured-\(index)")
+        }
+      }
+      .padding(.horizontal, .lg)
+      for (index, _) in (0..<ROW_PLACEHOLDERS).enumerated() { RoomRowSkeleton().id("row-\(index)") }
+    }
+    .frame(width: .full)
+    .margin(.top, .lg)
+  }
+}

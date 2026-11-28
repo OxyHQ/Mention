@@ -1,0 +1,278 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo (ios), React development build",
+    "machine": "Intel(R) Core(TM) i9-14900K x32",
+    "compiler": "1.7.0-local",
+    "runs": 200,
+    "warmup": 30,
+    "note": "forms interleaved per run in a rotating order; ms are relative Jest timings; cost counts are exact"
+  },
+  "cost": {
+    "ContentWarning/closed": {
+      "ts": {
+        "fibers": 30,
+        "hostFibers": 8,
+        "hooks": 24,
+        "contexts": 4
+      },
+      "bloom": {
+        "fibers": 29,
+        "hostFibers": 8,
+        "hooks": 24,
+        "contexts": 4
+      }
+    },
+    "ContentWarning/open": {
+      "ts": {
+        "fibers": 19,
+        "hostFibers": 5,
+        "hooks": 23,
+        "contexts": 3
+      },
+      "bloom": {
+        "fibers": 18,
+        "hostFibers": 5,
+        "hooks": 23,
+        "contexts": 3
+      }
+    },
+    "PostCommunityRow/link": {
+      "ts": {
+        "fibers": 17,
+        "hostFibers": 4,
+        "hooks": 13,
+        "contexts": 3
+      },
+      "bloom": {
+        "fibers": 16,
+        "hostFibers": 4,
+        "hooks": 13,
+        "contexts": 3
+      }
+    },
+    "PostCommunityRow/plain": {
+      "ts": {
+        "fibers": 16,
+        "hostFibers": 4,
+        "hooks": 13,
+        "contexts": 3
+      },
+      "bloom": {
+        "fibers": 15,
+        "hostFibers": 4,
+        "hooks": 13,
+        "contexts": 3
+      }
+    },
+    "PostCorrectionNotice/once": {
+      "ts": {
+        "fibers": 22,
+        "hostFibers": 6,
+        "hooks": 23,
+        "contexts": 3
+      },
+      "bloom": {
+        "fibers": 21,
+        "hostFibers": 6,
+        "hooks": 23,
+        "contexts": 3
+      }
+    },
+    "PostCorrectionNotice/thrice": {
+      "ts": {
+        "fibers": 22,
+        "hostFibers": 6,
+        "hooks": 23,
+        "contexts": 3
+      },
+      "bloom": {
+        "fibers": 21,
+        "hostFibers": 6,
+        "hooks": 23,
+        "contexts": 3
+      }
+    },
+    "PostLaneChip/tab": {
+      "ts": {
+        "fibers": 12,
+        "hostFibers": 3,
+        "hooks": 10,
+        "contexts": 2
+      },
+      "bloom": {
+        "fibers": 12,
+        "hostFibers": 3,
+        "hooks": 10,
+        "contexts": 2
+      }
+    },
+    "PostLaneChip/mixed": {
+      "ts": {
+        "fibers": 8,
+        "hostFibers": 2,
+        "hooks": 0,
+        "contexts": 1
+      },
+      "bloom": {
+        "fibers": 8,
+        "hostFibers": 2,
+        "hooks": 0,
+        "contexts": 1
+      }
+    }
+  },
+  "timing": {
+    "ContentWarning": {
+      "ts": {
+        "mountWall": {
+          "median": 0.425,
+          "p95": 0.83
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.286,
+          "p95": 0.578
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 0.424,
+          "p95": 0.778
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.282,
+          "p95": 0.539
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      }
+    },
+    "PostCommunityRow": {
+      "ts": {
+        "mountWall": {
+          "median": 0.218,
+          "p95": 0.334
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.162,
+          "p95": 0.252
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 0.197,
+          "p95": 0.276
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.135,
+          "p95": 0.221
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      }
+    },
+    "PostCorrectionNotice": {
+      "ts": {
+        "mountWall": {
+          "median": 0.437,
+          "p95": 0.581
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.362,
+          "p95": 0.466
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 0.421,
+          "p95": 0.544
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.323,
+          "p95": 0.426
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      }
+    },
+    "PostLaneChip": {
+      "ts": {
+        "mountWall": {
+          "median": 0.139,
+          "p95": 0.209
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.1,
+          "p95": 0.16
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 0.135,
+          "p95": 0.199
+        },
+        "mountProfiled": {
+          "median": 0,
+          "p95": 1
+        },
+        "updateWall": {
+          "median": 0.1,
+          "p95": 0.157
+        },
+        "updateProfiled": {
+          "median": 0,
+          "p95": 1
+        }
+      }
+    }
+  }
+}

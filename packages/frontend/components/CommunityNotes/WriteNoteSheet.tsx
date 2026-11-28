@@ -3,7 +3,7 @@ import { ScrollView, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TextFieldHint } from '@oxy.so/bloom/text-field';
 import type { HydratedPostSummary } from '@mention/shared-types';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { NoteSheetHeader } from './NoteSheetHeader';
 
 import {
@@ -108,7 +108,9 @@ export function WriteNoteSheet({ post, onSubmit, onClose }: WriteNoteSheetProps)
               ),
             ).spacing('xs'),
           )}
-          {toElement(VStack(Embed(<PostItem post={post} isNested />)).allowsHitTesting(false))}
+          {toElement(
+            VStack(Embed(toElement(PostItem({ post, isNested: true })))).allowsHitTesting(false),
+          )}
         </ScrollView>,
       ),
       VStack(

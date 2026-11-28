@@ -1,0 +1,140 @@
+// Printed by bloom migrate from components/Compose/PodcastPickerSheet.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { ListSkeleton } from "@/components/loading/ContentSkeleton"
+import {
+  useInfiniteCatalogSearch,
+  ResultsFooter,
+  type InfiniteCatalogSearch,
+} from "@/hooks/useInfiniteCatalogSearch"
+import { type PodcastAttachmentData } from "@/hooks/usePodcastManager"
+import { useTheme } from "@oxy.so/bloom/theme"
+import { Image } from "expo-image"
+import { FlatList } from "react-native"
+
+/// The sheet's list stops growing at 340pt (`max-h-[340px]`): the results scroll inside it.
+private let LIST_STYLE = { maxHeight: 340 }
+
+private struct PodcastSearchResult {
+  let syraPodcastId: String
+  let title: String
+  var author: String? = none
+  var artworkUrl: String? = none
+}
+
+/// A single podcast search result row. Selecting it attaches the show.
+private struct PodcastResultRow: View {
+  let result: PodcastSearchResult
+  let onSelect: (PodcastSearchResult) -> Unit
+  let { colors } = useTheme()
+
+  func handlePress() { onSelect(result) }
+
+  var body: some View {
+    Row(result.title)
+    .onPress(handlePress)
+    .subtitle(result.author)
+    .leadingView(
+      if result.artworkUrl != none && !result.artworkUrl.isEmpty {
+        Image(
+          source: { uri: result.artworkUrl },
+          style: { width: 40, height: 40, borderRadius: 6 },
+          contentFit: "cover",
+          transition: 120,
+        )
+      } else {
+        VStack { Icon(.mic2).size(.md).foregroundStyle(.muted) }
+        .frame(width: .xxxxl, height: .xxxxl)
+        .background(.mutedFill)
+        // The app's `rounded-md` (its radius less 2px) reached only the web.
+        .when(.web, { v in v.corner("14") })
+        .align(.center)
+        .justify(.center)
+      },
+    )
+  }
+}
+
+/// Compose podcast picker: a debounced search over the Syra catalog proxy
+/// (`profile/media/search?type=podcast`) that attaches the chosen show to the
+/// draft. No preview, no profile-store coupling — selecting a row reports the show
+/// via `onSelect` and closes. Mirrors the podcast flow of `MediaPickerSheet`.
+public struct PodcastPickerSheet: View {
+  let onSelect: (PodcastAttachmentData) -> Unit
+  let onClose: () -> Unit
+  let { colors } = useTheme()
+
+  @State private var query = ""
+
+  let search: InfiniteCatalogSearch<PodcastSearchResult> = useInfiniteCatalogSearch(
+    "podcast",
+    query,
+  )
+
+  func handleSelect(_ result: PodcastSearchResult) {
+    onSelect({ syraPodcastId: result.syraPodcastId })
+    onClose()
+  }
+
+  var body: some View {
+    VStack {
+      RawText(String(localized: "compose.podcast.title"))
+      .foregroundStyle(.foreground)
+      .font("18")
+      .leading("28px")
+      .weight(.bold)
+      .margin(.bottom, .md)
+      Search($query)
+      .label(String(localized: "compose.podcast.searchPlaceholder"))
+      .onClearText { query = "" }
+      .autocapitalize(.none)
+      .autocorrect(false)
+      // Results
+      VStack {
+        if search.isLoading {
+          ListSkeleton()
+        } else if search.isError {
+          RawText(String(localized: "compose.podcast.searchError"))
+          .padding(.vertical, .xxxxl)
+          .foregroundStyle(.muted)
+          .font(.md)
+          .textAlign(.center)
+        } else if !search.hasQuery {
+          RawText(String(localized: "compose.podcast.searchHint"))
+          .padding(.vertical, .xxxxl)
+          .foregroundStyle(.muted)
+          .font(.md)
+          .textAlign(.center)
+        } else if search.results.length == 0 {
+          VStack {
+            Icon(.search).size(.xxl).foregroundStyle(.muted)
+            RawText(String(localized: "compose.podcast.empty")).foregroundStyle(.muted).font(.md)
+          }
+          .padding(.vertical, .xxxxl)
+          .align(.center)
+          .justify(.center)
+          .spacing(.sm)
+        } else {
+          FlatList(
+            data: search.results,
+            keyExtractor: { item in item.syraPodcastId },
+            renderItem: { arg in
+              let { item } = arg
+              PodcastResultRow(result: item, onSelect: handleSelect)
+            },
+            style: LIST_STYLE,
+            showsVerticalScrollIndicator: false,
+            keyboardShouldPersistTaps: "handled",
+            onEndReached: search.loadMore,
+            onEndReachedThreshold: 0.4,
+            ListFooterComponent: ResultsFooter(loading: search.isFetchingNextPage),
+          )
+        }
+      }
+      .frame(minHeight: "120")
+      .margin(.top, .sm)
+    }
+    .padding(.horizontal, .lg)
+    .padding(.top, .md)
+    .padding(.bottom, .sm)
+    .background(.background)
+  }
+}

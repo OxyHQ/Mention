@@ -1,0 +1,68 @@
+// TanStack Query (`@tanstack/react-query`), the part Mention's modules use: `useQuery` and a
+// cursor-paged `useInfiniteQuery`, with the options and results Mention reads. Curated by
+// hand: the package's overloads take mapped and conditional types Bloom does not read.
+// `bloom check --tsc` checks each crossing against the package's own declarations.
+//
+// Not here yet (each is a compiler gap, ~/.local/share/bloom-lang/repros/mention6/README.md):
+// - `error`: TanStack's is `Error | null`, and a binding's `Error?` field is `Error | undefined`;
+// - a generic page cursor `P`: TanStack's `QueryFunctionContext<K, P>` is conditional on `P`, so
+//   only a concrete cursor (`String?`, 21 of Mention's 27 infinite queries) checks.
+extern module "@tanstack/react-query" {
+  /// A query key's parts: strings, ids and records, compared by value (TanStack hashes them).
+  public type QueryKey = Foreign<"readonly unknown[]">
+  /// What a refetch or a next page settles with; Mention reads the result's fields instead.
+  public type Settled = Foreign<"unknown">
+
+  public struct QueryOptions<T> {
+    public let queryKey: QueryKey
+    public let queryFn: () async throws -> T
+    public var enabled: Bool? = none
+    public var staleTime: Float? = none
+    public var gcTime: Float? = none
+    public var refetchInterval: Float? = none
+  }
+
+  public struct QueryResult<T> {
+    public let data: T?
+    public let isLoading: Bool
+    public let isPending: Bool
+    public let isFetching: Bool
+    public let isError: Bool
+    public let refetch: () async -> Settled
+  }
+
+  public func useQuery<T>(_ options: QueryOptions<T>) -> QueryResult<T>
+
+  /// What an infinite query's `queryFn` is called with: the page's cursor (`none` first).
+  public struct PageContext {
+    public let pageParam: String?
+  }
+
+  public struct InfiniteQueryOptions<T> {
+    public let queryKey: QueryKey
+    public let queryFn: (PageContext) async throws -> T
+    public let initialPageParam: String?
+    /// The next page's cursor from the last page, or `none` at the end.
+    public let getNextPageParam: (T) -> String?
+    public var enabled: Bool? = none
+    public var staleTime: Float? = none
+  }
+
+  public struct InfiniteData<T> {
+    public let pages: [T]
+  }
+
+  public struct InfiniteQueryResult<T> {
+    public let data: InfiniteData<T>?
+    public let isLoading: Bool
+    public let isPending: Bool
+    public let isFetching: Bool
+    public let isError: Bool
+    public let hasNextPage: Bool
+    public let isFetchingNextPage: Bool
+    public let fetchNextPage: () async -> Settled
+    public let refetch: () async -> Settled
+  }
+
+  public func useInfiniteQuery<T>(_ options: InfiniteQueryOptions<T>) -> InfiniteQueryResult<T>
+}

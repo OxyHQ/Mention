@@ -1,0 +1,392 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo, React development build",
+    "machine": "Intel(R) Core(TM) i9-14900K x32",
+    "compiler": "1.8.0-local",
+    "runs": 200,
+    "warmup": 30,
+    "note": "forms interleaved per run in a rotating order; ms are relative Jest timings"
+  },
+  "timing": {
+    "text": {
+      "ts": {
+        "mountWall": {
+          "median": 3.318,
+          "p95": 5.934
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 5
+        },
+        "updateWall": {
+          "median": 1.961,
+          "p95": 3.753
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 3
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 3.197,
+          "p95": 5.622
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 5
+        },
+        "updateWall": {
+          "median": 1.973,
+          "p95": 4.24
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 4
+        }
+      }
+    },
+    "textAvatar": {
+      "ts": {
+        "mountWall": {
+          "median": 3.019,
+          "p95": 7.17
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 6
+        },
+        "updateWall": {
+          "median": 2.024,
+          "p95": 4.242
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 4
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 2.749,
+          "p95": 5.63
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 5
+        },
+        "updateWall": {
+          "median": 1.818,
+          "p95": 4.337
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 4
+        }
+      }
+    },
+    "image": {
+      "ts": {
+        "mountWall": {
+          "median": 3.218,
+          "p95": 5.924
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 5
+        },
+        "updateWall": {
+          "median": 1.996,
+          "p95": 5.092
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 4
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 3.14,
+          "p95": 6.322
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 5
+        },
+        "updateWall": {
+          "median": 2.045,
+          "p95": 4.291
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 4
+        }
+      }
+    },
+    "multiImage": {
+      "ts": {
+        "mountWall": {
+          "median": 4.052,
+          "p95": 9.376
+        },
+        "mountProfiled": {
+          "median": 4,
+          "p95": 9
+        },
+        "updateWall": {
+          "median": 3.254,
+          "p95": 7.467
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 7
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 3.928,
+          "p95": 8.535
+        },
+        "mountProfiled": {
+          "median": 4,
+          "p95": 7
+        },
+        "updateWall": {
+          "median": 3.144,
+          "p95": 6.792
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 6
+        }
+      }
+    },
+    "video": {
+      "ts": {
+        "mountWall": {
+          "median": 4.094,
+          "p95": 8.572
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 8
+        },
+        "updateWall": {
+          "median": 2.903,
+          "p95": 7.381
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 6
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 3.943,
+          "p95": 8.367
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 7
+        },
+        "updateWall": {
+          "median": 3.217,
+          "p95": 6.518
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 6
+        }
+      }
+    },
+    "linkPreview": {
+      "ts": {
+        "mountWall": {
+          "median": 3.907,
+          "p95": 7.557
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 7
+        },
+        "updateWall": {
+          "median": 2.718,
+          "p95": 6.108
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 5
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 4.013,
+          "p95": 8.529
+        },
+        "mountProfiled": {
+          "median": 4,
+          "p95": 8
+        },
+        "updateWall": {
+          "median": 2.853,
+          "p95": 5.537
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 5
+        }
+      }
+    },
+    "quote": {
+      "ts": {
+        "mountWall": {
+          "median": 5.56,
+          "p95": 12.685
+        },
+        "mountProfiled": {
+          "median": 5,
+          "p95": 12
+        },
+        "updateWall": {
+          "median": 3.599,
+          "p95": 8.832
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 9
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 5.471,
+          "p95": 15.889
+        },
+        "mountProfiled": {
+          "median": 5,
+          "p95": 14
+        },
+        "updateWall": {
+          "median": 3.74,
+          "p95": 9.49
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 9
+        }
+      }
+    },
+    "repost": {
+      "ts": {
+        "mountWall": {
+          "median": 5.098,
+          "p95": 9.84
+        },
+        "mountProfiled": {
+          "median": 4,
+          "p95": 8
+        },
+        "updateWall": {
+          "median": 3.455,
+          "p95": 6.735
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 6
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 4.847,
+          "p95": 9.376
+        },
+        "mountProfiled": {
+          "median": 4,
+          "p95": 8
+        },
+        "updateWall": {
+          "median": 3.639,
+          "p95": 7.139
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 6
+        }
+      }
+    },
+    "poll": {
+      "ts": {
+        "mountWall": {
+          "median": 3.281,
+          "p95": 7.094
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 7
+        },
+        "updateWall": {
+          "median": 2.239,
+          "p95": 4.778
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 4
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 3.332,
+          "p95": 6.06
+        },
+        "mountProfiled": {
+          "median": 3,
+          "p95": 5
+        },
+        "updateWall": {
+          "median": 2.432,
+          "p95": 7.179
+        },
+        "updateProfiled": {
+          "median": 2,
+          "p95": 5
+        }
+      }
+    },
+    "communityNote": {
+      "ts": {
+        "mountWall": {
+          "median": 4.702,
+          "p95": 9.973
+        },
+        "mountProfiled": {
+          "median": 4,
+          "p95": 9
+        },
+        "updateWall": {
+          "median": 3.354,
+          "p95": 7.45
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 7
+        }
+      },
+      "bloom": {
+        "mountWall": {
+          "median": 4.857,
+          "p95": 8.965
+        },
+        "mountProfiled": {
+          "median": 4,
+          "p95": 8
+        },
+        "updateWall": {
+          "median": 3.44,
+          "p95": 6.821
+        },
+        "updateProfiled": {
+          "median": 3,
+          "p95": 7
+        }
+      }
+    }
+  }
+}

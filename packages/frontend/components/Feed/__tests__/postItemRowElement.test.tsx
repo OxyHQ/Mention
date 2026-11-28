@@ -4,11 +4,12 @@ import { View } from 'react-native';
 import { PostVisibility } from '@mention/shared-types';
 import type { HydratedAuthor, HydratedPost } from '@mention/shared-types';
 
-import PostItem from '../PostItem';
+import { PostItem } from '../PostItem.bloom';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { enterThreadHover, leaveThreadHover, useThreadHoverStore } from '@/stores/threadHoverStore';
 // The subject draws language text, whose Painted leaf reads Bloom's theme from the app's provider.
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { toElement } from '@oxy.so/bloom-language';
 
 /**
  * The row's host element type must NOT depend on the route.
@@ -76,11 +77,14 @@ jest.mock('@oxy.so/bloom/subtle-hover', () => ({
 }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../Post/PostLaneChip.bloom', () => ({ __esModule: true, PostLaneChip: () => null }));
+jest.mock('../../Post/ContentWarning.bloom', () => ({
+  __esModule: true,
+  ContentWarning: () => null,
+}));
+jest.mock('../../Post/PostActions.bloom', () => ({ __esModule: true, PostActions: () => null }));
 jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostLocation', () => ({ __esModule: true, postLocation: () => null }));
+jest.mock('../../Post/PostLocation.bloom', () => ({ __esModule: true, postLocation: () => null }));
 jest.mock('../../Post/PostAttachmentsRow', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../ProfileHoverCard', () => ({
   ProfileHoverCard: ({ children }: { children: React.ReactNode }) => children,
@@ -164,7 +168,7 @@ function renderRowRoot(isPostDetail: boolean) {
   act(() => {
     renderer = TestRenderer.create(
       <BloomThemeProvider fonts={false}>
-        {<PostItem post={post} isPostDetail={isPostDetail} />}
+        {toElement(PostItem({ post, isPostDetail }))}
       </BloomThemeProvider>,
     );
   });
@@ -220,7 +224,7 @@ describe('thread hover isolation', () => {
     act(() => {
       renderer = TestRenderer.create(
         <BloomThemeProvider fonts={false}>
-          {<PostItem post={post} isThread isPostDetail sliceKey="detail" />}
+          {toElement(PostItem({ post, isThread: true, isPostDetail: true, sliceKey: 'detail' }))}
         </BloomThemeProvider>,
       );
     });
@@ -250,20 +254,26 @@ describe('thread hover isolation', () => {
       thirdVisible = true,
     ) => (
       <BloomThemeProvider fonts={false}>
-        {firstVisible && (
-          <PostItem
-            key="first"
-            post={first}
-            isThread={firstThread}
-            sliceKey={firstSlice}
-            threadOpenId={`thread-${firstSlice}`}
-          />
+        {firstVisible &&
+          toElement(
+            PostItem({
+              post: first,
+              isThread: firstThread,
+              sliceKey: firstSlice,
+              threadOpenId: `thread-${firstSlice}`,
+            }),
+            'first',
+          )}
+        {toElement(
+          PostItem({ post: second, isThread: true, sliceKey: 'a', threadOpenId: 'thread-a' }),
+          'second',
         )}
-        <PostItem key="second" post={second} isThread sliceKey="a" threadOpenId="thread-a" />
-        {thirdVisible && (
-          <PostItem key="third" post={third} isThread sliceKey="b" threadOpenId="thread-b" />
-        )}
-        <PostItem key="standalone" post={standalone} />
+        {thirdVisible &&
+          toElement(
+            PostItem({ post: third, isThread: true, sliceKey: 'b', threadOpenId: 'thread-b' }),
+            'third',
+          )}
+        {toElement(PostItem({ post: standalone }), 'standalone')}
       </BloomThemeProvider>
     );
     let renderer!: TestRenderer.ReactTestRenderer;

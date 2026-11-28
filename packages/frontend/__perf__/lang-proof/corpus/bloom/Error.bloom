@@ -1,0 +1,64 @@
+// Printed by bloom migrate from components/Error.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { EmptyState } from "@/components/common/EmptyState"
+import { useRouter } from "@/lib/navigation/router"
+import { useContentSafeAreaInsets } from "@oxy.so/bloom/layout"
+import { StyleSheet, View, type ViewStyle } from "react-native"
+
+// The screen's frame keeps React Native's view: its vertical padding adds the
+// safe area's insets, a runtime value no space token holds.
+private let styles = StyleSheet.create(
+  screen: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "0%",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+)
+
+/// A whole screen that failed to load: the shared EmptyState in its error form
+/// — the "could not load" sticker, a retry — with a quieter way back beneath it.
+public struct Error: View {
+  var title: String = "Something went wrong"
+  var message: String = "An unexpected error occurred. Please try again."
+  var onRetry: (() -> Promise<Unit>?)? = none
+  var onGoBack: (() -> Unit)? = none
+  var hideBackButton: Bool = false
+  var sideBorders: Bool? = none
+  var style: ViewStyle? = none
+  let router = useRouter()
+  let insets = useContentSafeAreaInsets()
+
+  func handleGoBack() {
+    if let onGoBack = onGoBack {
+      onGoBack()
+    } else if router.canGoBack() {
+      router.back()
+    } else {
+      router.push("/")
+    }
+  }
+
+  var body: some View {
+    View(
+      style: [
+        styles.screen,
+        { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
+        style,
+      ],
+    ) {
+      EmptyState(
+        error: { title: title, message: message, onRetry: onRetry != none ? { onRetry() } : none },
+        footer: hideBackButton ? none : Button {
+          Icon(.arrowLeft)
+          Text(router.canGoBack() ? "Go back" : "Go home")
+        }
+          .style(.subtle)
+          .tint(.neutral)
+          .onPress(handleGoBack),
+      )
+    }
+  }
+}

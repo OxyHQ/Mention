@@ -1,0 +1,61 @@
+// Printed by bloom migrate from components/Podcast/PostPodcastAttachment.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { PodcastCard } from "@/components/Podcast/PodcastCard"
+import { PodcastSaveButton } from "@/components/Podcast/PodcastSaveButton"
+import { useVisibleReference } from "@/hooks/useVisibleReference"
+import { syraPodcastCards } from "@/lib/references/syraPodcastCards"
+import { type PostPodcastContent } from "@mention/shared-types/post"
+import { useViewableVisible } from "@oxy.so/bloom/video-playback"
+import { View, type DimensionValue, type ViewInstance, type ViewStyle } from "react-native"
+
+// The card's box stays a view (it is measured for visibility and sized by its post);
+// this draws its classes, `rounded-2xl overflow-hidden`.
+private let attachmentBox: ViewStyle = { borderRadius: 16, overflow: "hidden" }
+
+/// Even cached pre-migration feed objects contribute ONLY their ID.
+public struct PostPodcastAttachment: View {
+  let podcast: PostPodcastContent
+  var postId: String? = none
+  let width: DimensionValue
+  var height: Float = 200
+  var showSaveButton: Bool = true
+  var onPress: (() -> Unit)? = none
+  @State private var cardRef = ViewRef<ViewInstance>()
+  let visible = useViewableVisible(viewabilityKey: postId, target: cardRef)
+  let state = useVisibleReference(syraPodcastCards, podcast.syraPodcastId, visible)
+  let value = state.status == "ready" ? state.value : none
+
+  var body: some View {
+    View(
+      ref: cardRef,
+      testID: "syra-podcast-card",
+      style: [attachmentBox, { width: width, height: height }],
+    ) {
+      if value {
+        PodcastCard(
+          title: value.title,
+          author: value.author,
+          artworkUrl: value.artworkUrl,
+          showUrl: value.showUrl,
+          width: "100%",
+          height: height,
+          onPress: onPress,
+          saveButton: showSaveButton ? PodcastSaveButton(podcastId: value.id) : none,
+        )
+      } else {
+        VStack {
+          RawText(
+            state.status == "loading" ? String(localized: "podcast.loading") : String(
+              localized: "podcast.unavailable",
+            ),
+          )
+          .foregroundStyle(.muted)
+          .liveRegion(.polite)
+        }
+        .padding(.all, .lg)
+        .background(.card)
+        .flex("1")
+        .justify(.center)
+      }
+    }
+  }
+}

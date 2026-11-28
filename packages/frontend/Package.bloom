@@ -1,0 +1,11 @@
+let package = Package(
+  name: "Mention",
+  platforms: [.iOS(17), .android(26), .web],
+  dependencies: [
+    .package("Bloom", from: "23.10.0"),
+  ],
+  targets: [
+    .app("Mention", path: ".", dependencies: ["TanStackQuery"]),
+    .bindings("TanStackQuery", npm: "@tanstack/react-query@5.105.3"),
+  ]
+)

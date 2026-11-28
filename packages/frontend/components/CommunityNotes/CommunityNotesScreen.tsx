@@ -8,7 +8,7 @@ import type {
   HydratedPostSummary,
 } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { useOpenPostEngagement } from '@/components/Post/postEngagementContext';
 import { CommunityNoteCard } from './CommunityNoteCard';
 import { useCommunityNoteSheets, type CommunityNoteWriteHandlers } from './useCommunityNoteSheets';
@@ -119,7 +119,7 @@ export const CommunityNotesScreen = screen(function CommunityNotesScreen({
           toElement(
             VStack(
               VStack(
-                Embed(<PostItem post={post} isNested openPostEngagement={openPostEngagement} />),
+                Embed(toElement(PostItem({ post, isNested: true, openPostEngagement }))),
               ).padding('horizontal', 'lg'),
               VStack(
                 Embed(

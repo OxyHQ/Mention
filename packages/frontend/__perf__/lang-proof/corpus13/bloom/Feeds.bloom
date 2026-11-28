@@ -1,0 +1,546 @@
+// Printed by bloom migrate from app/(app)/feeds.tsx (needs review); relative imports as @/ paths. DEV ONLY.
+import { SEO } from "@/components/SEO"
+import { SupervisedFeatureGate } from "@/components/SupervisedFeatureGate.bloom"
+import { ListSkeleton } from "@/components/loading/ContentSkeleton"
+import { type BloomIcon } from "@/components/settings/RowIcon"
+import { requestSettings } from "@/components/settings/settingsRoutes"
+import { useAgeProtections } from "@/hooks/useAgeProtections"
+import { useFeedPreferences } from "@/hooks/useFeedPreferences"
+import { type Trend } from "@/interfaces/Trend"
+import { useRouter, useFocusEffect } from "@/lib/navigation/router"
+import { customFeedsService } from "@/services/customFeedsService"
+import { useTrendsStore } from "@/stores/trendsStore"
+import { reportTrendEvent } from "@/utils/feedTelemetry"
+import { formatCompactNumber } from "@/utils/formatNumber"
+import { PRESET_FEEDS, type PresetFeed } from "@mention/shared-types/mtn/presetFeeds"
+import { MEDIA_VARIANT_AVATAR } from "@mention/shared-types/post"
+import { defineTokens, identity } from "@oxy.so/bloom-language"
+import { RiEarthLine } from "@oxy.so/bloom/icons/RiEarthLine"
+import { RiFireLine } from "@oxy.so/bloom/icons/RiFireLine"
+import { RiGroupLine } from "@oxy.so/bloom/icons/RiGroupLine"
+import { RiHeartLine } from "@oxy.so/bloom/icons/RiHeartLine"
+import { RiSparklingLine } from "@oxy.so/bloom/icons/RiSparklingLine"
+import { RiUserCommunityLine } from "@oxy.so/bloom/icons/RiUserCommunityLine"
+import { useTheme } from "@oxy.so/bloom/theme"
+import { logger } from "@oxy.so/core/logger"
+import { useAuth } from "@oxy.so/services/ui/client"
+import { Promise } from "js"
+import { useTranslation } from "react-i18next"
+import { StyleSheet } from "react-native"
+
+private let appColors = defineTokens(color: { hexfff: "#fff" })
+
+/// Live trends offered on this screen.
+///
+/// A handful, not the whole batch: this is a DIRECTORY, and the trending page is
+/// one tap away for the rest. Enough to answer "is anything happening?" without
+/// the day's churn pushing the curated shelf off the screen.
+private let TREND_FEED_LIMIT = 5
+
+/// Pin key for a trend row. Keyed on the TERM, which is what the descriptor addresses.
+private func trendKey(_ trend: Trend) -> String { "trend:\(trend.text)" }
+
+/// Bloom glyph per preset id. The shared catalog carries Lucide names; the feeds
+/// screen renders with Bloom's Remix icons, so this maps the small, fixed preset
+/// set rather than pulling in a second icon library.
+private let PRESET_ICONS: [String: BloomIcon] = [
+  "for_you": RiSparklingLine,
+  "following": RiGroupLine,
+  "trending": RiFireLine,
+  "explore": RiEarthLine,
+  "mutuals": RiUserCommunityLine,
+  "friends_popular": RiHeartLine,
+]
+
+private struct FeedItem {
+  var _id: String? = none
+  var id: String? = none
+  var uri: String? = none
+  var title: String? = none
+  var description: String? = none
+  var avatar: String? = none
+  var owner: { username: String?, handle: String?, displayName: String?, avatar: String? }? = none
+  var memberOxyUserIds: [String]? = none
+  var likeCount: Float? = none
+  var isLiked: Bool? = none
+}
+
+/// A directory row: its body, then the pin control when the viewer can edit,
+/// over a hairline rule.
+private func feedRow(_ body: View, _ pin: View?) -> View {
+  HStack(body, pin)
+  .align(.center)
+  .spacing(.md)
+  .padding(.vertical, .md)
+  .border(.border, .hairline, .bottom)
+}
+
+// Pin toggle button shared by preset + custom rows.
+private func pinButton(_ pinned: Bool, _ onPress: () -> Unit) -> View {
+  VStack {
+    if pinned {
+      Icon(.check).size("14").foregroundStyle(.foreground)
+    } else {
+      Icon(.add).size("14").foregroundStyle(appColors.color.hexfff)
+    }
+  }
+  .frame(width: "28", height: "28")
+  .background(pinned ? .surface : .primary)
+  .corner("14")
+  .align(.center)
+  .justify(.center)
+  .onPress(onPress)
+  .hitSlop(.md)
+  .pressFade()
+}
+
+// Built-in preset feed row (For You / Following / Trending / Discover / …). The
+// row body opens the feed viewer; pin/unpin is a separate control beside it.
+private struct PresetRow: View {
+  let preset: PresetFeed
+  let pinned: Bool
+  let canEdit: Bool
+  let onOpen: () -> Unit
+  let onTogglePin: () -> Unit
+  let t: (String) -> String
+  let theme = useTheme()
+  let PresetIcon = PRESET_ICONS[preset.id] ?? RiSparklingLine
+
+  var body: some View {
+    feedRow(
+      HStack {
+        VStack { PresetIcon(width: 20, height: 20, fill: theme.colors.primary) }
+        .frame(width: "36", height: "36")
+        .background(.mutedFill)
+        .corner(.infinite)
+        .align(.center)
+        .justify(.center)
+        VStack {
+          RawText(t(preset.labelKey))
+          .font(.md)
+          .weight(.semibold)
+          .foregroundStyle(.foreground)
+          .lineLimit(1)
+          RawText(t(preset.descriptionKey))
+          .font(.sm)
+          .leading("18px")
+          .foregroundStyle(.muted)
+          .lineLimit(2)
+        }
+        .flex("1")
+        .spacing(.xxs)
+      }
+        .flex("1")
+        .align(.center)
+        .spacing(.md)
+        .onPress(onOpen)
+        .role(.button)
+        .label(t(preset.labelKey))
+        .pressFade("70"),
+      canEdit ? pinButton(pinned, onTogglePin) : none,
+    )
+  }
+}
+
+/// A live trend, offered as a feed.
+///
+/// Rendered BELOW the curated presets on purpose: curated feeds are the editorial
+/// shelf and these are what happens to be loud today, so they are an addition to
+/// the directory rather than a competitor for its top.
+///
+/// Pinnable like anything else, and that is not a slip. Unlike Bluesky's — where
+/// a trend is a frozen record that stops meaning anything once the moment passes
+/// — our `trend|<term>` is a live query over the term with no time window. Pin
+/// `trend|fifa` and it keeps working long after FIFA stops trending, as "posts
+/// about fifa". The trend is what surfaced it; the feed outlives it.
+private func TrendFeedRow(
+  _ arg: { trend: Trend, subtitle: String, pinned: Bool, canEdit: Bool, onOpen: () -> Unit, onTogglePin: () -> Unit },
+) -> View {
+  let { trend, subtitle, pinned, canEdit, onOpen, onTogglePin } = arg
+  feedRow(
+    HStack {
+      VStack { Icon(.lineChart).size(.md).foregroundStyle(.primary) }
+      .frame(width: "36", height: "36")
+      .background(.mutedFill)
+      .corner(.infinite)
+      .align(.center)
+      .justify(.center)
+      VStack {
+        RawText(trend.displayName)
+        .font(.md)
+        .weight(.semibold)
+        .foregroundStyle(.foreground)
+        .lineLimit(1)
+        RawText(subtitle).font(.sm).leading("18px").foregroundStyle(.muted).lineLimit(1)
+      }
+      .flex("1")
+      .spacing(.xxs)
+    }
+      .flex("1")
+      .align(.center)
+      .spacing(.md)
+      .onPress(onOpen)
+      .role(.button)
+      .label(trend.displayName)
+      .pressFade("70"),
+    canEdit ? pinButton(pinned, onTogglePin) : none,
+  )
+}
+
+// Compact custom-feed card row. The row body opens the feed detail; pin/unpin is
+// a separate control beside it.
+private func FeedRow(
+  _ arg: { item: FeedItem, pinned: Bool, canEdit: Bool, onOpen: () -> Unit, onTogglePin: () -> Unit },
+) -> View {
+  let { item, pinned, canEdit, onOpen, onTogglePin } = arg
+  let memberCount = (item.memberOxyUserIds ?? []).count
+  feedRow(
+    HStack {
+      Avatar(
+        ((item.avatar != none && !item.avatar.isEmpty) ? item.avatar : none),
+        { variant: MEDIA_VARIANT_AVATAR },
+      )
+      .size(.lg)
+      VStack {
+        RawText(item.title || "Untitled Feed")
+        .font(.md)
+        .weight(.semibold)
+        .foregroundStyle(.foreground)
+        .lineLimit(1)
+        RawText(
+          // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+          item.owner != none ? "@\((item.owner.username || item.owner.handle) ?? "")" : "",
+          memberCount > 0 ? " · \(formatCompactNumber(memberCount)) members" : "",
+          item.likeCount != none &&
+            item.likeCount > 0 ? " · \(formatCompactNumber(item.likeCount)) likes" : "",
+        )
+        .font(.sm)
+        .foregroundStyle(.muted)
+        .lineLimit(1)
+        if item.description != none && !item.description.isEmpty {
+          RawText(item.description)
+          .font(.sm)
+          .leading("18px")
+          .margin(.top, .xxs)
+          .foregroundStyle(.muted)
+          .lineLimit(2)
+        }
+      }
+      .flex("1")
+      .spacing(.xxs)
+    }
+      .flex("1")
+      .align(.center)
+      .spacing(.md)
+      .onPress(onOpen)
+      .role(.button)
+      .label(item.title || "Untitled Feed")
+      .pressFade("70"),
+    canEdit ? pinButton(pinned, onTogglePin) : none,
+  )
+}
+
+public struct FeedsScreen: Screen {
+  let router = useRouter()
+  let { t } = useTranslation()
+  let theme = useTheme()
+  let { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth()
+  let { isPinned, pin, unpin, canEdit } = useFeedPreferences()
+  @State private var myFeeds: [FeedItem] = []
+  @State private var publicFeeds: [FeedItem] = []
+  @State private var loading = false
+  @State private var refreshing = false
+  @State private var searchQuery = ""
+
+  func loadFeeds() async {
+    if !isAuthResolved || isPrivateApiPending { return }
+
+    defer {
+      loading = false
+      refreshing = false
+    }
+    do {
+      loading = true
+      let (mine, pub_) = try await Promise.all(
+        [
+          canUsePrivateApi ? customFeedsService.list(mine: true) : Promise.resolve(
+            items: [],
+            total: 0,
+          ),
+          customFeedsService.list(publicOnly: true),
+        ],
+      )
+
+      myFeeds = mine.items ?? []
+
+      // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+      let mineIds = Set((mine.items ?? []).map { feed in "\((feed._id || feed.id) ?? "")" })
+      publicFeeds = (pub_.items ?? []).filter { feed in
+        // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+        !mineIds.contains("\((feed._id || feed.id) ?? "")")
+      }
+    } catch let e { logger.warn("Failed loading feeds", error: e) }
+  }
+
+  // Reload on focus so a feed created / edited in the builder appears when the
+  // user returns to this screen (loadFeeds no-ops until auth resolves).
+  func focusEffectCallback() -> (() -> Unit)? {
+    task { await loadFeeds() }
+
+    return none
+  }
+  let _ = useFocusEffect(focusEffectCallback)
+
+  func onRefresh() {
+    refreshing = true
+    task { await loadFeeds() }
+  }
+
+  // Presets available to this viewer: hide viewer-relative (requiresAuth) presets
+  // for anonymous viewers, and the ranked ones for a minor's account, which is
+  // served none of them (oxy ADR 0068).
+  let { feedProfile } = useAgeProtections()
+  let visiblePresets = PRESET_FEEDS.filter {
+    preset in
+    (canUsePrivateApi || !preset.requiresAuth) && !(feedProfile == "protected" && preset.ranked)
+  }
+
+  // Live trends, offered as feeds under the curated shelf.
+  //
+  // Read from the store rather than fetched: every other trending surface
+  // already shares it, so this screen costs no request, inherits the reader's
+  // language ordering, and honours the trends they hid.
+  let trends = useTrendsStore { state in state.trends }
+  let hiddenTrendIds = useTrendsStore { state in state.hiddenTrendIds }
+  let fetchTrends = useTrendsStore { state in state.fetchTrends }
+  let hasFetchedTrends = useTrendsStore { state in state.hasFetched }
+
+  let trendFeeds: [Foreign] = trends
+    .filter { trend in !hiddenTrendIds.includes(trend.id) }
+    .slice(0, TREND_FEED_LIMIT)
+
+  // A trend opens and pins exactly like every other row here: through the shared
+  // viewer, addressed by its descriptor. `navigateToTrend` is the RICH screen
+  // (header, category, generated summary) reached from the widget and search;
+  // this is the feeds directory, where a row's job is to open the feed itself.
+  // Both request the identical descriptor, so they are two presentations of one
+  // feed rather than two feeds.
+  func openTrend(_ trend: Trend, _ rank: Float) {
+    reportTrendEvent(
+      {
+        event: "click",
+        type: trend.type,
+        surface: "feeds",
+        rank: rank,
+        recId: (trend.recId != none && !trend.recId.isEmpty) ? trend.recId : none,
+      },
+    )
+    router
+    .push(
+      pathname: "/feeds/view",
+      params: { descriptor: "trend|\(trend.text)", title: trend.displayName },
+    )
+  }
+
+  func toggleTrend(_ trend: Trend) {
+    let key = trendKey(trend)
+    if isPinned(key) { unpin(key) } else { pin(key: key, descriptor: "trend|\(trend.text)") }
+  }
+
+  func togglePreset(_ preset: PresetFeed) {
+    if isPinned(preset.id) {
+      unpin(preset.id)
+    } else {
+      pin(key: preset.id, descriptor: preset.descriptor)
+    }
+  }
+
+  // Tapping a preset row opens a read-only viewer for that descriptor (no pin
+  // required); the descriptor + resolved title are passed through to the viewer.
+  func openPreset(_ preset: PresetFeed) {
+    router
+    .push(
+      pathname: "/feeds/view",
+      params: { descriptor: preset.descriptor, title: t(preset.labelKey) },
+    )
+  }
+
+  func toggleCustom(_ feedId: String) {
+    let key = "custom:\(feedId)"
+    if isPinned(key) { unpin(key) } else { pin(key: key, descriptor: "custom|\(feedId)") }
+  }
+
+  let filteredPublic = {
+    if (searchQuery.trimmed()).isEmpty { return publicFeeds }
+    let q = searchQuery.lowercased()
+    publicFeeds
+    .filter {
+      f in
+      ((f.title?.lowercased()?.contains(q)) == true ||
+        ((f.description?.lowercased()?.contains(q)) == true ||
+          (f.owner?.username?.lowercased()?.contains(q) == true)))
+    }
+  }()
+
+  // Directory body — identical on both platforms; only the scroll host differs.
+  let content = Group {
+    RawText(
+      // Built-in preset feeds
+      t("feeds.presets.title"),
+    )
+    .font(.md)
+    .weight(.bold)
+    .foregroundStyle(.foreground)
+    .margin(.top, .sm)
+    .margin(.bottom, .xs)
+    for preset in visiblePresets {
+      PresetRow(
+        preset: preset,
+        pinned: isPinned(preset.id),
+        canEdit: canEdit,
+        onOpen: { openPreset(preset) },
+        onTogglePin: { togglePreset(preset) },
+        t: t,
+      )
+      .id(preset.id)
+    }
+    if trendFeeds.count > 0 {
+      Group {
+        RawText(
+          // Live trends — under the curated shelf, never above it.
+          t("feeds.trending.title"),
+        )
+        .font(.md)
+        .weight(.bold)
+        .foregroundStyle(.foreground)
+        .margin(.top, .xxl)
+        .margin(.bottom, .xs)
+        for (index, trend) in trendFeeds.enumerated() {
+          TrendFeedRow(
+            {
+              trend: trend,
+              subtitle: trend.authorCount ? t(
+                "feeds.trending.people",
+                count: trend.authorCount,
+              ) : t("feeds.trending.subtitle"),
+              pinned: isPinned(trendKey(trend)),
+              canEdit: canEdit,
+              onOpen: { openTrend(trend, index + 1) },
+              onTogglePin: { toggleTrend(trend) },
+            },
+          )
+          .id(trend.id)
+        }
+      }
+    }
+    RawText(
+      // Discover feeds
+      t("feeds.discoverNew.title"),
+    )
+    .font(.md)
+    .weight(.bold)
+    .foregroundStyle(.foreground)
+    .margin(.top, .xxl)
+    .margin(.bottom, .xs)
+    VStack {
+      Search($searchQuery).label(t("feeds.searchPlaceholder")).onClearText { searchQuery = "" }
+    }
+    .margin(.top, .sm)
+    .margin(.bottom, .xs)
+    if (loading && !refreshing) && publicFeeds.count == 0 {
+      ListSkeleton()
+    } else {
+      for item in filteredPublic {
+        FeedRow(
+          {
+            item: item,
+            // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+            pinned: isPinned("custom:\((item._id || item.id) ?? "")"),
+            canEdit: canEdit,
+            // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+            onOpen: { router.push("/feeds/\((item._id || item.id) ?? "")") },
+            // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+            onTogglePin: { toggleCustom("\((item._id || item.id) ?? "")") },
+          },
+        )
+        // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+        .id("\((item._id || item.id) ?? "")")
+      }
+    }
+    if myFeeds.count > 0 {
+      Group {
+        RawText(
+          // Your feeds
+          t("feeds.yourFeeds.title"),
+        )
+        .font(.md)
+        .weight(.bold)
+        .foregroundStyle(.foreground)
+        .margin(.top, "28")
+        .margin(.bottom, .xs)
+        for f in myFeeds {
+          FeedRow(
+            {
+              item: f,
+              // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+              pinned: isPinned("custom:\((f._id || f.id) ?? "")"),
+              canEdit: canEdit,
+              // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+              onOpen: { router.push("/feeds/\((f._id || f.id) ?? "")") },
+              // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+              onTogglePin: { toggleCustom("\((f._id || f.id) ?? "")") },
+            },
+          )
+          // bloom: review: an optional interpolated as `?? ""`: JS printed `undefined` for it
+          .id("\((f._id || f.id) ?? "")")
+        }
+      }
+    }
+    VStack().frame(height: "80")
+  }
+
+  // The SEO tags draw nothing in place (the document's head on the web).
+  let page = Group {
+    SEO(title: t("seo.feeds.title"), description: t("seo.feeds.description"))
+    ScrollView { content }
+    .refreshable({ refreshing: refreshing, onRefresh: onRefresh }, { ios: "primary" })
+    .contentMargins(.horizontal, .lg)
+  }
+    .onReselect(onRefresh)
+    .header(
+      Header(t("feeds.title"))
+        .toolbar(
+          Button(Icon(.settings3))
+            .shape(.circle)
+            .style(.subtle)
+            .tint(.neutral)
+            .onPress { requestSettings("/settings/feed") }
+            .label(t("sidebar.settings", defaultValue: "Settings")),
+        )
+        .inPage(),
+    )
+
+  var body: some View {
+    Group {
+      if !canEdit {
+        page
+      } else {
+        // The page's own action; the shell's compose FAB steps aside for it.
+        page
+        .floatingAction(
+          FAB(Icon(.add))
+            .size(.md)
+            .onPress { router.push("/feeds/new") }
+            .label(t("feeds.create.title", defaultValue: "Create feed"))
+            .glass(identity),
+        )
+      }
+    }
+    .modifier(SupervisedFeatureGate())
+    .task(id: (fetchTrends, hasFetchedTrends)) {
+      if !hasFetchedTrends { task { await fetchTrends() } }
+    }
+  }
+}
+
+private let styles = StyleSheet.create(scrollContent: { paddingHorizontal: 16 })

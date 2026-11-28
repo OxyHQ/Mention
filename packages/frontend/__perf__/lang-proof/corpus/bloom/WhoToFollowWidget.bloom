@@ -1,0 +1,96 @@
+// Printed by bloom migrate from components/widgets/WhoToFollowWidget.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { BaseWidget } from "@/components/widgets/BaseWidget"
+import {
+  ProfileCard,
+  ProfileCardSkeletonList,
+  type ProfileCardData,
+} from "@/components/ProfileCard"
+import { useCachedUserSnapshot } from "@/hooks/useCachedUser"
+import { useRecommendations } from "@/hooks/useRecommendations"
+import { useRouter } from "@/lib/navigation/router"
+import { type ProfileData } from "@/lib/recommendations"
+import * as Skeleton from "@oxy.so/bloom/skeleton"
+
+private let MAX_DISPLAY_USERS = 5
+
+/// Height of the small plain "Show more" button (Bloom `Button size="sm"`).
+private let SHOW_MORE_HEIGHT = 32
+
+public struct WhoToFollowWidget: View {
+  var divider: Bool? = none
+  let router = useRouter()
+
+  // Shared cache: this widget reads a small slice of the same recommendations
+  // entry the explore tab and other surfaces use, so it never re-fetches per mount.
+  let { recommendations, isLoading: loading } = useRecommendations()
+
+  func handleShowMore() { router.push("/explore/who-to-follow") }
+
+  let displayedUsers = recommendations.slice(0, MAX_DISPLAY_USERS)
+
+  var body: some View {
+    if loading {
+      BaseWidget(title: String(localized: "discovery.whoToFollow"), divider: divider) {
+        VStack(spacing: .sm) {
+          // The loaded widget's shape — as many rows as it shows, at the same
+          //            inset, and the "Show more" button — so the rail below it (the
+          //            footer) stays put when the suggestions land (#1216).
+          ProfileCardSkeletonList(
+            count: MAX_DISPLAY_USERS,
+            showFollowButton: true,
+            size: "sm",
+            showDivider: false,
+          )
+          Skeleton.Box(width: 88, height: SHOW_MORE_HEIGHT, borderRadius: SHOW_MORE_HEIGHT / 2)
+        }
+      }
+    } else {
+      // With nothing to suggest — an empty page, or a first fetch that failed — the
+      // widget disappears instead of turning the rail into an error report. A failed
+      // refresh keeps the suggestions already on screen.
+      if displayedUsers.count != 0 {
+        BaseWidget(title: String(localized: "discovery.whoToFollow"), divider: divider) {
+          VStack(spacing: .sm) {
+            // Compact Bloom rows align directly with the widget heading.
+            VStack {
+              for user in displayedUsers {
+                FollowRowComponent(profileData: user, showBorder: false).id(user.id)
+              }
+            }
+            Button(Text(String(localized: "common.showMore")))
+            .style(.plain)
+            .size(.sm)
+            .onPress(handleShowMore)
+            .alignSelf(.start)
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct FollowRowComponent: View {
+  let profileData: ProfileData
+  var showBorder: Bool = true
+  let cachedUser = useCachedUserSnapshot(profileData.id)
+
+  // The rail row omits the bio — the sidebar has no room for it. Everything else
+  // (identity, badges, follow button) is the shared row's.
+  let profile: ProfileCardData = {
+    id: profileData.id,
+    username: profileData.username || cachedUser?.username ?? "",
+    name: profileData.name,
+    avatar: profileData.avatar || cachedUser?.avatar,
+    color: profileData.color ?? cachedUser?.color,
+    verified: profileData.verified,
+    isFederated: profileData.isFederated,
+    isAgent: profileData.isAgent,
+    isAutomated: profileData.isAutomated,
+    instance: profileData.instance,
+    federation: profileData.federation,
+  }
+
+  var body: some View {
+    ProfileCard(profile: profile, showFollowButton: true, showDivider: showBorder, size: "sm")
+  }
+}

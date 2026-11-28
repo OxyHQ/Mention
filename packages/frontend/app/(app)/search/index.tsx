@@ -38,7 +38,7 @@ import {
   toProfileHandleSuggestion,
   type ActiveOperatorToken,
 } from '@/utils/searchSuggestions';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { toast } from '@oxy.so/bloom/toast';
 import { SEO } from '@/components/SEO';
 import {
@@ -1451,7 +1451,7 @@ function SearchIndex() {
           );
 
         case 'post':
-          return <PostItem post={item.post} onOpen={commitCurrentQuery} />;
+          return toElement(PostItem({ post: item.post, onOpen: commitCurrentQuery }));
 
         case 'feed': {
           const feed = toFeedCardData(item.feed);

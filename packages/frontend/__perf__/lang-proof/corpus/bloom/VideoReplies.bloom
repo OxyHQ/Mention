@@ -1,0 +1,53 @@
+// Printed by bloom migrate from components/videos/VideoReplies.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { default as Feed } from "@/components/Feed/Feed"
+import { CompactReplyComposer } from "@/components/Post/CompactReplyComposer"
+import { type ReplyDraft } from "@/components/Post/replyDraft"
+import { type Href } from "@/lib/navigation/router"
+import { usePostSelector } from "@/stores/postsStore"
+import { isPrivateMention, postAcceptsReplies } from "@/utils/postReplies"
+import { PageFooter } from "@oxy.so/bloom/page-footer"
+import { Screen } from "@oxy.so/bloom/screen"
+import { useAuth } from "@oxy.so/services/ui/client"
+
+public struct VideoRepliesProps {
+  let postId: String
+  var focusComposerNonce: Float? = none
+  var draft: ReplyDraft? = none
+  var onNavigate: ((Href) -> Unit)? = none
+}
+
+/// One replies list and composer in the originating video's Bloom group.
+/// Bloom presents the same screen inline or in its responsive floating surface.
+/// Bloom owns chrome and scroll; Feed virtualizes against that same viewport.
+public struct VideoReplies: View {
+  let postId: String
+  var focusComposerNonce: Float = 0
+  var draft: ReplyDraft? = none
+  var onNavigate: ((Href) -> Unit)? = none
+  let { user } = useAuth()
+  let post = usePostSelector(postId)
+
+  var body: some View {
+    Screen(
+      scroll: "auto",
+      testID: "video-replies-screen",
+      bottomBarKeyboardBehavior: "follow",
+      header: Header(String(localized: "videos.replies")).onBack(none).safeArea(false).inPage(),
+      bottomBar: !!user && postAcceptsReplies(post) ? (PageFooter(
+        scrim: "auto",
+        contentContainerStyle: { paddingLeft: 8, paddingRight: 8 },
+      ) {
+        CompactReplyComposer(
+          postId: postId,
+          placeholder: isPrivateMention(post) ? String(
+            localized: "privateMentions.replyPlaceholder",
+          ) : none,
+          focusNonce: focusComposerNonce,
+          draft: draft,
+          onNavigate: onNavigate,
+        )
+        .id(user.id)
+      }) : none,
+    ) { Feed(type: "replies", filters: { postId: postId, parentPostId: postId }, hideHeader: true) }
+  }
+}

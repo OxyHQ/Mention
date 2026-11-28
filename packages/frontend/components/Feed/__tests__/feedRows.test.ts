@@ -28,7 +28,7 @@ import {
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
 // Hoisted above the imports by babel-jest, so `feedRows` resolves these mocks.
-jest.mock('../PostItem', () => ({ __esModule: true, default: () => null }));
+jest.mock('../PostItem.bloom', () => ({ __esModule: true, PostItem: () => null }));
 jest.mock('../PostErrorBoundary', () => ({ __esModule: true, PostErrorBoundary: () => null }));
 /** Mounts of the recommendation card — one per React instance, not per render. */
 let mockInterstitialMounts = 0;

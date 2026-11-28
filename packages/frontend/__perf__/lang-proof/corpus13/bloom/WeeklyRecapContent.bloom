@@ -1,0 +1,306 @@
+// Printed by bloom migrate from components/insights/WeeklyRecapContent.tsx (migrated); relative imports as @/ paths. DEV ONLY.
+import { buildInsightsSeries, buildPublishingSummary } from "@/components/insights/insightsSeries"
+import { PostItem } from "@/components/Feed/PostItem.bloom"
+import { useOpenPostEngagement } from "@/components/Post/postEngagementContext"
+import { type AccountInsights } from "@/services/insightsService"
+import { type HydratedPost } from "@mention/shared-types"
+import {
+  BarListCard,
+  ChartCardSurface,
+  SleepScoreCard,
+  ChartStatTiles,
+  StepsCard,
+  StageBarsCard,
+  ContributionsCard,
+} from "@oxy.so/bloom/chart-cards"
+import { Object } from "js"
+import { useTranslation } from "react-i18next"
+
+public struct WeeklyRecapContentProps {
+  let stats: AccountInsights
+  let summary: String?
+  let topPosts: [HydratedPost]
+}
+
+private let LIKES_REPLIES_BOOSTS_SHARES = ["likes", "replies", "boosts", "shares"]
+
+public struct WeeklyRecapContent: View {
+  let stats: AccountInsights
+  let summary: String?
+  let topPosts: [HydratedPost]
+  let openPostEngagement = useOpenPostEngagement()
+  let { t, i18n } = useTranslation()
+  let number = { value: Float in value.formatted(fractionDigits: 0...1, locale: i18n.language) }
+  let date = {
+    date: Date in
+    date.formatted(.dateTime.month(.abbreviated).day(), locale: i18n.language, timeZone: "UTC")
+  }
+  let series = buildInsightsSeries(stats, i18n.language)
+  let publishing = buildPublishingSummary(stats)
+  let formats = Object
+    .entries(stats.postsByType)
+    .filter { arg in
+      let (_, count) = arg
+      count > 0
+    }
+    .sort { arg0, arg1 in
+      let (_, a) = arg0
+      let (_, b) = arg1
+      b - a
+    }
+  let leadingFormat = formats[0]?[0]
+  let interactions = LIKES_REPLIES_BOOSTS_SHARES.map {
+    kind in
+    ({ label: t("insights.post.\(kind)"), value: stats.interactions[kind] })
+  }
+  let calendarDays = publishing.weekdays.total + publishing.weekends.total
+  let range = "\(date(((try? Date(stats.period.startDate, strategy: .iso8601)) ?? Date(millisecondsSince1970: .nan)))) – \(date(((try? Date(stats.period.endDate, strategy: .iso8601)) ?? Date(millisecondsSince1970: .nan))))"
+  let peakViews = [..series].sorted { a, b in (b.value - a.value) < 0 }[0]
+  let mainInteraction = [..interactions].sorted { a, b in (b.value - a.value) < 0 }[0]
+  let calendar = ContributionsCard(
+    testID: "weekly-contributions",
+    title: t("insights.publishingDays"),
+    total: publishing.activeDays,
+    format: { value in number(value) },
+    periods: [],
+    months: [],
+    initialScrollPosition: "end",
+    activityLabel: t("insights.publishingScope"),
+    columns: publishing.columns,
+    cells: publishing.cells,
+    stats: [
+      { label: t("insights.posts"), value: number(stats.overview.totalPosts) },
+      {
+        label: t("insights.daysWithoutPosts"),
+        value: number(calendarDays - publishing.activeDays),
+      },
+      {
+        label: t("insights.longestStreak"),
+        value: t("insights.dayCount", count: publishing.longestStreak),
+      },
+      {
+        label: t("insights.postsPerActiveDay"),
+        value: number(
+          publishing.activeDays != 0 ? stats.overview.totalPosts / publishing.activeDays : 0,
+        ),
+      },
+    ],
+    getCellLabel: {
+      cell in
+      cell.date != none &&
+        !cell.date.isEmpty ? "\(date(((try? Date(cell.date, strategy: .iso8601)) ?? Date(millisecondsSince1970: .nan)))): \(cell.count != 0 ? t("insights.published") : t("insights.noPublications"))" : t(
+        "insights.outsidePeriod",
+      )
+    },
+  )
+
+  var body: some View {
+    VStack {
+      VStack(spacing: .sm) {
+        Text(t("insights.weeklyRecap.pageTitle")).font(.title1).weight(.medium)
+        Text(
+          date(
+            ((try? Date(stats.period.startDate, strategy: .iso8601)) ??
+              Date(millisecondsSince1970: .nan)),
+          ),
+          " –",
+          " ",
+          date(
+            ((try? Date(stats.period.endDate, strategy: .iso8601)) ??
+              Date(millisecondsSince1970: .nan)),
+          ),
+          " · UTC",
+        )
+        .font(.body2)
+        Text(t("insights.periodScope")).font(.caption1)
+      }
+      ChartCardSurface(height: "auto") {
+        if let summary = summary {
+          if !summary.isEmpty {
+            VStack(spacing: .sm) {
+              Text(t("insights.weeklyRecap.summary")).font(.headline).weight(.medium)
+              Text(summary).font(.body)
+            }
+          }
+        }
+        ChartStatTiles(
+          items: [
+            { label: t("insights.posts"), value: number(stats.overview.totalPosts) },
+            {
+              label: t("insights.post.interactions"),
+              value: number(stats.overview.totalInteractions),
+            },
+            {
+              label: t("insights.post.engagementRate"),
+              value: "\(number(stats.overview.engagementRate))%",
+            },
+          ],
+        )
+      }
+      Grid {
+        StepsCard(
+          testID: "weekly-views",
+          range: range,
+          title: t("insights.viewsByPublicationDate"),
+          data: series,
+          getPointTitle: { _, index in series[index.truncated()].fullLabel },
+          headline: stats.overview.totalViews,
+          totalSuffix: t("insights.post.views"),
+          pointSuffix: t("insights.post.views"),
+          stats: [
+            {
+              label: t("insights.viewsPerPost"),
+              value: number(
+                stats.overview.totalPosts != 0 ? stats.overview.totalViews /
+                  stats.overview.totalPosts : 0,
+              ),
+            },
+            {
+              label: t("insights.interactionsPerPostShort"),
+              value: number(stats.overview.averageEngagementPerPost),
+            },
+            { label: t("insights.activeDaysShort"), value: number(publishing.activeDays) },
+            {
+              label: t("insights.topViewDate"),
+              value: (peakViews?.value ?? 0) > 0 ? peakViews.label : "—",
+            },
+            { label: t("insights.topDateViews"), value: number(peakViews?.value ?? 0) },
+            {
+              label: t("insights.postsPerDay"),
+              value: number(
+                stats.period.days > 0 ? stats.overview.totalPosts / stats.period.days : 0,
+              ),
+            },
+          ],
+          format: { value in number(value) },
+        )
+        BarListCard(
+          title: t("insights.post.interactions"),
+          metricLabel: t("insights.post.interactions"),
+          metric: "value",
+          format: { value in number(value) },
+          items: interactions,
+          showShares: true,
+          stats: [
+            {
+              label: t("insights.post.interactions"),
+              value: number(stats.overview.totalInteractions),
+            },
+            {
+              label: t("insights.mainInteraction"),
+              value: mainInteraction.value > 0 ? mainInteraction.label : "—",
+            },
+            {
+              label: t("insights.post.engagementRate"),
+              value: "\(number(stats.overview.engagementRate))%",
+            },
+          ],
+        )
+      }
+      .stretchItems()
+      .testID("weekly-charts")
+      Grid {
+        StageBarsCard(
+          title: t("insights.publishingMix"),
+          range: range,
+          format: { value in number(value) },
+          headline: stats.overview.totalPosts,
+          percentageBase: "total",
+          stats: [
+            { label: t("insights.formatsUsed"), value: "\(formats.length)" },
+            {
+              label: t("insights.leadingFormat"),
+              value: leadingFormat ? t(
+                "insights.postType.\(leadingFormat)",
+                defaultValue: leadingFormat,
+              ) : "—",
+            },
+            {
+              label: t("insights.postsPerDay"),
+              value: number(
+                stats.period.days > 0 ? stats.overview.totalPosts / stats.period.days : 0,
+              ),
+            },
+          ],
+          stages: formats.map { arg in
+            let (kind, value) = arg
+            ({ label: t("insights.postType.\(kind)", defaultValue: kind), value: value })
+          },
+        )
+        SleepScoreCard(
+          testID: "publishing-consistency",
+          title: t("insights.publishingConsistency"),
+          range: range,
+          stats: [
+            {
+              label: t("insights.longestStreak"),
+              value: t("insights.dayCount", count: publishing.longestStreak),
+            },
+            {
+              label: t("insights.postsPerActiveDay"),
+              value: number(
+                publishing.activeDays != 0 ? stats.overview.totalPosts / publishing.activeDays : 0,
+              ),
+            },
+            {
+              label: t("insights.publishingCoverage"),
+              value: "\(number(calendarDays != 0 ? (publishing.activeDays / calendarDays) * 100 : 0))%",
+            },
+          ],
+          scoreLabel: t(
+            "insights.publishedDayRatio",
+            count: publishing.activeDays,
+            total: publishing.weekdays.total + publishing.weekends.total,
+          ),
+          accessibilityLabel: t(
+            "insights.publishedDayRatio",
+            count: publishing.activeDays,
+            total: publishing.weekdays.total + publishing.weekends.total,
+          ),
+          metrics: [
+            {
+              label: t("insights.weekdays"),
+              detail: t("insights.publishedDays"),
+              score: publishing.weekdays.active,
+              max: publishing.weekdays.total,
+            },
+            {
+              label: t("insights.weekends"),
+              detail: t("insights.publishedDays"),
+              score: publishing.weekends.active,
+              max: publishing.weekends.total,
+            },
+          ],
+        )
+      }
+      .stretchItems()
+      Grid {
+        VStack(spacing: .md) {
+          Text(t("insights.topPerformingPosts")).font(.headline).weight(.medium)
+          if topPosts.count != 0 {
+            for (index, post) in topPosts.enumerated() {
+              Group {
+                PostItem(post: post, openPostEngagement: openPostEngagement)
+                if index < topPosts.count - 1 { Divider() }
+              }
+              .id(post.id)
+            }
+          } else {
+            Text(
+              t(
+                stats.topPosts.count !=
+                  0 ? "insights.unableToLoadPosts" : "insights.weeklyRecap.noDataAvailable",
+              ),
+            )
+            .font(.body)
+          }
+        }
+        calendar
+      }
+      .testID("weekly-posts-grid")
+    }
+    .padding(.all, .lg)
+    .spacing(.lg)
+    .testID("weekly-recap-content")
+  }
+}

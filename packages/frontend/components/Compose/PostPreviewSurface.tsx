@@ -2,7 +2,7 @@ import type React from 'react';
 import { ScrollView, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
-import PostItem from '@/components/Feed/PostItem';
+import { PostItem } from '@/components/Feed/PostItem.bloom';
 import { Embed, Header, VStack, toElement, type ViewNode } from '@oxy.so/bloom-language';
 
 /** Tailwind's `flex-1`: the scroll takes the room the header and actions leave. */
@@ -64,7 +64,7 @@ const PostPreviewSurface: React.FC<PostPreviewSurfaceProps> = ({
       Inert on purpose — see the component doc. The wrapper carries no
       styling of its own so the post renders at exactly its feed width.
     */}
-          {toElement(VStack(Embed(<PostItem post={post} />)).allowsHitTesting(false))}
+          {toElement(VStack(Embed(toElement(PostItem({ post })))).allowsHitTesting(false))}
         </ScrollView>,
       ),
       Embed(children),

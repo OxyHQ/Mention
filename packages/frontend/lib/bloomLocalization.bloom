@@ -1,0 +1,13 @@
+/// Mention's strings for Bloom's `String(localized:)` (ADR 0002, section 3). i18next stays
+/// the source (`locales/*.json`); `lib/i18n.ts` registers each catalog it loads here, in the
+/// standard library's form (`lib/bloomCatalog.ts`), and follows i18next's language.
+
+/// Registers `catalog` as the strings of `locale` (`en`, `es`, …).
+public func registerBloomCatalog(_ locale: String, _ catalog: JSONValue) {
+  registerLocalizations(locale, catalog)
+}
+
+/// Shows Bloom's strings in `identifier` (i18next's language, `es-ES`) from now on.
+public func preferBloomLocale(_ identifier: String) {
+  Locale.prefer(Locale(identifier: identifier))
+}

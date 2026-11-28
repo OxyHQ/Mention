@@ -35,4 +35,25 @@ function withProofStandIns(config, projectRoot) {
   return config;
 }
 
-module.exports = { withProofStandIns };
+/**
+ * PostItem's TypeScript form for the bytes proof (README.md, "PostItem"): every import of
+ * `PostItem.bloom` resolves to `postitem/tsPostItem.ts`, which draws the TS PostItem the
+ * `.bloom` module replaced. Loaded by `metro.config.js` only with `BLOOM_PROOF_POSTITEM=ts`.
+ */
+function withTsPostItem(config) {
+  const parentResolve = config.resolver.resolveRequest;
+  const shim = path.join(__dirname, 'postitem/tsPostItem.ts');
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    const resolve = parentResolve || context.resolveRequest;
+    if (
+      /(^|\/)PostItem\.bloom$/.test(moduleName) &&
+      !context.originModulePath.includes('lang-proof/postitem/')
+    ) {
+      return resolve(context, shim, platform);
+    }
+    return resolve(context, moduleName, platform);
+  };
+  return config;
+}
+
+module.exports = { withProofStandIns, withTsPostItem };
