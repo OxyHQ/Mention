@@ -12,6 +12,28 @@ public struct FeedAuthor: Codable, Equatable {
   /// The avatar's URL at the row's variant, none for the placeholder.
   public var avatar: String? = none
   public var isVerified: Bool = false
+  /// A fediverse account: its mark after the handle.
+  public var isFederated: Bool = false
+  /// A local channel: its megaphone after the handle.
+  public var isChannel: Bool = false
+}
+
+/// A run of a post's body: plain (`kind` empty), an address opened outside the app (`url`), a
+/// route of the app (`route`: a mention, a tag) or the "Read more" that opens the post (`more`).
+public struct FeedRun: Codable, Equatable {
+  public let text: String
+  public var kind: String = ""
+  public var href: String = ""
+}
+
+/// A link's preview card (Bloom's `LinkPreviewCard`).
+public struct FeedLink: Codable, Equatable {
+  public let url: String
+  public let title: String
+  public var site: String = ""
+  public var description: String? = none
+  public var image: String? = none
+  public var byline: String? = none
 }
 
 /// A picture or a video's poster below the text.
@@ -43,6 +65,14 @@ public struct FeedPost: Codable, Identifiable, Equatable {
   public let time: String
   public var media: [FeedMedia] = []
   public var quote: FeedQuote? = none
+  /// The body as runs (its links, mentions and tags in the primary ink); none: `text` alone.
+  public var runs: [FeedRun] = []
+  public var link: FeedLink? = none
+  public var isEdited: Bool = false
+  /// A repost: the repost glyph after the time.
+  public var isBoost: Bool = false
+  /// The reposter's avatar when the row draws the author and the reposter as a pair.
+  public var boosterAvatar: String? = none
   /// The reposter's name, when the row is a repost.
   public var repostedBy: String? = none
   public var replies: Int = 0
@@ -70,4 +100,6 @@ public struct FeedIntent: Codable, Equatable {
   public let kind: String
   public let postId: String
   public var index: Int = 0
+  /// A link's address or route (`link`).
+  public var href: String = ""
 }

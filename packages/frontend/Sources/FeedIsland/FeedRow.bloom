@@ -14,6 +14,12 @@ let CONTEXT_DROP = 22.0
 let MEDIA_MAX = 420.0
 let MEDIA_MIN = 100.0
 let STRIP_HEIGHT = 200.0
+/// The repost pair: each 24 bubble 5.4 off the 36 box's centre (Bloom's cluster layout for two).
+let PAIR_SHIFT = 5.4
+let PAIR_BACK = -5.4
+let PAIR_BOX = 36.0
+/// A link card's cover height (Bloom's `LinkPreviewCard`).
+let LINK_COVER = 160.0
 
 /// "1.5K": Mention's `formatCompactNumber`, cut to a tenth and never rounded up.
 public func compactCount(_ n: Int) -> String {
@@ -30,20 +36,91 @@ func tenths(_ n: Int, _ unit: Int, _ suffix: String) -> String {
   return "\(whole).\(tenth)\(suffix)"
 }
 
-/// The name line: the name, the badge, the handle and the time.
+/// The name line (PostItem's): the name and its badge, the handle and its account mark, the
+/// time, and the edited and repost marks. The handle gives way first, then the name; the time
+/// and the marks never do.
 struct NameLine: View, Equatable {
   let author: FeedAuthor
   let time: String
+  var edited: Bool = false
+  var boost: Bool = false
 
   var body: some View {
     HStack(alignment: .bottom, spacing: .none) {
-      Text(author.name).font(.md).weight(.bold).lineLimit(1)
+      Text(author.name).font(.md).weight(.bold).lineLimit(1).shrink(.normal)
       if author.isVerified {
         Icon(.verifiedBadgeFill).size("15").foregroundStyle(.info).padding(.leading, .xs)
       }
       Text(" @\(author.handle)").font(.md).foregroundStyle(.muted).lineLimit(1).shrink(.first)
+      if author.isFederated {
+        Icon(.fediverse).size("13").foregroundStyle(.muted).padding(.leading, .xs)
+      } else if author.isChannel {
+        Icon(.megaphone).size("13").foregroundStyle(.muted).padding(.leading, .xs)
+      }
       Text("· \(time)").font(.md).foregroundStyle(.muted).lineLimit(1).padding(.leading, .sm)
+      if edited {
+        Icon(.pencil).size("14").foregroundStyle(.muted).padding(.leading, .sm)
+      }
+      if boost {
+        Icon(.repeat2).size("14").foregroundStyle(.muted).padding(.leading, .sm)
+      }
     }
+  }
+}
+
+/// The body, as runs: links, mentions and tags in the primary ink, each opening its own place.
+struct Body: View, Equatable {
+  let runs: [FeedRun]
+  let onLink: (FeedRun) -> Void
+
+  var body: some View {
+    Text(..runs.map { r in r.kind == "" ? Text(r.text) : Text(r.text).foregroundStyle(.primary).onPress { onLink(r) } })
+      .font(.md)
+  }
+
+  static func == (a: Self, b: Self) -> Bool { a.runs == b.runs }
+}
+
+/// A link's card (Bloom's `LinkPreviewCard`): the cover, then the site, the title, the
+/// description and the byline.
+struct LinkCard: View, Equatable {
+  let link: FeedLink
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: .none) {
+      if let image = link.image {
+        Image(image).contentFit(.cover).frame(width: .full, height: LINK_COVER).background(.surface)
+      }
+      VStack(alignment: .leading, spacing: .xs) {
+        if !link.site.isEmpty {
+          Text(link.site).font(.xs).weight(.medium).foregroundStyle(.muted).lineLimit(1)
+        }
+        Text(link.title).font(.md).weight(.semibold).lineLimit(2)
+        if let description = link.description {
+          Text(description).font(.sm).foregroundStyle(.muted).lineLimit(2)
+        }
+        if let byline = link.byline {
+          Text(byline).font(.xs).weight(.medium).foregroundStyle(.muted).lineLimit(1)
+        }
+      }
+      .padding(.md)
+    }
+    .border(.border, .thin)
+    .corner(.xl)
+  }
+}
+
+/// PostItem's pair for a repost: the author in front, the reposter behind, 36 across.
+struct AvatarPair: View, Equatable {
+  let author: String
+  let booster: String
+
+  var body: some View {
+    ZStack {
+      Avatar(booster).size(.sm).border(.background, .thin).corner(.full).offset(x: PAIR_SHIFT, y: PAIR_BACK)
+      Avatar(author).size(.sm).border(.background, .thin).corner(.full).offset(x: PAIR_BACK, y: PAIR_SHIFT)
+    }
+    .frame(width: PAIR_BOX, height: PAIR_BOX)
   }
 }
 
@@ -124,7 +201,11 @@ public struct FeedRow: View, Equatable {
     VStack(alignment: .leading, spacing: .none) {
       HStack(alignment: .top, spacing: .none) {
         VStack(spacing: .none) {
-          Avatar(post.author.avatar ?? "").size(.lg).onPress { send("profile") }
+          if let booster = post.boosterAvatar {
+            AvatarPair(author: post.author.avatar ?? "", booster: booster).onPress { send("profile") }
+          } else {
+            Avatar(post.author.avatar ?? "").size(.lg).onPress { send("profile") }
+          }
         }
         .padding(.top, post.repostedBy == none ? 0.0 : CONTEXT_DROP)
         VStack(alignment: .leading, spacing: .xs) {
@@ -137,8 +218,12 @@ public struct FeedRow: View, Equatable {
             .offset(x: CONTEXT_HANG)
             .onPress { send("reposter") }
           }
-          NameLine(author: post.author, time: post.time)
-          if !post.text.isEmpty {
+          NameLine(author: post.author, time: post.time, edited: post.isEdited, boost: post.isBoost)
+          if !post.runs.isEmpty {
+            Body(runs: post.runs, onLink: { r in
+              onIntent(FeedIntent(kind: r.kind == "more" ? "open" : "link", postId: post.id, href: r.href))
+            })
+          } else if !post.text.isEmpty {
             Text(post.text).font(.md)
           }
         }
@@ -154,6 +239,9 @@ public struct FeedRow: View, Equatable {
           MediaBox(media: post.media[0]).onPress { onIntent(FeedIntent(kind: "media", postId: post.id, index: 0)) }
         } else if post.media.count > 1 {
           MediaStrip(media: post.media, onTap: { i in onIntent(FeedIntent(kind: "media", postId: post.id, index: i)) })
+        }
+        if let link = post.link {
+          LinkCard(link: link).onPress { onIntent(FeedIntent(kind: "link", postId: post.id, href: link.url)) }
         }
         if let quote = post.quote {
           QuoteCard(quote: quote, onOpen: { send("quote") })

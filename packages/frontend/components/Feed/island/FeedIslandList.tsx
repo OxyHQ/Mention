@@ -30,6 +30,7 @@ import { benchMark } from '@/lib/bench';
 import { usePostInteractions } from '../postInteractions';
 import type { FeedRow } from '../feedRows';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
+import { openExternalLink } from '@/utils/openExternalLink';
 import { feedIslandPostById, feedIslandPosts, type FeedIslandIntent } from './feedIslandData';
 
 interface IslandEvent {
@@ -156,6 +157,12 @@ export function FeedIslandList({
     }
     if (intent.kind === 'more') {
       onLoadMore();
+      return;
+    }
+    // A link in a body or a card: a route of the app, or an address opened outside it.
+    if (intent.kind === 'link') {
+      if (intent.href.startsWith('/')) (router as Router).push(intent.href as never);
+      else if (intent.href) openExternalLink(intent.href);
       return;
     }
     const post = feedIslandPostById(rows, intent.postId);
