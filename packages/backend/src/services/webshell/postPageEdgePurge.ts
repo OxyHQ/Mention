@@ -58,7 +58,7 @@ import {
 import type { PostPagePurgeReason } from '../../queue/types';
 import { invalidateMany as invalidatePostDetails } from '../posts/postDetailCache';
 import { invalidatePostOgCards } from './webShellOgCache';
-import { CLOUDFLARE_PURGE_MAX_URLS, purgeCloudflareUrls } from './cloudflarePurgeClient';
+import { CLOUDFLARE_PURGE_MAX_URLS, purgeCloudflarePrefixes } from './cloudflarePurgeClient';
 import { findDependentPostIds } from './postPageDependents';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
@@ -80,9 +80,8 @@ export const POST_PAGE_PURGE_GAVE_UP_LOG = '[EdgePurge] post page purge gave up'
 /** The longest a caller waits for its purge to be queued. */
 export const POST_PAGE_PURGE_QUEUE_DEADLINE_MS = 2_000;
 
-/** Each post has two cached URLs, so one call carries 15 posts. */
-const URLS_PER_POST = 2;
-const POSTS_PER_CALL = CLOUDFLARE_PURGE_MAX_URLS / URLS_PER_POST;
+/** Each post is one prefix (its page, with or without the slash, any query), so one call carries 30 posts. */
+const POSTS_PER_CALL = CLOUDFLARE_PURGE_MAX_URLS;
 
 /** Whether this process purges at all. */
 export function isPostPageEdgePurgeEnabled(): boolean {
@@ -97,6 +96,15 @@ export function isPostPageEdgePurgeEnabled(): boolean {
 export function postPageUrls(postId: string, origin: string = config.web.origin): string[] {
   const base = `${origin}/p/${encodeURIComponent(postId)}`;
   return [base, `${base}/`];
+}
+
+/**
+ * The purge prefix of one post's page on one web origin: `host/p/<id>`, which
+ * covers both URLs above and every query-string variant of them. Post ids are
+ * fixed-length, so the prefix never reaches another post's page.
+ */
+export function postPagePrefix(postId: string, origin: string = config.web.origin): string {
+  return `${new URL(origin).host}/p/${encodeURIComponent(postId)}`;
 }
 
 /** One web origin and the Cloudflare zone its pages are cached in. */
@@ -325,8 +333,8 @@ export async function runPostPagePurge(
   let failure: unknown;
   for (const target of postPagePurgeTargets()) {
     try {
-      await purgeCloudflareUrls(
-        ids.flatMap((id) => postPageUrls(id, target.origin)),
+      await purgeCloudflarePrefixes(
+        ids.map((id) => postPagePrefix(id, target.origin)),
         { zoneId: target.zoneId, token },
       );
     } catch (error) {

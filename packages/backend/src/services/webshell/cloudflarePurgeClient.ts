@@ -64,6 +64,28 @@ export async function purgeCloudflareUrls(
   urls: readonly string[],
   target: CloudflarePurgeTarget,
 ): Promise<void> {
+  return purgeCloudflare('files', urls, target);
+}
+
+/**
+ * Purge everything cached under these prefixes (`host/path`, no scheme). One
+ * prefix covers a page with and without its trailing slash and every query
+ * string variant (`?utm_source=…`), which purge-by-URL cannot. Measured on the
+ * mention.org zone on 2026-11-28: purge-by-URL answered success and the page
+ * stayed a cache HIT, while a prefix purge emptied it at once.
+ */
+export async function purgeCloudflarePrefixes(
+  prefixes: readonly string[],
+  target: CloudflarePurgeTarget,
+): Promise<void> {
+  return purgeCloudflare('prefixes', prefixes, target);
+}
+
+async function purgeCloudflare(
+  kind: 'files' | 'prefixes',
+  urls: readonly string[],
+  target: CloudflarePurgeTarget,
+): Promise<void> {
   if (urls.length === 0) return;
   if (urls.length > CLOUDFLARE_PURGE_MAX_URLS) {
     throw new RangeError(
@@ -79,7 +101,7 @@ export async function purgeCloudflareUrls(
         Authorization: `Bearer ${target.token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ files: urls }),
+      body: JSON.stringify({ [kind]: urls }),
       signal: AbortSignal.timeout(PURGE_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
