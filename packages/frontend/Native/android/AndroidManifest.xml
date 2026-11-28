@@ -1,0 +1,47 @@
+<!-- The app's own native config, over what bloom generates from Package.bloom (written by
+     bloom's adoption of the app, from the app config's plugins; edit it here). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <uses-permission android:maxSdkVersion="32" android:name="android.permission.READ_EXTERNAL_STORAGE" tools:replace="android:maxSdkVersion" />
+  <uses-permission android:maxSdkVersion="32" android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:replace="android:maxSdkVersion" />
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.VIEW" />
+      <category android:name="android.intent.category.BROWSABLE" />
+      <data android:scheme="https" />
+    </intent>
+    <provider android:authorities="so.oxy.commons.identity" />
+    <provider android:authorities="so.oxy.commons.dev.identity" />
+    <provider android:authorities="so.oxy.commons.devicesession" />
+    <provider android:authorities="so.oxy.commons.dev.devicesession" />
+    <provider android:authorities="so.oxy.accounts.devicesession" />
+    <provider android:authorities="so.oxy.accounts.dev.devicesession" />
+  </queries>
+  <permission android:name="so.oxy.permission.IDENTITY" android:protectionLevel="signature" />
+  <permission android:name="so.oxy.permission.DEVICE_SESSION" android:protectionLevel="signature" />
+  <application>
+    <activity android:name=".MainActivity" android:screenOrientation="portrait" android:supportsPictureInPicture="true" android:windowSoftInputMode="adjustPan" tools:replace="android:windowSoftInputMode">
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:host="mention.earth" android:scheme="https" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/*" />
+      </intent-filter>
+    </activity>
+    <meta-data android:name="expo.modules.updates.ENABLED" android:value="true" />
+    <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS" />
+    <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0" />
+    <meta-data android:name="expo.modules.updates.EXPO_UPDATE_URL" android:value="https://api.oxy.so/updates/v1/apps/oxy_dk_463c7d9366ca7cfd442da884d4963dc78dca829412fd1125/manifest" />
+    <meta-data android:name="expo.modules.updates.CODE_SIGNING_CERTIFICATE" android:value="-----BEGIN CERTIFICATE-----&#xA;MIIC8zCCAdugAwIBAgIJNavjOrAeD36HMA0GCSqGSIb3DQEBCwUAMCMxITAfBgNV&#xA;BAMMGE94eSBVcGRhdGVzIENvZGUgU2lnbmluZzAeFw0yNjEwMjQyMzEzMzdaFw0z&#xA;NjEwMjQyMzEzMzdaMCMxITAfBgNVBAMMGE94eSBVcGRhdGVzIENvZGUgU2lnbmlu&#xA;ZzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALmY5biytPgR37i0MKhy&#xA;+3F7cr6tEQ0QpHV9XOZdXlMKWWZXM9tI8lv+apFL1jUdgRkLL/1WP+1IW6c8vz4W&#xA;GSVJSurKfe4uO8Chp7SLiDIM/aUDMfi++7iGV5GbJB8351XOSK6pw77keszjdjjW&#xA;U1lzwnWzl58Ok6XgwOT7Y9316FbCaNc4Zm6Zo/YA0elYCi1Bzg8xmPwEuE/pS6sD&#xA;+eyXc6i6ulaAPwTPdMkq95e/oKBkWsyHJPEVqaIZYnANB5ysJVYrHwm/6UiFOrlc&#xA;jGtQZ6Nd4b2tOvwLB2MXVo5V8ruOx1k9uR+SbzHV8CuBGjDT6tI3dHzP3WWFzznn&#xA;AN8CAwEAAaMqMCgwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQMMAoGCCsGAQUF&#xA;BwMDMA0GCSqGSIb3DQEBCwUAA4IBAQA+n7UgCUqsZehbhnxQuo5rKTb2YVtjcJQ5&#xA;ju9G0N2MwCtCLW4Ra3zGqwSHm6vzRiGCTdU4vj05wSj0/4xWauQoV83Y72fWWixq&#xA;CqxM3rpscYBvOdpd98qU7Rfv32ROIcT7dU7GEcgRlasujOn9EPK3jdx/UjYxwZQB&#xA;k0AHchz8uNeEd0B2iGgQS9igcb57RI4C+D2gZlpb+BMPM5cNqefn2Dk1B0V3J2bv&#xA;A73yiP/9QoL3J1kIpToKafVwNI3yxkWPhz6VPN9dinkvseJHNF4AV+wRciRq1FlW&#xA;zrIo1oeMMhO5FEFMyo3FsPmtUvQVvw6y7TVpiiGzp5EcCv/C+q5r&#xA;-----END CERTIFICATE-----&#xA;" />
+    <meta-data android:name="expo.modules.updates.CODE_SIGNING_METADATA" android:value="{&quot;keyid&quot;:&quot;main&quot;,&quot;alg&quot;:&quot;rsa-v1_5-sha256&quot;}" />
+    <meta-data android:name="expo.modules.updates.UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY" android:value="{&quot;expo-channel-name&quot;:&quot;production&quot;}" />
+    <meta-data android:name="expo.modules.updates.ENABLE_BSDIFF_PATCH_SUPPORT" android:value="true" />
+    <meta-data android:name="expo.modules.updates.EXPO_RUNTIME_VERSION" android:value="@string/expo_runtime_version" />
+    <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_icon_color" />
+    <meta-data android:name="expo.modules.notifications.default_notification_color" android:resource="@color/notification_icon_color" />
+  </application>
+</manifest>

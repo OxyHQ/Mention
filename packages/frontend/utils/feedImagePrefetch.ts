@@ -8,7 +8,7 @@
  * URL is asked for once per session: expo-image keeps it on disk and in memory,
  * and asking again would only cost a bridge call.
  */
-import { Image } from 'expo-image';
+import { preloadImage } from '@oxy.so/bloom/hooks';
 import { postFeedImages, type FeedImagePost } from '@/utils/feedImages';
 
 /** URLs already handed to the cache, oldest first; bounded so a long session does not grow it forever. */
@@ -30,5 +30,5 @@ export function prefetchFeedImages(posts: readonly FeedImagePost[]): void {
     if (requested.size <= REMEMBERED) break;
     requested.delete(uri);
   }
-  Image.prefetch(uris, 'memory-disk').catch(() => undefined);
+  for (const uri of uris) preloadImage(uri);
 }

@@ -45,3 +45,6 @@ app-example
 # input to prebuild, not its output).
 /android/
 /ios/
+
+# Bloom (`bloom build`): generated, never committed.
+.bloom/

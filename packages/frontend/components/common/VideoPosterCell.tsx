@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { Image } from 'expo-image';
+import { benchMark } from '@/lib/bench';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -87,12 +88,13 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
       VStack(
         posterUri && !posterFailed
           ? Embed(
-              <Image
+              <BloomImage
                 source={{ uri: posterUri }}
                 style={{ width: '100%', height: '100%' }}
                 contentFit="cover"
                 transition={150}
                 cachePolicy="memory-disk"
+                onLoad={() => benchMark('feed-image')}
                 onError={handlePosterError}
               />,
             )

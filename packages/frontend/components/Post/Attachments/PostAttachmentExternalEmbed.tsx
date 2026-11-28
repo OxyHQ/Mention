@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { AspectRatio } from '@oxy.so/bloom/aspect-ratio';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
 import { parseEmbedPlayerFromUrl, canEmbed } from '@/utils/embedPlayer';
@@ -118,7 +118,7 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
       embedCard(
         Embed(
           <AspectRatio ratio={GIF_ASPECT_RATIO} style={styles.gifWell}>
-            <Image
+            <BloomImage
               source={{ uri: proxyExternalUrl(params.playerUri) }}
               recyclingKey={params.playerUri}
               cachePolicy="memory-disk"

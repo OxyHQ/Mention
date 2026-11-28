@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { benchMark } from '@/lib/bench';
 import { StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/mediaUrls';
 import { feedLinkCover } from '@/utils/feedImages';
@@ -64,12 +65,13 @@ export function ExternalEmbedPoster({
     VStack(
       Embed(
         thumb && !thumbErrored ? (
-          <Image
+          <BloomImage
             source={thumbSources}
             recyclingKey={thumb}
             cachePolicy="memory-disk"
             style={StyleSheet.absoluteFill}
             contentFit="cover"
+            onLoad={() => benchMark('feed-image')}
             onError={() => setThumbErrored(true)}
           />
         ) : null,

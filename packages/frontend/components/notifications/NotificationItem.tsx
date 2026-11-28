@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { AccountAvatar } from '@/components/ui/AccountAvatar';
@@ -978,7 +978,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                     image, mirroring the feed's thumb variant. Decorative: the row's
                     own accessibilityLabel already describes the notification. */ Embed(
               thumbnailUrl ? (
-                <Image
+                <BloomImage
                   source={{ uri: thumbnailUrl }}
                   style={[rowTokens.thumbnail, rowStyles.thumbnail]}
                   contentFit="cover"

@@ -1,5 +1,6 @@
 import { tokens } from '@oxy.so/bloom/styles';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { benchMark } from '@/lib/bench';
 import {
   View,
   Pressable,
@@ -11,7 +12,7 @@ import {
   type GestureResponderEvent,
   type ViewInstance,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
 import { useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import type { VideoViewHandle } from '@oxy.so/bloom/video-view';
 import type { VideoPlayerKey } from '@/stores/videoPlayerRegistry';
@@ -579,7 +580,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
         />
       )}
       {poster && !hasRenderedFrame && !posterFailed && (
-        <Image
+        <BloomImage
           source={{ uri: poster }}
           // A recycled row hands this player another video: clear the last
           // poster at once, and draw the new one the frame it is ready.
@@ -588,6 +589,7 @@ const VideoSurface: React.FC<VideoSurfaceProps> = ({
           contentFit={contentFit}
           cachePolicy="memory-disk"
           pointerEvents="none"
+          onLoad={() => benchMark('feed-image')}
           onError={handlePosterError}
         />
       )}

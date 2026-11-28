@@ -1,7 +1,8 @@
 import { MediaGridSkeleton } from '@/components/loading/ContentSkeleton';
 import type React from 'react';
 import { useCallback, useMemo } from 'react';
-import { Image, type ImageStyle } from 'expo-image';
+import { BloomImage } from '@oxy.so/bloom/image';
+import { type ImageStyle } from 'react-native';
 import { useRouter } from '@/lib/navigation/router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -191,7 +192,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
                 scrim
               />
             ) : (
-              <Image
+              <BloomImage
                 source={{ uri: item.uri }}
                 style={{ backgroundColor: theme.colors.contrast50, ...FILL }}
                 contentFit="cover"
