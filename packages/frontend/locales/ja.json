@@ -2783,6 +2783,10 @@
     "empty": "まだコミュニティはありません。"
   },
   "videos": {
+    "browse": "動画を探す",
+    "browseAll": "すべて",
+    "clips": "クリップ",
+    "openClips": "クリップを開く",
     "reel": "動画",
     "upload": "動画をアップロード",
     "uploadTitle": "動画のタイトル",

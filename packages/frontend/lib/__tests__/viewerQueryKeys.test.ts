@@ -77,6 +77,8 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.watchVideo(viewerId, 'post-1', 'en'),
       viewerQueryKeys.watchVideo(viewerId, 'post-1'),
       viewerQueryKeys.videoSuggestions(viewerId, 'es'),
+      viewerQueryKeys.watchCatalog(viewerId, 'en'),
+      viewerQueryKeys.watchClips(viewerId, 'en'),
       viewerQueryKeys.videoSuggestions(viewerId),
       viewerQueryKeys.feedTuning(viewerId),
       viewerQueryKeys.labelers(viewerId, 'search'),

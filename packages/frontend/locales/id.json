@@ -2783,6 +2783,10 @@
     "empty": "Belum ada komunitas."
   },
   "videos": {
+    "browse": "Jelajahi video",
+    "browseAll": "Semua",
+    "clips": "Klip",
+    "openClips": "Buka klip",
     "reel": "Video",
     "upload": "Unggah video",
     "uploadTitle": "Judul video",

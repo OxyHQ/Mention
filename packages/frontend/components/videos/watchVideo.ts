@@ -1,7 +1,12 @@
 import type { OxyServices } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/mediaUrls';
-import { isLandscapeVideo, isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
+import {
+  isLandscapeVideo,
+  isVideoMediaRef,
+  readMediaAspectRatio,
+  readMediaDurationSec,
+} from '@/utils/mediaTypes';
 
 export type WatchPost = Pick<
   HydratedPost,
@@ -33,4 +38,19 @@ export function watchVideo(
     poster: item.posterUrl || item.thumbUrl || videoPosterUrl(raw || item.url || '', assets),
     duration: readMediaDurationSec(item),
   };
+}
+
+export type VideoPreview = NonNullable<ReturnType<typeof watchVideo>>;
+
+export function portraitVideo(
+  post: WatchPost,
+  assets: Pick<OxyServices, 'assets'> | null | undefined,
+) {
+  const media = post.content.media ?? post.attachments.media ?? [];
+  const index = media.findIndex((item) => {
+    if (item.type !== 'video') return false;
+    const ratio = readMediaAspectRatio(item);
+    return ratio === undefined ? item.orientation === 'portrait' : ratio < 1;
+  });
+  return index < 0 ? null : watchVideo(post, assets, index);
 }

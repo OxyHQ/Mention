@@ -2783,6 +2783,10 @@
     "empty": "暂无社区。"
   },
   "videos": {
+    "browse": "探索视频",
+    "browseAll": "全部",
+    "clips": "短片",
+    "openClips": "打开短片",
     "reel": "视频",
     "upload": "上传视频",
     "uploadTitle": "视频标题",

@@ -2809,6 +2809,10 @@
     "empty": "Aún no hay comunidades."
   },
   "videos": {
+    "browse": "Explorar vídeos",
+    "browseAll": "Todo",
+    "clips": "Clips",
+    "openClips": "Ver clips",
     "reel": "Vídeo",
     "viewCount_many": "{{formattedCount}} de visualizaciones",
     "addThought": "Añade un comentario…",

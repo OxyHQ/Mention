@@ -65,7 +65,7 @@ it('applies dark across video routes and restores the saved theme on exit', () =
   const theme = renderTheme();
   expect(theme.appearance()).toBe('light/light');
 
-  for (const route of ['/videos', '/watch/123', '/@nate/videos', '/video-upload']) {
+  for (const route of ['/videos', '/watch', '/watch/123', '/@nate/videos', '/video-upload']) {
     mockPathname = route;
     theme.refresh();
     expect(theme.appearance()).toBe('dark/light');

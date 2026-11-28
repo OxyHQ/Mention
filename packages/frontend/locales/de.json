@@ -2783,6 +2783,10 @@
     "empty": "Noch keine Communitys."
   },
   "videos": {
+    "browse": "Videos entdecken",
+    "browseAll": "Alle",
+    "clips": "Clips",
+    "openClips": "Clips öffnen",
     "reel": "Video",
     "upload": "Video hochladen",
     "uploadTitle": "Videotitel",

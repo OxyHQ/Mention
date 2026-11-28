@@ -2783,6 +2783,10 @@
     "empty": "No communities yet."
   },
   "videos": {
+    "browse": "Explore videos",
+    "browseAll": "All",
+    "clips": "Clips",
+    "openClips": "Open clips",
     "reel": "Video",
     "addThought": "Add a thought…",
     "unavailable": "Video unavailable",

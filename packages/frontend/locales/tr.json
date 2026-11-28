@@ -2783,6 +2783,10 @@
     "empty": "Henüz topluluk yok."
   },
   "videos": {
+    "browse": "Videoları keşfet",
+    "browseAll": "Tümü",
+    "clips": "Klipler",
+    "openClips": "Klipleri aç",
     "reel": "Video",
     "upload": "Video yükle",
     "uploadTitle": "Video başlığı",

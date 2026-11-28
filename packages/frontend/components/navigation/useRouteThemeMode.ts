@@ -3,7 +3,7 @@ import { useDeckAvailable } from '@/components/deck/useDeckAvailable';
 import { isDefaultLeadingDeckPanel } from '@/components/deck/deckEntry';
 import { deckRouteForSource, useDeckSettings } from '@/components/deck/deckSettings';
 
-const VIDEO_ROUTE = /^\/(?:videos|video-upload|watch\/[^/]+|@[^/]+\/videos)\/?$/;
+const VIDEO_ROUTE = /^\/(?:videos|video-upload|watch(?:\/[^/]+)?|@[^/]+\/videos)\/?$/;
 
 export function useRouteThemeMode(): 'dark' | undefined {
   const pathname = usePathname();

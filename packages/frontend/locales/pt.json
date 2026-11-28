@@ -2809,6 +2809,10 @@
     "empty": "Ainda não há comunidades."
   },
   "videos": {
+    "browse": "Explorar vídeos",
+    "browseAll": "Tudo",
+    "clips": "Clipes",
+    "openClips": "Abrir clipes",
     "reel": "Vídeo",
     "upload": "Enviar vídeo",
     "uploadTitle": "Título do vídeo",
