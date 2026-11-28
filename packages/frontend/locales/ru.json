@@ -780,7 +780,8 @@
       "label": "Job"
     },
     "inCommunity": "в !{{handle}}",
-    "sources": "Источники"
+    "sources": "Источники",
+    "imageWithoutAlt": "Изображение"
   },
   "navigation": {
     "menu": "Меню навигации",

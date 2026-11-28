@@ -752,7 +752,8 @@
       "label": "Job"
     },
     "inCommunity": "!{{handle}} में",
-    "sources": "स्रोत"
+    "sources": "स्रोत",
+    "imageWithoutAlt": "छवि"
   },
   "navigation": {
     "menu": "नेविगेशन मेन्यू",

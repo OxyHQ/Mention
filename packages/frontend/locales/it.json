@@ -766,7 +766,8 @@
       "label": "Job"
     },
     "inCommunity": "in !{{handle}}",
-    "sources": "Fonti"
+    "sources": "Fonti",
+    "imageWithoutAlt": "Immagine"
   },
   "navigation": {
     "menu": "Menu di navigazione",

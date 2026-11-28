@@ -752,7 +752,8 @@
       "label": "Job"
     },
     "inCommunity": "!{{handle}} topluluğunda",
-    "sources": "Kaynaklar"
+    "sources": "Kaynaklar",
+    "imageWithoutAlt": "Görsel"
   },
   "navigation": {
     "menu": "Gezinme menüsü",
