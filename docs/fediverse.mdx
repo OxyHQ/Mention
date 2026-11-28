@@ -962,10 +962,9 @@ reach the backend without a zone-level redirect.
 ## NodeInfo statistics
 
 `GET /nodeinfo/2.0` follows the NodeInfo 2.0 schema (`services` and `metadata` always
-present). The standard `usage` fields carry the **combined** (local + external) totals, by the owner's
-decision, so that aggregators such as FediDB show everything Mention holds as native. This
-deliberately departs from the NodeInfo reading where `usage` is local-only; the honest split
-stays in the namespaced extension below, which says so itself (`standardFields: "combined"`).
+present). The standard `usage` fields are **local only**: accounts and public content hosted
+on this instance, which is what the schema describes. Remote actors and federated posts stay
+in the namespaced extension, which says so (`standardFields: "local"`).
 
 **Counting rules** (the unit is one stored `posts` row):
 
@@ -979,15 +978,20 @@ stays in the namespaced extension below, which says so itself (`standardFields: 
   `combined = local + external`.
 - `externalActors` = known `federated_actors` records (`uri` unique; an alias under another
   URI is another record). It is the planner estimate, flagged with its own `exact`.
-- `usage.users.total` is Oxy's registered-account total (local) **plus** `externalActors`; it is
-  omitted unless both are known. The local half is Oxy's registered-account total for this deployment (ADR 0052,
-  `applicationAccountTotal()`), read with stale-while-revalidate. Mention registers every
-  account with a `user_settings` row (created on first use, posting or not) through a
-  leader-gated job that walks the table by `oxy_user_id` in batches of 500 from a Redis
-  cursor; Oxy applies its own eligibility rules (local, personal, active, not closing).
-  Until Oxy has a snapshot the field is **omitted, not zero**; the extension's
-  `users.local` carries `exact`, `computedAt` and `stale`, and `users.external` the actor count.
-
+- `usage.users.total` is only Oxy's registered-account total for this deployment (ADR 0052,
+  `applicationAccountTotal()`), read with stale-while-revalidate. It does not include
+  `externalActors`. Mention registers every account with a `user_settings` row (created on
+  first use, posting or not) through a leader-gated job that walks the table by `oxy_user_id`
+  in batches of 500 from a Redis cursor; Oxy applies its own eligibility rules (local,
+  personal, active, not closing). Until Oxy has a snapshot the field is **omitted, not zero**.
+  `usage.users.activeMonth` and `activeHalfyear` are omitted: sign-in is not measured here,
+  and those windows are not filled with the remote-actor count. The extension's `users.local`
+  carries `exact`, `computedAt` and `stale`, and `users.external` the actor count.
+- `usage.localPosts` and `usage.localComments` are the local halves above (public, published,
+  neither a `federation_actor_uri` nor a `federation_activity_id`).
+- `software.version` is the managed deployment's `release.version` when this process has a
+  manifest, otherwise `MENTION_RELEASE_VERSION` (the image's `DEPLOY_SHA`), otherwise the
+  `@mention/backend` package version.
 
 `metadata["so.oxy.mention.statistics"]` with `posts` and `comments` each split
 `{local, external, combined}`, `externalActors`, `measuredAt`, `exact` and `scope`
@@ -1003,6 +1007,6 @@ keeps serving the last good figures; with none ever measured the counts are omit
 document is cacheable for 60 s.
 
 **Verifying production**: compare the raw endpoint with
-`select is_reply, count(*) from posts where federation_actor_uri is null and visibility='public' and status='published' group by 1`.
+`select is_reply, count(*) from posts where federation_actor_uri is null and federation_activity_id is null and visibility='public' and status='published' group by 1`.
 FediDB renders only the standard local fields and refreshes on its own crawl schedule, so
 allow for that delay before expecting its page to change.

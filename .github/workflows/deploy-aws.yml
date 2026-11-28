@@ -187,6 +187,10 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}:${{ env.DEPLOY_SHA }}
+          # Same revision as the tag and org.opencontainers.image.revision.
+          # The runtime stage publishes it as MENTION_RELEASE_VERSION.
+          build-args: |
+            MENTION_RELEASE_VERSION=${{ env.DEPLOY_SHA }}
           cache-from: type=gha,scope=mention-backend
           cache-to: type=gha,mode=max,scope=mention-backend
           provenance: true

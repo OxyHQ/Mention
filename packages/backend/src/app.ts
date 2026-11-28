@@ -1,9 +1,3 @@
-import {
-  type NodeinfoLocalUsers,
-  nodeinfoCombinedUsers,
-  nodeinfoStatisticsExtension,
-  type NodeinfoStatistics,
-} from './services/federation/nodeinfoStatistics';
 import { withGemiesSdkCsp } from '@gemies/sdk/csp';
 import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
 import { EXPECTED_VIEWER_HEADER } from '@mention/shared-types/common';
@@ -17,6 +11,13 @@ import compression from 'compression';
 import express, { type ErrorRequestHandler, type Request, type RequestHandler } from 'express';
 import type { AppRoutes } from './appRoutes';
 import { createAppAssociationRouter, wellKnownNotFound } from './routes/appAssociation.routes';
+import { resolveMentionSoftwareVersion } from './services/federation/mentionSoftwareVersion';
+import {
+  type NodeinfoLocalUsers,
+  nodeinfoStatisticsExtension,
+  nodeinfoUsage,
+  type NodeinfoStatistics,
+} from './services/federation/nodeinfoStatistics';
 
 export interface AppMiddleware {
   activity?: RequestHandler;
@@ -378,18 +379,18 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     res.setHeader('Cache-Control', stats ? 'public, max-age=1800' : 'public, max-age=60');
     res.json({
       version: '2.0',
-      software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },
+      software: {
+        name: 'mention',
+        version: resolveMentionSoftwareVersion({
+          deploymentVersion: deps.deployment?.software.version,
+          releaseVersion: process.env.MENTION_RELEASE_VERSION,
+        }),
+      },
       protocols: ['activitypub'],
       services: { inbound: [], outbound: [] },
-      // The standard fields carry the COMBINED (local + external) figures: this
-      // instance's NodeInfo is meant to show everything Mention holds as native.
-      // The honest local/external split stays in `metadata` below.
-      usage: {
-        users: nodeinfoCombinedUsers(stats, users),
-        ...(stats
-          ? { localPosts: stats.combined.posts, localComments: stats.combined.comments }
-          : {}),
-      },
+      // NodeInfo 2.0 `usage` is accounts and public content hosted here.
+      // Remote actors and federated rows stay in the namespaced extension.
+      usage: nodeinfoUsage(stats, users),
       openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
       metadata: {
         ...(deps.deployment

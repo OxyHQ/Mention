@@ -66,6 +66,13 @@ COPY --from=builder /app/packages/contracts/dist/ packages/contracts/dist/
 # no-op — see `findMigrationsFolder` in src/db/migrationLedger.ts.
 COPY --from=builder /app/packages/backend/drizzle/ packages/backend/drizzle/
 
+# NodeInfo `software.version` when this process has no deployment manifest.
+# deploy-aws.yml passes DEPLOY_SHA: the image tag and
+# org.opencontainers.image.revision already name the build by that revision.
+# Empty on a local or one-shot build; the process then reads package.json.
+ARG MENTION_RELEASE_VERSION=
+ENV MENTION_RELEASE_VERSION=${MENTION_RELEASE_VERSION}
+
 USER appuser
 EXPOSE 3000
 

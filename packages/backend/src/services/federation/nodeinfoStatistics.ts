@@ -19,6 +19,8 @@
  * - **Local users**: Oxy's per-deployment registered-account total (ADR 0052),
  *   read through `applicationAccountTotal()`; Mention registers its accounts with
  *   `applicationAccountRegistrationJob`. Omitted, never 0, while Oxy has no snapshot.
+ *   This total is the whole of standard `usage.users.total`. A `federated_actors`
+ *   row is a remote actor record (`externalActors`), never a local account.
  *
  * ## Cost
  *
@@ -108,7 +110,7 @@ export async function measureNodeinfoStatistics(now = Date.now()): Promise<Nodei
 /**
  * The namespaced `metadata` extension: local, external and combined figures in
  * one place so a consumer never has to guess which standard field is which.
- * Local users are absent by design (see the module comment).
+ * Standard `usage` is the local half; this object keeps the split.
  */
 export interface NodeinfoLocalUsers {
   total: number;
@@ -120,25 +122,35 @@ export interface NodeinfoLocalUsers {
 }
 
 /**
- * `usage.users` for the standard document: local registered accounts (Oxy) plus
- * the external actor records Mention knows, as one total. Local and external are
- * disjoint (a federated actor is never a local account), so they add. Omitted
- * unless BOTH are known: with Oxy's total missing, the sum would silently drop
- * the local half.
+ * Standard NodeInfo 2.0 `usage`: accounts and public content hosted here.
+ *
+ * `users.total` is Oxy's registered-account total alone. Remote actor records
+ * stay in the extension's `externalActors` and are not added. `localPosts` and
+ * `localComments` are the local half of the post split. `activeMonth` and
+ * `activeHalfyear` are omitted: this process does not measure sign-ins, and an
+ * unknown window is left out rather than filled with the remote-actor count.
+ * A missing users snapshot omits `users.total` even when post counts exist.
  */
-export function nodeinfoCombinedUsers(
+export function nodeinfoUsage(
   stats: NodeinfoStatistics | undefined,
   users: NodeinfoLocalUsers | undefined,
-): { total?: number } {
-  if (!stats || !users) return {};
-  return { total: users.total + stats.externalActors.count };
+): {
+  users: { total?: number };
+  localPosts?: number;
+  localComments?: number;
+} {
+  return {
+    users: users ? { total: users.total } : {},
+    ...(stats ? { localPosts: stats.local.posts, localComments: stats.local.comments } : {}),
+  };
 }
 
 export function nodeinfoStatisticsExtension(stats: NodeinfoStatistics, users?: NodeinfoLocalUsers) {
   return {
-    version: 3,
-    /** The standard `usage` fields carry the combined totals; this object holds the split. */
-    standardFields: 'combined',
+    // v4: standard `usage` is local-only. v3 reported combined totals there.
+    version: 4,
+    /** The standard `usage` fields carry the local totals; this object holds the split. */
+    standardFields: 'local' as const,
     measuredAt: new Date(stats.measuredAt).toISOString(),
     exact: true,
     posts: {
