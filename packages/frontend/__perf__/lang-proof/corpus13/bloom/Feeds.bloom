@@ -43,14 +43,14 @@ private func trendKey(_ trend: Trend) -> String { "trend:\(trend.text)" }
 /// Bloom glyph per preset id. The shared catalog carries Lucide names; the feeds
 /// screen renders with Bloom's Remix icons, so this maps the small, fixed preset
 /// set rather than pulling in a second icon library.
-private let PRESET_ICONS: [String: BloomIcon] = {
-  for_you: RiSparklingLine,
-  following: RiGroupLine,
-  trending: RiFireLine,
-  explore: RiEarthLine,
-  mutuals: RiUserCommunityLine,
-  friends_popular: RiHeartLine,
-}
+private let PRESET_ICONS: [String: BloomIcon] = [
+  "for_you": RiSparklingLine,
+  "following": RiGroupLine,
+  "trending": RiFireLine,
+  "explore": RiEarthLine,
+  "mutuals": RiUserCommunityLine,
+  "friends_popular": RiHeartLine,
+]
 
 private struct FeedItem {
   var _id: String? = none

@@ -25,29 +25,29 @@ private let ReportModal = lazy {
   import("@/components/report/ReportModal").then { m in ({ default: m.ReportModal }) }
 }
 
-private let WORKPLACE_LABELS: [String: String] = {
-  onsite: "On-site",
-  hybrid: "Hybrid",
-  remote: "Remote",
-}
+private let WORKPLACE_LABELS: [String: String] = [
+  "onsite": "On-site",
+  "hybrid": "Hybrid",
+  "remote": "Remote",
+]
 
-private let EMPLOYMENT_LABELS: [String: String] = {
-  full_time: "Full-time",
-  part_time: "Part-time",
-  contract: "Contract",
-  temporary: "Temporary",
-  internship: "Internship",
-  other: "Other",
-}
+private let EMPLOYMENT_LABELS: [String: String] = [
+  "full_time": "Full-time",
+  "part_time": "Part-time",
+  "contract": "Contract",
+  "temporary": "Temporary",
+  "internship": "Internship",
+  "other": "Other",
+]
 
 // bloom: review: `Record< MentionJobStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info' >` is a `[String: "default" | "primary" | "success" | "warning" | "error" | "info"]`: its keys are no longer checked
-private let STATUS_TONE: [String: "default" | "primary" | "success" | "warning" | "error" | "info"] = {
-  draft: "default",
-  published: "success",
-  paused: "warning",
-  closed: "error",
-  expired: "error",
-}
+private let STATUS_TONE: [String: "default" | "primary" | "success" | "warning" | "error" | "info"] = [
+  "draft": "default",
+  "published": "success",
+  "paused": "warning",
+  "closed": "error",
+  "expired": "error",
+]
 
 private func formatSalary(
   _ salary: { min: Float?, max: Float?, currency: String, interval: String }?,
@@ -191,7 +191,7 @@ public struct JobDetailScreen: Screen {
           job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : none,
         ]).compactMap { value in (value != none && !value.isEmpty) ? value : none }
         ScrollView {
-          if !isPublished {
+          if job.status != "published" {
             HStack(alignment: .center) {
               Badge(job.status).style(.subtle).color(STATUS_TONE[job.status]!).size(.sm)
             }

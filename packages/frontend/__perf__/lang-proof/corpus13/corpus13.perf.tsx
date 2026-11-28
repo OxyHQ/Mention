@@ -610,10 +610,16 @@ const BROKEN: Record<string, string> = {
       'branch-chrome-modifiers: `.testID("post-screen")` on the root Group\'s drawn branch is not the screen\'s (lang-mention-16)',
     ]),
   ),
-  'app/(app)/feeds.tsx/supervised':
-    "component-prop-wrapped-as-element: the gate's EmptyState `icon` (a component) is handed `toElement(RiLockLine)`",
-  'components/Compose/SourcesSheet.tsx/empty':
-    "component-prop-wrapped-as-element: EmptyState's `icon` (a component) is handed `toElement(RiLinkM)`",
+  ...Object.fromEntries(
+    [
+      'components/Profile/MediaGrid.tsx/emptyOwnsScroll',
+      'components/Profile/MediaGrid.tsx/cells',
+      'components/Profile/VideosGrid.tsx/cells',
+    ].map((key) => [
+      key,
+      'optional-view-prop-crosses-as-null: ProfileGridList gets `listHeaderComponent: null` (and its two kin) where the TS passed nothing (lang-mention-17)',
+    ]),
+  ),
 };
 
 const noop = () => undefined;

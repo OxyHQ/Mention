@@ -175,7 +175,13 @@ public struct FeedMarketplaceScreen: Screen {
     placeholderData: keepPreviousData,
   )
 
-  let { data: feedsData, isLoading: loading, isRefetching, isFetchingNextPage: loadingMore, hasNextPage: hasMore, refetch, fetchNextPage } = feedsQuery
+  let feedsData = feedsQuery.data
+  let loading = feedsQuery.isLoading
+  let isRefetching = feedsQuery.isRefetching
+  let loadingMore = feedsQuery.isFetchingNextPage
+  let hasMore = feedsQuery.hasNextPage
+  let refetch = feedsQuery.refetch
+  let fetchNextPage = feedsQuery.fetchNextPage
 
   let feeds = feedsData?.pages?.flatMap { pageData in pageData.items ?? [] } ?? []
 
@@ -350,7 +356,7 @@ public struct FeedMarketplaceScreen: Screen {
       if loading && feeds.count == 0 {
         ScrollView { for (i, _) in (0..<4).enumerated() { FeedCardSkeleton().id(i) } }
         .contentView { v in v.padding("horizontal", "lg").padding("top", "lg").spacing("md") }
-      } else if IS_WEB {
+      } else if Platform.OS == "web" {
         ScrollView {
           ListHeader
           Embed(
