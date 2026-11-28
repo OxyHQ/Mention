@@ -463,9 +463,14 @@ router.get('/', async (req, res, next) => {
  * served `noindex` now, and a crawler that may not fetch a page cannot see its
  * `noindex` and keeps it indexed without content. Block them once Search
  * Console shows them dropped (docs/seo.md).
+ *
+ * No `Content-Signal` line here: Cloudflare's managed robots.txt (on for
+ * mention.earth and mention.org) prepends the account's own signal
+ * (`search=yes,ai-train=no,use=reference`) with its AI-training block, and a
+ * second copy was a duplicate directive. The AI-training `Disallow`s below stay
+ * as the fallback for a deployment not behind that zone setting.
  */
 const ROBOTS_TXT = `User-agent: *
-Content-Signal: search=yes,ai-train=no,use=reference
 Allow: /
 Disallow: /search
 Disallow: /p/*/reposts

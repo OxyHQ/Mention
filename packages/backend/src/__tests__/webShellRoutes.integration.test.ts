@@ -259,7 +259,9 @@ describe('webShell routes (integration)', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/plain');
     expect(res.text).toContain('User-agent: *');
-    expect(res.text).toContain('Content-Signal: search=yes,ai-train=no,use=reference');
+    // The account's Content-Signal comes once, from Cloudflare's managed block.
+    expect(res.text).not.toContain('Content-Signal');
+    expect(res.text).toContain('User-agent: GPTBot\nDisallow: /');
     expect(res.text).toContain('Allow: /');
     expect(res.text).toContain('Sitemap: https://mention.earth/sitemap.xml');
     // Unbounded and signed-in URL spaces are not crawled.
