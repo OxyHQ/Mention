@@ -91,6 +91,13 @@ export interface IsolatedDatabaseFile {
 
 export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
   {
+    path: 'src/__tests__/scripts/pruneFederatedRetention.test.ts',
+    jobEntryPoint: 'pruneFederatedRetention',
+    reason:
+      'Walks every old public post and deletes the federated ones nothing references, and ' +
+      'drains the table-wide follow-edge expiry; it truncates its tables between tests.',
+  },
+  {
     path: 'src/__tests__/services/membershipMediaDrafts.test.ts',
     jobEntryPoint: 'expireMembershipMediaDrafts',
     reason:

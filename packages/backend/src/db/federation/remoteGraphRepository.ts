@@ -17,6 +17,9 @@
  *   deleted that edge, so the dictionary never outgrows the edges.
  * - **A known account matches either spelling of a Bluesky node.** The node is
  *   the DID; the account may be stored here under its Bridgy Fed actor URI.
+ * - **`last_seen_at` is coarse: a re-observed edge is re-stamped only once its
+ *   stamp is {@link REMOTE_EDGE_RESTAMP_INTERVAL_MS} old.** Every prune and the
+ *   expiry therefore allow for a stamp up to that much behind the last sighting.
  */
 
 import {
@@ -60,6 +63,26 @@ export interface RemoteFollowEdgeInput {
 const WRITE_BATCH = 1_000;
 
 /**
+ * How stale `last_seen_at` may be before a re-observed edge is written again.
+ *
+ * WHY. Every crawl used to rewrite `last_seen_at` on every edge it saw, and that
+ * column is indexed, so each rewrite was a non-HOT update: a new heap tuple, a
+ * new entry in all three indexes and a dead tuple for autovacuum. Production,
+ * 2026-11-28: 99.8M inserts against 58.7M updates (0 HOT), 9.55M dead tuples,
+ * and the upsert statement dirtied 371 GB in 59k calls on the shared instance.
+ * A daily re-crawl re-stamped the same edge every day to say nothing new. With
+ * the stamp kept to this resolution, a re-observed edge younger than it is left
+ * untouched (`ON CONFLICT ... DO UPDATE ... WHERE` writes no tuple when the
+ * condition is false), so an edge re-seen daily is written about once a week.
+ *
+ * THE PRICE, paid by the readers of the stamp and stated where they read it:
+ * a complete crawl prunes the edges stamped before `crawl start - interval`
+ * (an unfollow can linger that much longer), and the unknown-end expiry waits
+ * its TTL plus this interval (an edge never expires before its TTL).
+ */
+export const REMOTE_EDGE_RESTAMP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
  * SQL: the canonical node `node` is an account known here — a `federated_actors`
  * row linked to an Oxy user under the node itself or, for a DID, under its
  * Bridgy Fed actor URI. `= any(array[…])` keeps it an index probe on
@@ -93,6 +116,9 @@ async function internRefs(
   return ids;
 }
 
+/** {@link REMOTE_EDGE_RESTAMP_INTERVAL_MS} as a Postgres interval. */
+const restampInterval = sql.raw(`interval '${REMOTE_EDGE_RESTAMP_INTERVAL_MS / 1000} seconds'`);
+
 async function writeEdges(
   edges: readonly RemoteFollowEdgeInput[],
   seenAt: Date,
@@ -116,18 +142,26 @@ async function writeEdges(
       .onConflictDoUpdate({
         target: [remoteFollowEdges.sourceId, remoteFollowEdges.targetId],
         set: {
-          lastSeenAt: sql`excluded.last_seen_at`,
+          lastSeenAt: sql`greatest(excluded.last_seen_at, ${remoteFollowEdges.lastSeenAt})`,
           recordKey: sql`coalesce(excluded.record_key, ${remoteFollowEdges.recordKey})`,
         },
+        // Write only when there is something to say: the stamp has aged past the
+        // restamp interval, or a live follow named a record key this row lacks.
+        setWhere: sql`${remoteFollowEdges.lastSeenAt} < excluded.last_seen_at - ${restampInterval}
+          or (excluded.record_key is not null
+            and excluded.record_key is distinct from ${remoteFollowEdges.recordKey})`,
       });
   }
 }
 
 /**
  * Insert or re-stamp edges. A re-observed edge moves its `last_seen_at` forward
- * (which keeps it through the next prune and the expiry). A ref deleted by a
- * concurrent prune between the two steps fails the foreign key; the write is
- * then retried once, which re-adds it.
+ * only when the stored stamp is older than {@link REMOTE_EDGE_RESTAMP_INTERVAL_MS}
+ * (or the write brings a record key the row lacks); otherwise the row is left as
+ * it is and no tuple is written. Either way the edge survives the next prune and
+ * the expiry, which both allow for that interval. A ref deleted by a concurrent
+ * prune between the two steps fails the foreign key; the write is then retried
+ * once, which re-adds it.
  */
 export async function upsertRemoteFollowEdges(
   edges: readonly RemoteFollowEdgeInput[],
@@ -236,9 +270,11 @@ export async function findCrawledFollowingSources(
 }
 
 /**
- * Delete the edges on one side of a node that were not seen since `seenBefore` —
- * after a COMPLETE crawl of that side, or with "now" once the origin hid the
- * collection (which removes them all).
+ * Delete the edges on one side of a node stamped before `seenBefore`. After a
+ * COMPLETE crawl of that side the caller passes the crawl's start MINUS
+ * {@link REMOTE_EDGE_RESTAMP_INTERVAL_MS}, because an edge the crawl saw keeps a
+ * stamp up to that old; once the origin hid the collection it passes "now",
+ * which removes them all.
  */
 export async function pruneRemoteFollowEdges(
   side: { sourceUri: string } | { targetUri: string },

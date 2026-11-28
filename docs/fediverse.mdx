@@ -438,9 +438,15 @@ federated profiles. The counts stay the origin's (`remote` above).
   the edge was last seen: an edge with an end that is still not an account here
   then expires. An edge between two known accounts stays until a re-crawl stops
   seeing it.
+- **Written once a week, not once a crawl.** `last_seen_at` has a 7-day
+  resolution: a re-observed edge is re-stamped only once its stamp is a week
+  old, so a daily re-crawl no longer rewrites every edge it sees (each rewrite
+  was a non-HOT update across three indexes). The expiry waits its 30 days plus
+  that week, and a complete re-crawl prunes edges stamped more than a week
+  before it started.
 - **Unfollows.** ActivityPub sends a third party no `Undo`, so a COMPLETE re-crawl
-  of a side deletes the edges it did not see again (`last_seen_at`). A crawl cut
-  short by its cap prunes nothing.
+  of a side deletes the edges it did not see again (`last_seen_at`); with the
+  weekly stamp an unfollow can linger up to a week longer. A crawl cut short by its cap prunes nothing.
 - **Privacy.** An ActivityPub collection is listed only once a crawl found it
   visible. One the origin refuses (401/403), does not publish, or serves as a
   total with no items (Mastodon's "hide your network") is never rendered or
