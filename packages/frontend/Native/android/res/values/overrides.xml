@@ -2,7 +2,10 @@
 <!-- Written by bloom's adoption of the app, from the app config's plugins. -->
 <resources>
   <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
-  <string name="expo_runtime_version">2.2.0</string>
+  <!-- The Bloom build's own OTA runtime: the app version plus "-bloom", so an update published
+       for the Expo build (runtime "2.2.0") never lands on it, nor one for it on the Expo build.
+       __tests__/bloomBuildRuntime.test.ts keeps it in step with package.json's version. -->
+  <string name="expo_runtime_version">2.2.0-bloom</string>
   <string name="mention_widget_api_base_url" translatable="false">https://api.mention.earth</string>
   <string name="mention_widget_web_base_url" translatable="false">https://mention.earth</string>
   <color name="iconBackground">#ffffff</color>
