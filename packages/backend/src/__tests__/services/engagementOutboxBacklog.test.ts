@@ -46,8 +46,8 @@ describe('engagement outbox backlog report', () => {
         payloadPostId: postId,
         payloadRelationshipId: 'backlog-report',
         createdAt: CREATED_AT,
-      // Never due, so no other suite's dispatcher claims it.
-      availableAt: new Date('2100-01-01T00:00:00.000Z'),
+        // Never due, so no other suite's dispatcher claims it.
+        availableAt: new Date('2100-01-01T00:00:00.000Z'),
         expiresAt: new Date('2100-01-01T00:00:00.000Z'),
       });
   });
