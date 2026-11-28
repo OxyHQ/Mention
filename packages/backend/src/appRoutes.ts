@@ -27,6 +27,7 @@ import labelerRoutes from './routes/labeler.routes';
 import statisticsRoutes, { publicStatisticsRouter } from './routes/statistics.routes';
 import profileSettingsRoutes from './routes/profileSettings';
 import profileDesignRoutes from './routes/profileDesign';
+import profileByHandleRoutes from './routes/profileByHandle.routes';
 import profileConnectionsRoutes from './routes/profileConnections';
 import profileMediaRoutes from './routes/profileMedia';
 import subscriptionsRoutes from './routes/subscriptions';
@@ -148,6 +149,9 @@ export function createAppRoutes({ oxy, optionalAuth }: CreateAppRoutesDependenci
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);
   publicApi.use('/profile/design', profileDesignRoutes);
+  // A profile by handle, federated ones included: the web app asks here, never
+  // Oxy, so remote discovery starts server-side under Mention's instance policy.
+  publicApi.use('/profile/by-handle', optionalAuth, profileByHandleRoutes);
   publicApi.use('/profile/connections', profileConnectionsRoutes);
   publicApi.use('/commerce', commerceRoutes);
   // An article body is as readable as the post it belongs to, and the

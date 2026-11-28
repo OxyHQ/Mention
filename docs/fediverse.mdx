@@ -72,6 +72,18 @@ path. The search box sends every spelling of a fediverse handle as one
 (`normalizeFederatedAcct` in `@mention/shared-types`), and a miss is never kept
 as fresh.
 
+**A federated profile page never resolves the handle in the browser.** The web
+app reads a profile by handle from Mention (`GET /profile/by-handle`), never from
+Oxy's `/profiles/resolve`, which runs WebFinger / ActivityPub / atproto
+discovery. Mention's backend asks Oxy as its own workload (a service token naming
+no account: the profile is public), caches that public answer for every reader
+(fresh for a minute, kept five; a miss for ten seconds), and on every request
+applies the instance blocklist (`isBlockedDomain`, the same hosts
+`/federation/resolve` judges) and the erasure ledger. A signed-in reader's
+`relationship` is read from Oxy's `GET /users/:id` with their own session and is
+never cached. Every miss (unknown, malformed, refused, erased) is the same
+`{ profile: null }`; an Oxy outage is a 503, not "not found".
+
 **One fetch of a remote profile per sync.** Oxy has to fetch the source to
 verify it (it never trusts a document a caller hands it), and its resolve answer
 for an `actorUri` carries the document it read (`sourceDocument`, contracts
