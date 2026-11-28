@@ -48,6 +48,7 @@ import {
   type ProfileSeoFacts,
   canonicalProfilePath,
   injectHeadHtml,
+  isFederatedProfile,
   mapHashtagOg,
   mapHomepageOg,
   mapPostOg,
@@ -176,6 +177,20 @@ function requestAuthorPolicies(): AuthorPolicyReader {
  */
 function withoutIndexing(og: OgData): OgData {
   return og.robots === 'index,follow' ? { ...og, robots: 'noindex,follow' } : og;
+}
+
+/**
+ * A federated post's page: `noindex,follow`, with `rel=canonical` naming the
+ * post's page on its origin when the origin gave one (`federation.url`, the
+ * note's HTML `url`). `og:url` stays on Mention so a shared link opens here.
+ * Without an origin page the canonical stays this page: a canonical must name
+ * an HTML page that exists.
+ */
+function federatedCopy(og: OgData, originUrl: string | undefined): OgData {
+  const unindexed = withoutIndexing(og);
+  return originUrl && /^https:\/\/[^/\s]+\/\S*$/i.test(originUrl)
+    ? { ...unindexed, canonical: originUrl }
+    : unindexed;
 }
 
 /**
@@ -600,8 +615,13 @@ router.get(
     }
 
     const mapped = mapProfileOg(profile, await profileSeoFacts(profile.id));
-    // A sub-tab repeats the profile, so only the root is indexed.
-    const og = mapped && (!isProfileRoot || !policy.indexable) ? withoutIndexing(mapped) : mapped;
+    // A sub-tab repeats the profile, so only the root is indexed. A federated
+    // profile repeats its origin's page, so it is not indexed either: listing
+    // copies of other servers' accounts spent the crawl on them, not on Mention.
+    const og =
+      mapped && (!isProfileRoot || !policy.indexable || isFederatedProfile(profile))
+        ? withoutIndexing(mapped)
+        : mapped;
     // The page's first request is this very lookup; hand the app the public
     // answer so its feed and design reads start with the route, not ~one
     // round-trip later. Only reached for a profile Mention publishes.
@@ -826,6 +846,15 @@ router.get(
           ),
           404,
         );
+        return;
+      }
+      // A federated post is a copy of a post on another server: it is served,
+      // but not indexed, and it names its origin's page as the canonical one.
+      // The same boundary as the sitemaps and nodeinfo: a row is another
+      // server's when it carries an activity id or an actor URI (a local
+      // post's own content warning also lives on the federation columns).
+      if (post.federation?.activityId || post.federation?.actorUri) {
+        await serveShell(res, federatedCopy(og, post.federation.url));
         return;
       }
       await serveShell(

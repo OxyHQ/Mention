@@ -13,6 +13,11 @@ export interface SEOProps {
   description?: string;
   image?: string;
   url?: string;
+  /**
+   * The `rel=canonical` target when it is not {@link url}: the server's choice
+   * for a federated post, its page on the origin server. `og:url` stays `url`.
+   */
+  canonical?: string;
   type?: 'website' | 'article' | 'profile';
   siteName?: string;
   twitterHandle?: string;
@@ -132,6 +137,7 @@ export const SEO: React.FC<SEOProps> = ({
   description,
   image,
   url,
+  canonical,
   type = 'website',
   siteName,
   twitterHandle = defaultSEO.twitterHandle,
@@ -228,7 +234,7 @@ export const SEO: React.FC<SEOProps> = ({
       )}
 
       {/* Additional meta tags */}
-      <link rel="canonical" href={fullUrl} />
+      <link rel="canonical" href={canonical || fullUrl} />
     </ExpoHead>
   );
 };

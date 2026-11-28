@@ -14,7 +14,9 @@
  *  - `buildAllSitemaps` lists a public post and its author, and leaves out a
  *    private post and an author Oxy does not return;
  *  - a shard the catalog does not list is a 404, not a build;
- *  - a fresh catalog is not rebuilt by the job.
+ *  - a fresh catalog is not rebuilt by the job;
+ *  - only Mention's own posts are listed, never a federated copy, with their
+ *    images and an honest lastmod.
  *
  * Redis is replaced by an in-memory store: `__tests__/setup.ts` mocks the real
  * client as never ready, which would make every read a miss.
@@ -66,6 +68,7 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { federatedActors, posts, userSettings } from '../db/schema';
 import {
+  SITEMAP_BUCKET_COUNT,
   buildAllSitemaps,
   buildSitemapsIfDue,
   sitemapsAreDue,
@@ -79,7 +82,10 @@ const OPTED_OUT = scope.user('opted-out');
 const FEDERATED = scope.user('federated');
 
 function bucketOf(value: string): string {
-  return (Number.parseInt(createHash('md5').update(value).digest('hex').slice(0, 8), 16) % 64)
+  return (
+    Number.parseInt(createHash('md5').update(value).digest('hex').slice(0, 8), 16) %
+    SITEMAP_BUCKET_COUNT
+  )
     .toString(16)
     .padStart(2, '0');
 }
@@ -296,6 +302,60 @@ describe('SEO sitemaps', () => {
     } finally {
       await getDb().delete(federatedActors).where(eq(federatedActors.uri, actorUri));
     }
+  });
+
+  it("lists only Mention's own posts and profiles, never a federated copy", async () => {
+    const local = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
+    // A copy of a post on another server, by an author with no opt-out at all.
+    const copy = await seedPost(scope, {
+      oxyUserId: FEDERATED,
+      authorship: [{ oxyUserId: FEDERATED, role: 'owner', status: 'accepted' }],
+      federation: {
+        activityId: `https://origin.example/activities/${scope.name}`,
+        url: `https://origin.example/@${FEDERATED}/1`,
+      },
+    });
+
+    await buildAllSitemaps();
+
+    const app = makeApp();
+    const shard = await request(app).get(`/sitemaps/posts-${bucketOf(local.id)}-0.xml`);
+    expect(shard.text).toContain(`https://mention.earth/p/${local.id}`);
+    expect(shard.text).not.toContain(copy.id);
+    // Its author was never even resolved for a profile entry.
+    const resolved = serviceRequest.mock.calls.flatMap(
+      ([, , body]) => (body as { ids: string[] }).ids,
+    );
+    expect(resolved).not.toContain(FEDERATED);
+  });
+
+  it("states a post's images and when its page last changed, not its last counter write", async () => {
+    const createdAt = new Date('2026-09-01T10:00:00.000Z');
+    const listed = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+      createdAt,
+      content: {
+        variants: [{ source: 'author', text: 'with a picture', tag: 'en' }],
+        media: [{ id: 'sitemap-image-file', type: 'image', alt: 'A dog' }],
+      },
+    });
+    // A like bumps `updated_at`; the page itself did not change.
+    await getDb().update(posts).set({ statsLikesCount: 1 }).where(eq(posts.id, listed.id));
+
+    await buildAllSitemaps();
+
+    const app = makeApp();
+    const shard = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-0.xml`);
+    expect(shard.text).toContain(
+      `<loc>https://mention.earth/p/${listed.id}</loc><lastmod>${createdAt.toISOString()}</lastmod><image:image><image:loc>`,
+    );
+    expect(shard.text).toContain('sitemap-image-file');
+    const index = await request(app).get('/sitemap.xml');
+    expect(index.text).toMatch(/<\/loc><lastmod>[0-9T:.Z-]+<\/lastmod><\/sitemap>/);
   });
 
   it('leaves out a post behind a content warning, which its own page serves noindex', async () => {

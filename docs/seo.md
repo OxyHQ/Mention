@@ -125,6 +125,23 @@ and that a profile renders one `<h1>` and anchors to its posts
 
 ## Eligibility
 
+- Only Mention's own content is indexed. A federated post or profile (a copy of
+  a page on another server: the fediverse, Bluesky, a bridged network) is
+  served to everyone as before, but `noindex,follow` and out of the sitemaps.
+  A federated post's `rel=canonical` names its page on the origin
+  (`federation.url`, the note's HTML `url`) when the origin gave one; its
+  `og:url` stays on Mention, so a shared link still opens here. A federated
+  profile keeps its own canonical: Mention stores the origin's actor id, not its
+  HTML profile URL, and a canonical must name an HTML page. The boundary is the
+  one nodeinfo counts by: a post is another server's when it carries a
+  `federation_activity_id` or a `federation_actor_uri` (a local post's own
+  content warning also lives on the federation columns). Measured 2026-11-28:
+  271,013 profile URLs in the sitemaps, 23 of them local; 3,077 local posts
+  against 10.66M external ones.
+- Do not `Disallow` federated URLs in `robots.txt` yet: a crawler that cannot
+  fetch a page cannot see its `noindex`, and keeps it indexed without content.
+  Block them only after Search Console shows them dropped.
+
 - Profiles must resolve through Oxy's public profile endpoint and have public
   Mention profile visibility.
 - A post page asks whether Oxy serves each author's public profile through a
@@ -157,12 +174,17 @@ and that a profile renders one `<h1>` and anchors to its posts
 ## Discovery and operations
 
 `/robots.txt` advertises `/sitemap.xml`. The sitemap index links to bounded
-profile and post shards under `/sitemaps/`. Rows are assigned to one of 64 stable
-hash buckets, so a newly published post changes one shard rather than shifting
-every later offset page. A shard contains at most 40,000 URLs, safely below the
-protocol's 50,000 URL limit. Profile entries are derived from authors with
-eligible Mention posts, then resolved in bounded batches through Oxy's public
-bulk-profile gate, which excludes archived and restricted accounts.
+profile and post sitemaps under `/sitemaps/`, each with its `<lastmod>` (the
+newest of its URLs). They list only Mention's own posts and the local profiles
+and channels that wrote them, in one bucket (`SITEMAP_BUCKET_COUNT = 1`): rows
+are in id order and post ids are UUIDv7, so a new post lands on the last page
+and earlier pages stay as they were. A page holds at most 40,000 URLs, below
+the protocol's 50,000. A post's `lastmod` is when its page changed — its
+creation, or its last edit — never `updated_at`, which every like moves. A
+post's images are listed with Google's image extension (`image:image`). Profile
+entries are derived from authors of eligible local posts, then resolved in
+bounded batches through Oxy's public bulk-profile gate, which excludes archived
+and restricted accounts.
 
 Sitemaps are built in ONE pass, off the request path and off every serving task,
 by a scheduled one-shot ECS task (`packages/backend/src/scripts/buildSitemaps.ts`, launched hourly
@@ -185,8 +207,9 @@ Submit only the root sitemap in Google Search Console and monitor Page Indexing,
 ProfilePage markup, crawl failures, and sitemap URL counts. Retired numeric shard
 URLs return XML with `410 Gone`, never the HTML application shell.
 
-The production smoke test is `https://mention.earth/@aida_quilcue@x.com`: it must
-return a `200`, a self-canonical URL (`/@aida_quilcue@x.com`), and valid
-`ProfilePage` JSON-LD to both a
-normal browser user agent and Googlebot. Visible identity text comes from the
+The production smoke test is `https://mention.earth/@nate`: it must return a
+`200`, a self-canonical URL, `index,follow` and valid `ProfilePage` JSON-LD to
+both a normal browser user agent and Googlebot. A federated profile
+(`/@aida_quilcue@x.com`) returns a `200`, a self-canonical URL, `ProfilePage`
+JSON-LD and `noindex,follow`. Visible identity text comes from the
 application after it loads.

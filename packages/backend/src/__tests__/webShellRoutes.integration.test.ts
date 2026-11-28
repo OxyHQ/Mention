@@ -562,6 +562,27 @@ describe('webShell routes (integration)', () => {
       '<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@aida_quilcue@x.com">',
     );
     expect(res.text).toContain('"@type":"ProfilePage"');
+    // A copy of an account on another server: served, never indexed.
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="noindex,follow">',
+    );
+  });
+
+  it('serves a federated profile flagged by Oxy as noindex,follow', async () => {
+    stubFetch({
+      ok: true,
+      body: { data: { username: 'remote', isFederated: true, type: 'federated' } },
+    });
+
+    const res = await request(makeApp()).get('/@remote');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="noindex,follow">',
+    );
+    expect(res.text).toContain(
+      '<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@remote">',
+    );
   });
 
   it("tells search engines a local profile's public post count", async () => {
@@ -1011,6 +1032,53 @@ describe('webShell post OG sensitivity gate', () => {
     });
 
     expect((await crawl(postId)).text).not.toContain('og:image');
+  });
+
+  it("serves a federated post noindex,follow, canonical on its origin's page", async () => {
+    const origin = 'https://origin.example/@someone/110000000000000001';
+    const postId = await seedOgPost({
+      federation: { activityId: `https://origin.example/activities/${scope.name}-1`, url: origin },
+    });
+    mockHydrated(postId);
+
+    const res = await crawl(postId);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="noindex,follow">',
+    );
+    expect(res.text).toContain(`<link data-mention-seo="true" rel="canonical" href="${origin}">`);
+    // A shared link still opens on Mention.
+    expect(res.text).toContain(
+      `<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`,
+    );
+  });
+
+  it('keeps a federated post without an origin page canonical on Mention', async () => {
+    const postId = await seedOgPost({
+      federation: { activityId: `https://origin.example/activities/${scope.name}-2` },
+    });
+    mockHydrated(postId);
+
+    const res = await crawl(postId);
+
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="noindex,follow">',
+    );
+    expect(res.text).toContain(
+      `<link data-mention-seo="true" rel="canonical" href="https://mention.earth/p/${postId}">`,
+    );
+  });
+
+  it("still indexes Mention's own post", async () => {
+    const postId = await seedOgPost();
+    mockHydrated(postId);
+
+    const res = await crawl(postId);
+
+    expect(res.text).toContain(
+      '<meta data-mention-seo="true" name="robots" content="index,follow">',
+    );
   });
 
   it('emits NO og:image for a post tagged with an NSFW hashtag', async () => {

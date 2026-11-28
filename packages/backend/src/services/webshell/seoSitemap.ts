@@ -39,12 +39,21 @@ import { discoverySafeSql } from '../../mtn/feed/feedSafety';
 import { config } from '../../config';
 import { createCache } from '../../utils/cache';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { canonicalProfilePath } from './webShellRenderer';
+import { resolveMediaRef } from '../../utils/mediaResolver';
+import { canonicalProfilePath, isFederatedProfile } from './webShellRenderer';
 
 /** Safely below Google's 50,000-URL and 50 MB limits. */
 export const SITEMAP_URL_LIMIT = 40_000;
-/** Stable hash buckets keep new rows from reshuffling the whole sitemap catalog. */
-export const SITEMAP_BUCKET_COUNT = 64;
+/**
+ * One bucket. The sitemaps list only Mention's OWN content (a few thousand
+ * posts, a few dozen profiles), and 64 hash buckets spread that over 128 child
+ * sitemaps of ~50 URLs and 64 of ~1. Within a bucket rows are in id order, and
+ * post ids are UUIDv7 (time-ordered), so a new post lands on the LAST page and
+ * the earlier pages stay as they were — the stability the buckets were for.
+ */
+export const SITEMAP_BUCKET_COUNT = 1;
+/** Google reads at most 1,000 images per URL; a post has a handful. */
+const SITEMAP_IMAGES_PER_URL = 20;
 const OXY_BULK_BATCH_SIZE = 100;
 const OXY_BULK_CONCURRENCY = 2;
 /**
@@ -93,11 +102,19 @@ export type SitemapKind = 'profiles' | 'posts';
 interface SitemapUrl {
   loc: string;
   lastModified?: Date | string;
+  /** Absolute image URLs on the page (Google's image sitemap extension). */
+  images?: string[];
+}
+
+/** A child sitemap as the catalog lists it. */
+export interface SitemapCatalogShard extends SitemapShard {
+  /** The newest `lastmod` among its URLs: the index's `<lastmod>` for it. */
+  lastmod?: string;
 }
 
 export interface SitemapCatalog {
-  profiles: SitemapShard[];
-  posts: SitemapShard[];
+  profiles: SitemapCatalogShard[];
+  posts: SitemapCatalogShard[];
   /**
    * When the build that wrote this catalog finished. Absent on a catalog left
    * by the on-demand builder, which the job therefore treats as due.
@@ -193,6 +210,20 @@ function publicSeoAuthorPost(): ReturnType<typeof and> {
   );
 }
 
+/**
+ * Mention's OWN post: neither an activity id nor an actor URI, the boundary
+ * nodeinfo counts by (`posts_local_kind_idx` is partial on exactly this, with
+ * public and published, so the sitemap reads walk that index).
+ *
+ * The sitemaps list only these. A federated post or profile is a copy of a page
+ * on another server: it is served `noindex,follow` (the web shell), and listing
+ * ~5M of them (271,013 profile URLs, 23 of them local, measured 2026-11-28)
+ * spent the crawl budget on other servers' content instead of Mention's.
+ */
+function localPost(): ReturnType<typeof and> {
+  return and(isNull(posts.federationActorUri), isNull(posts.federationActivityId));
+}
+
 /** A post that may be listed: an author's post (above) that is not behind a content warning. */
 function publicSeoPost(): ReturnType<typeof and> {
   return and(
@@ -225,13 +256,31 @@ function isoDate(value: Date | string | undefined): string | undefined {
 
 export function renderUrlSet(urls: SitemapUrl[]): string {
   if (urls.length > SITEMAP_URL_LIMIT) throw new Error('Sitemap URL limit exceeded');
+  const withImages = urls.some((url) => url.images?.length);
   const entries = urls
-    .map(({ loc, lastModified }) => {
+    .map(({ loc, lastModified, images }) => {
       const lastmod = isoDate(lastModified);
-      return `<url><loc>${xmlEscape(loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`;
+      const imageTags = (images ?? [])
+        .slice(0, SITEMAP_IMAGES_PER_URL)
+        .map((image) => `<image:image><image:loc>${xmlEscape(image)}</image:loc></image:image>`)
+        .join('');
+      return `<url><loc>${xmlEscape(loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}${imageTags}</url>`;
     })
     .join('');
-  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</urlset>`;
+  const namespaces =
+    'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' +
+    (withImages ? ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"' : '');
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset ${namespaces}>${entries}</urlset>`;
+}
+
+/** The newest `lastmod` among some URLs, as the index states it for their child sitemap. */
+function newestLastmod(urls: readonly SitemapUrl[]): string | undefined {
+  let newest: string | undefined;
+  for (const url of urls) {
+    const lastmod = isoDate(url.lastModified);
+    if (lastmod && (!newest || lastmod > newest)) newest = lastmod;
+  }
+  return newest;
 }
 
 export function shardPath(kind: SitemapKind, shard: SitemapShard): string {
@@ -240,12 +289,18 @@ export function shardPath(kind: SitemapKind, shard: SitemapShard): string {
 }
 
 export function renderSitemapIndex(catalog: SitemapCatalog): string {
-  const urls = [
-    ...catalog.profiles.map((shard) => `${config.web.origin}${shardPath('profiles', shard)}`),
-    ...catalog.posts.map((shard) => `${config.web.origin}${shardPath('posts', shard)}`),
+  const entries = [
+    ...catalog.profiles.map((shard) => ({ path: shardPath('profiles', shard), shard })),
+    ...catalog.posts.map((shard) => ({ path: shardPath('posts', shard), shard })),
   ];
-  if (urls.length > 50_000) throw new Error('Sitemap index limit exceeded');
-  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((loc) => `<sitemap><loc>${xmlEscape(loc)}</loc></sitemap>`).join('')}</sitemapindex>`;
+  if (entries.length > 50_000) throw new Error('Sitemap index limit exceeded');
+  const body = entries
+    .map(({ path, shard }) => {
+      const lastmod = isoDate(shard.lastmod);
+      return `<sitemap><loc>${xmlEscape(`${config.web.origin}${path}`)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</sitemap>`;
+    })
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</sitemapindex>`;
 }
 
 function shardKey(kind: SitemapKind, shard: SitemapShard): string {
@@ -361,19 +416,23 @@ async function compressShard(urls: SitemapUrl[]): Promise<CompressedXml> {
   };
 }
 
+interface CompressedPage {
+  xml: CompressedXml;
+  lastmod?: string;
+}
+
 interface CompressedBucket {
   bucket: number;
   /** One compressed child sitemap per page of the bucket, in page order. */
-  pages: CompressedXml[];
+  pages: CompressedPage[];
 }
 
 /** Render and compress one bucket's URLs as as many pages as it needs. */
 async function compressBucket(bucket: number, urls: SitemapUrl[]): Promise<CompressedBucket> {
-  const pages: CompressedXml[] = [];
+  const pages: CompressedPage[] = [];
   for (let page = 0; page * SITEMAP_URL_LIMIT < urls.length; page += 1) {
-    pages.push(
-      await compressShard(urls.slice(page * SITEMAP_URL_LIMIT, (page + 1) * SITEMAP_URL_LIMIT)),
-    );
+    const slice = urls.slice(page * SITEMAP_URL_LIMIT, (page + 1) * SITEMAP_URL_LIMIT);
+    pages.push({ xml: await compressShard(slice), lastmod: newestLastmod(slice) });
   }
   return { bucket, pages };
 }
@@ -382,13 +441,13 @@ async function compressBucket(bucket: number, urls: SitemapUrl[]): Promise<Compr
 async function writeBuckets(
   kind: SitemapKind,
   buckets: readonly CompressedBucket[],
-): Promise<SitemapShard[]> {
-  const shards: SitemapShard[] = [];
+): Promise<SitemapCatalogShard[]> {
+  const shards: SitemapCatalogShard[] = [];
   for (const { bucket, pages } of buckets) {
-    for (const [page, value] of pages.entries()) {
+    for (const [page, { xml, lastmod }] of pages.entries()) {
       const shard = { bucket, page };
-      await sitemapCache.set(shardKey(kind, shard), value);
-      shards.push(shard);
+      await sitemapCache.set(shardKey(kind, shard), xml);
+      shards.push(lastmod ? { ...shard, lastmod } : shard);
     }
   }
   return shards;
@@ -406,16 +465,17 @@ interface ProfileRow {
  * exactly the author set the post sitemaps may list.
  */
 async function buildProfileSitemaps(): Promise<{
-  pages: SitemapShard[];
+  pages: SitemapCatalogShard[];
   listable: Set<string>;
   authors: number;
 }> {
   const bucket = stableBucket(posts.oxyUserId);
   const rows: ProfileRow[] = await getDb()
-    .select({ bucket, oxyUserId: posts.oxyUserId, lastModified: max(posts.updatedAt) })
+    // A profile page shows its newest posts, so it changed when one was published.
+    .select({ bucket, oxyUserId: posts.oxyUserId, lastModified: max(posts.createdAt) })
     .from(posts)
     .leftJoin(userSettings, eq(userSettings.oxyUserId, posts.oxyUserId))
-    .where(publicSeoAuthorPost())
+    .where(and(publicSeoAuthorPost(), localPost()))
     .groupBy(posts.oxyUserId)
     .orderBy(asc(posts.oxyUserId));
 
@@ -424,7 +484,13 @@ async function buildProfileSitemaps(): Promise<{
   if (ids.length > 0 && users.length === 0) {
     throw new Error('Oxy returned no users for a non-empty author set');
   }
-  const userById = new Map(users.filter((user) => user.username).map((user) => [user.id, user]));
+  // Defensive: a local post's author is a local account, but a federated
+  // profile is never listed whatever wrote the row.
+  const userById = new Map(
+    users
+      .filter((user) => user.username && !isFederatedProfile(user))
+      .map((user) => [user.id, user]),
+  );
 
   const urlsByBucket = new Map<number, SitemapUrl[]>();
   for (const row of rows) {
@@ -433,7 +499,10 @@ async function buildProfileSitemaps(): Promise<{
     const urls = urlsByBucket.get(row.bucket) ?? [];
     urls.push({
       loc: `${config.web.origin}${canonicalProfilePath(user)}`,
-      lastModified: user.updatedAt ?? row.lastModified ?? undefined,
+      lastModified: newestLastmod([
+        { loc: '', lastModified: user.updatedAt ?? undefined },
+        { loc: '', lastModified: row.lastModified ?? undefined },
+      ]),
     });
     urlsByBucket.set(row.bucket, urls);
   }
@@ -450,7 +519,18 @@ interface PostStreamRow {
   bucket: number;
   id: string;
   oxy_user_id: string | null;
-  updated_at: Date | string | null;
+  /** When the page's content last changed: its creation, or its last edit. */
+  modified_at: Date | string | null;
+  /** The post's image media ids, in order (withheld ones excluded). */
+  image_refs: string[] | null;
+}
+
+/** A post's image media as absolute URLs, the way its page renders them. */
+function sitemapImageUrls(refs: readonly string[] | null): string[] | undefined {
+  const urls = (refs ?? [])
+    .map((ref) => resolveMediaRef(ref).url)
+    .filter((url) => /^https?:\/\//i.test(url));
+  return urls.length ? urls : undefined;
 }
 
 /**
@@ -466,20 +546,31 @@ interface PostStreamRow {
  */
 async function buildPostSitemaps(
   listable: Set<string>,
-): Promise<{ pages: SitemapShard[]; rows: number }> {
+): Promise<{ pages: SitemapCatalogShard[]; rows: number }> {
   const bucket = stableBucket(posts.id);
   const query = getDb()
     .select({
       bucket: sql<number>`${bucket}`.as('bucket'),
       id: posts.id,
       oxyUserId: posts.oxyUserId,
-      updatedAt: posts.updatedAt,
+      // `updated_at` moves on every like and counter write (and a 2026-10-20
+      // backfill stamped most rows), so it is not when the page changed. Google
+      // ignores a sitemap's lastmod once it proves inaccurate.
+      modifiedAt:
+        sql<string>`case when ${posts.isEdited} then ${posts.updatedAt} else ${posts.createdAt} end`.as(
+          'modified_at',
+        ),
+      imageRefs: sql<
+        string[] | null
+      >`(select array_agg(pm.media_id order by pm.position) from post_media pm where pm.post_id = ${posts.id} and pm.type = 'image' and pm.withheld is null)`.as(
+        'image_refs',
+      ),
     })
     .from(posts)
     .leftJoin(userSettings, eq(userSettings.oxyUserId, posts.oxyUserId))
     // A boost's page repeats its original and is `noindex`; the original is
-    // the URL to list.
-    .where(and(publicSeoPost(), isNull(posts.repostOf)))
+    // the URL to list. A federated post is a copy and is `noindex` too.
+    .where(and(publicSeoPost(), localPost(), isNull(posts.repostOf)))
     .orderBy(asc(bucket), asc(posts.id))
     .toSQL();
 
@@ -503,9 +594,11 @@ async function buildPostSitemaps(
         currentBucket = row.bucket;
       }
       if (row.oxy_user_id && listable.has(row.oxy_user_id)) {
+        const images = sitemapImageUrls(row.image_refs);
         urls.push({
           loc: `${config.web.origin}/p/${encodeURIComponent(row.id)}`,
-          lastModified: row.updated_at ?? undefined,
+          lastModified: row.modified_at ?? undefined,
+          ...(images ? { images } : {}),
         });
       }
     }

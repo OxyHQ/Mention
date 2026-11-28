@@ -104,6 +104,14 @@ export function readServerSEO(document: Document, pathname: string) {
   };
 }
 
+/** Whether the server document was served for exactly `pathname` (its own request path). */
+export function serverDocumentPathIs(
+  server: NonNullable<ReturnType<typeof readServerSEO>>,
+  pathname: string,
+): boolean {
+  return pathKey(server.documentPath) === pathKey(pathname);
+}
+
 export function matchesServerSEOPath(
   server: ReturnType<typeof readServerSEO>,
   pathname: string,
