@@ -313,6 +313,7 @@
     "utils/jobVocabulary.ts": {"statements":[31,34],"branches":[22,24],"functions":[13,14],"lines":[28,31]},
     "utils/linkPreviewImage.ts": {"statements":[1,1],"branches":[2,2],"functions":[1,1],"lines":[1,1]},
     "utils/linkifyPattern.ts": {"statements":[13,14],"branches":[7,8],"functions":[2,2],"lines":[10,10]},
+    "utils/localFederatedHandle.ts": {"statements":[1,1],"branches":[0,0],"functions":[1,1],"lines":[1,1]},
     "utils/mediaTypes.ts": {"statements":[12,18],"branches":[18,29],"functions":[4,7],"lines":[10,15]},
     "utils/mediaUrls.ts": {"statements":[35,37],"branches":[23,24],"functions":[3,3],"lines":[33,34]},
     "utils/mentionSearch.ts": {"statements":[79,79],"branches":[59,60],"functions":[12,12],"lines":[63,63]},
@@ -355,7 +356,8 @@
     "utils/userEnrichment.ts": {"statements":[7,21],"branches":[3,10],"functions":[5,11],"lines":[7,18]},
     "utils/userPlaceholderColor.ts": {"statements":[2,2],"branches":[4,4],"functions":[1,1],"lines":[2,2]},
     "utils/video-feed-pagination.ts": {"statements":[12,12],"branches":[10,10],"functions":[1,1],"lines":[8,8]},
-    "utils/videoSource.ts": {"statements":[13,13],"branches":[8,8],"functions":[1,1],"lines":[11,11]}
+    "utils/videoSource.ts": {"statements":[13,13],"branches":[8,8],"functions":[1,1],"lines":[11,11]},
+    "utils/webUrl.ts": {"statements":[1,1],"branches":[0,0],"functions":[1,1],"lines":[1,1]}
   },
   "sizes": {
     "__fixtures__/scheduledPost.ts": [2,7,1,2],
